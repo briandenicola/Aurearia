@@ -169,7 +169,7 @@ func TestDeepIdentificationSeam_RealPythonServiceRoundTrip(t *testing.T) {
 	tokenSvc := services.NewInternalTokenService("seam-test-token-secret")
 	// toolsBaseURL is deliberately "" - see the LLM/network tradeoff note
 	// above for why this keeps the test hermetic without stubbing the seam.
-	runner := services.NewDeepIdentificationPipelineRunner(proxy, repo, settingsSvc, tokenSvc, "", services.NewLogger(200), nil)
+	runner := services.NewDeepIdentificationPipelineRunner(proxy, repo, settingsSvc, tokenSvc, "", services.NewLogger(200), nil, nil)
 
 	user := models.User{Username: "seam-test-user", Email: "seam-test-user@example.com", PasswordHash: "x"}
 	if err := db.Create(&user).Error; err != nil {

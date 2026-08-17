@@ -230,11 +230,12 @@ func main() {
 	aiJobSvc.StartWorkers(1)
 	coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger, numistaQueryBuilder)
 	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
+	deepIdentificationCatalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
 	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
 	deepIdentificationSvc.SetProviderBudgetTracker(deepProviderBudgets)
 	deepIdentificationSvc.SetInternalTokenService(internalTokenSvc)
 	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
-		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(),
+		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(), deepIdentificationCatalogRegistryRepo,
 	).WithQuickEvidence(coinLookupSvc))
 	deepIdentificationSvc.StartWorkers(context.Background())
 	deepIdentificationSvc.StartJanitor(context.Background())

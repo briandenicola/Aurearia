@@ -213,7 +213,7 @@ func TestBuildDeepProposalDocumentJSONProducesRichAllowlistedShape(t *testing.T)
 		"nomisma": {{Field: "mint", Value: "Rome", Confidence: 0.6, Citation: "http://nomisma.org/id/roma"}},
 	}
 	var coinID uint = 42
-	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims)
+	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims, nil, nil)
 
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
@@ -267,7 +267,7 @@ func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testi
 		"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.8, Citation: "https://evil.example.com/inject"}},
 	}
 	var coinID uint = 42
-	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims)
+	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims, nil, nil)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid JSON, got %v", err)
@@ -278,7 +278,7 @@ func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testi
 }
 
 func TestBuildDeepProposalDocumentJSONCreatesReportOnlyIntakeProposal(t *testing.T) {
-	out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"No structured match was available."}`), nil, nil)
+	out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"No structured match was available."}`), nil, nil, nil, nil)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid proposal JSON, got %v", err)
@@ -322,7 +322,7 @@ func TestDeepIdentificationBackwardCompatibility_PreAndPostImageHypothesisFixtur
 		providerClaims := map[string][]deepProposalClaim{
 			"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.85, Citation: "https://en.numista.com/catalogue/pieces1.html"}},
 		}
-		proposalJSON := buildDeepProposalDocumentJSON(report, &coin.ID, providerClaims)
+		proposalJSON := buildDeepProposalDocumentJSON(report, &coin.ID, providerClaims, nil, nil)
 		if proposalJSON == "" {
 			t.Fatal("expected non-empty proposal for pre-351 shape")
 		}
@@ -365,7 +365,7 @@ func TestDeepIdentificationBackwardCompatibility_PreAndPostImageHypothesisFixtur
 				"ruler": {"value":"Maximinus I","confidence":0.75,"evidence_refs":[{"provider":"image"}]}
 			}
 		}`)
-		proposalJSON := buildDeepProposalDocumentJSON(report, &coin.ID, nil)
+		proposalJSON := buildDeepProposalDocumentJSON(report, &coin.ID, nil, nil, nil)
 		if proposalJSON == "" {
 			t.Fatal("expected non-empty proposal for image-only post-351 shape")
 		}
@@ -434,7 +434,7 @@ func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing
 			"mint":{"value":"Rome","confidence":0.7}
 		}
 	}`)
-	out := buildDeepProposalDocumentJSON(report, nil, nil)
+	out := buildDeepProposalDocumentJSON(report, nil, nil, nil, nil)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid proposal JSON, got %v", err)

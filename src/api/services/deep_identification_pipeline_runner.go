@@ -26,14 +26,15 @@ import (
 // (called by deep_identification_service.go's runJob after Run returns)
 // already appends exactly one terminal event transactionally.
 type DeepIdentificationPipelineRunner struct {
-	proxy        *AgentProxy
-	repo         *repository.DeepIdentificationRepository
-	settingsSvc  *SettingsService
-	tokenSvc     *InternalTokenService
-	toolsBaseURL string
-	logger       *Logger
-	broker       *DeepIdentificationBroker
-	coinLookup   *CoinLookupService
+	proxy           *AgentProxy
+	repo            *repository.DeepIdentificationRepository
+	settingsSvc     *SettingsService
+	tokenSvc        *InternalTokenService
+	toolsBaseURL    string
+	logger          *Logger
+	broker          *DeepIdentificationBroker
+	coinLookup      *CoinLookupService
+	catalogRegistry *repository.CatalogRegistryRepository
 }
 
 func (r *DeepIdentificationPipelineRunner) WithQuickEvidence(coinLookup *CoinLookupService) *DeepIdentificationPipelineRunner {
@@ -54,15 +55,17 @@ func NewDeepIdentificationPipelineRunner(
 	toolsBaseURL string,
 	logger *Logger,
 	broker *DeepIdentificationBroker,
+	catalogRegistry *repository.CatalogRegistryRepository,
 ) *DeepIdentificationPipelineRunner {
 	return &DeepIdentificationPipelineRunner{
-		proxy:        proxy,
-		repo:         repo,
-		settingsSvc:  settingsSvc,
-		tokenSvc:     tokenSvc,
-		toolsBaseURL: toolsBaseURL,
-		logger:       logger,
-		broker:       broker,
+		proxy:           proxy,
+		repo:            repo,
+		settingsSvc:     settingsSvc,
+		tokenSvc:        tokenSvc,
+		toolsBaseURL:    toolsBaseURL,
+		logger:          logger,
+		broker:          broker,
+		catalogRegistry: catalogRegistry,
 	}
 }
 
@@ -214,9 +217,15 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 			unsettledStatus = models.DeepProviderRunSkipped
 			unsettledErrorKind = ""
 		}
+		catalogRegistry, regErr := r.loadCatalogRegistry()
+		if regErr != nil && r.logger != nil {
+			// Never log registry contents/catalog codes here — this is a
+			// lookup-availability failure, not owner data (FR-043).
+			r.logger.Error("deep-identification", "failed to load catalog registry for job %d: %v", job.ID, regErr)
+		}
 		return &DeepPipelineResult{
 			ReportJSON:   deepPipelineAugmentReportWithQuickLookupOutcome(string(translator.lastSynthesis), quickOutcome),
-			ProposalJSON: buildDeepProposalDocumentJSON(translator.lastSynthesis, job.CoinID, translator.providerClaims),
+			ProposalJSON: buildDeepProposalDocumentJSON(translator.lastSynthesis, job.CoinID, translator.providerClaims, quickEvidence, catalogRegistry),
 			Partial:      partial.PartialSuccess,
 		}, nil
 	}
@@ -512,6 +521,28 @@ func deepProgressMessage(phase string) string {
 	}
 }
 
+// loadCatalogRegistry loads the full CatalogRegistry once per job (plan.md
+// Phase 4 design note: "the registry must be loaded once per job, not once
+// per claim"), mirroring ReferenceMigrationService.MigrateLegacyReferences'
+// same load-once-then-pass-the-map pattern. A nil catalogRegistry (older
+// call sites/tests that never wired one in) or a lookup failure yields an
+// empty, non-nil map so catalogReferences building degrades to "nothing
+// emitted" rather than failing the whole run.
+func (r *DeepIdentificationPipelineRunner) loadCatalogRegistry() (map[string]*models.CatalogRegistry, error) {
+	registry := make(map[string]*models.CatalogRegistry)
+	if r.catalogRegistry == nil {
+		return registry, nil
+	}
+	entries, err := r.catalogRegistry.List()
+	if err != nil {
+		return registry, err
+	}
+	for i := range entries {
+		registry[entries[i].Catalog] = &entries[i]
+	}
+	return registry, nil
+}
+
 // loadImages reads each non-deleted artifact's bytes from disk and encodes
 // them as data URIs for the Python request (contract §2). Hint artifacts
 // are included like any other role; the Python model marks their vision-
@@ -758,17 +789,34 @@ type deepSynthesisProposedField struct {
 	} `json:"evidence_refs"`
 }
 
-func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uint, providerClaims map[string][]deepProposalClaim) string {
+// deepSynthesisImageHypothesis mirrors just the one sub-field of the
+// synthesis' `image_hypothesis` (CoinHypothesis, contract §5) that Phase 4
+// opportunistically scans for RPC-shaped text (FR-020) — it carries no
+// citation and is never converted into a Claim, so it is read directly off
+// the report rather than through providerClaims.
+type deepSynthesisImageHypothesis struct {
+	CoinType *struct {
+		Value string `json:"value"`
+	} `json:"coin_type"`
+}
+
+func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uint, providerClaims map[string][]deepProposalClaim, quickEvidence *DeepQuickEvidenceProxy, catalogRegistry map[string]*models.CatalogRegistry) string {
 	var report struct {
-		Narrative      string                                `json:"narrative"`
-		ProposedFields map[string]deepSynthesisProposedField `json:"proposed_fields"`
+		Narrative       string                                `json:"narrative"`
+		ProposedFields  map[string]deepSynthesisProposedField `json:"proposed_fields"`
+		ImageHypothesis *deepSynthesisImageHypothesis         `json:"image_hypothesis"`
 	}
 	if err := json.Unmarshal(reportJSON, &report); err != nil {
 		return ""
 	}
 
+	hypothesisCoinType := ""
+	if report.ImageHypothesis != nil && report.ImageHypothesis.CoinType != nil {
+		hypothesisCoinType = report.ImageHypothesis.CoinType.Value
+	}
+
 	if targetCoinID == nil {
-		fields := buildDeepIntakeProposalFields(report.Narrative, report.ProposedFields)
+		fields := buildDeepIntakeProposalFields(report.Narrative, report.ProposedFields, providerClaims, quickEvidence, hypothesisCoinType, catalogRegistry)
 		if len(fields) == 0 {
 			return ""
 		}
@@ -777,10 +825,6 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 			return ""
 		}
 		return string(out)
-	}
-
-	if len(report.ProposedFields) == 0 {
-		return ""
 	}
 
 	fields := make(map[string]*deepProposalFieldEntry, len(report.ProposedFields))
@@ -814,6 +858,31 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 		fields[name] = entry
 	}
 
+	// Feature 352 Phase 4 (FR-006/FR-010/FR-020): populate catalogReferences
+	// from evidence that already exists — NGC cert (direct construction,
+	// never through the parser), the top-ranked coin_type claim (RIC/etc via
+	// the shared parser), and an opportunistic RPC-shaped match. When the
+	// coin_type claim parse succeeds, the scalar "coin_type" -> ReferenceText
+	// entry's default accepted is set to false (FR-011.2) rather than left
+	// nil like every other scalar field — it is still visible and the owner
+	// may still opt into it, but the structured entry becomes the default
+	// home for the value.
+	catalogRefs, coinTypeSuperseded := buildDeepCatalogReferenceField(quickEvidence, hypothesisCoinType, providerClaims, catalogRegistry)
+	if len(catalogRefs) > 0 {
+		fields["catalogReferences"] = &deepProposalFieldEntry{
+			Proposed:    catalogRefs,
+			OwnerEdited: false,
+			OwnerValue:  nil,
+			Accepted:    nil,
+		}
+	}
+	if coinTypeSuperseded {
+		if entry, ok := fields["coin_type"]; ok {
+			superseded := false
+			entry.Accepted = &superseded
+		}
+	}
+
 	if len(fields) == 0 {
 		return ""
 	}
@@ -833,6 +902,10 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 func buildDeepIntakeProposalFields(
 	narrative string,
 	proposedFields map[string]deepSynthesisProposedField,
+	providerClaims map[string][]deepProposalClaim,
+	quickEvidence *DeepQuickEvidenceProxy,
+	hypothesisCoinType string,
+	catalogRegistry map[string]*models.CatalogRegistry,
 ) map[string]*deepProposalFieldEntry {
 	fields := make(map[string]*deepProposalFieldEntry)
 	newEntry := func(value string) *deepProposalFieldEntry {
@@ -881,6 +954,17 @@ func buildDeepIntakeProposalFields(
 	if len(notesParts) > 0 {
 		fields["notes"] = newEntry(truncateDeepProposalText(strings.Join(notesParts, "\n\n"), 5000))
 	}
+
+	// Feature 352 Phase 4 (FR-006/FR-010/FR-020): the intake ("draft") branch
+	// gets the same catalogReferences population as the saved-coin branch.
+	// There is no scalar "coin_type" entry on this branch to supersede
+	// (the draft allowlist has no coin_type mapping), so only the field
+	// itself needs adding.
+	if catalogRefs, _ := buildDeepCatalogReferenceField(quickEvidence, hypothesisCoinType, providerClaims, catalogRegistry); len(catalogRefs) > 0 {
+		fields["catalogReferences"] = &deepProposalFieldEntry{
+			Proposed: catalogRefs, OwnerEdited: false, OwnerValue: nil, Accepted: nil,
+		}
+	}
 	return fields
 }
 
@@ -890,4 +974,197 @@ func truncateDeepProposalText(value string, maxRunes int) string {
 		return value
 	}
 	return string(runes[:maxRunes])
+}
+
+// deepCatalogReferenceCoinTypeClaim pairs one deepProposalClaim (Field ==
+// "coin_type") with the provider that contributed it, so the ranked list
+// below can still report a per-element sourceProvider after sorting.
+type deepCatalogReferenceCoinTypeClaim struct {
+	provider string
+	claim    deepProposalClaim
+}
+
+// rankedDeepCoinTypeClaims collects every "coin_type" claim across every
+// provider (351 FR-013: OCRE emits multiple coin_type claims to preserve
+// ambiguity) and returns them ranked highest-confidence first. Iteration
+// order is made deterministic despite Go's randomized map order by walking
+// provider keys alphabetically before appending their claims in emitted
+// order, then applying a *stable* sort on confidence — so two runs given
+// the same providerClaims always rank identically.
+func rankedDeepCoinTypeClaims(providerClaims map[string][]deepProposalClaim) []deepCatalogReferenceCoinTypeClaim {
+	providers := make([]string, 0, len(providerClaims))
+	for provider := range providerClaims {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+
+	ranked := make([]deepCatalogReferenceCoinTypeClaim, 0, len(providerClaims))
+	for _, provider := range providers {
+		for _, claim := range providerClaims[provider] {
+			if claim.Field != "coin_type" || strings.TrimSpace(claim.Value) == "" {
+				continue
+			}
+			ranked = append(ranked, deepCatalogReferenceCoinTypeClaim{provider: provider, claim: claim})
+		}
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		return ranked[i].claim.Confidence > ranked[j].claim.Confidence
+	})
+	return ranked
+}
+
+// buildDeepCatalogReferenceField populates the catalogReferences proposal
+// field from evidence that already exists in the current job's run —
+// plan.md Phase 4:
+//
+//  1. NGC — quickEvidence.NGC.CertNumber is used to construct an NGC
+//     element directly (FR-006/FR-007); it is never routed through the
+//     shared parser and normalizeCatalogAlias is never taught to recognise
+//     "NGC" (F-6).
+//  2. RIC/coin_type — only the single top-ranked "coin_type" claim across
+//     every provider is parsed (plan.md Phase 4 Risk 2: OCRE emits multiple
+//     coin_type claims to preserve ambiguity per 351 FR-013; parsing every
+//     one of them would flood the array, so only the top-ranked one is
+//     attempted). It reports whether that parse succeeded so the caller can
+//     supersede the scalar coin_type entry's default acceptance (FR-011.2).
+//  3. RPC — an opportunistic, leading/word-boundaried match reusing the
+//     exact same shared parser (never a bespoke regex, plan.md Phase 4
+//     Risk 3) against hypothesis.coin_type, quick_evidence.label_text, and
+//     each coin_type claim in ranked order (FR-020); RPC's provider stays an
+//     untouched typed stub (FR-021), so this is read-off-existing-evidence
+//     only, never a new network call.
+//
+// The returned elements are deduplicated case-insensitively on
+// (Catalog, Volume, Number) and capped at 10 (FR-005).
+func buildDeepCatalogReferenceField(
+	quickEvidence *DeepQuickEvidenceProxy,
+	hypothesisCoinType string,
+	providerClaims map[string][]deepProposalClaim,
+	catalogRegistry map[string]*models.CatalogRegistry,
+) ([]deepProposalCatalogReference, bool) {
+	var elements []deepProposalCatalogReference
+
+	if quickEvidence != nil && quickEvidence.NGC != nil {
+		if cert := strings.TrimSpace(quickEvidence.NGC.CertNumber); cert != "" {
+			elements = append(elements, deepProposalCatalogReference{
+				Catalog:        "NGC",
+				Number:         cert,
+				URI:            quickEvidence.NGC.LookupURL,
+				SourceProvider: string(models.DeepProviderNGC),
+				Confidence:     1.0,
+				NeedsVolume:    false,
+			})
+		}
+	}
+
+	ranked := rankedDeepCoinTypeClaims(providerClaims)
+
+	coinTypeSuperseded := false
+	if len(ranked) > 0 {
+		top := ranked[0]
+		if el, ok := buildDeepCatalogReferenceElementFromText(top.claim.Value, top.provider, catalogRegistry); ok {
+			elements = append(elements, el)
+			coinTypeSuperseded = true
+		}
+	}
+
+	if rpcEl, ok := buildDeepOpportunisticRPCReference(hypothesisCoinType, quickEvidence, ranked, catalogRegistry); ok {
+		elements = append(elements, rpcEl)
+	}
+
+	elements = dedupeDeepCatalogReferences(elements)
+	if len(elements) > deepProposalCatalogReferencesMaxElements {
+		elements = elements[:deepProposalCatalogReferencesMaxElements]
+	}
+	return elements, coinTypeSuperseded
+}
+
+// buildDeepCatalogReferenceElementFromText runs the shared catalog-reference
+// parser (FR-015/FR-017) against text and, on a successful parse whose
+// catalog is registry-valid (FR-045) and whose sourceProvider value is in
+// the closed vocabulary (FR-004/FR-044), returns the structured element.
+// It never invents a catalog code and never substitutes the Volume:"0"
+// sentinel (FR-019) — both are already guaranteed by ParseCatalogReferenceText.
+func buildDeepCatalogReferenceElementFromText(text, provider string, catalogRegistry map[string]*models.CatalogRegistry) (deepProposalCatalogReference, bool) {
+	if _, allowed := deepProposalCatalogReferenceSourceProviders[provider]; !allowed {
+		return deepProposalCatalogReference{}, false
+	}
+	parsed, ok := ParseCatalogReferenceText(text, catalogRegistry)
+	if !ok {
+		return deepProposalCatalogReference{}, false
+	}
+	return deepProposalCatalogReference{
+		Catalog:        parsed.Catalog,
+		Volume:         parsed.Volume,
+		Number:         parsed.Number,
+		SourceProvider: provider,
+		Confidence:     parsed.Confidence,
+		RawText:        parsed.RawText,
+		NeedsVolume:    parsed.NeedsVolume,
+	}, true
+}
+
+// buildDeepOpportunisticRPCReference scans, in order, hypothesis.coin_type,
+// quick_evidence.label_text, and each ranked coin_type claim (FR-020) for a
+// leading, word-boundaried "RPC" catalog token, and returns the first match.
+// "Leading, word-boundaried" is enforced by ParseCatalogReferenceText itself
+// (it only ever inspects the first whitespace-delimited token), so this
+// reuses the shared parser rather than writing a second, divergent one
+// (plan.md Phase 4 Risk 3). A hypothesis/label match's sourceProvider is
+// "image" (FR-044: evidence-provenance-only, image-derived text); a claim
+// match's sourceProvider is that claim's contributing provider.
+func buildDeepOpportunisticRPCReference(
+	hypothesisCoinType string,
+	quickEvidence *DeepQuickEvidenceProxy,
+	rankedCoinTypeClaims []deepCatalogReferenceCoinTypeClaim,
+	catalogRegistry map[string]*models.CatalogRegistry,
+) (deepProposalCatalogReference, bool) {
+	tryText := func(text, provider string) (deepProposalCatalogReference, bool) {
+		if strings.TrimSpace(text) == "" {
+			return deepProposalCatalogReference{}, false
+		}
+		el, ok := buildDeepCatalogReferenceElementFromText(text, provider, catalogRegistry)
+		if !ok || !strings.EqualFold(el.Catalog, "RPC") {
+			return deepProposalCatalogReference{}, false
+		}
+		return el, true
+	}
+
+	if el, ok := tryText(hypothesisCoinType, "image"); ok {
+		return el, true
+	}
+	if quickEvidence != nil {
+		if el, ok := tryText(quickEvidence.LabelText, "image"); ok {
+			return el, true
+		}
+	}
+	for _, ranked := range rankedCoinTypeClaims {
+		if el, ok := tryText(ranked.claim.Value, ranked.provider); ok {
+			return el, true
+		}
+	}
+	return deepProposalCatalogReference{}, false
+}
+
+// dedupeDeepCatalogReferences drops elements whose (Catalog, Volume, Number)
+// triple — compared case-insensitively, matching CoinReferenceService's
+// dedupeKey convention — duplicates one already kept, preserving first-seen
+// order. It never merges or reorders survivors beyond removing duplicates.
+func dedupeDeepCatalogReferences(elements []deepProposalCatalogReference) []deepProposalCatalogReference {
+	if len(elements) == 0 {
+		return elements
+	}
+	seen := make(map[string]struct{}, len(elements))
+	out := make([]deepProposalCatalogReference, 0, len(elements))
+	for _, el := range elements {
+		key := strings.ToUpper(strings.TrimSpace(el.Catalog)) + "|" +
+			strings.ToUpper(strings.TrimSpace(el.Volume)) + "|" +
+			strings.ToUpper(strings.TrimSpace(el.Number))
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, el)
+	}
+	return out
 }

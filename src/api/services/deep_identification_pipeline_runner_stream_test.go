@@ -71,7 +71,7 @@ func newDeepRunnerOnDB(t *testing.T, db *gorm.DB, agentURL string) *DeepIdentifi
 	}
 	proxy := NewAgentProxy(agentURL, "svc-token", NewLogger(50))
 	tokenSvc := NewInternalTokenService("internal-secret")
-	return NewDeepIdentificationPipelineRunner(proxy, repo, settingsSvc, tokenSvc, "http://api:8080", NewLogger(50), nil)
+	return NewDeepIdentificationPipelineRunner(proxy, repo, settingsSvc, tokenSvc, "http://api:8080", NewLogger(50), nil, nil)
 }
 
 // pythonShapedDeepStreamFrames returns the SSE stream a real
