@@ -349,9 +349,9 @@ instruction on F5.
 
 ## Phase 15: Seam & concurrency coverage (F3, F4)
 
-- [ ] T105 [F3] Close the concurrency gap: `src/api/services/deep_identification_service_test.go:1110` proves only **exact-duplicate** submit idempotency. Add a test for **two concurrent jobs for the same coin with different image bytes** — currently unguarded, in a feature whose entire history is concurrency bugs. Decide and encode the intended semantics (distinct fingerprints ⇒ both allowed, subject to `MaxActivePerUser`; or same-coin ⇒ reuse), and assert it under `-race`
-- [ ] T106 [F4] Add a Go↔Python **seam test** that boots the real Python service and the real Go handler over HTTP and asserts one full `DeepIdentifyRequest` → SSE → `DeepSynthesis` round trip. Today both sides maintain wire fixtures by convention only — exactly the shape of the 080e598 production bug. Mark it CI-excluded/tagged if it cannot run unattended, and document how to run it in `docs/testing.md`
-- [ ] T107 [P] [F4, FR-035] Add a contract-drift test asserting the Pydantic request/response models and the Go mirror structs agree on field names and nullability for `DeepIdentifyRequest`/`DeepSynthesis`, so the five drift points fixed in T093 cannot silently reappear
+- [x] T105 [F3] Close the concurrency gap: `src/api/services/deep_identification_service_test.go:1110` proves only **exact-duplicate** submit idempotency. Add a test for **two concurrent jobs for the same coin with different image bytes** — currently unguarded, in a feature whose entire history is concurrency bugs. Decide and encode the intended semantics (distinct fingerprints ⇒ both allowed, subject to `MaxActivePerUser`; or same-coin ⇒ reuse), and assert it under `-race`
+- [x] T106 [F4] Add a Go↔Python **seam test** that boots the real Python service and the real Go handler over HTTP and asserts one full `DeepIdentifyRequest` → SSE → `DeepSynthesis` round trip. Today both sides maintain wire fixtures by convention only — exactly the shape of the 080e598 production bug. Mark it CI-excluded/tagged if it cannot run unattended, and document how to run it in `docs/testing.md`
+- [x] T107 [P] [F4, FR-035] Add a contract-drift test asserting the Pydantic request/response models and the Go mirror structs agree on field names and nullability for `DeepIdentifyRequest`/`DeepSynthesis`, so the five drift points fixed in T093 cannot silently reappear
 
 ---
 
