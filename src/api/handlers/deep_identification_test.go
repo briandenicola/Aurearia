@@ -56,6 +56,7 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	}
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.AppSetting{},
+		&models.CatalogRegistry{},
 		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
@@ -86,7 +87,8 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	coinSvc := services.NewCoinService(coinRepo, notifSvc)
 	quickCaptureRepo := repository.NewQuickCaptureRepository(db)
 	quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, uploadDir).WithCoinValidation(coinSvc)
-	proposalSvc := services.NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc)
+	coinRefSvc := services.NewCoinReferenceService(repository.NewCoinReferenceRepository(db), repository.NewCatalogRegistryRepository(db))
+	proposalSvc := services.NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc, coinRefSvc)
 
 	handler := NewDeepIdentificationHandler(svc, settingsSvc, services.NewLogger(10)).WithProposalSupport(proposalSvc)
 	router := gin.New()

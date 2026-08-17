@@ -107,6 +107,50 @@ import (
 	"testing"
 )
 
+// TestDeepProposalCollectionAllowlistIsClosedAndSeparate (Feature 352 Phase
+// 3, D-1 in decisions.md): "catalogReferences" is the one and only key in
+// deepProposalCollectionFieldAllowlist, and it MUST NOT drift into either
+// scalar allowlist (deepProposalCoinFieldAllowlist/
+// deepProposalDraftFieldAllowlist). A collection-valued key sharing a name
+// with a scalar allowlist entry would make applyToCoin's two-map dispatch
+// (see deep_identification_proposal.go's isDeepProposalScalarCoinField /
+// isDeepProposalCollectionField) ambiguous, and - worse - would let a JSON
+// array reach setCoinFieldFromProposalValue's scalar coercion instead of
+// CoinReferenceService.AppendForCoin. This guards that separation
+// mechanically rather than relying on code review alone to keep the maps
+// disjoint as new fields are added in future phases.
+func TestDeepProposalCollectionAllowlistIsClosedAndSeparate(t *testing.T) {
+	if len(deepProposalCollectionFieldAllowlist) != 1 {
+		t.Fatalf("expected exactly one collection-valued proposal field, got %d: %v", len(deepProposalCollectionFieldAllowlist), deepProposalCollectionFieldAllowlist)
+	}
+	if _, ok := deepProposalCollectionFieldAllowlist["catalogReferences"]; !ok {
+		t.Fatalf("expected the sole collection-valued proposal field to be %q, got %v", "catalogReferences", deepProposalCollectionFieldAllowlist)
+	}
+
+	for name := range deepProposalCollectionFieldAllowlist {
+		if _, inScalarCoin := deepProposalCoinFieldAllowlist[name]; inScalarCoin {
+			t.Errorf("collection field %q must not also appear in deepProposalCoinFieldAllowlist (scalar allowlist) - a JSON array must never reach setCoinFieldFromProposalValue", name)
+		}
+		if _, inScalarDraft := deepProposalDraftFieldAllowlist[name]; inScalarDraft {
+			t.Errorf("collection field %q must not also appear in deepProposalDraftFieldAllowlist (scalar allowlist) - a JSON array must never reach setCoinFieldFromProposalValue", name)
+		}
+	}
+
+	// The reverse direction: no scalar allowlist entry may leak into the
+	// collection allowlist either, keeping the three maps fully disjoint by
+	// key.
+	for name := range deepProposalCoinFieldAllowlist {
+		if _, inCollection := deepProposalCollectionFieldAllowlist[name]; inCollection {
+			t.Errorf("scalar coin field %q must not also appear in deepProposalCollectionFieldAllowlist", name)
+		}
+	}
+	for name := range deepProposalDraftFieldAllowlist {
+		if _, inCollection := deepProposalCollectionFieldAllowlist[name]; inCollection {
+			t.Errorf("scalar draft field %q must not also appear in deepProposalCollectionFieldAllowlist", name)
+		}
+	}
+}
+
 // --- Schema fixture types (Python side, read verbatim from Pydantic's own
 // model_json_schema() output - never hand-typed) ---
 

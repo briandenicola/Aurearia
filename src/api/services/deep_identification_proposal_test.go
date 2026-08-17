@@ -24,6 +24,7 @@ func newDeepProposalTestDeps(t *testing.T) (*DeepIdentificationProposalService, 
 	}
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.AppSetting{},
+		&models.CatalogRegistry{},
 		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
@@ -35,7 +36,8 @@ func newDeepProposalTestDeps(t *testing.T) (*DeepIdentificationProposalService, 
 	notifSvc := NewNotificationService(repository.NewNotificationRepository(db), repository.NewSocialRepository(db), repository.NewUserRepository(db), NewPushoverService(NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(10)), NewLogger(10))
 	coinSvc := NewCoinService(coinRepo, notifSvc)
 	quickCaptureSvc := NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()).WithCoinValidation(coinSvc)
-	proposalSvc := NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc)
+	coinRefSvc := NewCoinReferenceService(repository.NewCoinReferenceRepository(db), repository.NewCatalogRegistryRepository(db))
+	proposalSvc := NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc, coinRefSvc)
 	return proposalSvc, repo, db
 }
 

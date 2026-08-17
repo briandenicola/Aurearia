@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,17 @@ var (
 	ErrDeepProposalNoAcceptedFields = errors.New("no accepted fields to apply")
 	ErrDeepProposalSourceMissing    = errors.New("source coin no longer exists")
 	ErrDeepProposalTargetMismatch   = errors.New("apply target does not match this job's source")
+	// ErrDeepProposalInvalidCatalogReferences classifies a malformed or
+	// registry-invalid "catalogReferences" proposal value (bad JSON shape,
+	// unknown property, too many elements, or a CoinReferenceService
+	// registry-validation sentinel) as client-supplied invalid data
+	// (FR-004/FR-005/FR-045). It is wrapped around - never replaces - the
+	// underlying cause so errors.Is still matches the specific
+	// ErrReference* sentinel where callers/tests rely on that (multi-%w,
+	// Go 1.20+). A genuine internal failure surfaced through the same call
+	// path (e.g. a registry lookup repository error) is deliberately left
+	// unwrapped so it still falls through to the handler's generic 500.
+	ErrDeepProposalInvalidCatalogReferences = errors.New("catalogReferences proposal content is invalid")
 )
 
 // deepProposalCoinFieldAllowlist maps a Proposal.fields JSON key to the
@@ -66,6 +78,51 @@ var deepProposalDraftFieldAllowlist = map[string]string{
 	"era":          "Era",
 	"dateRange":    "DateRange",
 	"notes":        "Notes",
+}
+
+// deepProposalCollectionFieldAllowlist is the closed, separately-maintained
+// allowlist for collection-valued proposal fields (FR-002/FR-003). It MUST
+// NOT be merged into deepProposalCoinFieldAllowlist or
+// deepProposalDraftFieldAllowlist: those two maps assume a scalar value
+// coerced through setCoinFieldFromProposalValue/deepProposalValueToString,
+// and a JSON array must never reach that coercion (it would silently
+// stringify into a scalar column, e.g. Coin.ReferenceText). Exactly one key
+// exists today: "catalogReferences" (FR-003).
+var deepProposalCollectionFieldAllowlist = map[string]struct{}{
+	"catalogReferences": {},
+}
+
+// deepProposalCatalogReferencesMaxElements caps the catalogReferences array
+// (FR-005). A longer array is rejected at apply/edit-validation time.
+const deepProposalCatalogReferencesMaxElements = 10
+
+// deepProposalCatalogReferenceSourceProviders is the closed vocabulary a
+// catalogReferences[].sourceProvider value must belong to: every provider
+// that can contribute a claim (models.DeepProviderName), plus "image" -
+// legal only as evidence origin, never as a provider catalog entry
+// (FR-004, FR-044).
+var deepProposalCatalogReferenceSourceProviders = map[string]struct{}{
+	string(models.DeepProviderNomisma): {},
+	string(models.DeepProviderNumista): {},
+	string(models.DeepProviderNGC):     {},
+	string(models.DeepProviderOCRE):    {},
+	string(models.DeepProviderRPC):     {},
+	"image":                            {},
+}
+
+// deepProposalCatalogReference mirrors one element of the catalogReferences
+// array exactly (FR-004). It is decoded with a strict,
+// DisallowUnknownFields json.Decoder so an unrecognised property is
+// rejected rather than silently ignored.
+type deepProposalCatalogReference struct {
+	Catalog        string  `json:"catalog"`
+	Volume         string  `json:"volume"`
+	Number         string  `json:"number"`
+	URI            string  `json:"uri"`
+	SourceProvider string  `json:"sourceProvider"`
+	Confidence     float64 `json:"confidence"`
+	RawText        string  `json:"rawText"`
+	NeedsVolume    bool    `json:"needsVolume"`
 }
 
 // deepProposalClaim mirrors the `Claim` schema (contracts/deep-identification.openapi.yaml).
@@ -117,11 +174,12 @@ type DeepApplyResult struct {
 // QuickCaptureService, the same two write paths every other part of the
 // application uses (Principle IV).
 type DeepIdentificationProposalService struct {
-	repo     *repository.DeepIdentificationRepository
-	coinRepo *repository.CoinRepository
-	coinSvc  *CoinService
-	qcSvc    *QuickCaptureService
-	logger   *Logger
+	repo       *repository.DeepIdentificationRepository
+	coinRepo   *repository.CoinRepository
+	coinSvc    *CoinService
+	qcSvc      *QuickCaptureService
+	coinRefSvc *CoinReferenceService
+	logger     *Logger
 }
 
 func NewDeepIdentificationProposalService(
@@ -129,8 +187,9 @@ func NewDeepIdentificationProposalService(
 	coinRepo *repository.CoinRepository,
 	coinSvc *CoinService,
 	qcSvc *QuickCaptureService,
+	coinRefSvc *CoinReferenceService,
 ) *DeepIdentificationProposalService {
-	return &DeepIdentificationProposalService{repo: repo, coinRepo: coinRepo, coinSvc: coinSvc, qcSvc: qcSvc}
+	return &DeepIdentificationProposalService{repo: repo, coinRepo: coinRepo, coinSvc: coinSvc, qcSvc: qcSvc, coinRefSvc: coinRefSvc}
 }
 
 // WithLogger wires in observability for the service's best-effort side
@@ -191,6 +250,21 @@ func (s *DeepIdentificationProposalService) UpdateProposal(jobID, userID uint, e
 	for name := range edits {
 		if _, known := doc.Fields[name]; !known {
 			return nil, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+		}
+	}
+	// Collection-valued edits (catalogReferences) are decoded and
+	// registry-validated before anything is persisted to ProposalJSON, so an
+	// owner edit can never save a shape that would later fail at apply time
+	// (rule: PATCH validates collection elements before persistence).
+	for name, edit := range edits {
+		if !edit.OwnerValueSet {
+			continue
+		}
+		if _, isCollection := deepProposalCollectionFieldAllowlist[name]; !isCollection {
+			continue
+		}
+		if _, err := s.decodeDeepProposalCatalogReferences(edit.OwnerValue); err != nil {
+			return nil, err
 		}
 	}
 	for name, edit := range edits {
@@ -357,6 +431,17 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 	}, nil
 }
 
+// applyToCoin dispatches each accepted field name through exactly one of
+// two write surfaces, with an explicit default rejection so a name absent
+// from both allowlists can never reach either write path
+// (deepProposalCoinFieldAllowlist / deepProposalCollectionFieldAllowlist):
+// scalar fields are collected into a models.Coin patch applied through the
+// existing CoinService.UpdateCoinWithFields path exactly as before;
+// "catalogReferences" is decoded/validated and applied additively through
+// CoinReferenceService.AppendForCoin (FR-013). Both writes happen here,
+// before Apply calls repo.ApplyJob - on a reference-write failure this
+// returns an error and the job is never marked applied (plan.md Phase 3
+// risk 3).
 func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentificationJob, userID uint, doc *deepProposalDocument, fieldNames []string) (uint, error) {
 	if job.CoinID == nil {
 		return 0, ErrDeepProposalSourceMissing
@@ -370,22 +455,155 @@ func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentifi
 	}
 	updates := &models.Coin{}
 	goFields := make([]string, 0, len(fieldNames))
+	var catalogRefs []models.CoinReference
+	applyCatalogReferences := false
 	for _, name := range fieldNames {
-		goField, ok := deepProposalCoinFieldAllowlist[name]
-		if !ok {
+		switch {
+		case isDeepProposalScalarCoinField(name):
+			goField := deepProposalCoinFieldAllowlist[name]
+			value := resolveDeepProposalFieldValue(doc.Fields[name])
+			if err := setCoinFieldFromProposalValue(updates, goField, value); err != nil {
+				return 0, err
+			}
+			goFields = append(goFields, goField)
+		case isDeepProposalCollectionField(name):
+			refs, err := s.resolveDeepProposalCatalogReferences(doc.Fields[name])
+			if err != nil {
+				return 0, err
+			}
+			catalogRefs = refs
+			applyCatalogReferences = true
+		default:
 			return 0, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
 		}
-		value := resolveDeepProposalFieldValue(doc.Fields[name])
-		if err := setCoinFieldFromProposalValue(updates, goField, value); err != nil {
-			return 0, err
-		}
-		goFields = append(goFields, goField)
 	}
 	if err := s.coinSvc.UpdateCoinWithFields(existing, updates, goFields, userID, "deep_identification", false); err != nil {
 		return 0, err
 	}
+	if applyCatalogReferences {
+		if _, err := s.coinRefSvc.AppendForCoin(existing.ID, userID, catalogRefs); err != nil {
+			return 0, err
+		}
+	}
 	s.recordDeepProposalJournalEntry(existing.ID, userID, fieldNames)
 	return existing.ID, nil
+}
+
+// isDeepProposalScalarCoinField reports whether name is a key in
+// deepProposalCoinFieldAllowlist (the scalar, models.Coin-field write
+// surface). Kept as a named predicate so applyToCoin's dispatch reads as an
+// explicit two-allowlist switch (FR-002/FR-003), not an implicit map probe.
+func isDeepProposalScalarCoinField(name string) bool {
+	_, ok := deepProposalCoinFieldAllowlist[name]
+	return ok
+}
+
+// isDeepProposalCollectionField reports whether name is a key in
+// deepProposalCollectionFieldAllowlist (today, only "catalogReferences").
+func isDeepProposalCollectionField(name string) bool {
+	_, ok := deepProposalCollectionFieldAllowlist[name]
+	return ok
+}
+
+// resolveDeepProposalCatalogReferences decodes and validates the effective
+// value (owner-edited or AI-proposed, per resolveDeepProposalFieldValue) of
+// a catalogReferences field entry.
+func (s *DeepIdentificationProposalService) resolveDeepProposalCatalogReferences(entry *deepProposalFieldEntry) ([]models.CoinReference, error) {
+	return s.decodeDeepProposalCatalogReferences(resolveDeepProposalFieldValue(entry))
+}
+
+// decodeDeepProposalCatalogReferences turns a proposal field's `any` value
+// (already generically json.Unmarshal'd as part of the whole proposal
+// document, so any unknown-field strictness on the wire has already been
+// lost) back into JSON bytes and re-decodes it through a strict,
+// DisallowUnknownFields decoder into []deepProposalCatalogReference - the
+// only way to enforce FR-004's closed per-element property set without a
+// second, divergent parser. It never stringifies the array (plan.md Phase 3
+// risk 1): the value is only ever handled as typed structs or
+// models.CoinReference rows, never passed through
+// deepProposalValueToString. Each surviving element is then registry-
+// validated one at a time through CoinReferenceService.NormalizeAndValidateOne
+// (FR-045, catalog/volume rules) before being handed back for
+// CoinReferenceService.AppendForCoin to append (FR-013).
+func (s *DeepIdentificationProposalService) decodeDeepProposalCatalogReferences(value any) ([]models.CoinReference, error) {
+	if value == nil {
+		return nil, nil
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("%w: catalogReferences: %w", ErrDeepProposalInvalidCatalogReferences, err)
+	}
+	var dtos []deepProposalCatalogReference
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&dtos); err != nil {
+		return nil, fmt.Errorf("%w: catalogReferences: %w", ErrDeepProposalInvalidCatalogReferences, err)
+	}
+	if dec.More() {
+		return nil, fmt.Errorf("%w: catalogReferences: unexpected trailing data", ErrDeepProposalInvalidCatalogReferences)
+	}
+	if len(dtos) > deepProposalCatalogReferencesMaxElements {
+		return nil, fmt.Errorf("%w: catalogReferences: at most %d elements allowed, got %d", ErrDeepProposalInvalidCatalogReferences, deepProposalCatalogReferencesMaxElements, len(dtos))
+	}
+	refs := make([]models.CoinReference, 0, len(dtos))
+	for i, dto := range dtos {
+		if err := validateDeepProposalCatalogReferenceDTO(dto); err != nil {
+			return nil, fmt.Errorf("%w: catalogReferences[%d]: %w", ErrDeepProposalInvalidCatalogReferences, i, err)
+		}
+		ref, err := s.coinRefSvc.NormalizeAndValidateOne(models.CoinReference{
+			Catalog: dto.Catalog,
+			Volume:  dto.Volume,
+			Number:  dto.Number,
+			URI:     dto.URI,
+		})
+		if err != nil {
+			if isDeepProposalCatalogReferenceValidationError(err) {
+				return nil, fmt.Errorf("%w: catalogReferences[%d]: %w", ErrDeepProposalInvalidCatalogReferences, i, err)
+			}
+			// Not a registry-validation sentinel - treat as an opaque
+			// internal failure (e.g. a registry lookup repository error)
+			// and let it fall through to the handler's generic 500,
+			// exactly as before this revision.
+			return nil, fmt.Errorf("catalogReferences[%d]: %w", i, err)
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
+// isDeepProposalCatalogReferenceValidationError reports whether err
+// originates from one of CoinReferenceService's registry-validation
+// sentinels (client-supplied catalog/volume/number data is invalid), as
+// opposed to an underlying repository/infrastructure failure surfaced
+// through the same NormalizeAndValidateOne call (e.g. a registry lookup DB
+// error), which must remain an unclassified internal error rather than be
+// reported to the client as their fault.
+func isDeepProposalCatalogReferenceValidationError(err error) bool {
+	return errors.Is(err, ErrReferenceCatalogRequired) ||
+		errors.Is(err, ErrReferenceNumberRequired) ||
+		errors.Is(err, ErrReferenceVolumeRequired) ||
+		errors.Is(err, ErrReferenceUnknownCatalog) ||
+		errors.Is(err, ErrReferenceDuplicate)
+}
+
+// validateDeepProposalCatalogReferenceDTO checks the properties of a
+// decoded catalogReferences element that CoinReferenceService.
+// NormalizeAndValidateOne has no opinion on: the sourceProvider vocabulary
+// and the confidence range (FR-004). Catalog/number-required and
+// volume-required-per-catalog rules are left to NormalizeAndValidateOne so
+// there is exactly one place that enforces them.
+func validateDeepProposalCatalogReferenceDTO(dto deepProposalCatalogReference) error {
+	provider := strings.TrimSpace(dto.SourceProvider)
+	if provider == "" {
+		return fmt.Errorf("sourceProvider is required")
+	}
+	if _, ok := deepProposalCatalogReferenceSourceProviders[provider]; !ok {
+		return fmt.Errorf("sourceProvider %q is not recognised", provider)
+	}
+	if dto.Confidence < 0 || dto.Confidence > 1 {
+		return fmt.Errorf("confidence %v must be between 0 and 1", dto.Confidence)
+	}
+	return nil
 }
 
 // recordDeepProposalJournalEntry writes the "Deep Analysis applied" journal

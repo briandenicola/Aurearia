@@ -782,6 +782,8 @@ func (h *DeepIdentificationHandler) respondDeepProposalError(c *gin.Context, err
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, services.ErrDeepProposalNoAcceptedFields):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No accepted fields to apply"})
+	case errors.Is(err, services.ErrDeepProposalInvalidCatalogReferences):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "invalid_catalog_references"})
 	case repository.IsRecordNotFound(err):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 	default:

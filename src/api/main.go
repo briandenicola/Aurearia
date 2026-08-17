@@ -473,7 +473,7 @@ func main() {
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 		protected.GET("/ai-status", analysisHandler.AIStatus)
 
-		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc).WithLogger(logger)
+		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc, coinReferenceSvc).WithLogger(logger)
 		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger).WithProposalSupport(deepIdentificationProposalSvc)
 		protected.GET("/deep-identification/capability", deepIdentificationHandler.Capability)
 		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
