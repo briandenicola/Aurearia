@@ -209,11 +209,12 @@ func main() {
 	aiJobRepo := repository.NewAIJobRepository(database.DB)
 	aiJobSvc := services.NewAIJobService(aiJobRepo, agentProxy, userRepoForVal, settingsSvc, notifSvc, logger)
 	aiJobSvc.StartWorkers(1)
+	coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger, numistaQueryBuilder)
 	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
 	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
 	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
 		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(),
-	))
+	).WithQuickEvidence(coinLookupSvc))
 	deepIdentificationSvc.StartWorkers(context.Background())
 	deepIdentificationSvc.StartJanitor(context.Background())
 	healthRepo := repository.NewHealthRepository(database.DB)
@@ -290,7 +291,6 @@ func main() {
 			WithCoinValidation(coinSvc).
 			WithReferenceValidation(coinReferenceSvc)
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, logger)
-		coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger, numistaQueryBuilder)
 		coinLookupHandler := handlers.NewCoinLookupHandler(coinLookupSvc, logger)
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)

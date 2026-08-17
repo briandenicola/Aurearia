@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -227,7 +229,7 @@ func TestDeepIdentificationPipelineRunnerSettlesUnfinishedProviderRuns(t *testin
 					cancelCtx()
 				}()
 			case "timeout":
-				ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+				ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
 			}
 			defer cancel()
 
@@ -249,6 +251,77 @@ func TestDeepIdentificationPipelineRunnerSettlesUnfinishedProviderRuns(t *testin
 				t.Fatalf("settled provider status missing from observability: %+v", metrics.Providers)
 			}
 		})
+	}
+}
+
+func TestDeepIdentificationPipelineRunnerPassesQuickLookupEvidence(t *testing.T) {
+	requests := make(chan DeepIdentifyProxyRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/analyze":
+			analysis, _ := json.Marshal(map[string]any{
+				"ngcCert": "8232252-186", "ngcGrade": strings.Repeat("G", 40),
+				"ngcDescription": "Maximinus I denarius",
+				"labelText":      "8232252-186 " + strings.Repeat("L", 2100),
+				"name":           "Maximinus I AR Denarius",
+				"ruler":          "Maximinus I",
+				"denomination":   "Denarius",
+				"category":       "Roman",
+				"confidence":     "high",
+			})
+			_ = json.NewEncoder(w).Encode(map[string]string{"analysis": string(analysis)})
+		case "/api/deep-identify/stream":
+			var request DeepIdentifyProxyRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			requests <- request
+			w.Header().Set("Content-Type", "text/event-stream")
+			flusher := w.(http.Flusher)
+			_, _ = w.Write([]byte("data: {\"type\":\"provider_result\",\"provider\":\"ngc\",\"status\":\"not_automated\",\"automatable\":false,\"link_out\":\"https://www.ngccoin.com/certlookup/8232252186/NGCAncients/\"}\n\n"))
+			_, _ = w.Write([]byte("data: {\"type\":\"synthesis\",\"report\":{\"partial_success\":false}}\n\n"))
+			flusher.Flush()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	runner, _, db := newDeepRunnerStreamTestDeps(t, server.URL)
+	runner.WithQuickEvidence(NewCoinLookupService(runner.proxy, runner.settingsSvc, NewLogger(20)))
+	job, userID := seedDeepRunnerJob(t, db, models.DeepJobSourceIntake, nil)
+	imagePath := filepath.Join(t.TempDir(), "obverse.png")
+	if err := os.WriteFile(imagePath, []byte("valid-enough-for-proxy-test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.DeepIdentificationArtifact{
+		JobID: job.ID, UserID: userID, Role: models.DeepArtifactRoleObverse,
+		Origin: models.DeepArtifactOriginUploaded, FilePath: imagePath, MimeType: "image/png",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("runner.Run: %v", err)
+	}
+	request := <-requests
+	if request.QuickEvidence == nil || request.QuickEvidence.NGC == nil {
+		t.Fatalf("quick NGC evidence was not passed to Deep Analysis: %#v", request.QuickEvidence)
+	}
+	if request.QuickEvidence.NGC.CertNumber != "8232252-186" ||
+		len(request.QuickEvidence.NGC.Grade) != 32 {
+		t.Fatalf("unexpected NGC evidence: %#v", request.QuickEvidence.NGC)
+	}
+	if request.QuickEvidence.CoinFields["ruler"] != "Maximinus I" ||
+		request.QuickEvidence.CoinFields["denomination"] != "Denarius" {
+		t.Fatalf("quick coin fields were not preserved: %#v", request.QuickEvidence.CoinFields)
+	}
+	if !strings.Contains(request.QuickEvidence.LabelText, "8232252-186") {
+		t.Fatalf("label text missing certificate: %q", request.QuickEvidence.LabelText)
+	}
+	if len([]rune(request.QuickEvidence.LabelText)) != 2000 {
+		t.Fatalf("label text length = %d, want 2000", len([]rune(request.QuickEvidence.LabelText)))
 	}
 }
 

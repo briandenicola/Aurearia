@@ -645,6 +645,7 @@ function formatStatusCounts(counts: Record<string, number>) {
 
 function formatOCREOutcome(status?: string | null) {
   if (!status) return 'No recent outcome'
+  if (status === 'not_automated') return 'Manual Verification'
   return status
     .split('_')
     .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
