@@ -121,6 +121,7 @@ type DeepIdentificationProposalService struct {
 	coinRepo *repository.CoinRepository
 	coinSvc  *CoinService
 	qcSvc    *QuickCaptureService
+	logger   *Logger
 }
 
 func NewDeepIdentificationProposalService(
@@ -130,6 +131,15 @@ func NewDeepIdentificationProposalService(
 	qcSvc *QuickCaptureService,
 ) *DeepIdentificationProposalService {
 	return &DeepIdentificationProposalService{repo: repo, coinRepo: coinRepo, coinSvc: coinSvc, qcSvc: qcSvc}
+}
+
+// WithLogger wires in observability for the service's best-effort side
+// writes (currently: the post-apply journal entry). Optional - every log
+// call is nil-guarded, matching the rest of the deep-identification package
+// (deep_identification_service.go, deep_identification_pipeline_runner.go).
+func (s *DeepIdentificationProposalService) WithLogger(logger *Logger) *DeepIdentificationProposalService {
+	s.logger = logger
+	return s
 }
 
 func parseDeepProposalDocument(raw string) (*deepProposalDocument, error) {
@@ -249,12 +259,36 @@ func selectDeepAppliedFieldNames(doc *deepProposalDocument, fieldsFilter []strin
 // Apply confirms the proposal through an existing Go-owned write path
 // (T111, FR-031/FR-033): "draft" seeds a new QuickCaptureDraft via
 // QuickCaptureService (existing promote flow finishes the job); "coin"
-// patches the saved coin via CoinService.UpdateCoinWithFields with journal
-// source "deep_identification"; "wishlist" (T072, FR-027) creates a new
+// patches the saved coin via CoinService.UpdateCoinWithFields (the
+// "deep_identification" string passed as source only affects the
+// CurrentValue-change journal branch inside CoinService, which this field
+// allowlist never reaches); "wishlist" (T072, FR-027) creates a new
 // models.Coin with IsWishlist=true via CoinService.CreateCoin, populated
 // through the same deepProposalCoinFieldAllowlist as "coin". No direct
 // coin/draft write exists in this function or anywhere else in the
 // deep-identification package.
+//
+// Both the "coin" and "wishlist" targets additionally record a
+// CoinJournal entry (via CoinRepository.CreateJournalEntry, the same
+// write path used by ai_job_service.go and valuation_service.go) noting
+// that a deep-analysis proposal was applied and which fields changed.
+// "draft" cannot carry this record: a QuickCaptureDraft has no CoinID
+// until it is promoted (models.CoinJournal.CoinID is non-nullable), so
+// there is no coin row to attach a journal entry to at apply time. That
+// would have to happen later, at promotion - a separate, shared code path
+// used by every draft regardless of origin, not something this Apply
+// function can add in isolation.
+//
+// The journal write is deliberately best-effort (logged, never returned
+// as an error): Apply is not itself transactional across CreateCoin/
+// UpdateCoinWithFields -> journal -> ApplyJob, so a hard error from the
+// journal write would leave the coin/wishlist row created or updated but
+// ApplyJob never called - the job stays un-applied and a client retry
+// would call applyToWishlist/applyToCoin again, creating a *second*
+// wishlist coin (or re-running an idempotent-in-place coin update). A
+// missing journal line is cosmetic; a duplicate wishlist coin is data
+// corruption the owner has to clean up by hand. Do not turn this back
+// into a hard error without first making the whole apply transactional.
 func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target string, fieldsFilter []string) (*DeepApplyResult, error) {
 	job, doc, err := s.loadTerminalJobWithProposal(jobID, userID)
 	if err != nil {
@@ -350,7 +384,41 @@ func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentifi
 	if err := s.coinSvc.UpdateCoinWithFields(existing, updates, goFields, userID, "deep_identification", false); err != nil {
 		return 0, err
 	}
+	s.recordDeepProposalJournalEntry(existing.ID, userID, fieldNames)
 	return existing.ID, nil
+}
+
+// recordDeepProposalJournalEntry writes the "Deep Analysis applied" journal
+// entry for a coin/wishlist target. It is intentionally best-effort: Apply
+// is not transactional across the coin write -> journal -> ApplyJob(CAS)
+// sequence, so a hard error here would leave a coin already created/updated
+// while ApplyJob never runs, letting a client retry re-run applyToWishlist/
+// applyToCoin and create a duplicate wishlist coin. A lost journal line is
+// cosmetic; a duplicate coin is data corruption. Failures are logged (field
+// names only - never proposed values, per FR-040 discipline) and swallowed,
+// matching the existing best-effort journal precedent in
+// reference_migration_service.go (journalSuccess/journalSkip/journalFail/
+// journalManualReview all ignore CreateEntry's error).
+func (s *DeepIdentificationProposalService) recordDeepProposalJournalEntry(coinID, userID uint, fieldNames []string) {
+	if err := s.coinRepo.CreateJournalEntry(&models.CoinJournal{
+		CoinID: coinID,
+		UserID: userID,
+		Entry:  deepProposalJournalEntryText(fieldNames),
+	}); err != nil && s.logger != nil {
+		s.logger.Error("deep-identification", "failed to record deep-analysis journal entry for coin %d fields=%s: %v", coinID, strings.Join(fieldNames, ","), err)
+	}
+}
+
+// deepProposalJournalEntryText builds the terse, house-style journal
+// entry recorded when a deep-identification proposal is applied to a
+// coin (matches the "AI Value Estimate: ..." style in ai_job_service.go
+// and valuation_service.go). It names only the fields that changed -
+// never their proposed values - so the permanent user-facing record
+// stays factual without echoing hypothesis/narrative content (FR-040
+// keeps that restriction to application logs, but the same discipline
+// applies here by convention).
+func deepProposalJournalEntryText(fieldNames []string) string {
+	return fmt.Sprintf("Deep Analysis applied: %s updated", strings.Join(fieldNames, ", "))
 }
 
 // deepProposalWishlistFallbackName is used as the new coin's Name (models.Coin.Name
@@ -384,7 +452,9 @@ func deepWishlistCoinName(doc *deepProposalDocument) string {
 // CoinService.CreateCoin, populated only through the existing, unwidened
 // deepProposalCoinFieldAllowlist - the identical field surface "coin"
 // already uses. isWishlist is never read from proposed_fields (FR-028); it
-// is set directly here from the caller's chosen destination.
+// is set directly here from the caller's chosen destination. Like
+// applyToCoin, it also records a CoinJournal entry on the newly created
+// coin noting the deep-analysis fields that seeded it.
 func (s *DeepIdentificationProposalService) applyToWishlist(userID uint, doc *deepProposalDocument, fieldNames []string) (uint, error) {
 	coin := &models.Coin{UserID: userID, IsWishlist: true}
 	for _, name := range fieldNames {
@@ -401,6 +471,7 @@ func (s *DeepIdentificationProposalService) applyToWishlist(userID uint, doc *de
 	if err := s.coinSvc.CreateCoin(coin); err != nil {
 		return 0, err
 	}
+	s.recordDeepProposalJournalEntry(coin.ID, userID, fieldNames)
 	return coin.ID, nil
 }
 

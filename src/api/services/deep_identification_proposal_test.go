@@ -217,6 +217,90 @@ func TestDeepIdentificationProposal_ApplyRoutesThroughCoinServiceOnly(t *testing
 	if snapshotCountAfter <= snapshotCountBefore {
 		t.Fatal("expected CoinService.UpdateCoinWithFields' RecordValueSnapshot side effect to have run, proving the write passed through CoinService and not a direct SQL write")
 	}
+
+	var journal models.CoinJournal
+	if err := db.Where("coin_id = ?", coin.ID).First(&journal).Error; err != nil {
+		t.Fatalf("expected a journal entry recording the deep-analysis apply, got: %v", err)
+	}
+	if journal.UserID != userID {
+		t.Fatalf("expected journal entry owner-scoped to %d, got %d", userID, journal.UserID)
+	}
+	if !strings.Contains(journal.Entry, "Deep Analysis") || !strings.Contains(journal.Entry, "denomination") || !strings.Contains(journal.Entry, "mint") {
+		t.Fatalf("expected journal entry to name the applied fields, got %q", journal.Entry)
+	}
+}
+
+// Proves the journal write is genuinely best-effort (per the Apply() doc
+// comment): if CreateJournalEntry fails, Apply must still succeed end to
+// end - the coin update must land and the job must be marked applied -
+// rather than leaving a half-applied job that a client retry would turn
+// into a duplicate write. The failure is forced by dropping the real
+// coin_journals table so CreateJournalEntry hits a genuine SQL error (no
+// mock/fake repository - the same CoinRepository is used throughout), and
+// is also asserted to have been logged (via the injected *Logger's ring
+// buffer) so the failure stays observable instead of being silently eaten.
+func TestDeepIdentificationProposal_ApplySucceedsWhenJournalWriteFails(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	logger := NewLogger(20)
+	svc.WithLogger(logger)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{UserID: userID, Name: "Test Coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"denomination": "Denarius",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"denomination": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+
+	if err := db.Migrator().DropTable(&models.CoinJournal{}); err != nil {
+		t.Fatalf("drop coin_journals table to force a journal write failure: %v", err)
+	}
+
+	result, err := svc.Apply(jobID, userID, "coin", nil)
+	if err != nil {
+		t.Fatalf("expected apply to succeed despite journal write failure, got: %v", err)
+	}
+	if result.CoinID == nil || *result.CoinID != coin.ID {
+		t.Fatalf("expected coinId %d, got %v", coin.ID, result.CoinID)
+	}
+
+	var updated models.Coin
+	if err := db.First(&updated, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if updated.Denomination != "Denarius" {
+		t.Fatalf("expected coin update to land despite journal failure, got denomination=%q", updated.Denomination)
+	}
+
+	var job models.DeepIdentificationJob
+	if err := db.First(&job, jobID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if job.AppliedAt == nil {
+		t.Fatal("expected job to be marked applied despite journal write failure - otherwise a retry would create a duplicate write")
+	}
+
+	// A second apply must be rejected as already-applied, not retried into
+	// a duplicate update - proving the job genuinely finished, not stalled.
+	if _, err := svc.Apply(jobID, userID, "coin", nil); !errors.Is(err, ErrDeepProposalAlreadyApplied) {
+		t.Fatalf("expected ErrDeepProposalAlreadyApplied on retry, got %v", err)
+	}
+
+	foundLog := false
+	for _, entry := range logger.GetLogs(50) {
+		if strings.Contains(entry.Message, "failed to record deep-analysis journal entry") {
+			foundLog = true
+			break
+		}
+	}
+	if !foundLog {
+		t.Fatal("expected the swallowed journal-write failure to be logged for observability")
+	}
 }
 
 // T075: wishlist apply lands an owner-scoped models.Coin with
@@ -270,6 +354,17 @@ func TestDeepIdentificationProposal_WishlistApplyCreatesWishlistCoin(t *testing.
 	}
 	if coin.References != nil {
 		t.Fatal("expected wishlist coin to have no references (CoinService nils References for IsWishlist)")
+	}
+
+	var journal models.CoinJournal
+	if err := db.Where("coin_id = ?", coin.ID).First(&journal).Error; err != nil {
+		t.Fatalf("expected a journal entry recording the deep-analysis apply, got: %v", err)
+	}
+	if journal.UserID != userID {
+		t.Fatalf("expected journal entry owner-scoped to %d, got %d", userID, journal.UserID)
+	}
+	if !strings.Contains(journal.Entry, "Deep Analysis") || !strings.Contains(journal.Entry, "denomination") || !strings.Contains(journal.Entry, "mint") {
+		t.Fatalf("expected journal entry to name the applied fields, got %q", journal.Entry)
 	}
 
 	// Idempotency: a second apply against the same job is rejected -
