@@ -8,12 +8,24 @@ produce a `DisagreementEntry` with `resolution: "unresolved"` listing both
 claims. The optional LLM call is used only to produce a short human-facing
 rationale/question for the synthesizer — it can never remove or "resolve"
 an already-detected disagreement.
+
+T051-T053/FR-016-FR-018 (Phase 7): the vision `CoinHypothesis` is folded in
+as a first-class claim source under `source="image"` alongside provider
+claims — never as a `ProviderName` (FR-025 stays enforced; `image` only ever
+appears as an `EvidenceRef.provider`). A provider-vs-image conflict is
+surfaced exactly like a provider-vs-provider one: `resolution: "unresolved"`,
+both refs kept, resolved by precedence in neither direction. `detect_disagreements`
+takes no `model` argument at all, which is itself the proof that detection
+is LLM-free — the LLM in `_summarize` only rephrases the human-facing
+question for an already-fixed disagreement list.
 """
 
 import logging
 
 from app.llm.content import extract_text_content
+from app.models.hypothesis import CoinHypothesis
 from app.models.responses import DisagreementEntry, EvidenceRef, ProviderEvidence
+from app.teams.deep_identification.merge import IMAGE_SOURCE, rank_for_source
 
 logger = logging.getLogger(__name__)
 
@@ -34,27 +46,58 @@ class EvaluationResult:
         self.unresolved_questions = unresolved_questions
 
 
-def _group_claims_by_field(evidence: list[ProviderEvidence]) -> dict[str, list[tuple[str, int, str]]]:
-    grouped: dict[str, list[tuple[str, int, str]]] = {}
+def _group_claims_by_field(
+    evidence: list[ProviderEvidence], hypothesis: CoinHypothesis | None = None
+) -> dict[str, list[tuple[str, int | None, str]]]:
+    """Flatten every provider claim, plus (T051/FR-016) every populated
+    hypothesis field, into `(source, claim_index, value)` tuples grouped by
+    field. `source` is the provider name for a provider claim or the literal
+    `"image"` (never a `ProviderName`, per FR-025) for a hypothesis field;
+    an image entry carries no `claim_index` since it isn't a list index into
+    any provider's `claims` (mirrors `EvidenceRef.claim_index` being
+    optional for exactly this case, T052).
+    """
+    grouped: dict[str, list[tuple[str, int | None, str]]] = {}
     for row in evidence:
         for idx, claim in enumerate(row.claims):
             grouped.setdefault(claim.field, []).append((row.provider, idx, claim.value))
+    if hypothesis is not None:
+        for field, hyp_field in hypothesis.fields().items():
+            grouped.setdefault(field, []).append((IMAGE_SOURCE, None, hyp_field.value))
     return grouped
 
 
-def detect_disagreements(evidence: list[ProviderEvidence]) -> tuple[list[DisagreementEntry], int]:
-    """Pure, deterministic disagreement detection — no LLM involved."""
-    grouped = _group_claims_by_field(evidence)
+def detect_disagreements(
+    evidence: list[ProviderEvidence], hypothesis: CoinHypothesis | None = None
+) -> tuple[list[DisagreementEntry], int]:
+    """Pure, deterministic disagreement detection — no LLM involved.
+
+    T051/FR-016: the image hypothesis is folded in as a first-class claim
+    source alongside providers, reusing the *existing* `value.strip().lower()`
+    normalization — no second normalization rule. T052/FR-017: a
+    provider-vs-image conflict is `resolution: "unresolved"` like any other
+    disagreement; it is never resolved by precedence in either direction —
+    catalogue data does not silently outrank the coin, nor the reverse.
+    """
+    grouped = _group_claims_by_field(evidence, hypothesis)
     disagreements: list[DisagreementEntry] = []
     resolved_count = 0
     for field in sorted(grouped):
         entries = grouped[field]
         distinct_values = {value.strip().lower() for _, _, value in entries}
         if len(distinct_values) > 1:
+            # T054: order claim_refs by the same deterministic source rank
+            # `merge.sort_claims` uses, so a mixed provider+image claim set
+            # produces byte-identical ordering run to run.
+            ordered_entries = sorted(
+                entries, key=lambda entry: (rank_for_source(entry[0]), entry[1] if entry[1] is not None else -1)
+            )
             disagreements.append(
                 DisagreementEntry(
                     field=field,
-                    claim_refs=[EvidenceRef(provider=provider, claim_index=idx) for provider, idx, _ in entries],
+                    claim_refs=[
+                        EvidenceRef(provider=source, claim_index=idx) for source, idx, _ in ordered_entries
+                    ],
                     resolution="unresolved",
                 )
             )
@@ -63,8 +106,10 @@ def detect_disagreements(evidence: list[ProviderEvidence]) -> tuple[list[Disagre
     return disagreements, resolved_count
 
 
-async def evaluate(model, evidence: list[ProviderEvidence]) -> EvaluationResult:
-    disagreements, resolved_count = detect_disagreements(evidence)
+async def evaluate(
+    model, evidence: list[ProviderEvidence], hypothesis: CoinHypothesis | None = None
+) -> EvaluationResult:
+    disagreements, resolved_count = detect_disagreements(evidence, hypothesis)
     unresolved_questions: list[str] = [f"Sources disagree on {d.field}." for d in disagreements]
 
     if disagreements and model is not None:
