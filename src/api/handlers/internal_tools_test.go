@@ -301,6 +301,35 @@ func TestDeepProviderTools_NomismaSearchIndependentBudgetFromNumista(t *testing.
 	}
 }
 
+// TestDeepProviderTools_NomismaSearchInvalidRequestNotReportedAsUpstreamFailure
+// is the Task G regression test: an over-length/malformed query is a
+// client-side bug (Go's NomismaClient.Search never issues the upstream HTTP
+// call for it), and MUST be surfaced distinctly from a real upstream outage
+// ("unavailable") so the Python node never misreports "our bug" as "Nomisma
+// failed".
+func TestDeepProviderTools_NomismaSearchInvalidRequestNotReportedAsUpstreamFailure(t *testing.T) {
+	router, tokenSvc, _, nomismaClient := setupDeepProviderToolsTest(t, 3)
+	nomismaClient.kind = services.NomismaErrorInvalidRequest
+	nomismaClient.err = fmt.Errorf("invalid Nomisma query")
+	token, _ := tokenSvc.MintForJob(1, 5)
+
+	nreq := httptest.NewRequest(http.MethodPost, "/api/internal/tools/nomisma_search", bytes.NewBufferString(`{"query":"anything"}`))
+	nreq.Header.Set("Content-Type", "application/json")
+	nreq.Header.Set("Authorization", "Bearer "+token)
+	nrec := httptest.NewRecorder()
+	router.ServeHTTP(nrec, nreq)
+	if nrec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", nrec.Code, nrec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(nrec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["status"] != "invalid_request" {
+		t.Fatalf("expected status=invalid_request (never unavailable), got %v", resp["status"])
+	}
+}
+
 // ---- Feature 345 (T013/T034): OCRE internal tool handler tests ----
 
 func ocreCall(t *testing.T, router *gin.Engine, token, body string) (int, map[string]any) {

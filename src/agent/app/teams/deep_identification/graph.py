@@ -32,6 +32,7 @@ from app.models.responses import ProviderEvidence
 from app.safety import with_safety
 from app.streaming import format_sse, sanitize_user_facing_payload
 from app.teams.deep_identification.evaluator import evaluate
+from app.teams.deep_identification.hypothesis import build_hypothesis_from_quick_evidence
 from app.teams.deep_identification.providers import ngc as ngc_provider
 from app.teams.deep_identification.providers import nomisma as nomisma_provider
 from app.teams.deep_identification.providers import numista as numista_provider
@@ -62,14 +63,23 @@ _TRIVIAL_PROVIDER_NODES = {"rpc": rpc_provider.run}
 async def prepare_evidence_node(state: DeepIdentificationState, model) -> dict:
     """Vision node: obverse+reverse only (FR-004 — hint images never enter
     the vision-prompt slots, they are context-only for provider queries).
+
+    Also builds the Phase 8 hypothesis seam's `hypothesis` output
+    (contracts/vision-hypothesis.md §1). Today it is a deterministic,
+    LLM-free adapter over `quick_evidence` — no second/extra LLM call is
+    introduced here; Phase 3/4 will replace the hypothesis *source* with
+    the same vision LLM call already made above, behind this identical
+    state key.
     """
     from app.teams.coin_analysis import _build_image_contents
+
+    hypothesis = build_hypothesis_from_quick_evidence(state.get("quick_evidence"))
 
     images: list[DeepIdentifyImage] = state.get("images", [])
     face_images = [img.data_uri for img in images if img.role in ("obverse", "reverse")]
     image_contents = _build_image_contents(face_images)
     if not image_contents:
-        return {"image_analysis": ""}
+        return {"image_analysis": "", "hypothesis": hypothesis}
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -84,7 +94,7 @@ async def prepare_evidence_node(state: DeepIdentificationState, model) -> dict:
     except Exception:
         logger.exception("[deep_identification.graph] image analysis LLM call failed")
         content = ""
-    return {"image_analysis": content}
+    return {"image_analysis": content, "hypothesis": hypothesis}
 
 
 async def router_node(state: DeepIdentificationState, model) -> dict:
@@ -223,7 +233,14 @@ async def evaluator_node(state: DeepIdentificationState, model) -> dict:
 async def synthesizer_node(state: DeepIdentificationState, model, partial_success: bool = False) -> dict:
     disagreements = state.get("disagreements", [])
     unresolved_questions = [f"Sources disagree on {d.field}." for d in disagreements]
-    synthesis = await synthesize(model, state.get("evidence", []), disagreements, unresolved_questions, partial_success)
+    synthesis = await synthesize(
+        model,
+        state.get("evidence", []),
+        disagreements,
+        unresolved_questions,
+        partial_success,
+        hypothesis=state.get("hypothesis"),
+    )
     return {"synthesis": synthesis.model_dump()}
 
 
@@ -433,7 +450,20 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         try:
             disagreements = state.get("disagreements", [])
             unresolved_questions = [f"Sources disagree on {d.field}." for d in disagreements]
-            synthesis = await synthesize(model, evidence, disagreements, unresolved_questions, partial_success=True)
+            # T056: the timeout partial-synthesis path must thread the same
+            # hypothesis the happy path uses — it must not silently fall
+            # back to a hypothesis-less synthesis just because the run was
+            # cut short. `state["hypothesis"]` is set in `prepare_evidence`,
+            # the very first pipeline step, so it is available here even
+            # when the timeout struck mid-fanout/evaluation.
+            synthesis = await synthesize(
+                model,
+                evidence,
+                disagreements,
+                unresolved_questions,
+                partial_success=True,
+                hypothesis=state.get("hypothesis"),
+            )
             yield _emit({"type": "synthesis", "report": synthesis.model_dump()})
         except Exception:
             logger.exception("[deep_identification.graph] partial-synthesis fallback failed after timeout")

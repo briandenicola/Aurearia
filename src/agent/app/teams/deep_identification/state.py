@@ -9,6 +9,7 @@ concurrently in the same fan-out step.
 import operator
 from typing import Annotated, TypedDict
 
+from app.models.hypothesis import CoinHypothesis
 from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepProviderCatalogEntry, QuickEvidence
 from app.models.responses import DisagreementEntry, ProviderEvidence
 
@@ -36,6 +37,13 @@ class DeepIdentificationState(TypedDict, total=False):
     # prepare_evidence (vision) output — free-text image observations used
     # as router/synthesis context; never itself a typed provider claim.
     image_analysis: str
+
+    # prepare_evidence output (Phase 8 hypothesis seam, contracts/
+    # vision-hypothesis.md §1). Currently built deterministically from
+    # `quick_evidence` (app/teams/deep_identification/hypothesis.py); Phase
+    # 3/4 will swap the source to the real vision LLM call without any
+    # consumer of this key needing to change.
+    hypothesis: CoinHypothesis
 
     # router output
     selected: list[str]
