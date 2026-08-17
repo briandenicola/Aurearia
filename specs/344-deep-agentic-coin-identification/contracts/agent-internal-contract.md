@@ -14,7 +14,7 @@ Both directions are internal-only and never reachable from the browser.
 | Direction | Credential | Existing mechanism |
 |---|---|---|
 | Go → Python | header `X-Internal-Service-Token: <AGENT_INTERNAL_SERVICE_TOKEN>` | `services.AgentProxy.attachInternalCredential` ↔ `src/agent/app/security.py::InternalServiceAuthMiddleware` (`secrets.compare_digest`) |
-| Python → Go | header `Authorization: Bearer <short-lived minted token>` | `services.InternalTokenService.Mint(userID)` ↔ `middleware.InternalTokenRequired` on the `/api/internal/tools` group (`src/api/main.go:804-811`) |
+| Python → Go | header `Authorization: Bearer <short-lived minted token>` | `services.InternalTokenService.MintForJob(userID, jobID)` ↔ `middleware.InternalJobTokenRequired` on the `/api/internal/tools` group (`src/api/main.go:804-811`) |
 
 The minted token is issued per job run, carries the owner binding, and is
 passed into the Python request body as `internal_token` exactly as
@@ -34,7 +34,7 @@ Pydantic `StrictRequestModel` (`extra="forbid"`), defined in
 {
   "job_id": 88,                          // opaque correlation id (no DB meaning to Python)
   "schema_version": 1,
-  "llm_config": { "provider": "anthropic", "api_key": "…", "model": "…" },   // existing LLMConfig
+  "llm": { "provider": "anthropic", "api_key": "…", "model": "…" },   // existing LLMConfig
   "images": [
     { "role": "obverse", "data_uri": "data:image/jpeg;base64,…" },
     { "role": "reverse", "data_uri": "data:image/jpeg;base64,…" },
@@ -47,8 +47,7 @@ Pydantic `StrictRequestModel` (`extra="forbid"`), defined in
     "confidence": "medium",
     "ngc": { "cert_number": "1834646-097", "grade": "XF45",
              "lookup_url": "https://www.ngccoin.com/verify/" },
-    "numista_query": "Septimius Severus denarius",
-    "numista_evidence": { … }                              // models.NumistaEvidence, passthrough
+    "numista_query": "Septimius Severus denarius"
   },
   "provider_override": ["numista", "nomisma"],             // empty ⇒ router decides
   "provider_catalog": [                                    // Go tells Python what is legal THIS run
@@ -91,8 +90,9 @@ frame. Go translates each into a persisted `DeepIdentificationEvent`
 | `router_selected` | `{selected:[…], skipped:[{provider,reason}], rationale}` |
 | `provider_started` | `{provider}` |
 | `provider_result` | `ProviderEvidence` (§4) |
-| `evaluation` | `{disagreements:[…], resolved:[…]}` |
+| `evaluation` | `{disagreement_count, resolved_count}` |
 | `progress` | `{phase, message}` (sanitized, emoji-free) |
+| `synthesis_started` | `{message}` (structural facts only — evidence/hypothesis counts, no values) |
 | `synthesis` | `DeepSynthesis` (§5) — exactly one, terminal-success frame |
 | `error` | `{code, message}` — typed codes only: `llm_unavailable`, `timeout`, `invalid_model_output`, `internal` |
 
@@ -148,6 +148,7 @@ introduce arbitrary URLs (SC-006).
   "disagreements": [ { "field": "mint", "claim_refs": [ … ], "resolution": "unresolved" } ],
   "unresolved_questions": ["…"],
   "coverage": [ { "provider": "ngc", "status": "not_automated" } ],
+  "attributions": [ { "provider": "numista", "text": "Source: Numista", "identifier": "https://…" } ],
   "partial_success": true
 }
 ```
@@ -200,6 +201,7 @@ prepare_evidence  →  router  →  provider_fanout (bounded)  →  evaluator  �
 | `POST /api/internal/tools/numista_search` | `{"query": "…", "limit": 5}` | `{"status":"ok|empty|unconfigured|quota_limited|timeout|unavailable","candidates":[NumistaCandidate],"attribution":"Source: Numista"}` |
 | `POST /api/internal/tools/numista_detail` | `{"id": 12345}` | `{"status":"…","candidate":NumistaCandidate,"identifier":"N#12345"}` |
 | `POST /api/internal/tools/nomisma_search` | `{"query": "…", "limit": 5}` | `{"status":"ok|empty|unavailable","candidates":[NomismaCandidate],"attribution":"Data: Nomisma.org (CC BY)"}` |
+| `POST /api/internal/tools/ocre_search` | `{"query": "…", "limit": 5}` | `{"status":"ok|empty|unavailable","candidates":[OCRECandidate],"attribution":"Data: OCRE / nomisma.org (CC BY)"}` (Feature 345 / ADR 0010) |
 
 - Backed by the shipped clients `services/numista_client.go` (+
   `numista_cache.go`, `numista_telemetry.go`, ADR 0007) and
@@ -210,3 +212,69 @@ prepare_evidence  →  router  →  provider_fanout (bounded)  →  evaluator  �
   rather than an error, so the graph degrades to `no_match`/`failed` cleanly.
 - No new upstream HTTP client is introduced in Python; `app/outbound.py` egress
   is not used by this pipeline.
+
+---
+
+## 8. Vision-first amendment (Feature 351, ADR 0012)
+
+**Canonical source**: `specs/351-vision-first-deep-identification/contracts/vision-hypothesis.md`.
+This section is a condensed pointer for readers of this file only; the linked
+document is authoritative and must be consulted for full field lists and
+rules. All changes below are additive to this contract — nothing in §1–§7 is
+removed.
+
+### 8.1 `CoinHypothesis` (new typed vision output)
+
+Produced by the **same single vision LLM call** already made on every job
+(structured output binding — no second LLM call is added). Each populated
+field is `{ "value": <bounded string>, "confidence": <float 0..1> }`; a field
+the images do not support is omitted, never guessed. Also carries
+`observations` (bounded prose, never a field value) and `legible: bool`.
+Consumed by all four of: the router, provider query-term construction, the
+evaluator (as a claim source, see §8.2), and synthesis. Never logged
+(spec FR-030). See vision-hypothesis.md §1 for the full field vocabulary and
+schema.
+
+### 8.2 Image as a claim source
+
+`image` is a claim **source**, not a provider — it never appears in
+`provider_catalog`, `provider_override`, `DeepSynthesis.coverage`,
+`DeepSynthesis.attributions`, or the `ProviderName` literal union. The
+evaluator flattens hypothesis fields into `(field, source="image", value,
+confidence)` tuples alongside provider claims and runs the existing
+deterministic `detect_disagreements` normalization against them (LLM-free). An
+`EvidenceRef` of `{"provider": "image"}` has no `claim_index` and no citation.
+See vision-hypothesis.md §3.
+
+### 8.3 Deterministic router (replaces the LLM router)
+
+`route()` is now a **pure function** of `(catalog, provider_override, bounds,
+quick_evidence, hypothesis)` — the `ROUTER_PROMPT` and the router's LLM call
+are deleted. Identical inputs always produce byte-identical `selected`,
+`skipped`, and `rationale`. This removes one LLM call per job versus Feature
+344. See vision-hypothesis.md §5.
+
+### 8.4 `insufficient_query_evidence` (new `error_kind`)
+
+Query-term precedence for every automatable provider is now: (1)
+`quick_evidence.numista_query`, (2) `quick_evidence.label_text`, (3)
+deterministic hypothesis-derived terms, (4) `notes[:200]`. The former
+placeholder constant (`"unidentified ancient coin"`) is deleted. When no tier
+yields usable terms, the provider node makes **zero** upstream calls and
+returns `{"status": "no_match", "automatable": true, "error_kind":
+"insufficient_query_evidence", "call_count": 0}` — distinguishing "nothing to
+search with" from "searched and found nothing". This extends the §4
+`error_kind` vocabulary; the Go mirror must tolerate the new value as a
+bounded string. See vision-hypothesis.md §2.
+
+### 8.5 `DeepSynthesis.image_hypothesis` (new, additive, optional)
+
+`DeepSynthesis` (§5) gains an optional `image_hypothesis` key carrying the
+`CoinHypothesis` (§8.1) when the vision call produced anything; absent in
+reports persisted before this feature. Go's report reader unmarshals only
+`narrative` and `proposed_fields`, so the key is ignored by pre-351 code
+(additive-safe) while the full report JSON is persisted verbatim, so the
+hypothesis remains recoverable. `proposed_fields` may now contain entries
+whose only ref is `{"provider": "image"}`; such entries have no `evidence`
+array in the resulting proposal document but MUST still be emitted (not
+dropped) by `buildDeepProposalDocumentJSON`. See vision-hypothesis.md §4.

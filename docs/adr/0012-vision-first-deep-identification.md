@@ -1,7 +1,7 @@
 # ADR 0012: Vision-First Deep Identification (Image Hypothesis as Primary Claim Source)
 
 Date: 2026-08-16
-Status: Proposed
+Status: Accepted
 
 ## Context
 

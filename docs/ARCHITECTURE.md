@@ -389,12 +389,23 @@ Each team is a LangGraph `StateGraph` with verification stages:
 | 9 | Photo Guide | Analyze photos → Evaluate → Tips | Photography improvement |
 | 10 | Price Trends | Search auctions → Analyze trends → Format | Market price analysis |
 | 11 | Similar Lots | Search → Rank → Format | Find similar auction lots |
-| 12 | Deep Identification | Observe images → Route providers → Evaluate contradictions → Synthesize | Resumable, cited coin identification |
+| 12 | Deep Identification | Vision hypothesis → deterministic router → provider fact-checking → synthesize | Resumable, cited coin identification |
 
 **Pipeline design rules:**
 - Search agents pass only tool-returned data downstream — never invented details
 - Verification agents confirm every URL is live and every date is in the future
 - All worker outputs conform to defined Pydantic schemas — no free-form text
+- Deep Identification is **vision-first** (ADR 0012, Feature 351): the single
+  vision LLM call already made on every job produces a typed `CoinHypothesis`
+  (per-field confidence, no citation) instead of a discarded prose string.
+  `route()` is then a **deterministic pure function** of the catalog, bounds,
+  quick evidence, and hypothesis — not an LLM call — so provider selection is
+  reproducible for identical inputs and the pipeline makes one fewer LLM call
+  per job than its Feature 344 predecessor. Providers **fact-check** the
+  hypothesis rather than starting from nothing: query terms are composed
+  deterministically from the highest-confidence hypothesis fields (never
+  LLM-authored), and the evaluator treats `image` as a first-class claim
+  source alongside provider claims when detecting disagreements
 - Deep Identification receives provider evidence only through authenticated Go
   internal tools; Python remains stateless and does not persist jobs or artifacts
 - Full provider claims stay on the internal stream; replayable owner-facing

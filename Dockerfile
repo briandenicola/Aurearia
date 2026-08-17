@@ -29,6 +29,7 @@ RUN apk add --no-cache ca-certificates \
 WORKDIR /app
 COPY --from=api-build --chown=app:app /app/ancient-coins-api .
 COPY --from=web-build --chown=app:app /web/dist ./wwwroot
+COPY --chown=app:app VERSION ./VERSION
 RUN mkdir -p /app/uploads /app/data \
     && chown -R app:app /app
 VOLUME ["/app/uploads", "/app/data"]

@@ -10,7 +10,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/config"
 	"github.com/briandenicola/ancient-coins-api/database"
-	_ "github.com/briandenicola/ancient-coins-api/docs"
+	"github.com/briandenicola/ancient-coins-api/docs"
 	"github.com/briandenicola/ancient-coins-api/handlers"
 	"github.com/briandenicola/ancient-coins-api/middleware"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -77,8 +77,27 @@ func buildShipmentCarrierClients(settingsSvc *services.SettingsService, logger *
 //	@name						X-API-Key
 //	@description				Enter your API key, e.g. "ak_a1b2c3d4..."
 
+// loadAppVersion resolves the running build's version from the single
+// canonical root VERSION file (F9/T096) so the live Swagger UI, the
+// generated OpenAPI doc, and the Vue UI never drift from one another again.
+// Falls back to the swag-baked literal (kept in sync by `task openapi`) if
+// the file is unreadable, e.g. a `go run .` invocation from an unexpected
+// working directory.
+func loadAppVersion() string {
+	for _, p := range []string{"VERSION", filepath.Join("..", "..", "VERSION")} {
+		if data, err := os.ReadFile(p); err == nil {
+			if v := strings.TrimSpace(string(data)); v != "" {
+				return v
+			}
+		}
+	}
+	return docs.SwaggerInfo.Version
+}
+
 func main() {
 	cfg := config.Load()
+
+	docs.SwaggerInfo.Version = loadAppVersion()
 
 	database.Connect(cfg.DBPath)
 

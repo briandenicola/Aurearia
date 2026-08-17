@@ -25,6 +25,14 @@ tasks:
     desc: Regenerate Swagger artifacts and sync docs/openapi.json
     dir: src/api
     cmds:
+      # Keep the `@version` swagger annotation in lockstep with the root VERSION
+      # file (single canonical source, F9/T096) before swag bakes it into
+      # docs.go/swagger.json — prevents the 4.0/4.0.0 drift that undermined
+      # diagnosing a prior failed run.
+      - cmd: perl -0777 -pi -e 'my $v = do { local @ARGV = ("../../VERSION"); local $/; <> }; chomp $v; s{(?m)^(//\t\@version\s+)\S+}{$1$v}' main.go
+        platforms: [linux, darwin]
+      - cmd: powershell -NoProfile -Command "$v = (Get-Content '../../VERSION' -Raw).Trim(); $c = Get-Content main.go -Raw; $c = $c -replace '(?m)^(//\t@version\s+)\S+', ('$1' + $v); Set-Content -NoNewline main.go $c"
+        platforms: [windows]
       - go install github.com/swaggo/swag/cmd/swag@v1.16.6
       - '"$(go env GOPATH)/bin/swag" init -g main.go -o ./docs --parseDependency --parseInternal'
       - cmd: cp docs/swagger.json ../../docs/openapi.json
