@@ -208,7 +208,7 @@ const steps = computed<ActivityStep[]>(() => {
     const anyDone = rows.some((row) => row.state === 'done')
     const anyFailed = rows.some((row) => row.state === 'failed')
     const jobRunning = !props.terminalStatus && !props.ended
-    let groupState: StepState = 'done'
+    let groupState: StepState
     if (anyActive && jobRunning) groupState = 'active'
     else if (anyDone) groupState = 'done'
     else if (anyFailed) groupState = 'failed'
