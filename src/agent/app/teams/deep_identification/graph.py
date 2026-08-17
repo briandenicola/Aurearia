@@ -31,12 +31,16 @@ from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdent
 from app.models.responses import ProviderEvidence
 from app.streaming import format_sse, sanitize_user_facing_payload
 from app.teams.deep_identification.evaluator import evaluate
-from app.teams.deep_identification.hypothesis import build_hypothesis_from_quick_evidence, build_hypothesis_from_vision
+from app.teams.deep_identification.hypothesis import (
+    build_hypothesis_from_quick_evidence,
+    build_hypothesis_from_vision_traced,
+)
 from app.teams.deep_identification.providers import ngc as ngc_provider
 from app.teams.deep_identification.providers import nomisma as nomisma_provider
 from app.teams.deep_identification.providers import numista as numista_provider
 from app.teams.deep_identification.providers import ocre as ocre_provider
 from app.teams.deep_identification.providers import rpc as rpc_provider
+from app.teams.deep_identification.query_terms import build_query_terms
 from app.teams.deep_identification.router import route
 from app.teams.deep_identification.state import DeepIdentificationState
 from app.teams.deep_identification.synthesis import synthesize
@@ -75,9 +79,10 @@ async def prepare_evidence_node(state: DeepIdentificationState, llm_config: LLMC
 
     if llm_config is None:
         hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
+        source = "deterministic_fallback"
     else:
-        hypothesis = await build_hypothesis_from_vision(llm_config, image_contents, quick_evidence)
-    return {"hypothesis": hypothesis}
+        hypothesis, source = await build_hypothesis_from_vision_traced(llm_config, image_contents, quick_evidence)
+    return {"hypothesis": hypothesis, "hypothesis_source": source}
 
 
 
@@ -90,6 +95,63 @@ async def router_node(state: DeepIdentificationState) -> dict:
         state.get("hypothesis"),
     )
     return {"selected": decision.selected, "skipped": decision.skipped, "router_rationale": decision.rationale}
+
+
+# Providers with no free-text query — either a structured signal decode
+# (ocre) or no automated call at all (ngc/rpc, terms-of-use/no-public-api).
+# Kept as fixed, non-user-derived strings so `provider_started` still says
+# *something* useful (FR-040) without duplicating each provider node's own
+# field-decoding logic here.
+_PROVIDER_STATIC_STARTED_NOTES = {
+    "ocre": "Querying with decoded coin-type signals (ruler/denomination/mint/type id).",
+    "ngc": "Link-out only; NGC terms of use prohibit automated queries.",
+    "rpc": "Not automated; no public API is available.",
+}
+
+# Defensive bound on any query text placed on a provider_started frame —
+# `build_query_terms` already bounds its own tiers, but this is a second,
+# independent ceiling so a future upstream change can never make this
+# frame's payload unbounded (spec FR-040 binding limit).
+_PROVIDER_QUERY_STARTED_MAX_LENGTH = 300
+
+# Nomisma's Go client rejects anything over 200 runes
+# (nomisma_client.go::nomismaMaxQueryLength) — mirrors providers/nomisma.py's
+# own `_MAX_QUERY_LENGTH` so the previewed query always matches what the
+# provider node will actually send.
+_NOMISMA_QUERY_MAX_LENGTH = 200
+
+
+def _provider_started_detail(
+    name: str,
+    quick_evidence: QuickEvidence | None,
+    notes: str,
+    hypothesis: CoinHypothesis | None,
+) -> dict:
+    """Bounded, application-authored detail added to a `provider_started`
+    frame (FR-040): the exact deterministic query text the provider node is
+    about to use for numista/nomisma (the only two providers that build a
+    free-text query via the shared `build_query_terms`), or a fixed
+    descriptive note for providers with no free-text query. Never invents
+    anything — every value here is the same input the corresponding
+    provider node itself is about to consume.
+    """
+    if name == "numista":
+        query = build_query_terms(quick_evidence, hypothesis, notes)
+    elif name == "nomisma":
+        query = build_query_terms(quick_evidence, hypothesis, notes, max_length=_NOMISMA_QUERY_MAX_LENGTH)
+    else:
+        query = ""
+
+    if query:
+        return {"query_terms": query[:_PROVIDER_QUERY_STARTED_MAX_LENGTH]}
+    if name in ("numista", "nomisma"):
+        # No precedence tier yielded usable terms — the provider node itself
+        # will make zero upstream calls and report this same reason as its
+        # error_kind (FR-011). Surface it here too so the owner sees *why*
+        # a provider produced nothing, not just that it did.
+        return {"skip_reason": "insufficient_query_evidence"}
+    static_note = _PROVIDER_STATIC_STARTED_NOTES.get(name)
+    return {"detail": static_note} if static_note else {}
 
 
 async def _run_one_provider(
@@ -172,7 +234,15 @@ async def provider_fanout_node(
 
     async def run_and_report(name: str):
         if on_provider_event:
-            await on_provider_event({"type": "provider_started", "provider": name})
+            # FR-040: query terms ride on `provider_started` (already a
+            # first-class event type the frontend groups live), not a bare
+            # progress phase — Aurelia's stated preference, and it survives
+            # to the owner-scoped stream verbatim (deep_identification_
+            # pipeline_runner.go's onFrame has no reducing case for
+            # provider_started, unlike provider_result).
+            started_frame = {"type": "provider_started", "provider": name}
+            started_frame.update(_provider_started_detail(name, quick_evidence, notes, state.get("hypothesis")))
+            await on_provider_event(started_frame)
         result = await _run_one_provider(
             name, catalog_by_name, tools, quick_evidence, notes, bounds, semaphore, state.get("hypothesis")
         )
@@ -313,6 +383,56 @@ def _emit(frame: dict) -> str:
     return format_sse(sanitize_user_facing_payload(frame))
 
 
+def _vision_completed_message(hypothesis: CoinHypothesis, source: str) -> str:
+    """FR-040 `vision_completed` progress message: structural facts only
+    (populated-field count, a confidence bucket derived from those fields'
+    own bounded `[0,1]` scores) plus an honest degradation note when the
+    structured vision call did not produce the result. Brian's core
+    complaint was a silent nothing — a step that produced nothing must say
+    so and why, not just move on to the next phase.
+    """
+    fields = hypothesis.fields()
+    field_count = len(fields)
+    if field_count:
+        avg_confidence = sum(field.confidence for field in fields.values()) / field_count
+        if avg_confidence >= 0.65:
+            bucket = "high confidence"
+        elif avg_confidence >= 0.45:
+            bucket = "medium confidence"
+        else:
+            bucket = "low confidence"
+        plural = "" if field_count == 1 else "s"
+        base = f"Vision analysis produced {field_count} populated field{plural} ({bucket})."
+    else:
+        base = "Vision analysis produced no populated fields."
+
+    if source == "no_images":
+        return f"{base} No obverse/reverse images were available."
+    if source == "deterministic_fallback":
+        return (
+            f"{base} The structured vision call did not produce a usable result; "
+            "used deterministic quick-evidence data instead."
+        )
+    if source == "prose":
+        return f"{base} The structured vision call failed schema validation; recovered from unstructured model output."
+    return base
+
+
+def _synthesis_started_message(evidence: list[ProviderEvidence], hypothesis: CoinHypothesis | None) -> str:
+    """FR-040 `synthesis_started` detail: counts and structural facts only
+    (contributing-provider count, whether image evidence also feeds
+    synthesis) — never claim content itself.
+    """
+    contributing = sum(1 for row in evidence if row.status == "contributed")
+    plural = "" if contributing == 1 else "s"
+    message = f"Synthesizing report from {contributing} contributing source{plural}"
+    if hypothesis is not None and not hypothesis.is_empty():
+        message += " and image evidence."
+    else:
+        message += "."
+    return message
+
+
 def _clamp_bounds_to_ceilings(bounds: DeepIdentifyBounds) -> DeepIdentifyBounds:
     """Clamp Go-supplied per-run bounds to the deployment's configured
     `AGENT_DEEP_*` ceilings (T077). Callers must never be able to exceed
@@ -370,6 +490,13 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         image_result = await prepare_evidence_node(state, request.llm)
         state.update(image_result)
         await queue.put({"type": "progress", "stage": "image_evidence_ready"})
+        await queue.put({
+            "type": "progress",
+            "stage": "vision_completed",
+            "message": _vision_completed_message(
+                image_result["hypothesis"], image_result.get("hypothesis_source", "")
+            ),
+        })
 
         router_result = await router_node(state)
         state.update(router_result)
@@ -396,7 +523,10 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
             "resolved_count": evaluator_result["resolved_count"],
         })
 
-        await queue.put({"type": "synthesis_started"})
+        await queue.put({
+            "type": "synthesis_started",
+            "message": _synthesis_started_message(state.get("evidence", []), state.get("hypothesis")),
+        })
         synthesizer_result = await synthesizer_node(state, model)
         state.update(synthesizer_result)
         return synthesizer_result["synthesis"]

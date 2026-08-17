@@ -60,6 +60,14 @@ class DeepIdentificationState(TypedDict, total=False):
     # feature.
     hypothesis: CoinHypothesis
 
+    # Which rung of the hypothesis degrade ladder actually produced
+    # `hypothesis` above: "structured" | "prose" | "deterministic_fallback"
+    # | "no_images" (see `hypothesis.py::build_hypothesis_from_vision_traced`).
+    # Consumed only by the streaming driver's FR-040 `vision_completed`
+    # progress message — never a claim/citation source, never persisted to
+    # the coin record.
+    hypothesis_source: str
+
     # router output
     selected: list[str]
     skipped: list[RouterSkip]

@@ -318,16 +318,39 @@ async def build_hypothesis_from_vision(
     content, schema-validation failure) degrades to a later rung, and the
     final rung (`build_hypothesis_from_quick_evidence`) is itself
     exception-free and always returns a valid `CoinHypothesis`.
+
+    Thin wrapper over `build_hypothesis_from_vision_traced` that drops the
+    rung tag — kept so the 17 pre-existing call sites/tests that only want
+    the hypothesis itself are unaffected by FR-040's new degradation
+    reporting need (`graph.py`'s `vision_completed` progress phase).
+    """
+    hypothesis, _source = await build_hypothesis_from_vision_traced(llm_config, image_contents, quick_evidence)
+    return hypothesis
+
+
+async def build_hypothesis_from_vision_traced(
+    llm_config: LLMConfig,
+    image_contents: list[dict],
+    quick_evidence: QuickEvidence | None,
+) -> tuple[CoinHypothesis, str]:
+    """Same ladder as `build_hypothesis_from_vision`, but also returns which
+    rung actually produced the result: `"structured"`, `"prose"`,
+    `"deterministic_fallback"`, or `"no_images"`. FR-040 requires the owner
+    -scoped progress stream to honestly report degradation (Brian's core
+    complaint was a silent nothing) — a caller that only had the bare
+    `CoinHypothesis` back could not tell a genuine high-confidence
+    structured read apart from a silently degraded fallback that happens to
+    look similar.
     """
     fallback = build_hypothesis_from_quick_evidence(quick_evidence)
     if not image_contents:
-        return fallback
+        return fallback, "no_images"
 
     try:
         structured_model = get_structured_model(llm_config, CoinHypothesis)
     except Exception:
         logger.exception("[deep_identification.hypothesis] could not bind structured vision model")
-        return fallback
+        return fallback, "deterministic_fallback"
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -356,7 +379,7 @@ async def build_hypothesis_from_vision(
         if isinstance(parsed, CoinHypothesis):
             normalized = _normalize_vision_hypothesis(parsed)
             if not normalized.is_empty():
-                return normalized
+                return normalized, "structured"
             # Schema-conformant but nothing survived normalization (e.g.
             # era/material both invalid, nothing else legible) — treat as a
             # failed attempt and keep moving down the ladder.
@@ -370,6 +393,6 @@ async def build_hypothesis_from_vision(
 
     prose = _parse_prose_hypothesis(last_raw_text)
     if prose is not None and not prose.is_empty():
-        return prose
+        return prose, "prose"
 
-    return fallback
+    return fallback, "deterministic_fallback"
