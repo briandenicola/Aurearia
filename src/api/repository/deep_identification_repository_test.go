@@ -443,11 +443,13 @@ func TestDeepIdentificationRepository_StaleRecovery(t *testing.T) {
 // cannot be reproduced against an in-memory DB - it needs a real file.
 //
 // dsnParams, if non-empty, is appended verbatim as the DSN query string
-// (e.g. "_txlock=immediate&_pragma=busy_timeout(5000)"). It must be kept in
-// sync with the production DSN built in database.Connect
-// (src/api/database/database.go) - repository/ must not import database/
-// (architecture_test.go: TestNoDirectDatabaseImports), so it is duplicated
-// here rather than shared.
+// (e.g. models.SQLiteConcurrencyDSNParams, "_txlock=immediate&_pragma=
+// busy_timeout(5000)"). Callers should pass models.SQLiteConcurrencyDSNParams
+// rather than a hand-written literal: repository/ must not import database/
+// (architecture_test.go: TestNoDirectDatabaseImports), so the production DSN
+// built in database.Connect (src/api/database/database.go) and this test
+// both derive from that one models/ constant instead of each keeping their
+// own copy in sync by hand.
 func newDeepIdentificationFileTestDB(t *testing.T, dsnParams string) *gorm.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "deep_identification.db")
@@ -502,7 +504,7 @@ func TestDeepIdentificationRepository_ConcurrentClaimNoLockContention(t *testing
 	const jobCount = 150
 	const workerCount = 20
 
-	db := newDeepIdentificationFileTestDB(t, "_txlock=immediate&_pragma=busy_timeout(5000)")
+	db := newDeepIdentificationFileTestDB(t, models.SQLiteConcurrencyDSNParams)
 	repo := NewDeepIdentificationRepository(db)
 	owner := createDeepTestUser(t, db, "claimuser")
 

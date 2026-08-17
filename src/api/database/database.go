@@ -56,7 +56,13 @@ func Connect(dbPath string) {
 	// fail-fast default - none of those schedulers currently retry a bare
 	// write failure themselves, and none holds a transaction open long
 	// enough for a 5s busy_timeout to introduce a meaningful stall.
-	dsn := dbPath + "?_txlock=immediate&_pragma=busy_timeout(5000)"
+	//
+	// models.SQLiteConcurrencyDSNParams is the single source of truth for
+	// these params - repository/deep_identification_repository_test.go's
+	// concurrency regression test derives its DSN from the same constant
+	// (it cannot import this package; see TestNoDirectDatabaseImports in
+	// architecture_test.go), so the two can never silently drift apart.
+	dsn := dbPath + "?" + models.SQLiteConcurrencyDSNParams
 	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})

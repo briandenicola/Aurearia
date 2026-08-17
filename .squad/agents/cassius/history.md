@@ -821,3 +821,42 @@ swag even runs) — when it fails, regenerate manually with
 swag init -g main.go -o ./docs --parseDependency --parseInternal from
 src/api, then copy docs/swagger.json to ../../docs/openapi.json. Confirmed
 this does not touch main.go's @version line.
+
+---
+
+## DSN Drift Guard (backlog cleanup, 2026-08-17)
+
+Closed a real drift risk: the SQLITE_BUSY fix's DSN params
+(`_txlock=immediate&_pragma=busy_timeout(5000)`) were duplicated verbatim in
+`database/database.go` (production) and
+`repository/deep_identification_repository_test.go` (concurrency regression
+test), with only a comment asking humans to keep them in sync by hand.
+Because `repository/` cannot import `database/` (Principle I/II,
+`TestNoDirectDatabaseImports`), and `TestPackageImportMatrix` restricts
+`repository/`'s *production* internal imports to `models` only, the
+single import-legal home for a value shared between production
+`database/` code and a `repository/` test file is `models/` (stdlib-only,
+importable by every layer). Added `models.SQLiteConcurrencyDSNParams` as
+that one source of truth; both consumers now derive from it instead of
+hand-copying the literal.
+
+Key lesson: `TestNoDirectDatabaseImports` does **not** skip `_test.go`
+files (unlike `TestPackageImportMatrix`, which explicitly does) — so a
+repository test file is still forbidden from importing `database/`
+directly, even though it's exempt from the internal-import allowlist. Any
+future shared-constant problem between `database/` and a `repository/` or
+`services/` test must route through `models/` for the same reason.
+
+Falsification matters here: I temporarily stripped `_txlock=immediate` from
+the shared constant and reran
+`TestDeepIdentificationRepository_ConcurrentClaimNoLockContention` — it
+went RED with 19/150 `SQLITE_BUSY` claim errors, proving the guard actually
+detects drift now (previously the test's own hardcoded copy could never
+disagree with itself). Restored the constant, full suite green again
+(10/10 packages).
+
+Also found and removed an unrelated stray file (`src/api/hello world`,
+containing the text `main.go`) that appeared in the tree during this
+session's test runs — looked like leftover debris from some other
+test/tool run, not something my change produced; deleted it as cleanup
+since it wasn't tracked and wasn't part of this task.
