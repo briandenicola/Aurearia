@@ -1,12 +1,15 @@
 """`CoinHypothesis` (contracts/vision-hypothesis.md §1) — the vision node's
 typed output.
 
-Today this is produced by a deterministic, LLM-free adapter over
-`quick_evidence` (`app/teams/deep_identification/hypothesis.py`) — the
-source the 351 spec explicitly designs as swappable. Phase 3/4 will replace
-*that adapter's body* with the real single-vision-LLM-call output; every
-consumer wired against this model / the `hypothesis` state key is
-unaffected by that swap.
+Produced primarily by a real single-vision-LLM-call structured extraction
+(`app/teams/deep_identification/hypothesis.py::build_hypothesis_from_vision`,
+Phase 3/4). On any failure of that call (LLM error, timeout, schema
+validation, malformed JSON) it degrades through a prose-extraction attempt
+and then to the deterministic, LLM-free `quick_evidence` adapter
+(`build_hypothesis_from_quick_evidence`) — never to an unhandled exception.
+Every consumer is wired against this model / the `hypothesis` state key,
+never against a particular source, so the source can keep evolving without
+consumer changes.
 """
 
 from typing import Annotated
@@ -48,6 +51,8 @@ class CoinHypothesis(BaseModel):
     reverseDescription: HypothesisField | None = None
     diameterMm: HypothesisField | None = None
     weightGrams: HypothesisField | None = None
+    notes: HypothesisField | None = None
+    coin_type: HypothesisField | None = None
 
     # Short bounded prose for the narrative writer only — never itself a
     # proposed field value (contract §1).
@@ -71,6 +76,8 @@ class CoinHypothesis(BaseModel):
                 ("reverseDescription", self.reverseDescription),
                 ("diameterMm", self.diameterMm),
                 ("weightGrams", self.weightGrams),
+                ("notes", self.notes),
+                ("coin_type", self.coin_type),
             )
             if value is not None
         }

@@ -43,6 +43,27 @@ def get_chat_model(config: LLMConfig) -> BaseChatModel:
         raise ValueError(f"Unknown LLM provider: {config.provider}")
 
 
+def get_structured_model(config: LLMConfig, schema: type) -> Runnable:
+    """Create a chat model bound to a strict-JSON structured-output schema.
+
+    Per-request config, no module-level state — same shape as
+    `get_chat_model`/`get_search_model`. Anthropic uses tool-based structured
+    output (`method="function_calling"`, its reliable default); Ollama uses
+    its JSON/schema format mode (`method="json_schema"`), which is
+    considerably less reliable across models and MUST be treated by callers
+    as something that can return `parsing_error` or malformed output rather
+    than a guaranteed-conformant object.
+
+    `include_raw=True` so a caller can inspect the raw model message (for a
+    prose-extraction fallback) even when structured parsing fails, without
+    making a second LLM call.
+    """
+    model = get_chat_model(config)
+    method = "json_schema" if config.provider == "ollama" else "function_calling"
+    logger.debug("Binding structured output schema=%s method=%s", getattr(schema, "__name__", schema), method)
+    return model.with_structured_output(schema, method=method, include_raw=True)
+
+
 def get_search_model(config: LLMConfig) -> Runnable:
     """Create a chat model with web search enabled (Anthropic only).
 

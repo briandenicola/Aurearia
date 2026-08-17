@@ -11,6 +11,7 @@ import json
 import pytest
 
 import app.teams.deep_identification.graph as graph_module
+import app.teams.deep_identification.hypothesis as hypothesis_module
 from app.models.requests import (
     DeepIdentifyBounds,
     DeepIdentifyImage,
@@ -23,6 +24,30 @@ from app.models.responses import DeepSynthesis, ProviderEvidence
 class FakeModel:
     async def ainvoke(self, messages, **kwargs):
         return type("Resp", (), {"content": "A generic ancient bronze coin with worn legends."})()
+
+
+class _FakeStructuredModel:
+    """Stands in for `get_structured_model`'s bound runnable: schema
+    parsing always "fails" (`parsed=None`) with empty raw content, so the
+    vision path degrades immediately to the deterministic quick-evidence
+    hypothesis with no real LLM/network call. These SSE-envelope tests
+    exercise the pipeline's frame contract, not the vision-hypothesis
+    degrade ladder itself (covered by test_deep_identification_hypothesis.py).
+    """
+
+    async def ainvoke(self, messages, **kwargs):
+        return {"raw": type("Resp", (), {"content": ""})(), "parsed": None, "parsing_error": None}
+
+
+@pytest.fixture(autouse=True)
+def _no_real_vision_calls(monkeypatch):
+    """Prevent every test in this file from making a real provider network
+    call through the vision-hypothesis structured-output path — the fake
+    `LLMConfig(api_key="test-key")` these tests use is not a real
+    credential, but `get_structured_model` would otherwise still attempt a
+    real HTTP round trip to Anthropic.
+    """
+    monkeypatch.setattr(hypothesis_module, "get_structured_model", lambda config, schema: _FakeStructuredModel())
 
 
 def _tiny_data_uri() -> str:

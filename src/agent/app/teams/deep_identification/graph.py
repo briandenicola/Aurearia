@@ -25,14 +25,12 @@ from collections.abc import AsyncGenerator
 from langgraph.graph import END, StateGraph
 
 from app.config import settings
-from app.llm.content import extract_text_content
 from app.llm.provider import get_chat_model
-from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdentifyRequest, QuickEvidence
+from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdentifyRequest, LLMConfig, QuickEvidence
 from app.models.responses import ProviderEvidence
-from app.safety import with_safety
 from app.streaming import format_sse, sanitize_user_facing_payload
 from app.teams.deep_identification.evaluator import evaluate
-from app.teams.deep_identification.hypothesis import build_hypothesis_from_quick_evidence
+from app.teams.deep_identification.hypothesis import build_hypothesis_from_quick_evidence, build_hypothesis_from_vision
 from app.teams.deep_identification.providers import ngc as ngc_provider
 from app.teams.deep_identification.providers import nomisma as nomisma_provider
 from app.teams.deep_identification.providers import numista as numista_provider
@@ -45,13 +43,6 @@ from app.tools.provider_tools import ProviderToolsClient
 
 logger = logging.getLogger(__name__)
 
-IMAGE_ANALYSIS_PROMPT = with_safety("""You are a numismatic expert briefly describing a coin image pair
-(obverse and reverse) for a research pipeline. In 2-4 sentences, describe
-only what is visibly present: portrait/design elements, visible
-inscriptions/legends, material/color, and wear. Do not guess a specific
-ruler, mint, or date unless legend text makes it unambiguous. Do not use
-emojis.""")
-
 _AUTOMATED_PROVIDER_NODES = {
     "numista": numista_provider.run,
     "nomisma": nomisma_provider.run,
@@ -60,41 +51,33 @@ _AUTOMATED_PROVIDER_NODES = {
 _TRIVIAL_PROVIDER_NODES = {"rpc": rpc_provider.run}
 
 
-async def prepare_evidence_node(state: DeepIdentificationState, model) -> dict:
+async def prepare_evidence_node(state: DeepIdentificationState, llm_config: LLMConfig | None = None) -> dict:
     """Vision node: obverse+reverse only (FR-004 — hint images never enter
     the vision-prompt slots, they are context-only for provider queries).
 
-    Also builds the Phase 8 hypothesis seam's `hypothesis` output
-    (contracts/vision-hypothesis.md §1). Today it is a deterministic,
-    LLM-free adapter over `quick_evidence` — no second/extra LLM call is
-    introduced here; Phase 3/4 will replace the hypothesis *source* with
-    the same vision LLM call already made above, behind this identical
-    state key.
+    Builds the typed `hypothesis` output (contracts/vision-hypothesis.md
+    §1) from the SAME single vision LLM call this node has always made —
+    it no longer also produces a separate free-prose `image_analysis`
+    string (that write-only field is deleted, see state.py). When
+    `llm_config` is supplied, `build_hypothesis_from_vision` runs the real
+    structured vision call with its full degrade ladder; when it is not
+    (e.g. the topology-only `build_graph` compiled-but-never-invoked path),
+    this falls back to the deterministic `quick_evidence` adapter with no
+    LLM call at all.
     """
     from app.teams.coin_analysis import _build_image_contents
 
-    hypothesis = build_hypothesis_from_quick_evidence(state.get("quick_evidence"))
-
+    quick_evidence = state.get("quick_evidence")
     images: list[DeepIdentifyImage] = state.get("images", [])
     face_images = [img.data_uri for img in images if img.role in ("obverse", "reverse")]
     image_contents = _build_image_contents(face_images)
-    if not image_contents:
-        return {"image_analysis": "", "hypothesis": hypothesis}
 
-    from langchain_core.messages import HumanMessage, SystemMessage
+    if llm_config is None:
+        hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
+    else:
+        hypothesis = await build_hypothesis_from_vision(llm_config, image_contents, quick_evidence)
+    return {"hypothesis": hypothesis}
 
-    from app.llm.retry import ainvoke_with_retry
-
-    human_content: list[dict] = [{"type": "text", "text": IMAGE_ANALYSIS_PROMPT}, *image_contents]
-    try:
-        response = await ainvoke_with_retry(
-            model, [SystemMessage(content="You are an expert numismatist."), HumanMessage(content=human_content)]
-        )
-        content = extract_text_content(response.content)
-    except Exception:
-        logger.exception("[deep_identification.graph] image analysis LLM call failed")
-        content = ""
-    return {"image_analysis": content, "hypothesis": hypothesis}
 
 
 async def router_node(state: DeepIdentificationState, model) -> dict:
@@ -259,7 +242,7 @@ def build_graph(model, tools: ProviderToolsClient | None, recursion_limit: int |
     """
 
     async def _prepare(state: DeepIdentificationState) -> dict:
-        return await prepare_evidence_node(state, model)
+        return await prepare_evidence_node(state)
 
     async def _route(state: DeepIdentificationState) -> dict:
         return await router_node(state, model)
@@ -380,7 +363,7 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         state["evidence"] = [*state.get("evidence", []), row]
 
     async def pipeline() -> dict:
-        image_result = await prepare_evidence_node(state, model)
+        image_result = await prepare_evidence_node(state, request.llm)
         state.update(image_result)
         await queue.put({"type": "progress", "stage": "image_evidence_ready"})
 

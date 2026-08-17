@@ -169,6 +169,11 @@ async def synthesize(
         unresolved_questions=unresolved_questions[:20],
         coverage=coverage,
         attributions=attributions,
+        # T030/contracts/vision-hypothesis.md §4: additive, present only
+        # when the vision call actually produced something, so a
+        # typed-empty hypothesis (e.g. no images, or every rung of the
+        # degrade ladder failing) never pollutes persisted reports.
+        image_hypothesis=hypothesis if hypothesis is not None and not hypothesis.is_empty() else None,
         partial_success=partial_success,
     )
 
