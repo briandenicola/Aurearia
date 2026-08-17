@@ -860,3 +860,4 @@ containing the text `main.go`) that appeared in the tree during this
 session's test runs — looked like leftover debris from some other
 test/tool run, not something my change produced; deleted it as cleanup
 since it wasn't tracked and wasn't part of this task.
+- **2026-08-17 — cassius-10: guard SQLite DSN drift.** Centralized SQLite concurrency DSN params into src/api/models/sqlite_config.go as the single source of truth for both database.Connect and the repository concurrency regression test, preventing accidental drift. Falsified configuration by removing `_txlock=immediate` from the test's DSN and confirmed 19 failures out of 150 runs, proving the parameter is essential to the test's guarantees. No shared mutex seam in the repository layer; locking lives in SQLite DSN where it belongs—simpler, safer, testable. Committed as 57cbd56.

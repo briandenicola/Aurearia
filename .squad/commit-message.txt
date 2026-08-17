@@ -1,0 +1,30 @@
+Scribe: merge batch (Cassius SQLite, Aurelia composables, Maximus Task fix, eslint CI fix)
+
+Session: 2026-08-17T173800Z-ci-gate-repairs-and-backlog
+
+Cassius-10 — centralized SQLite concurrency DSN params into src/api/models/sqlite_config.go;
+falsified configuration (removing _txlock=immediate) produced 19/150 SQLITE_BUSY failures, 
+proving parameter essential. Committed as 57cbd56.
+
+Aurelia-5 — extracted CoinActionsPanel composables (550→247 lines). Added useCoinImageUpload.ts
+and useCoinValueEstimate.ts along genuine state-cohesion seams. Declined to split 40-line
+template block per Principle IV (no cohesion gain). Test suite: 133 files / 862 tests passing.
+
+Maximus-8 — fixed two compounding Taskfile.yml Windows shell bugs: (1) Task's mvdan.cc/sh
+parser expanding bare $v/$c/$1 to empty strings → escaped as \$variable; (2) regex
+concatenation fusing $1 into nonexistent capture group $14 → used braced form ${1}.
+Regenerated docs byte-identical to 521c924. Committed as 3fbdc2f.
+
+Coordinator — fixed 2 eslint errors in DeepAnalysisActivityTimeline.vue: missing HTMLDetailsElement
+from DOM globals allowlist, dead groupState initializer. Committed as 2fc34be.
+
+Findings:
+- CI gate (T108-T114) omitted eslint; manual sweep was red. Drive gates from CI workflow files.
+- CodeQL failure was GitHub-side SARIF upload outage, not a code defect.
+- Open defect: DeepAnalysisActivityTimeline partial failure renders as success. Awaiting decision.
+
+Decisions inbox: empty (0 merges).
+decisions.md line count: 1700 → 1700 (no changes).
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+Copilot-Session: cd87d0e4-5182-40e1-835c-afcb69e94022
