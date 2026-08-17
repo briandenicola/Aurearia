@@ -127,6 +127,18 @@ combines image observations with available reference providers, streams
 replayable progress, and returns cited evidence plus a confirm-gated proposal.
 See [Deep Analysis](deep-analysis.md).
 
+Deep Analysis also runs a fast Quick Lookup pass internally (the same vision
+lookup used by the standalone Quick Capture flow) to seed provider queries
+with an NGC cert, grade, and coin fields when available. This pass is
+budget-limited by an admin-tunable setting
+(`DeepIdentificationQuickLookupTimeoutSeconds`, default 90s, bounded above by
+the agent proxy's own 5-minute request ceiling) rather than a fixed internal
+constant. If the pass does not complete in time, finds no usable data, or
+otherwise fails, that outcome is now recorded as a typed, observable result on
+the job (`ok` / `no_data` / `unavailable`) instead of failing silently — the
+job still completes either way. Outcome recording carries only the outcome
+class, never label text, cert numbers, notes, or image data.
+
 ## Limitations
 
 - **Accuracy** — Vision models may misidentify coins, especially rare varieties

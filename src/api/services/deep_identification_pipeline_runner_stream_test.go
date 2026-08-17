@@ -325,6 +325,135 @@ func TestDeepIdentificationPipelineRunnerPassesQuickLookupEvidence(t *testing.T)
 	}
 }
 
+// TestQuickLookupOutcomeTypedAndJobStillCompletes is the T017 regression:
+// forced Lookup error yields `unavailable` and the job still completes,
+// empty result yields `no_data`, success yields `ok`. It also asserts no
+// user content (cert numbers, label text, ruler names) ever appears in the
+// emitted progress event payload — only the fixed outcome-class message
+// (FR-030, 344 FR-036).
+func TestQuickLookupOutcomeTypedAndJobStillCompletes(t *testing.T) {
+	tests := []struct {
+		name            string
+		analyzeStatus   int
+		analyzeBody     map[string]any
+		wantOutcome     quickLookupOutcome
+		wantMessage     string
+		forbiddenSubstr []string
+	}{
+		{
+			name:          "forced lookup error yields unavailable",
+			analyzeStatus: http.StatusInternalServerError,
+			wantOutcome:   quickLookupOutcomeUnavailable,
+			wantMessage:   "Quick lookup did not complete",
+		},
+		{
+			name:          "empty result yields no_data",
+			analyzeStatus: http.StatusOK,
+			analyzeBody: map[string]any{
+				"ngcCert": nil, "ngcGrade": nil, "ngcDescription": nil,
+				"labelText": "", "name": nil, "ruler": nil, "denomination": nil,
+				"category": nil, "confidence": "low",
+			},
+			wantOutcome: quickLookupOutcomeNoData,
+			wantMessage: "Quick lookup completed with no supporting data",
+		},
+		{
+			name:          "success yields ok",
+			analyzeStatus: http.StatusOK,
+			analyzeBody: map[string]any{
+				"ngcCert": "8232252-186", "ngcGrade": "Ch AU", "ngcDescription": "Maximinus I denarius",
+				"labelText": "8232252-186 Maximinus I", "name": "Maximinus I AR Denarius",
+				"ruler": "Maximinus I", "denomination": "Denarius", "category": "Roman", "confidence": "high",
+			},
+			wantOutcome:     quickLookupOutcomeOK,
+			wantMessage:     "Quick lookup found supporting data",
+			forbiddenSubstr: []string{"8232252", "Maximinus", "Denarius", "Ch AU"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/analyze":
+					if tt.analyzeStatus != http.StatusOK {
+						http.Error(w, "analysis unavailable", tt.analyzeStatus)
+						return
+					}
+					analysis, _ := json.Marshal(tt.analyzeBody)
+					_ = json.NewEncoder(w).Encode(map[string]string{"analysis": string(analysis)})
+				case "/api/deep-identify/stream":
+					w.Header().Set("Content-Type", "text/event-stream")
+					flusher := w.(http.Flusher)
+					_, _ = w.Write([]byte("data: {\"type\":\"synthesis\",\"report\":{\"narrative\":\"stub\",\"partial_success\":false}}\n\n"))
+					flusher.Flush()
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			runner, repo, db := newDeepRunnerStreamTestDeps(t, server.URL)
+			runner.WithQuickEvidence(NewCoinLookupService(runner.proxy, runner.settingsSvc, NewLogger(20)))
+			job, userID := seedDeepRunnerJob(t, db, models.DeepJobSourceIntake, nil)
+			imagePath := filepath.Join(t.TempDir(), "obverse.png")
+			if err := os.WriteFile(imagePath, []byte("valid-enough-for-proxy-test"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Create(&models.DeepIdentificationArtifact{
+				JobID: job.ID, UserID: userID, Role: models.DeepArtifactRoleObverse,
+				Origin: models.DeepArtifactOriginUploaded, FilePath: imagePath, MimeType: "image/png",
+			}).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := runner.Run(context.Background(), job)
+			// The job must still complete: a quick-lookup failure/no-data
+			// outcome must never surface as a pipeline error (T017).
+			if err != nil {
+				t.Fatalf("runner.Run returned an error; job did not complete: %v", err)
+			}
+			if result == nil || result.ReportJSON == "" {
+				t.Fatal("expected a synthesized report even when quick lookup did not contribute")
+			}
+
+			var report map[string]any
+			if jsonErr := json.Unmarshal([]byte(result.ReportJSON), &report); jsonErr != nil {
+				t.Fatalf("unmarshal report: %v", jsonErr)
+			}
+			if got := report["quickLookupOutcome"]; got != string(tt.wantOutcome) {
+				t.Fatalf("report quickLookupOutcome = %v, want %q", got, tt.wantOutcome)
+			}
+
+			events, err := repo.ListEventsSince(job.ID, userID, 0)
+			if err != nil {
+				t.Fatalf("ListEventsSince: %v", err)
+			}
+			var found bool
+			for _, event := range events {
+				if event.Type != models.DeepEventProgress {
+					continue
+				}
+				if !strings.Contains(event.PayloadJSON, `"phase":"quick_lookup"`) {
+					continue
+				}
+				found = true
+				if !strings.Contains(event.PayloadJSON, tt.wantMessage) {
+					t.Fatalf("progress payload = %s, want message %q", event.PayloadJSON, tt.wantMessage)
+				}
+				for _, forbidden := range tt.forbiddenSubstr {
+					if strings.Contains(event.PayloadJSON, forbidden) {
+						t.Fatalf("progress payload leaked user content %q: %s", forbidden, event.PayloadJSON)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("expected a quick_lookup progress event to be recorded")
+			}
+		})
+	}
+}
+
 // TestRunnerAccumulatesStreamedClaimsIntoProposal is the core B1 regression:
 // it feeds the exact Python-shaped SSE frames (provider_result carrying full
 // claims) through the real Run, and asserts the resulting ProposalJSON

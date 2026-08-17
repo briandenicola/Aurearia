@@ -109,23 +109,15 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 	}
 
 	settings := r.settingsSvc.GetDeepIdentificationSettings()
-	quickCtx, cancelQuick := context.WithTimeout(ctx, 15*time.Second)
-	quickEvidence := r.extractQuickEvidence(quickCtx, job.UserID, images, job.Notes)
+	quickCtx, cancelQuick := deepQuickLookupContext(ctx, settings)
+	quickEvidence, quickOutcome := r.extractQuickEvidence(quickCtx, job.UserID, images, job.Notes)
 	cancelQuick()
+	r.emitQuickLookupOutcomeEvent(job, quickOutcome)
 
 	bounds := deepPipelineBounds(settings)
-	if deadline, ok := ctx.Deadline(); ok {
-		remainingDuration := time.Until(deadline)
-		if remainingDuration <= 0 {
-			return nil, context.DeadlineExceeded
-		}
-		remaining := int((remainingDuration + time.Second - 1) / time.Second)
-		if remaining > deepPipelineHardTimeoutSafetyMarginS {
-			remaining -= deepPipelineHardTimeoutSafetyMarginS
-		}
-		if remaining < bounds.TotalTimeoutS {
-			bounds.TotalTimeoutS = remaining
-		}
+	bounds, deadlineErr := deepPipelineApplyRemainingBudget(ctx, bounds)
+	if deadlineErr != nil {
+		return nil, deadlineErr
 	}
 
 	internalToken, err := r.tokenSvc.MintForJobWithTTL(
@@ -378,7 +370,7 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 			unsettledErrorKind = ""
 		}
 		return &DeepPipelineResult{
-			ReportJSON:   string(lastSynthesis),
+			ReportJSON:   deepPipelineAugmentReportWithQuickLookupOutcome(string(lastSynthesis), quickOutcome),
 			ProposalJSON: buildDeepProposalDocumentJSON(lastSynthesis, job.CoinID, providerClaims),
 			Partial:      partial.PartialSuccess,
 		}, nil
@@ -396,14 +388,116 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 	return nil, fmt.Errorf("deep identification pipeline error %s: %s", lastErrorCode, lastErrorMessage)
 }
 
+// quickLookupOutcome is the typed result of the quick-evidence extraction
+// pass inside Deep Analysis (data-model.md §5, 351 T014). It replaces the
+// prior "log a Warn and return nil" pattern, which conflated "no quick
+// evidence found" with "the quick lookup did not complete" — the defect
+// that made the Maximinus run report zero NGC data even though standalone
+// Quick Lookup succeeded a minute later.
+type quickLookupOutcome string
+
+const (
+	// quickLookupOutcomeOK: the lookup completed and returned at least one
+	// usable field (label text, a coin field, confidence, an NGC cert, or a
+	// proposed Numista query).
+	quickLookupOutcomeOK quickLookupOutcome = "ok"
+	// quickLookupOutcomeNoData: the lookup completed but genuinely found
+	// nothing usable in the images.
+	quickLookupOutcomeNoData quickLookupOutcome = "no_data"
+	// quickLookupOutcomeUnavailable: the lookup did not complete — deadline
+	// exceeded, a Lookup error, or the quick-lookup subsystem was not wired
+	// for this runner instance. Distinct from no_data (data-model.md §5).
+	quickLookupOutcomeUnavailable quickLookupOutcome = "unavailable"
+)
+
+// deepQuickLookupProgressMessage returns the fixed, sanitized message text
+// for a quick-lookup progress event. It carries only the outcome class —
+// never label text, cert numbers, notes, image data, or query strings
+// (FR-030, 344 FR-036).
+func deepQuickLookupProgressMessage(outcome quickLookupOutcome) string {
+	switch outcome {
+	case quickLookupOutcomeOK:
+		return "Quick lookup found supporting data"
+	case quickLookupOutcomeNoData:
+		return "Quick lookup completed with no supporting data"
+	case quickLookupOutcomeUnavailable:
+		return "Quick lookup did not complete"
+	default:
+		return "Quick lookup outcome unknown"
+	}
+}
+
+// emitQuickLookupOutcomeEvent appends the typed quick-lookup outcome as a
+// `progress` event (contracts/sse-events.md §2 shape: {phase, message}) — no
+// new SSE vocabulary is introduced (351 T015). The payload carries only the
+// fixed outcome-class message above.
+func (r *DeepIdentificationPipelineRunner) emitQuickLookupOutcomeEvent(job *models.DeepIdentificationJob, outcome quickLookupOutcome) {
+	payload, err := json.Marshal(map[string]string{
+		"phase":   "quick_lookup",
+		"message": deepQuickLookupProgressMessage(outcome),
+	})
+	if err != nil {
+		return
+	}
+	if _, appendErr := r.repo.AppendEvent(job.ID, job.UserID, models.DeepEventProgress, string(payload)); appendErr != nil {
+		if r.logger != nil {
+			r.logger.Error("deep-identification", "failed to append quick-lookup progress event for job %d: %v", job.ID, appendErr)
+		}
+		return
+	}
+	if r.broker != nil {
+		r.broker.Publish(job.ID)
+	}
+}
+
+// deepPipelineAugmentReportWithQuickLookupOutcome adds the typed quick-lookup
+// outcome as an additive `quickLookupOutcome` key on the synthesized report
+// JSON (no schema migration — the report column already exists, mirroring
+// how data-model.md §4 documents `image_hypothesis` as an additive report
+// key). Old readers ignore the unknown key; new readers can distinguish
+// "no cert data existed" from "the quick lookup did not complete" (T016,
+// owned by Aurelia). On any marshal failure the original report is returned
+// unchanged rather than dropping the synthesized report.
+func deepPipelineAugmentReportWithQuickLookupOutcome(reportJSON string, outcome quickLookupOutcome) string {
+	var report map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(reportJSON), &report); err != nil {
+		return reportJSON
+	}
+	encodedOutcome, err := json.Marshal(string(outcome))
+	if err != nil {
+		return reportJSON
+	}
+	report["quickLookupOutcome"] = encodedOutcome
+	out, err := json.Marshal(report)
+	if err != nil {
+		return reportJSON
+	}
+	return string(out)
+}
+
+// deepQuickEvidenceIsEmpty reports whether a successfully-returned quick
+// evidence proxy has no usable content at all, which distinguishes the
+// no_data outcome from ok (351 T014). Confidence is deliberately excluded:
+// CoinLookupService.determineConfidence always returns "low"/"medium"/"high"
+// even when nothing was extracted, so it is never itself evidence of data.
+func deepQuickEvidenceIsEmpty(evidence *DeepQuickEvidenceProxy) bool {
+	if evidence == nil {
+		return true
+	}
+	return evidence.LabelText == "" &&
+		len(evidence.CoinFields) == 0 &&
+		evidence.NumistaQuery == "" &&
+		evidence.NGC == nil
+}
+
 func (r *DeepIdentificationPipelineRunner) extractQuickEvidence(
 	ctx context.Context,
 	userID uint,
 	images []DeepIdentifyImageProxy,
 	notes string,
-) *DeepQuickEvidenceProxy {
+) (*DeepQuickEvidenceProxy, quickLookupOutcome) {
 	if r.coinLookup == nil {
-		return nil
+		return nil, quickLookupOutcomeUnavailable
 	}
 	lookupImages := make([]string, 0, len(images))
 	imageRoles := make([]string, 0, len(images))
@@ -424,7 +518,7 @@ func (r *DeepIdentificationPipelineRunner) extractQuickEvidence(
 		if r.logger != nil {
 			r.logger.Warn("deep-identification", "quick evidence extraction failed for user %d: %v", userID, err)
 		}
-		return nil
+		return nil, quickLookupOutcomeUnavailable
 	}
 
 	keys := make([]string, 0, len(result.ExtractedData.CoinFields))
@@ -463,7 +557,10 @@ func (r *DeepIdentificationPipelineRunner) extractQuickEvidence(
 			LookupURL:  boundedDeepEvidenceURL(ngc.LookupURL),
 		}
 	}
-	return evidence
+	if deepQuickEvidenceIsEmpty(evidence) {
+		return nil, quickLookupOutcomeNoData
+	}
+	return evidence, quickLookupOutcomeOK
 }
 
 func truncateDeepEvidence(value string, maxRunes int) string {
@@ -624,6 +721,44 @@ func deepPipelineBounds(settings DeepIdentificationSettings) DeepIdentifyBoundsP
 		TotalTimeoutS:    totalTimeoutS,
 		RecursionLimit:   deepPipelineDefaultRecursionLimit,
 	}
+}
+
+// deepQuickLookupContext bounds the quick-evidence extraction pass (a full
+// vision LLM round trip) to the admin-tunable
+// SettingDeepIdentificationQuickLookupTimeoutSeconds, replacing the prior
+// `15*time.Second` magic literal (351 T011, FR-038). It is consumed from the
+// same ctx as the overall job hard timeout, so every second spent here is a
+// deduction from - not an addition to - deepPipelineApplyRemainingBudget's
+// result below; extracted as its own function so T013 can assert the
+// deadline directly without exercising the full Run pipeline.
+func deepQuickLookupContext(ctx context.Context, settings DeepIdentificationSettings) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, settings.QuickLookupTimeout)
+}
+
+// deepPipelineApplyRemainingBudget clamps bounds.TotalTimeoutS to whatever
+// budget remains on ctx's deadline (runner.go:116-123 pre-351) after the
+// quick-lookup pass has already consumed part of it, minus the hard-timeout
+// safety margin. Extracted so T012's measured interaction between
+// SettingDeepIdentificationQuickLookupTimeoutSeconds and
+// SettingDeepIdentificationHardTimeoutSeconds can be regression-tested
+// directly (T013) rather than only asserted by inspection.
+func deepPipelineApplyRemainingBudget(ctx context.Context, bounds DeepIdentifyBoundsProxy) (DeepIdentifyBoundsProxy, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return bounds, nil
+	}
+	remainingDuration := time.Until(deadline)
+	if remainingDuration <= 0 {
+		return bounds, context.DeadlineExceeded
+	}
+	remaining := int((remainingDuration + time.Second - 1) / time.Second)
+	if remaining > deepPipelineHardTimeoutSafetyMarginS {
+		remaining -= deepPipelineHardTimeoutSafetyMarginS
+	}
+	if remaining < bounds.TotalTimeoutS {
+		bounds.TotalTimeoutS = remaining
+	}
+	return bounds, nil
 }
 
 // deepPipelineProviderCatalog builds the fixed MVP provider catalog

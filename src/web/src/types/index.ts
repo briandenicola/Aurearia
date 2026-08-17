@@ -1993,6 +1993,14 @@ export interface DeepReport {
   attributions?: DeepReportAttribution[]
   partialSuccess: boolean
   generatedAt: string
+  /**
+   * Typed outcome of the quick-evidence (NGC quick-lookup) pass that runs
+   * before the main Deep Analysis pipeline. Optional — absent on reports
+   * generated before 351 T014/T015/T016 landed. `unavailable` means the
+   * lookup did not complete (timeout/error), distinct from `no_data`
+   * (it completed and genuinely found nothing).
+   */
+  quickLookupOutcome?: 'ok' | 'no_data' | 'unavailable'
 }
 
 export interface DeepProposalFieldEntry {

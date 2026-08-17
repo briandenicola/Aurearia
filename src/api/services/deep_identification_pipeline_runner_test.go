@@ -419,3 +419,67 @@ func TestDeepPipelineBoundsClampToContractLimits(t *testing.T) {
 		t.Fatalf("expected recursion_limit within [1,50], got %d", bounds.RecursionLimit)
 	}
 }
+
+// T013(a): the quick-lookup context deadline equals the configured setting
+// (351 T011/T013). This is the direct regression for the pre-351 magic
+// literal `15*time.Second` at deep_identification_pipeline_runner.go:112 -
+// it fails immediately if that literal, or any other fixed duration, is
+// reintroduced instead of settings.QuickLookupTimeout.
+func TestDeepQuickLookupContextDeadlineMatchesConfiguredSetting(t *testing.T) {
+	settings := DeepIdentificationSettings{QuickLookupTimeout: 90 * time.Second}
+	before := time.Now()
+	ctx, cancel := deepQuickLookupContext(context.Background(), settings)
+	defer cancel()
+	after := time.Now()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected quick-lookup context to carry a deadline")
+	}
+	minExpected := before.Add(settings.QuickLookupTimeout)
+	maxExpected := after.Add(settings.QuickLookupTimeout)
+	if deadline.Before(minExpected) || deadline.After(maxExpected) {
+		t.Fatalf("quick-lookup deadline = %v, want within [%v, %v] (i.e. exactly QuickLookupTimeout from now)", deadline, minExpected, maxExpected)
+	}
+}
+
+// T013(b): bounds.TotalTimeoutS after the quick-lookup pass is still >=
+// deepPipelineMinTotalTimeoutS for the default settings combination decided
+// in T012 (HardTimeoutSeconds=420, QuickLookupTimeoutSeconds=90). This is
+// the regression for the T012 finding: raising the quick-lookup budget from
+// 15s to 90s without also raising HardTimeout would have shrunk the
+// pipeline's own budget to ~190s; the paired default of 420s keeps it at
+// ~310s, comfortably above both deepPipelineMinTotalTimeoutS and the
+// pre-change ~265s baseline (SC-013).
+func TestDeepPipelineRemainingBudgetAfterQuickLookupMeetsMinimumForDefaults(t *testing.T) {
+	settings := DeepIdentificationSettings{
+		HardTimeout:        420 * time.Second,
+		QuickLookupTimeout: 90 * time.Second,
+		MaxProviders:       4,
+	}
+	bounds := deepPipelineBounds(settings)
+
+	// Simulate the ctx deadline as it stands immediately after quick lookup
+	// has consumed its full budget from the shared job ctx (worst case).
+	jobDeadline := time.Now().Add(settings.HardTimeout - settings.QuickLookupTimeout)
+	ctx, cancel := context.WithDeadline(context.Background(), jobDeadline)
+	defer cancel()
+
+	adjusted, err := deepPipelineApplyRemainingBudget(ctx, bounds)
+	if err != nil {
+		t.Fatalf("deepPipelineApplyRemainingBudget: %v", err)
+	}
+	if adjusted.TotalTimeoutS < deepPipelineMinTotalTimeoutS {
+		t.Fatalf("post-quick-lookup TotalTimeoutS = %d, want >= deepPipelineMinTotalTimeoutS (%d)", adjusted.TotalTimeoutS, deepPipelineMinTotalTimeoutS)
+	}
+	// Cross-check against the ~310s T012 derivation (420-90-20), with a
+	// small tolerance for wall-clock scheduling jitter in the test itself.
+	const wantApprox = 310
+	if adjusted.TotalTimeoutS < wantApprox-2 || adjusted.TotalTimeoutS > wantApprox+2 {
+		t.Fatalf("post-quick-lookup TotalTimeoutS = %d, want ~%d (420-90-20 per T012)", adjusted.TotalTimeoutS, wantApprox)
+	}
+	const preChangeBaseline = 265
+	if adjusted.TotalTimeoutS < preChangeBaseline {
+		t.Fatalf("post-quick-lookup TotalTimeoutS = %d regresses below the pre-change ~265s baseline (SC-013)", adjusted.TotalTimeoutS)
+	}
+}

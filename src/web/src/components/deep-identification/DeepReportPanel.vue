@@ -7,6 +7,22 @@
       </p>
     </div>
 
+    <div
+      v-if="report.quickLookupOutcome === 'unavailable'"
+      class="rounded-sm border border-warning/30 bg-[color-mix(in_srgb,var(--text-warning)_10%,transparent)] p-3"
+      role="status"
+    >
+      <p class="m-0 text-sm font-semibold text-warning">Quick lookup incomplete</p>
+      <p class="m-0 text-sm text-text-secondary">
+        The initial NGC/catalog quick lookup did not finish before this report was generated. Any
+        missing supporting data below may be a result of that, not proof the coin has none &mdash;
+        try running Deep Analysis again.
+      </p>
+    </div>
+    <p v-else-if="report.quickLookupOutcome === 'no_data'" class="m-0 text-sm text-text-muted">
+      Quick lookup completed but found no supporting cert or catalog data for this coin.
+    </p>
+
     <div class="grid min-w-0 gap-2">
       <h3 class="m-0 text-lg font-semibold text-text-primary">Narrative</h3>
       <p class="m-0 whitespace-pre-line break-words text-body text-text-secondary [overflow-wrap:anywhere]">{{ safeNarrative }}</p>

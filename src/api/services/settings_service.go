@@ -82,18 +82,25 @@ const (
 	SettingShipmentSyncBatchSize              = "ShipmentSyncBatchSize"
 
 	// 344-deep-agentic-coin-identification settings (data-model.md §8).
-	SettingDeepIdentificationEnabled             = "DeepIdentificationEnabled"
-	SettingDeepIdentificationWorkerCount         = "DeepIdentificationWorkerCount"
-	SettingDeepIdentificationMaxActivePerUser    = "DeepIdentificationMaxActivePerUser"
-	SettingDeepIdentificationQueueDepth          = "DeepIdentificationQueueDepth"
-	SettingDeepIdentificationHardTimeoutSeconds  = "DeepIdentificationHardTimeoutSeconds"
-	SettingDeepIdentificationEventRetentionHours = "DeepIdentificationEventRetentionHours"
-	SettingDeepIdentificationResultRetentionDays = "DeepIdentificationResultRetentionDays"
-	SettingDeepIdentificationMaxProviders        = "DeepIdentificationMaxProviders"
-	SettingDeepIdentificationNumistaCallBudget   = "DeepIdentificationNumistaCallBudget"
-	SettingDeepIdentificationOCREEnabled         = "DeepIdentificationOCREEnabled"
-	SettingDeepIdentificationOCRECallBudget      = "DeepIdentificationOCRECallBudget"
-	SettingDeepIdentificationRPCEnabled          = "DeepIdentificationRPCEnabled"
+	SettingDeepIdentificationEnabled            = "DeepIdentificationEnabled"
+	SettingDeepIdentificationWorkerCount        = "DeepIdentificationWorkerCount"
+	SettingDeepIdentificationMaxActivePerUser   = "DeepIdentificationMaxActivePerUser"
+	SettingDeepIdentificationQueueDepth         = "DeepIdentificationQueueDepth"
+	SettingDeepIdentificationHardTimeoutSeconds = "DeepIdentificationHardTimeoutSeconds"
+	// SettingDeepIdentificationQuickLookupTimeoutSeconds bounds the
+	// quick-evidence extraction pass inside Deep Analysis (a full vision LLM
+	// round trip via CoinLookupService.Lookup, `runner.go:112`). Validated
+	// range 5-300s; 300s mirrors agent_proxy.go's own non-streaming
+	// `requestClient` ceiling (5 minutes) and is never exceeded (351 T011,
+	// FR-038).
+	SettingDeepIdentificationQuickLookupTimeoutSeconds = "DeepIdentificationQuickLookupTimeoutSeconds"
+	SettingDeepIdentificationEventRetentionHours       = "DeepIdentificationEventRetentionHours"
+	SettingDeepIdentificationResultRetentionDays       = "DeepIdentificationResultRetentionDays"
+	SettingDeepIdentificationMaxProviders              = "DeepIdentificationMaxProviders"
+	SettingDeepIdentificationNumistaCallBudget         = "DeepIdentificationNumistaCallBudget"
+	SettingDeepIdentificationOCREEnabled               = "DeepIdentificationOCREEnabled"
+	SettingDeepIdentificationOCRECallBudget            = "DeepIdentificationOCRECallBudget"
+	SettingDeepIdentificationRPCEnabled                = "DeepIdentificationRPCEnabled"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -193,18 +200,26 @@ var settingDefaults = map[string]string{
 	// 344-deep-agentic-coin-identification defaults (data-model.md §8).
 	// Enabled defaults to false: this is a feature-flagged, safe-by-default
 	// capability; flipping it on is an explicit out-of-band rollout step.
-	SettingDeepIdentificationEnabled:             "false",
-	SettingDeepIdentificationWorkerCount:         "2",
-	SettingDeepIdentificationMaxActivePerUser:    "1",
-	SettingDeepIdentificationQueueDepth:          "32",
-	SettingDeepIdentificationHardTimeoutSeconds:  "300",
-	SettingDeepIdentificationEventRetentionHours: "24",
-	SettingDeepIdentificationResultRetentionDays: "90",
-	SettingDeepIdentificationMaxProviders:        "4",
-	SettingDeepIdentificationNumistaCallBudget:   "4",
-	SettingDeepIdentificationOCREEnabled:         "false",
-	SettingDeepIdentificationOCRECallBudget:      "3",
-	SettingDeepIdentificationRPCEnabled:          "false",
+	SettingDeepIdentificationEnabled:            "false",
+	SettingDeepIdentificationWorkerCount:        "2",
+	SettingDeepIdentificationMaxActivePerUser:   "1",
+	SettingDeepIdentificationQueueDepth:         "32",
+	SettingDeepIdentificationHardTimeoutSeconds: "420",
+	// 351-vision-first-deep-identification default (T011/T012): a full
+	// vision LLM round trip through the Python service needs more than the
+	// prior 15s magic literal; 90s is proportionate to the work performed
+	// while remaining well under the 300s agent-proxy ceiling. Pairing this
+	// with the raised 420s hard timeout above keeps the post-quick-lookup
+	// pipeline budget at 420-90-20=310s, at or above the pre-change ~265s
+	// (see .squad/decisions/inbox/cassius-quick-lookup-budget.md).
+	SettingDeepIdentificationQuickLookupTimeoutSeconds: "90",
+	SettingDeepIdentificationEventRetentionHours:       "24",
+	SettingDeepIdentificationResultRetentionDays:       "90",
+	SettingDeepIdentificationMaxProviders:              "4",
+	SettingDeepIdentificationNumistaCallBudget:         "4",
+	SettingDeepIdentificationOCREEnabled:               "false",
+	SettingDeepIdentificationOCRECallBudget:            "3",
+	SettingDeepIdentificationRPCEnabled:                "false",
 }
 
 type NumistaSettings struct {
@@ -249,19 +264,25 @@ func (s *SettingsService) GetNumistaSettings() NumistaSettings {
 // (data-model.md §8). Invalid values fall back independently to documented
 // defaults and mark the snapshot invalid.
 type DeepIdentificationSettings struct {
-	Enabled           bool
-	WorkerCount       int
-	MaxActivePerUser  int
-	QueueDepth        int
-	HardTimeout       time.Duration
-	EventRetention    time.Duration
-	ResultRetention   time.Duration
-	MaxProviders      int
-	NumistaCallBudget int
-	OCREEnabled       bool
-	OCRECallBudget    int
-	RPCEnabled        bool
-	Valid             bool
+	Enabled          bool
+	WorkerCount      int
+	MaxActivePerUser int
+	QueueDepth       int
+	HardTimeout      time.Duration
+	// QuickLookupTimeout bounds the quick-evidence extraction pass inside
+	// Deep Analysis (351 T011/FR-038). It is consumed from the same ctx as
+	// the overall HardTimeout, so it is a prefix of, not additional to,
+	// that budget (see deepPipelineBounds and Run's remaining-budget check
+	// in deep_identification_pipeline_runner.go).
+	QuickLookupTimeout time.Duration
+	EventRetention     time.Duration
+	ResultRetention    time.Duration
+	MaxProviders       int
+	NumistaCallBudget  int
+	OCREEnabled        bool
+	OCRECallBudget     int
+	RPCEnabled         bool
+	Valid              bool
 }
 
 // GetDeepIdentificationSettings reads and validates the live deep
@@ -288,23 +309,25 @@ func (s *SettingsService) GetDeepIdentificationSettings() DeepIdentificationSett
 			return fallback
 		}
 	}
-	hardTimeoutSeconds := readInt(SettingDeepIdentificationHardTimeoutSeconds, 300, 1, 900)
+	hardTimeoutSeconds := readInt(SettingDeepIdentificationHardTimeoutSeconds, 420, 1, 900)
+	quickLookupTimeoutSeconds := readInt(SettingDeepIdentificationQuickLookupTimeoutSeconds, 90, 5, 300)
 	eventRetentionHours := readInt(SettingDeepIdentificationEventRetentionHours, 24, 1, 720)
 	resultRetentionDays := readInt(SettingDeepIdentificationResultRetentionDays, 90, 1, 3650)
 	return DeepIdentificationSettings{
-		Enabled:           readBool(SettingDeepIdentificationEnabled, false),
-		WorkerCount:       readInt(SettingDeepIdentificationWorkerCount, 2, 1, 32),
-		MaxActivePerUser:  readInt(SettingDeepIdentificationMaxActivePerUser, 1, 1, 10),
-		QueueDepth:        readInt(SettingDeepIdentificationQueueDepth, 32, 1, 1000),
-		HardTimeout:       time.Duration(hardTimeoutSeconds) * time.Second,
-		EventRetention:    time.Duration(eventRetentionHours) * time.Hour,
-		ResultRetention:   time.Duration(resultRetentionDays) * 24 * time.Hour,
-		MaxProviders:      readInt(SettingDeepIdentificationMaxProviders, 4, 1, 10),
-		NumistaCallBudget: readInt(SettingDeepIdentificationNumistaCallBudget, 4, 1, 20),
-		OCREEnabled:       readBool(SettingDeepIdentificationOCREEnabled, false),
-		OCRECallBudget:    readInt(SettingDeepIdentificationOCRECallBudget, 3, 1, 20),
-		RPCEnabled:        readBool(SettingDeepIdentificationRPCEnabled, false),
-		Valid:             valid,
+		Enabled:            readBool(SettingDeepIdentificationEnabled, false),
+		WorkerCount:        readInt(SettingDeepIdentificationWorkerCount, 2, 1, 32),
+		MaxActivePerUser:   readInt(SettingDeepIdentificationMaxActivePerUser, 1, 1, 10),
+		QueueDepth:         readInt(SettingDeepIdentificationQueueDepth, 32, 1, 1000),
+		HardTimeout:        time.Duration(hardTimeoutSeconds) * time.Second,
+		QuickLookupTimeout: time.Duration(quickLookupTimeoutSeconds) * time.Second,
+		EventRetention:     time.Duration(eventRetentionHours) * time.Hour,
+		ResultRetention:    time.Duration(resultRetentionDays) * 24 * time.Hour,
+		MaxProviders:       readInt(SettingDeepIdentificationMaxProviders, 4, 1, 10),
+		NumistaCallBudget:  readInt(SettingDeepIdentificationNumistaCallBudget, 4, 1, 20),
+		OCREEnabled:        readBool(SettingDeepIdentificationOCREEnabled, false),
+		OCRECallBudget:     readInt(SettingDeepIdentificationOCRECallBudget, 3, 1, 20),
+		RPCEnabled:         readBool(SettingDeepIdentificationRPCEnabled, false),
+		Valid:              valid,
 	}
 }
 

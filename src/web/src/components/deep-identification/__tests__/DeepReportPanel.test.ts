@@ -91,6 +91,32 @@ describe('DeepReportPanel', () => {
     expect(wrapper.text()).toContain('Is the mint mark legible?')
   })
 
+  it('renders nothing extra when quickLookupOutcome is "ok"', () => {
+    const wrapper = mount(DeepReportPanel, { props: { report: baseReport({ quickLookupOutcome: 'ok' }) } })
+    expect(wrapper.text()).not.toContain('Quick lookup')
+  })
+
+  it('renders a quiet note when quickLookupOutcome is "no_data"', () => {
+    const wrapper = mount(DeepReportPanel, { props: { report: baseReport({ quickLookupOutcome: 'no_data' }) } })
+    expect(wrapper.text()).toContain('Quick lookup completed but found no supporting cert or catalog data')
+    expect(wrapper.text()).not.toContain('did not finish')
+  })
+
+  it('renders a prominent, legible warning when quickLookupOutcome is "unavailable"', () => {
+    const wrapper = mount(DeepReportPanel, { props: { report: baseReport({ quickLookupOutcome: 'unavailable' }) } })
+    expect(wrapper.text()).toContain('Quick lookup incomplete')
+    expect(wrapper.text()).toContain('did not finish before this report was generated')
+    expect(wrapper.find('[role="status"]').exists()).toBe(true)
+  })
+
+  it('renders exactly as today when quickLookupOutcome is absent (pre-change report)', () => {
+    const report = baseReport()
+    delete (report as Partial<DeepReport>).quickLookupOutcome
+    const wrapper = mount(DeepReportPanel, { props: { report } })
+    expect(wrapper.text()).not.toContain('Quick lookup')
+    expect(wrapper.text()).not.toContain('undefined')
+  })
+
   it('renders no attribution section when attributions are absent/empty', () => {
     const wrapper = mount(DeepReportPanel, { props: { report: baseReport() } })
     expect(wrapper.text()).not.toContain('Attribution & licensing')
