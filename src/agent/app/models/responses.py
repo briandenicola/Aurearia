@@ -253,7 +253,9 @@ ProviderName = Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
 ProviderStatus = Literal[
     "contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"
 ]
-ProviderErrorKind = Literal["timeout", "quota", "unconfigured", "upstream", "invalid_response"]
+ProviderErrorKind = Literal[
+    "timeout", "quota", "unconfigured", "upstream", "invalid_response", "insufficient_query_evidence"
+]
 
 
 class ProviderClaim(StrictResponseModel):

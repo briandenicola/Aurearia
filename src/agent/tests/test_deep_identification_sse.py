@@ -17,6 +17,7 @@ from app.models.requests import (
     DeepIdentifyImage,
     DeepIdentifyRequest,
     DeepProviderCatalogEntry,
+    QuickEvidence,
 )
 from app.models.responses import DeepSynthesis, ProviderEvidence
 
@@ -98,7 +99,7 @@ async def _collect_frames(request):
 async def test_happy_path_frame_sequence_and_terminal_invariant(monkeypatch):
     monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
 
-    async def fake_numista_run(entry, tools, quick_evidence, notes):
+    async def fake_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
         return ProviderEvidence(provider="numista", status="no_match", automatable=True, call_count=1)
 
     monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", fake_numista_run)
@@ -124,6 +125,97 @@ async def test_happy_path_frame_sequence_and_terminal_invariant(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_evaluator_node_receives_hypothesis_via_the_real_graph_path(monkeypatch):
+    """Phase 7 wiring regression: `evaluator_node` (graph.py) must pass
+    `state["hypothesis"]` into `evaluate()`. `evaluate()`/`detect_disagreements`
+    have accepted an optional `hypothesis` parameter since Phase 7 landed
+    (defaulting to `None`, which is why a missing call-site wire-up never
+    raised) — until the graph actually threads it through, a
+    provider-vs-image contradiction can never be detected in production.
+    A test that called `evaluate()` directly would not catch a dropped
+    argument at the call site; this drives the production entry point
+    (`run_deep_identification_stream`) instead, so a hypothesis built from
+    real `quick_evidence` genuinely reaches the evaluator through every
+    intermediate node.
+    """
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
+
+    async def contradicting_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
+        from app.models.responses import ProviderClaim
+
+        return ProviderEvidence(
+            provider="numista",
+            status="contributed",
+            automatable=True,
+            call_count=1,
+            claims=[
+                ProviderClaim(
+                    field="denomination",
+                    value="Denarius",
+                    confidence=0.8,
+                    citation="https://en.numista.com/catalogue/pieces1.html",
+                )
+            ],
+        )
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", contradicting_numista_run)
+
+    request = _request()
+    # A real, degrades-to-quick-evidence hypothesis (the fixture's
+    # `_FakeStructuredModel` always fails structured parsing) that
+    # contradicts the provider claim above on the same field.
+    request.quick_evidence = QuickEvidence(coin_fields={"denomination": "As"}, confidence="high")
+
+    frames = await _collect_frames(request)
+
+    evaluation_frames = [f for f in frames if f["type"] == "evaluation"]
+    assert len(evaluation_frames) == 1
+    assert evaluation_frames[0]["disagreement_count"] == 1, (
+        "provider claim ('Denarius') contradicts the hypothesis ('As') on the same field "
+        "(denomination) -- a non-zero disagreement_count proves the graph actually passed "
+        "the hypothesis into evaluate(), not just that evaluate() supports one"
+    )
+
+
+@pytest.mark.asyncio
+async def test_provider_node_receives_hypothesis_via_the_real_graph_path(monkeypatch):
+    """Phase 5 wiring regression: the automated provider nodes' `run()`
+    functions (`providers/numista.py`, `nomisma.py`, `ocre.py`) accepted an
+    optional `hypothesis` parameter when Phase 5 (query terms + candidate
+    ranking) landed, defaulting to `None` — which is why a missing call-site
+    wire-up in `graph.py`'s `_run_one_provider`/`provider_fanout_node` never
+    raised, but also meant no automated provider ever actually received a
+    real hypothesis in production; every run silently fell back to
+    quick-evidence-only query construction. A test that called `run()`
+    directly would not catch a dropped argument at the fan-out call site;
+    this drives the production entry point (`run_deep_identification_stream`)
+    instead and asserts the exact hypothesis object the graph built is the
+    one the provider node actually received.
+    """
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
+
+    received: dict = {}
+
+    async def spy_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
+        received["hypothesis"] = hypothesis
+        return ProviderEvidence(provider="numista", status="no_match", automatable=True, call_count=0)
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", spy_numista_run)
+
+    request = _request()
+    # Degrades to a real, non-empty `build_hypothesis_from_quick_evidence`
+    # hypothesis (the fixture's `_FakeStructuredModel` always fails
+    # structured parsing in this test file).
+    request.quick_evidence = QuickEvidence(coin_fields={"ruler": "Trajan"}, confidence="high")
+
+    await _collect_frames(request)
+
+    assert received["hypothesis"] is not None
+    assert received["hypothesis"].ruler is not None
+    assert received["hypothesis"].ruler.value == "Trajan"
+
+
+@pytest.mark.asyncio
 async def test_provider_result_frame_carries_complete_claims(monkeypatch):
     """B1 regression: the production stream must emit the full, typed
     ProviderEvidence (with citation-backed claims) on `provider_result`
@@ -133,7 +225,7 @@ async def test_provider_result_frame_carries_complete_claims(monkeypatch):
     """
     monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
 
-    async def fake_numista_run(entry, tools, quick_evidence, notes):
+    async def fake_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
         from app.models.responses import ProviderClaim
 
         return ProviderEvidence(
@@ -192,7 +284,7 @@ async def test_provider_result_frame_carries_complete_claims(monkeypatch):
 async def test_no_token_shaped_strings_leak_in_any_frame(monkeypatch):
     monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
 
-    async def leaky_numista_run(entry, tools, quick_evidence, notes):
+    async def leaky_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
         # Simulate a buggy upstream echoing an Authorization header inside a
         # claim value — must be redacted before it ever reaches an SSE frame.
         from app.models.responses import ProviderClaim
@@ -229,7 +321,7 @@ async def test_no_token_shaped_strings_leak_in_any_frame(monkeypatch):
 async def test_timeout_with_partial_evidence_falls_back_to_partial_synthesis(monkeypatch):
     monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
 
-    async def slow_numista_run(entry, tools, quick_evidence, notes):
+    async def slow_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
         await asyncio.sleep(30)
         return ProviderEvidence(provider="numista", status="no_match", automatable=True)
 
@@ -248,11 +340,17 @@ async def test_timeout_with_partial_evidence_falls_back_to_partial_synthesis(mon
 
 @pytest.mark.asyncio
 async def test_timeout_with_zero_evidence_emits_typed_error(monkeypatch):
-    class HangingModel:
-        async def ainvoke(self, messages, **kwargs):
-            await asyncio.sleep(30)
+    # The router (Phase 6, T044) is now a pure, LLM-free function — it can no
+    # longer be made to hang. To exercise the zero-evidence timeout path,
+    # hang the sole automatable provider's fan-out node instead, so the
+    # total timeout fires before any evidence has been collected.
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
 
-    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: HangingModel())
+    async def hanging_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
+        await asyncio.sleep(30)
+        return ProviderEvidence(provider="numista", status="no_match", automatable=True)
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", hanging_numista_run)
 
     request = _request(total_timeout_s=1)
     request.provider_catalog = [

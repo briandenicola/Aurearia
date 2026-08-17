@@ -1,47 +1,43 @@
-"""Router node (contracts/agent-internal-contract.md §6, T058).
+"""Router node (contracts/agent-internal-contract.md §6, T044-T046).
 
-A single LLM call constrained to the supplied `provider_catalog` entries
-selects which *automatable* providers to actually query this run, bounded
-by `bounds.max_providers`. Non-automatable catalog entries (`ngc`, `ocre`,
-`rpc`) are never subject to router reasoning — they always run (trivially,
-with no network call) and are represented directly in the final evidence
-list by their own provider nodes, so they are excluded from `selected`/
-`skipped` here (those two lists describe only automatable candidates the
-router did or didn't pick).
+A **pure, deterministic** function of `(catalog, provider_override, bounds,
+quick_evidence, hypothesis)` selects which *automatable* providers to query
+this run, bounded by `bounds.max_providers`. No LLM call is made — this was
+previously an LLM-router step (344 FR-022); it is now a plain evidence-driven
+selector (spec FR-013/FR-014, ADR 0012). Non-automatable catalog entries
+(`ngc`, `ocre`, `rpc` when their flag is off) are never subject to router
+reasoning — they always run (trivially, with no network call) and are
+represented directly in the final evidence list by their own provider nodes,
+so they are excluded from `selected`/`skipped` here (those two lists describe
+only automatable candidates the router did or didn't pick).
 
-`provider_override`, when non-empty, replaces the LLM call entirely: only
-catalog-listed automatable providers named in the override are selected,
+`provider_override`, when non-empty, replaces selection reasoning entirely:
+only catalog-listed automatable providers named in the override are selected,
 and no other automatable provider runs. The override can never introduce a
 provider absent from the catalog — Go controls the closed candidate list.
+
+Selection is **inclusion by default** (spec FR-015, RD-7): every automatable,
+in-bounds provider is selected unless a stated reason says otherwise. The
+only evidence-driven skip this router applies is OCRE on a *positive*
+non-Roman-Imperial era signal (greek/islamic/byzantine/modern) drawn from the
+hypothesis or quick evidence — the mere *absence* of a Roman signal must
+never cause a skip, because that is precisely the state an unreadable coin
+leaves the pipeline in, and OCRE is the provider most likely to identify a
+Roman Imperial coin at exactly the moment the system knows least (RD-7).
 """
 
-import json
-import logging
-
-from app.llm.content import extract_text_content
-from app.llm.retry import ainvoke_with_retry
-from app.models.requests import DeepProviderCatalogEntry
-from app.safety import with_safety
+from app.models.hypothesis import CoinHypothesis
+from app.models.requests import DeepIdentifyBounds, DeepProviderCatalogEntry, QuickEvidence
 from app.teams.deep_identification.merge import PROVIDER_RANK
 from app.teams.deep_identification.state import RouterSkip
 
-logger = logging.getLogger(__name__)
-
-ROUTER_PROMPT = with_safety("""You are the provider router for a numismatic deep-identification pipeline.
-You will be given a list of automated catalog/reconciliation providers that
-are legal to query for this run, plus brief context about the coin. Decide
-which of the listed providers are worth querying, given the context.
-
-Respond with a single JSON object only:
-
-{"selected": ["numista"], "rationale": "one short sentence"}
-
-Rules:
-- "selected" MUST be a subset of the provider names you were given. Never
-  invent a provider name that was not listed.
-- If you have no strong reason to exclude a listed provider, include it —
-  omitting a plausibly-useful provider is worse than an extra call.
-- Do not use emojis.""")
+# Non-Roman-Imperial era/category signals (RD-7). Matched case-insensitively
+# against the hypothesis era/coin_type fields and quick_evidence's raw
+# `category`/`era` coin fields (Go's CoinLookupService populates `category`
+# with values like "Greek"/"Byzantine"/"Roman"/"Modern" -
+# src/api/services/coin_lookup_service.go:398). A match on any of these is a
+# *positive* non-Roman signal; their absence is not evidence of anything.
+_NON_ROMAN_ERA_SIGNALS = ("greek", "islamic", "byzantine", "modern")
 
 
 class RouterDecision:
@@ -64,26 +60,54 @@ def _rank(name: str) -> int:
         return len(PROVIDER_RANK)
 
 
-async def route(
-    model,
+def _non_roman_signal(quick_evidence: QuickEvidence | None, hypothesis: CoinHypothesis | None) -> str | None:
+    """Return the matched non-Roman-Imperial era/category keyword, or
+    `None` when no positive signal is present anywhere. Never treats a
+    missing/empty value as a signal.
+    """
+    candidates: list[str] = []
+    if hypothesis is not None:
+        if hypothesis.era is not None:
+            candidates.append(hypothesis.era.value)
+        if hypothesis.coin_type is not None:
+            candidates.append(hypothesis.coin_type.value)
+    if quick_evidence is not None:
+        coin_fields = quick_evidence.coin_fields or {}
+        category = coin_fields.get("category")
+        if isinstance(category, str):
+            candidates.append(category)
+        era = coin_fields.get("era")
+        if isinstance(era, str):
+            candidates.append(era)
+
+    for candidate in candidates:
+        normalized = candidate.strip().lower()
+        for keyword in _NON_ROMAN_ERA_SIGNALS:
+            if keyword in normalized:
+                return keyword
+    return None
+
+
+def route(
     catalog: list[DeepProviderCatalogEntry],
     provider_override: list[str],
-    max_providers: int,
-    notes: str = "",
+    bounds: DeepIdentifyBounds | None,
+    quick_evidence: QuickEvidence | None = None,
+    hypothesis: CoinHypothesis | None = None,
 ) -> RouterDecision:
-    """Select which automatable providers to query this run.
-
-    `model` is an already-constructed chat model (see app/llm/provider.py);
-    passed in so tests can substitute a fake without touching LLM config.
+    """Select which automatable providers to query this run. Pure and
+    deterministic (spec FR-014, SC-006): identical inputs always produce an
+    identical `selected` set, `skipped` list (with reasons), and
+    `rationale`.
     """
     automatable = _automatable_names(catalog)
     if not automatable:
         return RouterDecision(selected=[], skipped=[], rationale="no automatable providers in catalog")
 
-    budget = max(0, max_providers)
+    budget = max(0, bounds.max_providers if bounds else 0)
 
     if provider_override:
-        # Override wins outright — no LLM call, no free-form provider names.
+        # Override wins outright — no reasoning, no free-form provider names.
         allowed_override = [p for p in provider_override if p in automatable]
         selected = sorted(allowed_override, key=_rank)[:budget] if budget else []
         skipped = [
@@ -95,54 +119,30 @@ async def route(
             selected=selected, skipped=skipped, rationale="provider_override supplied by caller"
         )
 
-    human_text = (
-        f"Automated providers available this run: {json.dumps(automatable)}\n"
-        f"Coin notes/context (may be empty): {notes[:500]}"
-    )
-    try:
-        response = await ainvoke_with_retry(model, [_system_message(), _human_message(human_text)])
-        raw = extract_text_content(response.content)
-        decision = _parse_router_json(raw)
-    except Exception:
-        logger.exception("[deep_identification.router] router LLM call failed — selecting all automatable providers")
-        decision = {"selected": automatable, "rationale": "router failed; defaulting to all automatable providers"}
+    # Inclusion by default (FR-015, RD-7): every automatable provider is a
+    # candidate unless a stated evidence-driven reason excludes it.
+    signal = _non_roman_signal(quick_evidence, hypothesis)
+    evidence_skips: dict[str, str] = {}
+    if signal is not None and "ocre" in automatable:
+        evidence_skips["ocre"] = f"non-Roman-Imperial era signal: {signal}"
 
-    proposed = [p for p in decision.get("selected", []) if isinstance(p, str) and p in automatable]
-    if not proposed:
-        proposed = list(automatable)
-    selected = sorted(dict.fromkeys(proposed), key=_rank)[:budget] if budget else []
-    skipped = [
-        RouterSkip(
-            provider=p,
-            reason="max_providers limit reached" if p in proposed else "not selected by router",
-        )
-        for p in automatable
-        if p not in selected
-    ]
-    rationale = str(decision.get("rationale") or "")[:500]
+    candidates = [p for p in automatable if p not in evidence_skips]
+    ordered = sorted(candidates, key=_rank)
+    selected = ordered[:budget] if budget else []
+    selected_set = set(selected)
+
+    skipped: list[RouterSkip] = []
+    for p in automatable:
+        if p in selected_set:
+            continue
+        if p in evidence_skips:
+            skipped.append(RouterSkip(provider=p, reason=evidence_skips[p]))
+        else:
+            skipped.append(RouterSkip(provider=p, reason="max_providers limit reached"))
+
+    rationale = f"inclusion by default: selected {len(selected)} of {len(automatable)} automatable providers"
+    if evidence_skips:
+        reasons = ", ".join(f"{p} ({reason})" for p, reason in sorted(evidence_skips.items()))
+        rationale = f"{rationale}; evidence-driven skip: {reasons}"
+
     return RouterDecision(selected=selected, skipped=skipped, rationale=rationale)
-
-
-def _parse_router_json(raw: str) -> dict:
-    text = raw.strip()
-    start = text.find("```json")
-    if start != -1:
-        start += len("```json")
-        end = text.find("```", start)
-        text = text[start:end if end != -1 else None].strip()
-    parsed = json.loads(text)
-    if not isinstance(parsed, dict):
-        raise ValueError("router response is not a JSON object")
-    return parsed
-
-
-def _system_message():
-    from langchain_core.messages import SystemMessage
-
-    return SystemMessage(content=ROUTER_PROMPT)
-
-
-def _human_message(text: str):
-    from langchain_core.messages import HumanMessage
-
-    return HumanMessage(content=text)

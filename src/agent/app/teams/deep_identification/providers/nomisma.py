@@ -7,14 +7,15 @@ descriptions — surfaced as a single `mint_authority` claim per top match.
 
 import logging
 
+from app.models.hypothesis import CoinHypothesis
 from app.models.requests import DeepProviderCatalogEntry, QuickEvidence
 from app.models.responses import ProviderClaim, ProviderEvidence
+from app.teams.deep_identification.candidate_ranking import rank_candidates
 from app.teams.deep_identification.merge import validate_citations
+from app.teams.deep_identification.query_terms import build_query_terms
 from app.tools.provider_tools import ProviderToolError, ProviderToolsClient
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_QUERY = "unidentified ancient coin"
 
 # Go's Nomisma client rejects any query over this many runes as a
 # client-side invalid request (nomisma_client.go::nomismaMaxQueryLength).
@@ -25,13 +26,15 @@ _DEFAULT_QUERY = "unidentified ancient coin"
 # Nomisma's, and must never reach the client at all.
 _MAX_QUERY_LENGTH = 200
 
+# Candidate text fields consulted by the reverse-legend/type ranker
+# (T121/FR-039) — ranking only, never query input.
+_RANK_TEXT_FIELDS = ("label",)
 
-def _build_query(quick_evidence: QuickEvidence | None, notes: str) -> str:
-    if quick_evidence and quick_evidence.label_text:
-        return quick_evidence.label_text[:_MAX_QUERY_LENGTH]
-    if notes:
-        return notes[:_MAX_QUERY_LENGTH]
-    return _DEFAULT_QUERY
+
+def _build_query(
+    quick_evidence: QuickEvidence | None, notes: str, hypothesis: CoinHypothesis | None = None
+) -> str:
+    return build_query_terms(quick_evidence, hypothesis, notes, max_length=_MAX_QUERY_LENGTH)
 
 
 async def run(
@@ -39,8 +42,16 @@ async def run(
     tools: ProviderToolsClient,
     quick_evidence: QuickEvidence | None,
     notes: str,
+    hypothesis: CoinHypothesis | None = None,
 ) -> ProviderEvidence:
-    query = _build_query(quick_evidence, notes)
+    query = _build_query(quick_evidence, notes, hypothesis)
+    if not query:
+        # No precedence tier yielded usable terms (FR-011) — zero upstream
+        # calls, never a search for a placeholder string.
+        return ProviderEvidence(
+            provider="nomisma", status="no_match", automatable=True,
+            error_kind="insufficient_query_evidence", call_count=0,
+        )
     try:
         result = await tools.nomisma_search(query, limit=5)
     except ProviderToolError:
@@ -72,7 +83,11 @@ async def run(
 
     # Only consider matches Nomisma itself flagged as a plausible reconciliation.
     matches = [c for c in candidates if c.get("match")] or candidates[:1]
-    top = matches[0]
+    # T121/FR-039: rank the already-returned matches against hypothesis
+    # reverse-legend/type signals before picking one — zero additional
+    # upstream calls, no LLM choice, ties keep the provider's own order.
+    ranked = rank_candidates(matches, hypothesis, _RANK_TEXT_FIELDS)
+    top = ranked[0]
     citation = str(top.get("uri") or "")
     raw_claims: list[ProviderClaim] = []
     if citation and top.get("label"):

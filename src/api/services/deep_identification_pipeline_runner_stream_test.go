@@ -547,6 +547,120 @@ func TestRunnerAccumulatesStreamedClaimsIntoProposal(t *testing.T) {
 	}
 }
 
+// TestRunnerRouterSelectedSkippedSurvivesTranslation is the T049/B4
+// regression: the deterministic router (Phase 6) now emits a populated
+// `skipped[]` on the `router_selected` frame. This proves the Go translator
+// (`deepRouterSelectedPublicPayloadJSON`) — which has always parsed
+// `skipped` but never received a non-empty one — carries it through
+// end-to-end into the persisted, user-visible event payload instead of
+// silently dropping it.
+func TestRunnerRouterSelectedSkippedSurvivesTranslation(t *testing.T) {
+	frames := []map[string]any{
+		{"type": "progress", "stage": "image_evidence_ready"},
+		{
+			"type":      "router_selected",
+			"selected":  []string{"numista"},
+			"rationale": "inclusion by default: selected 1 of 2 automatable providers; evidence-driven skip: ocre (non-Roman-Imperial era signal: greek)",
+			"skipped": []map[string]any{
+				{"provider": "ocre", "reason": "non-Roman-Imperial era signal: greek"},
+			},
+		},
+		{"type": "provider_started", "provider": "numista"},
+		{
+			"type":        "provider_result",
+			"provider":    "numista",
+			"status":      "contributed",
+			"automatable": true,
+			"confidence":  0.7,
+			"call_count":  1,
+			"error_kind":  nil,
+			"link_out":    "",
+			"attribution": "Source: Numista",
+			"claims": []map[string]any{
+				{
+					"field":      "denomination",
+					"value":      "Denarius",
+					"confidence": 0.8,
+					"citation":   "https://en.numista.com/catalogue/pieces12345.html",
+					"excerpt":    "Silver denarius, Rome mint",
+				},
+			},
+		},
+		{"type": "evaluation", "disagreement_count": 0, "resolved_count": 0},
+		{"type": "synthesis_started"},
+		{
+			"type": "synthesis",
+			"report": map[string]any{
+				"narrative": "A silver denarius.",
+				"proposed_fields": map[string]any{
+					"denomination": map[string]any{
+						"value":      "Denarius",
+						"confidence": 0.82,
+						"evidence_refs": []map[string]any{
+							{"provider": "numista", "claim_index": 0},
+						},
+					},
+				},
+				"partial_success": false,
+			},
+		},
+	}
+	sseLines := make([]string, 0, len(frames))
+	for _, f := range frames {
+		raw, err := json.Marshal(f)
+		if err != nil {
+			t.Fatalf("marshal fixture frame: %v", err)
+		}
+		sseLines = append(sseLines, "data: "+string(raw)+"\n\n")
+	}
+
+	server := newPythonShapedDeepAgent(t, sseLines)
+	defer server.Close()
+
+	runner, repo, db := newDeepRunnerStreamTestDeps(t, server.URL)
+	var coinID uint = 78
+	job, userID := seedDeepRunnerJob(t, db, models.DeepJobSourceSavedCoin, &coinID)
+
+	if _, err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("runner.Run: %v", err)
+	}
+
+	events, err := repo.ListEventsSince(job.ID, userID, 0)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	var routerEvent *models.DeepIdentificationEvent
+	for i := range events {
+		if events[i].Type == models.DeepEventRouterSelected {
+			routerEvent = &events[i]
+		}
+	}
+	if routerEvent == nil {
+		t.Fatal("expected a persisted router_selected event")
+	}
+
+	var publicPayload struct {
+		SelectedProviders []string `json:"selectedProviders"`
+		Rationale         string   `json:"rationale"`
+		Skipped           []struct {
+			Provider string `json:"provider"`
+			Reason   string `json:"reason"`
+		} `json:"skipped"`
+	}
+	if err := json.Unmarshal([]byte(routerEvent.PayloadJSON), &publicPayload); err != nil {
+		t.Fatalf("public router_selected payload did not parse: %v (raw=%s)", err, routerEvent.PayloadJSON)
+	}
+	if len(publicPayload.Skipped) != 1 {
+		t.Fatalf("expected exactly one persisted skip, got %#v (raw=%s)", publicPayload.Skipped, routerEvent.PayloadJSON)
+	}
+	if publicPayload.Skipped[0].Provider != "ocre" {
+		t.Fatalf("expected skipped provider ocre, got %q", publicPayload.Skipped[0].Provider)
+	}
+	if publicPayload.Skipped[0].Reason != "non-Roman-Imperial era signal: greek" {
+		t.Fatalf("expected the stated skip reason to survive translation, got %q", publicPayload.Skipped[0].Reason)
+	}
+}
+
 // TestRunnerRejectsNonAllowlistedStreamedCitationHost proves that a
 // provider_result frame whose claim citation is off the provider's canonical
 // host allowlist never reaches the persisted proposal (SC-006): the runner

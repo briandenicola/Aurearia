@@ -26,6 +26,7 @@ from langgraph.graph import END, StateGraph
 
 from app.config import settings
 from app.llm.provider import get_chat_model
+from app.models.hypothesis import CoinHypothesis
 from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdentifyRequest, LLMConfig, QuickEvidence
 from app.models.responses import ProviderEvidence
 from app.streaming import format_sse, sanitize_user_facing_payload
@@ -80,13 +81,13 @@ async def prepare_evidence_node(state: DeepIdentificationState, llm_config: LLMC
 
 
 
-async def router_node(state: DeepIdentificationState, model) -> dict:
-    decision = await route(
-        model,
+async def router_node(state: DeepIdentificationState) -> dict:
+    decision = route(
         state.get("catalog", []),
         state.get("provider_override", []),
-        state.get("bounds").max_providers if state.get("bounds") else 0,
-        state.get("notes", ""),
+        state.get("bounds"),
+        state.get("quick_evidence"),
+        state.get("hypothesis"),
     )
     return {"selected": decision.selected, "skipped": decision.skipped, "router_rationale": decision.rationale}
 
@@ -99,6 +100,7 @@ async def _run_one_provider(
     notes: str,
     bounds: DeepIdentifyBounds,
     semaphore: asyncio.Semaphore,
+    hypothesis: CoinHypothesis | None = None,
 ) -> ProviderEvidence:
     entry = catalog_by_name.get(name)
     if entry is None:
@@ -125,7 +127,7 @@ async def _run_one_provider(
     async with semaphore:
         try:
             return await asyncio.wait_for(
-                fn(entry, tools, quick_evidence, notes), timeout=bounds.provider_timeout_s
+                fn(entry, tools, quick_evidence, notes, hypothesis), timeout=bounds.provider_timeout_s
             )
         except TimeoutError:
             return ProviderEvidence(
@@ -171,7 +173,9 @@ async def provider_fanout_node(
     async def run_and_report(name: str):
         if on_provider_event:
             await on_provider_event({"type": "provider_started", "provider": name})
-        result = await _run_one_provider(name, catalog_by_name, tools, quick_evidence, notes, bounds, semaphore)
+        result = await _run_one_provider(
+            name, catalog_by_name, tools, quick_evidence, notes, bounds, semaphore, state.get("hypothesis")
+        )
         if on_result:
             on_result(result)
         if on_provider_event:
@@ -209,7 +213,7 @@ async def provider_fanout_node(
 
 
 async def evaluator_node(state: DeepIdentificationState, model) -> dict:
-    result = await evaluate(model, state.get("evidence", []))
+    result = await evaluate(model, state.get("evidence", []), hypothesis=state.get("hypothesis"))
     return {"disagreements": result.disagreements, "resolved_count": result.resolved_count}
 
 
@@ -245,7 +249,7 @@ def build_graph(model, tools: ProviderToolsClient | None, recursion_limit: int |
         return await prepare_evidence_node(state)
 
     async def _route(state: DeepIdentificationState) -> dict:
-        return await router_node(state, model)
+        return await router_node(state)
 
     async def _fanout(state: DeepIdentificationState) -> dict:
         return await provider_fanout_node(state, tools)
@@ -367,11 +371,12 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         state.update(image_result)
         await queue.put({"type": "progress", "stage": "image_evidence_ready"})
 
-        router_result = await router_node(state, model)
+        router_result = await router_node(state)
         state.update(router_result)
         await queue.put({
             "type": "router_selected",
             "selected": router_result["selected"],
+            "skipped": router_result["skipped"],
             "rationale": router_result["router_rationale"],
         })
 
