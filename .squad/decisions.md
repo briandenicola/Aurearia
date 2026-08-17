@@ -4002,3 +4002,218 @@ in-progress batches and were not inspected or modified).
 Left **uncommitted** on `beta` per instructions. Ready for Brian or the next
 agent to commit; `Taskfile.yml` is the only change.
 
+---
+
+### Decision: Deep-analysis journal entries on "coin" and "wishlist" apply targets; "draft" is out of reach
+
+**Date:** 2026-08-17
+**Feature:** Deep Analysis / Deep Identification proposal apply (US4)
+**Status:** IMPLEMENTED (coin, wishlist) / NOT IMPLEMENTED (draft — genuinely not possible at apply time)
+**Agent:** Cassius (Backend Developer)
+
+## What the brief assumed vs. what was actually true
+
+The brief's premise, quoting Apply()'s doc comment, was that the "coin" apply
+target already wrote a CoinJournal entry with source "deep_identification",
+and asked me to add the same record for "wishlist" and "draft".
+
+That premise was not accurate. I checked every CreateJournalEntry call
+site in services/ before writing any code and confirmed deep_identification_proposal.go
+was not among them — no target (coin, wishlist, or draft) wrote a journal entry
+before this change. The "deep_identification" string passed to CoinService.UpdateCoinWithFields
+as source is only consulted by one branch inside updateCoin — the
+CurrentValue-changed check (source != "estimate") — and CurrentValue
+is not in deepProposalCoinFieldAllowlist, so that branch can never fire for
+a deep-analysis apply. The doc comment describing "journal source
+deep_identification" for the coin path was aspirational, not implemented.
+
+## What I changed
+
+Added deepProposalJournalEntryText(fieldNames []string) string (terse,
+house-style: "Deep Analysis applied: <field1>, <field2> updated", naming
+only field keys, never proposed values) and wired a
+s.coinRepo.CreateJournalEntry(&models.CoinJournal{}) call — the existing
+repository write path, no new DB access — into:
+
+- applyToCoin — right after CoinService.UpdateCoinWithFields succeeds,
+  attached to the existing coin's ID.
+- applyToWishlist — right after CoinService.CreateCoin succeeds, attached
+  to the newly created coin's ID.
+
+## Why "draft" is not implemented
+
+models.QuickCaptureDraft has no CoinID until it is promoted
+(PromotedCoinID *uint, nil until promotion), and models.CoinJournal.CoinID
+is gorm:"not null". There is no coin row to attach a journal entry to at
+the moment applyToDraft runs. I did not implement the promotion-time option
+either, to avoid widening the change past "small, isolated" as instructed.
+
+## Follow-up (same day): journal write must be best-effort, not fatal
+
+Brian's review caught a real defect in the first pass: Apply() is not
+transactional across CreateCoin/UpdateCoinWithFields -> journal write ->
+ApplyJob. My first implementation returned the journal write's error, which would
+leave a wishlist coin created but the job never marked applied — a client retry would
+then call applyToWishlist again, creating a second wishlist coin.
+
+Fix: recordDeepProposalJournalEntry now swallows CreateJournalEntry's error
+and logs it instead of returning it — matching the existing best-effort precedent
+in reference_migration_service.go. Added an optional *Logger field +
+WithLogger() method to DeepIdentificationProposalService, wired in main.go.
+The log line names only field keys, never proposed values (FR-040 discipline).
+
+New test: TestDeepIdentificationProposal_ApplySucceedsWhenJournalWriteFails
+forces a genuine CreateJournalEntry failure by dropping the real coin_journals
+table with the actual CoinRepository, then asserts: Apply returns no error,
+the coin update lands, the job is marked applied, a second Apply call is rejected
+as already-applied, and the swallowed error was logged.
+
+## Verification
+
+- go build ./..., go vet ./... clean
+- go test -count=1 ./... → 10/10 packages ok
+- TestArchitecture, TestNoDirectDatabaseImports PASS
+
+## Files changed
+
+- src/api/services/deep_identification_proposal.go
+- src/api/services/deep_identification_proposal_test.go
+- src/api/main.go
+
+**Outcome:** committed as 755593f.
+
+---
+
+### Decision: Wishlist coins may hold catalog references (ADR 0013) + Feature 352 Decisions A/B/C
+
+**Author:** Maximus (Lead / Architect)
+**Date:** 2026-08-17
+**Requested by:** Brian (@briandenicola)
+**Artifacts:** docs/adr/0013-wishlist-coins-may-hold-catalog-references.md,
+specs/352-deep-identification-structured-results/{spec.md,plan.md}
+**Status:** ADR Proposed. Uncommitted, awaiting review. No implementation code written.
+
+## Decisions (settled by Brian — do not re-litigate)
+
+**A. Wishlist items MAY hold catalog references.** This reverses a rule ratified
+in landed spec 351, so it is recorded as ADR 0013 per constitution SS22. Feature 352
+Phase 6 is ungated.
+
+**B. Draft one-to-many via a new additive table** (QuickCaptureDraftCatalogReference),
+not an in-place migration. QuickCaptureDraftReference's DraftID uniqueIndex
+and URI NOT NULL stay. Rationale: SQLite cannot relax either without a destructive
+rebuild, and the single-reference surface spans 34 consumer files.
+
+**C. One notes format everywhere.** The dated-heading, job-id-keyed append format
+applies to the intake/draft path as well as the saved-coin path, replacing the
+narrative block buildDeepIntakeProposalFields already writes today. Brian
+accepted that this changes output he tested on 2026-08-16.
+
+## What every agent needs to know
+
+1. **The wishlist/no-references rule had no recorded domain rationale.** It was
+   the fourth of four defensive layers against a GORM batch-insert crash. Layers
+   1-3 already fix the root cause. Do not cite it as a design principle.
+2. **Two shipped paths already create wishlist references:**
+   QuickCaptureRepository.PromoteDraftTransaction and
+   ReferenceMigrationService.MigrateLegacyReferences.
+3. **FR-048 and FR-049 must land in the same commit.** Deleting the guards without
+   clearing input.Coin.References in WishlistSearchAlertService.ConvertCandidate
+   would silently persist unconfirmed AI search-agent claims. A guard-removal commit
+   lacking FR-049 is a reviewer BLOCK.
+4. **Do NOT delete coin_service.go:171-172** (pendingReferences := coin.References; coin.References = nil).
+   It is GORM cascade defence. Removing it reintroduces the 2026-07-21 crash.
+5. **UpdateCoinWithFields remains a permanent trap.** Its updateCoin routes
+   updates.References into ReplaceForCoin, which deletes every existing reference.
+   Structured deep-ID references MUST use the new additive CoinReferenceService.AppendForCoin.
+6. **Phase 6a lands first and alone.** Smallest diff, widest blast radius.
+7. **Four tests are deliberately rewritten** (FR-052): all FR-048 gating must pass
+   before they change.
+
+## Flagged cost Brian has not yet weighed
+
+Decision A un-blocks a path he did not ask about. ConvertCandidateInput.Coin is
+an unvalidated models.Coin carrying unconfirmed AI search-agent catalog claims
+with no confirm gate. Brian decided confirm-gated deep identification may write
+wishlist references. He did not decide that the search agent may. FR-049 holds
+that line, but it is worth an explicit "yes, keep it blocked" from him.
+
+## Smaller consequences
+
+- PurchaseCoin now carries references across the purchase instead of dropping them.
+- CoinRepository.Duplicate now copies references when duplicating a wishlist coin.
+- CatalogRegistryRepository.CountReferencesUsing now counts wishlist references,
+  so a catalog used only by wishlist coins becomes undeletable.
+- Any frontend component that hid a references panel on wishlist coins will now render content.
+
+---
+
+### Decision: Feature 352 — Deep Identification Structured Results: architecture decisions
+
+**Date:** 2026-08-17
+**Author:** Maximus (Lead / Architect)
+**Feature:** specs/352-deep-identification-structured-results/
+**Status:** Spec + plan authored. No implementation code written. Not committed.
+
+## Scope confirmed
+
+352 was unused (highest existing spec directory was 351). Spec and plan written
+to specs/352-deep-identification-structured-results/.
+
+## Architecture Decisions
+
+### D-1. Collection-valued write surface is a NEW, separate allowlist
+
+deepProposalCoinFieldAllowlist / deepProposalDraftFieldAllowlist stay unchanged.
+Catalog references get a third, closed map (deepProposalCollectionFieldAllowlist)
+with its own resolver and write path. One static key holding an array (catalogReferences),
+not one key per reference.
+
+### D-2. coin_type free text is SUPERSEDED, never replaced
+
+- "coin_type -> ReferenceText" stays in the scalar allowlist, unchanged.
+- When the value parses into a registry-valid element, that element is emitted and
+  the scalar entry's default accepted flips to false.
+- When the parse fails, the scalar keeps its normal confidence-driven default
+  so the catalogue label is never lost.
+
+Rationale: writing both by default puts one fact in two places that diverge when
+edited. Dropping the scalar regresses Feature 345 and loses data on parse failure.
+
+### D-3. Reference write must be ADDITIVE — new AppendForCoin
+
+CoinService.updateCoin routes updates.References to ReplaceForCoin, which
+deletes every existing reference before inserting. New CoinReferenceService.AppendForCoin
+is a sibling, deliberately not a mode flag. ReplaceForCoin is owner-editor; AppendForCoin
+is agent semantic.
+
+### D-4. Notes append: dated heading, job-id keyed idempotency
+
+## Deep Analysis - YYYY-MM-DD (job <jobID>)
+
+Identity is the job id, not the date. Before appending, scan for an existing
+block with this job id and replace it in place; otherwise append.
+
+### D-5. Draft one-to-many is delivered ADDITIVELY
+
+New table (QuickCaptureDraftCatalogReference, non-unique DraftID, nullable URI)
+plus idempotent backfill, leaving QuickCaptureDraftReference structurally untouched.
+SQLite cannot drop index-backed constraints without destructive rebuild. Additive turns
+"every one is a candidate breakage" into "every one keeps compiling unchanged".
+
+### D-6. Parser is EXTRACTED, not duplicated; migration policy stays put
+
+parseLegacyReference + helpers move to services/catalog_reference_parser.go.
+The Volume: "0" sentinel and "manual review needed" journal string are migration
+policy, not parsing — they stay in ReferenceMigrationService. Each caller decides
+what to emit. Confidence table: 0.90 clean / 0.90 Roman-numeral / 0.50 inferred /
+0.30 + needsVolume sentinel. 351's 0.70 threshold unchanged. NGC is not added to
+normalizeCatalogAlias.
+
+## Highest risks (ranked)
+
+1. Wishlist references reversing a landed-spec decision without an ADR (governance).
+2. A structured-reference write reaching ReplaceForCoin and deleting owner data.
+3. The notes append truncating or overwriting hand-written owner text.
+4. The draft migration breaking one of 34 consumers.
+5. An array Proposed value being stringified into a scalar column.

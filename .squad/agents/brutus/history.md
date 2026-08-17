@@ -663,3 +663,9 @@
 - Falsified both new guards for real: (a) dropped `AND input_fingerprint = ?` from `repository.DeepIdentificationRepository.CreateJob`'s dedupe WHERE clause → subtest 1 went RED with the exact expected symptom; restored, `git status --short` clean, reconfirmed GREEN. (b) short-circuited `StartJob`'s `activeCount >= int64(settings.MaxActivePerUser)` check to `false && ...` → subtest 2 went RED with the exact expected symptom; restored, `git status --short` clean, reconfirmed GREEN.
 - `-race` is unavailable in this environment (no CGO/C compiler) — same limitation as prior 341/343 QC cycles. Wrote the test to be race-meaningful for CI (real goroutines, no artificial serialization added by the test itself) but explicitly did not claim to have run it.
 - Verdict: no defect found requiring routing to Cassius/Maximus. The intakeMu-serialization + fingerprint-keyed dedupe + documented MaxActivePerUser capacity-reuse fallback form a coherent, already-intentional design. `go build`, `go vet`, `go test -count=1 ./...` (all 10 packages ok), `TestArchitecture`, and `TestNoDirectDatabaseImports` all passed.
+
+- **2026-08-17 — Cross-Agent Awareness: ADR 0013 & Feature 352 Phase 6a:**
+  - ADR 0013 reverses Feature 351 wishlist-reference invariant (pending review/approval)
+  - Feature 352 Phase 6a lands first and alone (smallest diff, widest blast radius)
+  - Cassius: journal entries on coin+wishlist deep-identification apply (draft not implementable)
+  - Maximus: Feature 352 spec + plan written; flagged: removing reference guard un-blocks unconfirmed search-agent references unless FR-049 holds
