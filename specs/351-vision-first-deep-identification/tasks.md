@@ -360,14 +360,14 @@ instruction on F5.
 **Note**: `npm run` is blocked by PowerShell execution policy on this machine —
 use `npm.cmd run`.
 
-- [ ] T108 `go build ./...` and `go vet ./...` clean from `src/api/`
-- [ ] T109 `go test ./...` green from `src/api/`, including `go test -run TestArchitecture ./...` and **`go test -run TestNoDirectDatabaseImports .`** (Principles I and IX)
-- [ ] T110 [P] `ruff check app/ tests/` clean from `src/agent/`
-- [ ] T111 [P] `pytest tests/ -v` green from `src/agent/`, with `test_deep_identification_maximinus.py` explicitly confirmed passing (Phase 9 gate)
-- [ ] T112 [P] `npm.cmd run type-check` (`vue-tsc --build`, Docker-equivalent strictness — Principle III) clean from `src/web/`
-- [ ] T113 [P] `npm.cmd run test` (vitest) green from `src/web/`
-- [ ] T114 `npm.cmd run build` green from `src/web/`
-- [ ] T115 Regenerate API docs if the surface changed by T073 (`task openapi`) and confirm `route_openapi_drift_test.go` is green (§21.11)
+- [x] T108 `go build ./...` and `go vet ./...` clean from `src/api/`
+- [x] T109 `go test ./...` green from `src/api/`, including `go test -run TestArchitecture ./...` and **`go test -run TestNoDirectDatabaseImports .`** (Principles I and IX)
+- [x] T110 [P] `ruff check app/ tests/` clean from `src/agent/`
+- [x] T111 [P] `pytest tests/ -v` green from `src/agent/`, with `test_deep_identification_maximinus.py` explicitly confirmed passing (Phase 9 gate)
+- [x] T112 [P] `npm.cmd run type-check` (`vue-tsc --build`, Docker-equivalent strictness — Principle III) clean from `src/web/`
+- [x] T113 [P] `npm.cmd run test` (vitest) green from `src/web/`
+- [x] T114 `npm.cmd run build` green from `src/web/`
+- [x] T115 Regenerate API docs if the surface changed by T073 (`task openapi`) and confirm `route_openapi_drift_test.go` is green (§21.11)
 - [ ] T116 PR self-check per §17/§21: cite Principle I/II/III/IV/VIII/IX and §17/§21/§22; mirror the 18-item DoD; Conventional Commit prefix; `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer; confirm no secrets in the diff
 - [ ] T117 Manual verification of the real Maximinus coin end-to-end on a running stack — **supplementary confirmation only**; it does not substitute for T068
 - [ ] T118 [FR-036, FR-037] Explicit non-regression assertion: run the pre-existing Feature 344/345 test suites unmodified (`src/api/services/deep_identification_*_test.go`, `src/api/handlers/internal_tools_test.go`, `src/agent/tests/test_deep_identification_*`) and confirm the only behavioral deltas are FR-027 (wishlist destination) and FR-029 (quick-lookup observability). Any other test requiring modification is a scope breach and must be justified in the PR or reverted
