@@ -1,6 +1,1200 @@
 # Squad Decisions
 
-**Note:** Older entries (before 2026-07-18) have been moved to [decisions-archive.md](decisions-archive.md).
+## Baseline Note: Pre-existing flaky test in `src/api/services` (unrelated to Feature 344)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification (implementation session)
+**Status:** BASELINED — not modified, not caused by Feature 344 changes
+
+## Observation
+
+While running the full Go test suite (`go test ./...`) after landing Feature
+344's Phase 2 foundational changes (T004–T021), a single test in
+`github.com/briandenicola/ancient-coins-api/services` intermittently fails
+under `go test ./...` (full-package run) but passes reliably in isolation
+(`go test ./services/... -run <name>`). The specific failing test name
+varies between runs, which points to shared/global test state or ordering
+sensitivity within the `services` package rather than a defect in any
+individual test.
+
+This flake was verified as pre-existing and unrelated to Feature 344 by
+using `git stash` to remove all Feature 344 changes and re-running the same
+test against the clean branch tip, where the same class of flake reproduced
+identically.
+
+## Decision
+
+No fix is attempted as part of Feature 344. Future work (outside Feature
+344's scope) should investigate shared mutable state across `services`
+package tests as the likely root cause.
+
+---
+
+### Decision: Feature 344 Phase 6 — Provider-Tool Boundary Implementation (T051–T054)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification
+**Phase:** 6 (Foundational — Go provider tool boundary, T051–T054)
+**Status:** IMPLEMENTED
+
+## Key Decisions
+
+1. **Job-scoped token family uses new `MintForJob(userID, jobID)` method**
+   - Go has no method overloading; existing `Mint(userID)` has external callers
+   - New method uses distinct 4-field token shape (`userID:jobID:expiry:sig`)
+   - Two token families are mutually rejecting; existing internal-token routes unmodified
+   - New middleware `InternalJobTokenRequired` used only for three new provider-tool routes
+
+2. **Nomisma call budget is Go constant, not settings key**
+   - `const deepNomismaCallBudget = 3` in `handlers/internal_tools.go`
+   - Matches contract §2 sample and Phase 1/2 settings schema (no entry existed)
+   - Future phases can promote to admin-tunable setting if needed
+
+3. **Provider budgets (`DeepProviderBudgetTracker`) are in-memory, per-job**
+   - `sync.Mutex`-guarded map keyed by `"<jobID>:<provider>"`
+   - Ephemeral per-run enforcement; no persistence needed (jobs are time-boxed to ≤900s)
+   - Avoids new migration/table; remains additive and small
+   - `Reset(jobID)` provided for future wiring from job-completion path if needed
+
+4. **Status-vocabulary mapping for `numista_search`/`numista_detail`**
+   - Provider-layer `NumistaErrorKind` vocabulary is richer than contract §7 requirement
+   - Mapping: `invalid_request`/`malformed_response`/`cancelled` → `unavailable`
+   - Mapping: `unauthorized` → `unconfigured` (both mean "cannot use Numista right now")
+   - Mirrors spirit of non-fabrication: never invent a false no_match
+
+## Alignment
+- Principle IV: Smallest complete changes, no unrelated refactoring
+- Principle I: Clear layering (handler → service → repository pattern maintained)
+- §17 Quality Gate: All gates passed; tests prove token families distinct and tamper-rejecting
+
+---
+
+### Decision: Feature 344 Phase 7 — Python LangGraph Pipeline & Go↔Python Streaming (T055–T078)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification
+**Phase:** 7 (Python agent implementation + Go pipeline runner, T055–T078)
+**Status:** IMPLEMENTED — **See Remediation below for proposal contract correction**
+
+## Key Decisions
+
+1. **Job-scoped internal token TTL extended via `MintForJobWithTTL`**
+   - Deep pipeline can run up to 900s; 30s default TTL too short
+   - New method `MintForJobWithTTL(userID, jobID uint, ttl time.Duration)` reuses HMAC logic
+   - `MintForJob` now delegates to this method with 30s default (unchanged for existing callers)
+   - Pipeline runner mints with `total_timeout_s + 30s` margin
+
+2. **Per-run bounds derived in code, not settings keys**
+   - `deepPipelineBounds()` derives from constants matching Python agent defaults
+   - Max concurrency 2, provider timeout 45s, recursion limit 12
+   - `total_timeout_s = clamp(HardTimeout - 20s, [30, 900])`
+   - Keeps settings schema unchanged for this phase; future phases can promote to tunable
+
+3. **`quick_evidence` intentionally omitted (null) from Go→Python request**
+   - Field is optional in Python contract; Go leaves it `nil` (omitted in JSON)
+   - Wiring Feature 341 Quick Lookup into job creation is not Phase 7 scope
+   - Revisit when later phase explicitly integrates Quick Identify results
+
+4. **NGC provider node is fixed link-out only, no OCR**
+   - Reuses `quick_evidence.ngc` (already extracted upstream by Feature 341)
+   - Returns `not_automated` + fixed link URL; never performs extraction/OCR itself
+   - No live NGC API call (Terms of Use prohibited)
+
+5. **OCRE/RPC catalog entries always non-automatable (unconditional)**
+   - Settings flags `OCREEnabled`/`RPCEnabled` exist but not read by provider catalog
+   - Reserved for deferred T155/T156; this phase hardcodes `automatable: false`
+   - When T155/T156 implemented, both catalog-building and settings-plumbing must be revisited together
+
+6. **Terminal SSE frames (`synthesis`/`error`) not persisted as individual events**
+   - `SettleTerminal` already appends exactly one terminal event transactionally
+   - Pipeline runner's `onFrame` callback does not call `AppendEvent` for terminal frames
+   - Only router_selected/provider_started/provider_result/evaluation/synthesis_started/progress persisted
+
+7. **Proposal JSON originally flat shape — See Remediation for superseding decision**
+   - Initial Phase 7 implementation used minimal flat `{"fields": {field: value}}` shape
+   - This shape was insufficient for review/confirm/apply workflows
+   - **This decision was superseded by Remediation decision #1 below**
+
+## Pre-existing production bug found (not fixed — out of scope)
+- `collection_tools.py:75` uses literal placeholder `"Authorization": "******"` instead of f-string
+- All existing collection tools send non-functional headers; this was even encoded as expected in tests
+- Left unfixed per explicit instruction not to modify unrelated code
+- Flagged for coordinator/QC to fix in separate change with test update
+
+## Alignment
+- Principle IV: Proportional changes; no fabricated completion
+- Principle II: Python stateless/DB-free; Go is authoritative
+- §17: Security constraints honored; secrets/logging discipline maintained
+- §21: Owner-scoping and authorization layers preserved
+
+---
+
+### Decision: Feature 344 Remediation — Proposal Contract & Security Allowlisting (Post-QC Block)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification
+**Agent:** Cassius (independent revision after QC blocks)
+**Status:** IMPLEMENTED — **Supersedes Phase 7 decision #7; correction history preserved**
+
+## Correction History
+
+**Prior state (Phase 7, superseded):** Proposal was shipped as minimal flat `{"fields": {field: value}}` map, deferring the rich shape to "a later phase."
+
+**QC Finding:** This flat shape was insufficient; deep identification requires proposal to round-trip through PATCH edit/accept and POST apply. The existing `deep_identification_proposal.go` parser already consumed rich `deepProposalDocument` (schemaVersion, per-field proposed/confidence/evidence[]/ownerEdited/ownerValue/accepted), so flat proposals failed and dropped citations + confidence.
+
+**Accepted truth (Remediation, this record):** Proposal is the full rich `deepProposalDocument`. This was the actual application contract all along; the initial deferral was incomplete. Commits `896955e` and `080e598` corrected the implementation.
+
+## Key Decisions
+
+1. **Proposal built as rich `deepProposalDocument` in Go**
+   - Directly reuses existing application-owned DTOs from `deep_identification_proposal.go`
+   - No duplicate/incompatible structs; JSON tags match TS `DeepProposal` types and OpenAPI schemas
+   - `DeepProposalEditor.vue` receives exactly the shape it consumes
+   - `deepProposalDocument` carries: schemaVersion, per-field `proposed`/`confidence`/`evidence[]`/`ownerEdited`/`ownerValue`/`accepted`
+
+2. **Evidence/citations resolved Go-side from `provider_result` frames**
+   - Python synthesis carries lightweight `{provider, claim_index}` pointers, not resolved citations
+   - Full citations/excerpts/confidence live in per-provider `provider_result` frames streamed during pipeline
+   - Runner accumulates `provider_result` claims and resolves each evidence_ref into full claim on document build
+   - **No Python contract change:** rich shape was always Go/OpenAPI/TS concern; bug was Go emitting wrong shape
+   - Preserves citations + per-field confidence without changing Python synthesis contract
+
+3. **Field allowlist + citation-host allowlist re-validated at translation (document build)**
+   - Field allowlist: `deepProposalCoinFieldAllowlist` filters to coin-updatable fields only before persistence
+   - Citation allowlist: `deepCitationHostAllowed` re-validates every resolved citation URI host against allowlist at translation
+   - Claims with non-allowlisted citation hosts are dropped from proposal
+   - Owner-edited/owner-value/accepted initialized pristine (false/nil/nil) — no auto-accept, no auto-write
+   - In-memory validation at translation time provides defense-in-depth with apply-time field allowlist
+
+4. **Deep Analysis capability probe: `GET /deep-identification/capability`**
+   - Exposes only boolean `{"enabled": bool}` derived from `SettingDeepIdentificationEnabled`
+   - Protected (JWT required); never exposes underlying settings
+   - Frontend composable `useDeepIdentificationCapability` fails closed (hidden on error)
+   - Backend independently 403s job creation when disabled
+   - Quick Identify workflow untouched
+
+5. **Terminal error frame emits `code` not `error_kind`**
+   - Contract §3 defines error frame as `{code, message}` with typed codes: llm_unavailable | timeout | invalid_model_output | internal
+   - Python implementation was emitting `error_kind` (different field); this was implementation/contract mismatch, not spec change
+   - Narrow error classifier: ValidationError/OutputParserException → invalid_model_output; connection/Unavailable → llm_unavailable; else → internal
+   - Go `runJob` maps any run error to stored failure code `agent_unavailable` regardless; `code` drives message string
+
+6. **`bounds.recursion_limit` bound into LangGraph config (contract §6)**
+   - Production driver `run_deep_identification_stream` is hand-written async generator (emits per-provider SSE frames)
+   - Does not invoke compiled graph, so recursion limit currently inert for serving path
+   - Binding via `compiled.with_config({"recursion_limit": N})` ensures any graph-based caller is capped at contract bound
+   - Documented honestly as inert for current streaming driver rather than fabricating graph invocation SSE envelope cannot use
+
+## Integration Test Coverage
+
+`deep_identification_proposal_integration_test.go` drives realistic runner synthesis through:
+- Persistence → Parse → PATCH accept/owner-edit → Apply
+- Asserts: (a) no coin write before Apply, (b) citation + confidence survive round-trip
+- Fails under old flat shape by construction (cannot express proposed/confidence/citation)
+
+## Alignment
+- Principle IV: Simplest complete change; resolved evidence Go-side using existing DTOs
+- Principle V: Input validation, allowlisting, owner-scoping all enforced at translation + apply
+- §17 Quality Gate: All gates passed; integration tests cover realistic workflows
+- §21 Definition of Done: T123/T124 proposal acceptance confirmed complete
+
+---
+
+## Decision: Real vision-hypothesis structured output + degrade-ladder deviation
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 3+4 (T019-T033)  
+**Status:** IMPLEMENTED
+
+Implemented structured vision extraction with `get_structured_model(config, schema)` factory. Degrade ladder: structured → retry once → prose regex → quick-evidence fallback → typed-empty. Deviated from tasks.md literal to prefer quick-evidence hypothesis over typed-empty (strictly better, zero cost, matches prior shipping behavior). Provider-specific methods: Anthropic `function_calling`, Ollama `json_schema`. Wiring to router/query-builder/evaluator deferred to later phases per task dependency ordering.
+
+**Key decision:** `include_raw=True` surfaces schema-validation failures as `parsing_error` in return value, not exception — enables prose extraction from same response with zero additional LLM calls. Retry-once logic lives in `build_hypothesis_from_vision` only on failure branch; happy path makes exactly one call.
+
+**Test coverage:** +20 new tests, 299 passing (was 279). Verified via `pytest tests/ -q` and `ruff check app/ tests/`.
+
+---
+
+## Decision: Fix deep-identification worker SQLITE_BUSY claim contention
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 2 infrastructure  
+**Status:** IMPLEMENTED
+
+Root cause: deferred SQLite transactions in `ClaimNextQueuedJob` race an upgrade lock from read to write, failing with `SQLITE_BUSY` under concurrent workers. Fix: added `_txlock=immediate&_pragma=busy_timeout(5000)` to DSN in `database/database.go`, enforcing write-lock acquisition at `BEGIN` rather than on first write.
+
+**Hard constraint verified:** Reproduction test (`TestDeepIdentificationRepository_ConcurrentClaimNoLockContention`) confirmed 29/300 failures before fix, 0/300 after, even with just `busy_timeout` alone. Blast radius assessed safe across all schedulers (valuation, health, auction, coin-of-day, etc.); all benefit from reduced transient lock contention.
+
+**Test coverage:** New `TestDeepIdentificationRepository_ConcurrentClaimNoLockContention` on real on-disk WAL SQLite file; 5+ consecutive runs passing. Log line downgraded from ERROR to WARN (transient, self-healing condition).
+
+---
+
+## Decision: Phase 10 wishlist save destination
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 10 (T072-T075, T119)  
+**Status:** IMPLEMENTED
+
+Extended `DeepIdentificationProposalService.Apply` to support `target="wishlist"` alongside `"draft"` and `"coin"`. Builds `models.Coin{IsWishlist: true}` via existing 14-entry allowlist (no schema migration). `isWishlist` remains intent-only (set from destination, never proposed). Name derivation: reads `proposal.Fields["workingTitle"]` or falls back to `"Unidentified Coin (Deep Analysis)"` when hypothesis empty.
+
+**Validation:** No new `validateCoinMinimumForPromotion`-equivalent; `CoinService.prepareCoinForCreate` already validates Era/Category. Confirmed `isWishlist` rejection via `TestDeepIdentificationProposal_WishlistApplyRejectsIsWishlistAsProposedField`.
+
+---
+
+## Decision: Phase 5 provider query terms + candidate ranking
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 5 (T034-T043, T121-T123)  
+**Status:** IMPLEMENTED (partial wiring)
+
+Built deterministic query composition (`query_terms.py`): precedence `numista_query` → `label_text` → hypothesis (ruler+denomination → ruler → denomination+material → obverseInscription) → notes[:200]. Built candidate ranker (`candidate_ranking.py`) over provider results using hypothesis reverse-type/legend tokens. Deleted placeholder `_DEFAULT_QUERY = "unidentified ancient coin"`; now return `no_match`/`insufficient_query_evidence`/zero-call when no terms available.
+
+**Implementation gap (not mine to fix):** Hypothesis parameter added to `numista.run()`, `nomisma.run()`, `ocre.run()` with default `None`, but `graph.py`'s provider-fanout call site does not yet pass `state.get("hypothesis")` through. One-line wire-up needed; hypothesis-derived tiers (3) and ranking currently unreachable in live pipeline. Quick-evidence tiers (1-2, 4) and zero-placeholder guarantee (FR-011) already live.
+
+**Test coverage:** +36 new tests, 335 passing. Verified `pytest tests/ -q` and `ruff check app/ tests/`.
+
+---
+
+## Decision: Phase 6 deterministic router + wiring addenda
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 6 (T044-T050)  
+**Status:** IMPLEMENTED (with two addenda)
+
+Replaced LLM-driven router with pure function of `(catalog, provider_override, bounds, quick_evidence, hypothesis)`. Removed one LLM call per job. Added `skipped[]` array to `router_selected` SSE frame. RD-7 inclusion-by-default: selects all automatable, in-bounds providers unless evidence indicates non-Roman coin → skip OCRE. Determinism proven by `test_route_is_deterministic_across_identical_runs`.
+
+**Addendum 1 — Evaluator wiring:** Fixed `evaluator_node` to pass `hypothesis=state.get("hypothesis")` to `evaluate()` call. Prior: hypothesis available in unit tests only, inert in pipeline.
+
+**Addendum 2 — Provider wiring:** Added `hypothesis` parameter to `_run_one_provider()` and threaded through from `provider_fanout_node`. Updated 13 test fakes with `hypothesis=None` signature.
+
+**Test coverage:** +27 new/updated router and SSE tests from Phase 6, +10 from both addenda. Final count 337 passing (was 299). One pre-existing timing flake in `test_deep_identification_sse.py` regressed (timing-sensitive, not caused by this batch).
+
+---
+
+## Decision: Phase 7 image as first-class claim source
+
+**Author:** Brutus (QA/Integration)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 7 (T051-T055)  
+**Status:** IMPLEMENTED (partial wiring)
+
+Extended evaluator to flatten `CoinHypothesis` fields into claim-disagreement pipeline as `(source="image", claim_index=None, value)` entries. Image/provider claims never resolved by precedence (both kept). Field with one image + one provider claim → unresolved; one image only (or one provider only) → no disagreement, not counted in `resolved_count`.
+
+**Type safety:** `EvidenceRef.provider` accepts `"image"` as string; `ProviderEvidence.provider` rejects it (literal union). Verified by `test_image_never_becomes_a_provider_name`.
+
+**Constraint verified:** `detect_disagreements()` takes no `model` parameter (pure function). Model used only by `_summarize()` for `unresolved_questions`; poisoned/error tests prove return values identical regardless.
+
+**Implementation gap (not mine to fix):** `graph.py::evaluator_node` still calls `evaluate(model, state.get("evidence", []))` without `hypothesis=` kwarg. Parameter defaults to `None`; hypothesis invisible in pipeline.
+
+---
+
+## Decision: Deep Analysis activity timeline UI
+
+**Author:** Aurelia (Frontend Developer)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — FR-040 frontend half  
+**Status:** SHIPPED
+
+Implemented `DeepAnalysisActivityTimeline.vue` deriving step-by-step progress from existing `DeepStreamEvent[]` stream (no backend contract changes). Recognizes lifecycle events (`job_accepted`, `router_selected`, `evaluation`, `synthesis_started`, `terminal`) with curated labels. `progress` events use `knownPhaseLabels` map with titleCase fallback for unknown phases — new backend phases render immediately without frontend deploy.
+
+**Accessibility:** Icon + text label per step (never color alone); `role="log"` with `aria-live="polite"`. `<details>` auto-collapses on terminal status but respects manual toggle afterward. Elapsed-time deltas (`+12s`, `+1m 4s`) from consecutive event timestamps.
+
+**Backend contract request (out of scope, for backend agent):** Backend should emit `progress` phases: `vision_completed`, `provider_query_dispatched`, `synthesis_started` (with hypothesis/query/outcome detail per FR-040's binding limits: owner-scoped stream only, no images/logs, bounded length).
+
+**Test coverage:** +9 new tests in `DeepAnalysisActivityTimeline.test.ts`, updated `DeepAnalysisProgressTimeline.test.ts` for new DOM shape. Full suite 131 files / 830 tests passing (was 821).
+
+---
+
+## Active Decisions
+
+### Decision: Feature 344 — Preserve provider claims across the analysis stream (B1 re-remediation)
+
+**Date:** 2026-08-15
+**Agent:** Aurelia (remediation; original implementer and Cassius locked out under Strict Lockout §18.2)
+**Status:** Proposed — READY FOR RE-REVIEW
+**Supersedes wording of:** commit `896955e` B1 paragraph (see Correction below)
+
+## Context
+
+The prior B1 remediation (`896955e`) made the Go pipeline runner build the rich
+`deepProposalDocument` by resolving `proposed_fields.evidence_refs` against the
+`claims` carried on internal `provider_result` frames. But production Python
+(`run_deep_identification_stream`) emitted only `{type, provider, status}` for
+`provider_result` — it never serialized the application-owned `ProviderEvidence`
+claims (contract §3/§4). Result: in production `providerClaims` was always empty,
+every proposal's evidence/citation arrays were dropped, violating the internal
+contract and the MVP citation requirement (SC-006). The existing Go integration
+tests hand-injected a `providerClaims` map into `buildDeepProposalDocumentJSON`,
+so they passed while production was broken (false assurance).
+
+## Decision
+
+1. **Python emits the full ProviderEvidence** on each `provider_result` internal
+   frame via Pydantic serialization (`result.model_dump(mode="json")`), never an
+   ad-hoc dict — field names/types/nullability match the Go mirror exactly. All
+   fields are length-bounded by the model; no raw provider payload, user notes,
+   or image data enter the frame. `_emit`'s sanitizer still redacts token-shaped
+   strings without stripping valid claims/citations.
+   (`src/agent/app/teams/deep_identification/graph.py`)
+
+2. **Persistence/privacy split (§5 of the task).** The internal Go↔Python
+   `provider_result` frame carries full claims (contract §4); the runner consumes
+   them **in-memory** to build the confirm-gated proposal, but persists only the
+   bounded public payload `{provider, status, confidence, claimCount, errorKind?,
+   linkOut?}` (contracts/sse-events.md §2) into the user-visible, replayable event
+   log. Full claims/citations therefore never leak into the owner-facing event
+   stream (FR-036) and the log is not bloated with per-claim evidence.
+   (`src/api/services/deep_identification_pipeline_runner.go`)
+
+3. **Go re-validation preserved.** `buildDeepProposalDocumentJSON` still enforces
+   the coin-field allowlist and re-checks each claim's citation host against the
+   per-provider allowlist before it enters the proposal; the full streamed claim
+   list is retained in emitted order so synthesis `claim_index` values stay
+   index-aligned (no reindexing). `claimCount` in the public payload counts only
+   host-allowlisted claims, so a hostile frame cannot inflate it or surface an
+   arbitrary URL.
+
+4. **Real cross-boundary regression replaces false assurance.**
+   - Python: `test_provider_result_frame_carries_complete_claims` asserts the real
+     stream emits full, typed claims (field/value/confidence/citation/excerpt),
+     index-aligned with the terminal synthesis' evidence_refs (no live network).
+   - Go: `TestRunnerAccumulatesStreamedClaimsIntoProposal` feeds the exact
+     Python-shaped SSE frames through the actual `Run`/stream parser and asserts
+     the persisted `ProposalJSON` carries confidence + citation evidence, and that
+     the persisted `provider_result` event carries only the bounded public payload.
+     Plus off-allowlist-host rejection and malformed-frame-skip tests.
+   - Integration: `seedDeepJobWithRunnerProposal` now drives the **actual runner**
+     over a fake Python agent (no hand-built `providerClaims`) so the saved-coin
+     and new-intake Get/PATCH/Apply regressions consume genuine runner output.
+
+5. **`DeepIdentificationProviderRun.ClaimsJSON` (task §7).** The entity is
+   provisioned/migrated but intentionally **not written** in the MVP; per-provider
+   outcomes live in the append-only event log and the proposal. Documented as a
+   deliberate deferral in `data-model.md §4` (not silent drift) — raw claims are
+   deliberately not duplicated into a second user-visible store.
+
+## Correction (task §11)
+
+Commit `896955e`'s B1 wording — "Evidence/citations resolved Go-side from
+provider_result frames; field + citation-host allowlists enforced at translation
+and apply" — was **aspirational, not operative**, because production Python never
+emitted claims, so nothing was resolved Go-side at runtime. The accurate record:
+citation-host allowlisting is enforced at **proposal-build (translation) time**
+inside `buildDeepProposalDocumentJSON`; **apply** enforces only the coin/draft
+**field** allowlist (`applyToCoin`/`applyToDraft`). This fix makes the "resolved
+from provider_result frames" behavior actually true end-to-end.
+
+## Validation
+
+- Go: gofmt (CRLF-only), `go build ./...`, `go vet ./...`, full `go test ./...`,
+  OpenAPI drift, architecture test — all pass.
+- Python: `ruff check`, full `pytest` — pass.
+- Vue: `vue-tsc --build`, `vite build`, full Vitest, no-emoji/design-token
+  regression — pass (no Vue changes in this fix).
+- Manual fixture-backed end-to-end: real Python-shaped claim frame → Go runner →
+  stored rich proposal evidence/citation → PATCH/Apply, no auto-write, no live
+  provider calls.
+
+
+### Decision: Feature 342 — Measured Numista Text-Query Tuning (T001–T025)
+
+**Date:** 2026-08-11  
+**Agent:** Sabinus (implementation), Brutus (QA review), Cassius (backend contract), Maximus (follow-up)  
+**Status:** APPROVED for Beta (T001–T025 valid; T026 pending Maximus review)
+
+## Context
+
+Feature 342 delivers canonical Go-based Numista text-query construction with measured improvements over divergent TypeScript assembly. Brutus identified three blocking issues in initial review: enrichment attribution loss, `generationVersion` validation gap, and incomplete test coverage for `reverseType` and alias cases. Sabinus addressed all three with bounded focused fixes: enrichment faithfully preserves source/attempt/query through successful/partial/failed detail fetch; `generationVersion` is now required for generated and user-edited requests; exact SMN/SMNT aliasing and reversed-type builder logic are exercised in expanded deterministic replay. Independent revision clears focused QA.
+
+## Decision
+
+Sabinus delivers:
+
+- Pure injected Go `NumistaQueryBuilder` (`numista-query-v2`) in `src/api/services/numista_query.go` with exact `SMN`/`SMNT` → `Nicomedia` alias allowlist (unapproved mintmarks omitted)
+- `POST /api/numista/query-proposal` authenticated, bounded, strict-decoded handler with no provider or telemetry calls
+- Generated-only relaxed fallback (one distinct query after empty server-verified primary only; manual/edited/error/NGC paths remain one-query)
+- Frontend query attribution preserved through enrichment: `NumistaLookupPanel` submits trimmed `effectiveQuery`, backend returns verified source/attempt/query metadata, Vue panel displays explicit relaxed-query disclosure
+- `generationVersion` validation enforced for generated and user-edited request sources
+- 12-case sanitized deterministic replay in `src/api/services/testdata/numista/query_v2_comparison.json`
+- Live-evidence sample (six cases, sanitized) in `specs/342-numista-text-query-tuning/live-evidence.md` measures improvement from 0/6 to 3/6 top-three inclusion (+50 percentage points)
+- 24/24 deterministic scorer benchmark maintained
+- All T001–T025 acceptance and implementation tests pass; T026 (Maximus final review) remains pending
+
+## Validation
+
+- Focused Feature 342 Go and Vitest tests ✓
+- 12-case deterministic replay and enrichment attribution matrix ✓
+- 24/24 known-coin scorer benchmark ✓
+- `go build ./...`, `go vet ./...`, `go test ./...` ✓
+- `npm run test` (113 files, 702 tests) ✓
+- `vue-tsc --build` ✓
+- `npm run build` ✓
+- OpenAPI regeneration (byte-stable, no route drift) ✓
+- Gitleaks history/worktree scan ✓
+- `git diff --check` ✓
+- No live Numista access, credentials, or E2E browser tests
+
+## Alignment
+
+- **Principle III (Explicit typing)**: All request/response contracts typed; `generationVersion` required for generated/edited; source/attempt enums safe
+- **Principle IV (Simple proportional change)**: Three focused fixes addressing root causes; no unrelated refactoring
+- **Principle V (Security/Privacy)**: No credentials/images/raw prose in tests or payloads; sanitized evidence only
+- **Principle VII (Proven tests)**: 12-case deterministic replay; test-first per protocol; no live provider access
+- **Principle X (All gates pass)**: Full Go/frontend/OpenAPI suite clean; no pre-existing regressions
+- **§17 Quality Gate**: All lint/build/test gates pass; code review and approval documented; T001–T025 valid
+- **§21 Definition of Done**: Acceptance criteria met; tests pass; measurement documented; T026 pending
+
+## Pending
+
+- T026: Maximus reviews fixture/live comparison, alias allowlist, request ceiling, NGC/no-eager regressions, and explicit absence of image search before release approval.
+
+---
+
+### User Directive (2026-08-11)
+
+**By:** Brian DeNicola  
+**What:** Do not pursue Numista image search because of its cost. Improve and empirically test text-query construction instead.  
+**Why:** Live Numista testing showed concise expanded terms can find candidates, while exact mintmarks and catalog references may eliminate all results.
+
+---
+
+### User Directive (2026-08-12)
+
+**By:** Brian DeNicola  
+**What:** Finish the current Numista query-tuning work, but avoid overengineering future changes. Default to the smallest measured query transformation and focused tests; add APIs or generalized infrastructure only when evidence requires them.  
+**Why:** User wants proportional implementation scope after Feature 342 expanded beyond the apparent size of the original query adjustment.
+
+---
+
+## Active Decisions
+
+### Decision: Feature 341 Phase 7 — Progressive Numista Enrichment (T064–T072)
+
+**Date:** 2026-08-11  
+**Agent:** Domitian (implementation), Brutus (QA review)  
+**Status:** APPROVED
+
+## Context
+Feature 341 Phase 7 delivers progressive detail enrichment for Numista lookup: after broad candidates render, the backend fetches details for a bounded deterministic subset (default 5), reranks them, and streams the enriched response. Frontend progressively updates candidate cards without changing explicit selection.
+
+Brutus identified two P1 blockers during initial QA:
+
+1. **Deterministic ranking contract mismatch**: `rankNumistaEnrichmentTargets` was comparing `ProviderPosition` before numeric ID, causing different candidate subsets to receive detail requests than the binding application-owned deterministic order (data-model.md §117-119).
+
+2. **Effective-query contract not preserved**: Enrichment request returned raw `request.Query` instead of trimmed query; frontend submitted trimmed `effectiveQuery` to endpoint. This divergence broke first enrichment / retry identity contract (data-model.md §46-50, 142).
+
+## Decision
+Domitian delivered an independent revision that:
+
+- Refactors `rankNumistaEnrichmentTargets` in `numista_lookup_service.go` to delegate deterministic reranking to a new shared `numistaCandidateRanksBefore` function in `numista_scoring.go`
+- Enforces binding order: score > exact ID > completeness > normalized title > numeric ID > provider position (matching spec exactly)
+- Adds `TrimSpace` to `NumistaEnrichmentRequest.Validate()` to trim surrounding whitespace while direct FR-006 lookup preserves exact raw query
+- Frontend submits `effectiveQuery.trim()` to enrichment endpoint
+- All T064–T067 acceptance tests (provider detail, enrichment service, authenticated handler, progressive component) pass deterministic fakes with injected transports and clocks
+- All T068–T072 implementation tests (backend caching, concurrent detail fetches, handler auth guards, frontend progressive state display) pass
+
+## Validation
+- `go build ./...` ✓
+- `go vet ./...` ✓
+- `go test ./... -count=1` ✓ (full suite including enrichment unit/integration)
+- `npm run test` ✓ (112 test files, 689 tests, 80% coverage)
+- `vue-tsc --build` ✓ (strict type-check)
+- `npm run build` ✓ (production build)
+- OpenAPI regeneration ✓ (byte-stable, no route drift)
+- `git diff --check` ✓
+- No live Numista access, browser E2E, or provider credentials in tests
+
+## Alignment
+- **Principle III (Explicit typing)**: All request/response contracts typed; binding order documented and enforced in both frontend and backend
+- **Principle IV (Simple proportional change)**: Two focused fixes addressing root causes; no unrelated refactoring
+- **Principle VII (Proven tests)**: Acceptance and implementation tests written test-first per protocol; deterministic fakes verify behavior without live provider access
+- **Principle X (All gates pass)**: Full Go/frontend/OpenAPI suite clean; no pre-existing regressions
+- **§17 Quality Gate**: All lint/build/test gates pass; code review and approval documented
+- **§21 Definition of Done**: Acceptance criteria met; tests pass; no unrelated changes; commit message cites spec sections and principles
+
+---
+
+### Decision: Sets Type Refinement + Goal Completion Formula
+
+**Date:** 2026-07-26  
+**Agent:** Cassius  
+**Status:** IMPLEMENTED
+
+## Context
+Set semantics were refined: legacy `defined` is removed, `open` is renamed to `standard`, and Goal completion no longer uses target matching.
+
+## Decision
+- Normalize legacy set type values in DB migration logic:
+  - `defined` -> `goal`
+  - `open` -> `standard`
+  - legacy `dynamic` -> `tracker` with `creation_mode='dynamic'`
+- Add `creation_mode` on `coin_sets` (`manual` default, `dynamic` allowed only for `tracker` sets).
+- Update Goal completion to: `collection_items / (collection_items + wishlist_items)` using set memberships + `coins.is_wishlist`.
+- Keep tag-to-set migration idempotent and additive so newly tagged coins join existing migrated sets.
+
+## Validation
+- `go test ./repository -run "TestSetRepository_"`
+- `go test ./services -run "TestSetService_CreateSet"`
+- `go test ./database -run "TestMigrateCoinSetTypes_NormalizesLegacyValues"`
+- `go test ./handlers -run "TestSetHandler_ReorderCoins"`
+- `go test ./testutil`
+
+---
+
+### Decision: Frontend set-type normalization during Standard/Goal migration
+
+**Date:** 2026-07-26  
+**Agent:** Aurelia  
+**Status:** IMPLEMENTED
+
+## Context
+Set APIs are moving from legacy `open`/`defined` to `standard`/`goal`, with Tracker and Dynamic Tracker creation mode added. During rollout, frontend may receive mixed legacy/new set type values.
+
+## Decision
+Frontend now writes only `standard`, `goal`, `smart`, and `tracker`, while treating `open` and `defined` as legacy read aliases through a shared `normalizeCoinSetType()` helper in `src/web/src/types/index.ts`.
+
+Membership and workflow gates branch on normalized values:
+- Tracker and Smart sets are non-manual membership in Set Detail and Coin Tags surfaces.
+- Completion panel loads for normalized `goal` and `tracker`.
+- Collection set filter includes normalized `standard` sets.
+
+## Rationale
+This keeps UI behavior stable during mixed-contract deployments, prevents accidental legacy writes, and centralizes compatibility logic to avoid drift between components.
+
+---
+
+### Decision: Tracker set creation mode contract alignment
+
+**Date:** 2026-07-26  
+**Agent:** Maximus  
+**Status:** IMPLEMENTED
+
+## Context
+`SetCreationWizard` emitted `trackerCreationMode`, but backend set creation reads `creationMode`. Tracker sets created through the dynamic flow therefore persisted with backend default `manual` mode.
+
+## Decision
+Align frontend payload contract to backend by emitting `creationMode` in `CreateCoinSetRequest` and wizard submit payload. Keep prompt behavior unchanged, and add a focused frontend regression test asserting dynamic tracker submission emits `creationMode: "dynamic"` and not `trackerCreationMode`.
+
+## Validation
+- `npm.cmd run test -- src/components/sets/__tests__/SetCreationWizard.test.ts`
+- `npm.cmd run type-check`
+
+## Alignment
+- Principle III: explicit typed frontend/backend contract field match
+- Principle IV: smallest complete fix with targeted regression coverage
+
+---
+
+### Decision: Coin Grading as AI Analysis Sub-Action
+
+**Date:** 2026-07-02
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+Coin grading is an AI-assisted per-coin workflow that returns an estimate report without mutating the saved coin grade.
+
+## Decision
+The user-facing grading entry point lives inside `CoinAIAnalysis.vue` beside obverse/reverse analysis instead of chat or a new store. It uses the existing async AI job polling pattern, requires both obverse and reverse images before start, displays `gradingReport` in-place, and includes permanent limitation copy that the estimate is not professional certification and does not update `Coin.grade` automatically.
+
+## Alignment
+- Principle III: typed API contract and frontend type-check passed.
+- Principle IV: reused existing AI job polling surface without a new store.
+- Principle VI: token-based in-panel UI with no emoji and existing button hierarchy.
+
+---
+
+### Decision: Coin Grading ships as a dedicated coin-detail AI job
+
+**Date:** 2026-07-01
+**Agent:** Maximus
+**Status:** IMPLEMENTED
+**Issue:** #374
+
+## Context
+
+Coin grading exists in `src/agent/app/teams/coin_grading.py` and the supervisor router advertises a `grading` intent, but the streaming chat path does not carry images. Routing grading requests through chat currently lands on a passthrough/dead-end unless a caller injects a grading node.
+
+## Decision
+
+Implement Coin Grading as a dedicated authenticated coin-detail action backed by the existing AI job system, not as image-capable chat attachments for this slice.
+
+Recommended surface:
+- Add a `Grade Coin` action on the coin detail AI Analysis page, using existing stored obverse/reverse/detail images.
+- Queue `AIJobTypeCoinGrading` through Go, pass owner-scoped coin context and image bytes to Python `/api/grade`, then store the report in the job result.
+- Do not write the estimated grade into `Coin.Grade` automatically. Offer an explicit `Apply to Grade` follow-up only after the user reviews the confidence/limitations.
+- Remove supervisor grading advertising/dead-end behavior unless/until chat supports image attachments.
+
+## Rationale
+
+This keeps the feature aligned with Constitution Principle I/II: Vue calls Go, Go owns auth/image access/job persistence, Python remains stateless and receives only bounded per-request context. Reusing AI jobs matches the existing analysis/value UX, avoids introducing image-capable chat contracts prematurely, and provides clear regression points for no-image, success, and model-failure paths.
+
+## Validation expected
+
+- Agent: request model and `/api/grade` route tests for no-image, success, and graph failure.
+- Go: service/job tests for no images, successful grading result persistence, and agent failure status.
+- Frontend: component tests for disabled/no-image state, queued/success polling, failure display, and confidence/limitations copy.
+- Contract: regenerate OpenAPI and run route drift test for any new Go route.
+
+---
+
+### Decision: Coin Grading Revision
+
+**Date:** 2026-07-02
+**Agent:** Maximus
+**Status:** IMPLEMENTED
+
+Coin grading remains exposed through the dedicated `/api/grade` agent endpoint and Go `POST /coins/:id/grade` AI job workflow only. Collection chat no longer advertises or routes to a `grading` supervisor capability until that path has a real wired implementation instead of a passthrough dead-end.
+
+---
+
+### Decision: Coin Grading Backend Contract
+
+**Date:** 2026-07-01
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+**Issue:** #374
+
+## Decision
+
+Issue #374 uses a dedicated async AI job endpoint, `POST /api/coins/:id/grade`, backed by Python `POST /api/grade`.
+
+## Contract
+
+- Go endpoint returns `202` with the normal `services.AIJobSubmissionResponse`.
+- New job type is `coin_grading`.
+- Python grading response is `{ "report": string }`.
+- Completed Go job result is JSON `{ "gradingReport": string }`.
+- The workflow requires at least one owner-scoped coin image; image-less coins return `400 {"error":"No image available for grading"}`.
+- The saved `Coin.Grade` field is not updated automatically.
+
+## Rationale
+
+This preserves the existing AI job polling/notification contract, avoids chat attachment coupling, and keeps grade updates explicitly user-controlled.
+
+---
+
+### Decision: Python Agent Dynamic Set Builder Workflow (Phase 2)
+
+**Date:** 2026-07-26
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+**Issue:** specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+
+## Context
+
+Spec 011 (Dynamic Set Builder) requires a Python multi-agent group-chat/magentic workflow that turns a free-text prompt into a structured Set Proposal for human review, without ever creating a set itself.
+
+## Decision
+
+- Added `POST /api/set-builder/run` to the existing router in `src/agent/app/routes.py`, covered by existing `InternalServiceAuthMiddleware`.
+- Added `SetBuilderRequest` (Pydantic, `extra="forbid"`) with bounded `prompt` (500 chars), `max_turns` (1-8, default 4), `max_slots` (1-300, default 200), `enable_external_lookup` (default `True`), and optional `feedback`.
+- Added response DTOs: `SetBuilderResponse` (status, proposal, clarification_question, failure_reason, transcript_summary, turns_used). Status is one of `completed`, `clarification_needed`, `rejected`, `failed`, `limit_reached` — there is no "set created" outcome.
+- Added LangGraph `StateGraph` with five nodes (intent_analyst, roster_researcher, collection_matcher, validator, finalize). Each LLM-calling node increments turn counter; conditional edges route to finalize once status is set or turns exhausted.
+- Roster research uses `get_search_model`/`get_chat_model` from `app/llm/provider.py` per existing per-request LLM config pattern.
+- Top-level `run_set_builder_workflow(request)` is what routes.py calls and what tests monkeypatch.
+
+## Validation
+
+- `python -m pytest tests/test_set_builder.py -v` (12 passed)
+- `python -m pytest -q` — full agent suite, 182 passed
+- `python -m ruff check app/models/requests.py app/models/responses.py app/routes.py app/teams/set_builder.py tests/test_set_builder.py` — clean
+
+---
+
+### Decision: Phase 3 Backend Submission Slice Complete
+
+**Date:** 2026-07-26
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+**Issue:** specs/011-dynamic-set-builder-correction-plan.md (Phase 3)
+
+## Context
+
+Task was to finish and verify `POST /set-builder/runs` as a real, safe submission endpoint: queue a run only, create no set or proposal.
+
+## Decision
+
+- `POST /set-builder/runs` is wired under the `protected` (JWT-required) route group in `main.go`, calling `SetBuilderHandler.CreateRun` → `SetBuilderService.CreateRun`.
+- Only inserts a `SetBuilderRun` row with status `queued` and owner-scoped `UserID` from JWT context. No `SetProposal`, `ProposalSlot`, `CoinSet`, or `CoinSetTarget` is touched.
+- Regenerated OpenAPI because the new route/request/response shapes were undocumented and drift detection was failing.
+
+## Validation
+
+- `go build ./...` — clean.
+- `go vet ./...` — clean.
+- `go test ./...` (full suite) — all packages pass, including `TestRegisteredAPIRoutesAreDocumentedInOpenAPI`.
+- `go test ./handlers -run TestSetBuilder -v`, `go test ./services -run TestSetBuilder -v`, `go test ./repository -run TestSetBuilder -v` — all pass.
+
+## Alignment
+
+- Principle I: handler stays thin; all persistence lives in `SetBuilderService` / `SetBuilderRepository`.
+- Principle VII: Swagger annotations present; OpenAPI regenerated.
+- Principle XI: owner scoping enforced via JWT auth middleware under `protected` group.
+
+---
+
+### Decision: User custom mint/location CRUD is already fully implemented
+
+**Date:** 2026-07-27
+**Agent:** Cassius
+**Status:** Informational (test coverage added)
+
+## Context
+
+Task requested backend support for user-scoped custom mint/location CRUD, but discovered the entire feature already exists in the codebase.
+
+## Finding
+
+- Model: `MintLocation.UserID *uint` (nil = global, non-nil = private)
+- Repository: `CreatePrivate`, `FindOwnedByID`, `ListVisibleTo`, `ExistsVisibleTo`
+- Service: `CreatePrivate`, `UpdatePrivate`, `DeletePrivate`, `List`
+- Handler: `CreatePrivate`, `UpdatePrivate`, `DeletePrivate`, `List` with Swagger
+- Routes: Protected routes under `main.go:308–312`
+- AutoMigrate: `MintLocation` included
+
+## Added This Session
+
+Service-layer test coverage (8 new tests):
+- `TestMintLocationService_CreatePrivateSetsUserID`
+- `TestMintLocationService_CreatePrivateDuplicateRejectsNameCollidingWithGlobal`
+- `TestMintLocationService_CreatePrivateTwoUsersSameNameAllowed`
+- `TestMintLocationService_UpdatePrivateOwnerScopingRejectsOtherUser`
+- `TestMintLocationService_UpdatePrivateOwnerCanRenameOwnMint`
+- `TestMintLocationService_UpdatePrivateCannotMutateGlobalMint`
+- `TestMintLocationService_DeletePrivateOwnerScopingRejectsOtherUser`
+- `TestMintLocationService_DeletePrivateCannotDeleteGlobalMint`
+- `TestMintLocationService_ListReturnsGlobalAndUsersOwn`
+
+## Key Design Notes
+
+- Owner-scoping enforced at repository layer (`FindOwnedByID` uses `WHERE id = ? AND user_id = ?`).
+- Private mint name cannot shadow a global entry visible to the user.
+- Two users may hold private mints with the same name — separate visibility scopes.
+- In-use guard applies to both global and private delete paths.
+
+---
+
+### Decision: Agentic Set Submit UX Uses Set Builder Run, Not Local Set Creation
+
+**Date:** 2026-07-26
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Phase 3 of Dynamic Set Builder correction plan required unblocking the Agentic option in `SetCreationWizard.vue`. Coordinator had already added `createSetBuilderRun` to API client.
+
+## Decision
+
+- `SetCreationWizard.vue` enables normal submit button for `setType === 'agentic'` and emits standard `submit` payload (including `agenticPrompt`) without attempting local set creation.
+- `SetsPage.vue`'s `createSet` branches on `value.setType === 'agentic'`: calls `createSetBuilderRun({ prompt: value.agenticPrompt || value.name })`, closes modal, resets form, shows confirmation dialog.
+- Both agentic and standard/goal/smart/CSV error paths use `useDialog().showAlert(...)` instead of `window.alert`.
+
+## Validation
+
+- `npm run test -- src/components/sets/__tests__/SetCreationWizard.test.ts src/pages/__tests__/SetsPage.test.ts src/pages/__tests__/SetDetailPage.test.ts` — 9/9 passed
+- `npm run type-check` — clean
+
+## Alignment
+
+- Principle III: strict typing preserved
+- Principle IV: minimal change scoped to wizard button/copy and one branch in SetsPage
+- Constitution "no raw `window.alert`" convention: replaced with `useDialog`
+
+---
+
+### Decision: User Custom Mint Locations UI — Global/User Separation
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Cassius added user-scoped `/mint-locations` protected routes. `getMintLocations()` returns mixed list of global (userId=null) and user-owned (userId=number) locations. UI needed to present only user-owned entries as editable in Settings.
+
+## Decision
+
+`SettingsDataSection.vue` calls `getMintLocations()` and filters result to `m.userId != null` via computed property (`userMintLocations`). Global/admin locations excluded from list, badge count, and form context. Create/update/delete use user-scoped wrappers, never admin paths.
+
+## Validation
+
+- 10 Vitest tests including explicit test: "renders only user-scoped locations, not global"
+- `npm.cmd run type-check` passes
+- Commit `84e01f1` on beta branch
+
+---
+
+### Decision: CategoryEraConfirmModal z-index fix
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+During Add Coin agentic mode, `CategoryEraConfirmModal` opened invisibly because `CoinSearchChat` sidebar (`z-[1400]`) covered it — modal used `z-[300]`.
+
+## Root Cause
+
+Modal uses `<Teleport to="body">`, placing overlay as sibling of `CoinSearchChat` root div. Since 300 < 1400, sidebar always painted on top.
+
+## Decision
+
+Raise `CategoryEraConfirmModal`'s overlay from `z-[300]` to `z-[1600]`.
+
+**Z-index scale after fix:**
+| Element | z-index |
+|---|---|
+| CoinSearchChat sidebar | 1400 |
+| Note-draft modal | 1500 |
+| CategoryEraConfirmModal | 1600 |
+
+## Test Pattern
+
+For teleported Vue components: stub `Teleport: true` in `global.stubs` so content renders inline — `wrapper.find()` and `wrapper.trigger()` work normally.
+
+## Files Changed
+
+- `src/web/src/components/chat/CategoryEraConfirmModal.vue` — z-[300] → z-[1600]
+- `src/web/src/components/__tests__/CategoryEraConfirmModal.test.ts` — new (4 tests including z-index regression guard)
+
+## Alignment
+
+- Principle IV: smallest complete fix, targeted regression coverage
+- §17 Quality Gate: type-check passed, targeted tests pass
+
+---
+
+### Decision: Mint Map List + Grid Layout
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Mint map page showed only Leaflet map with coins revealed via floating drawer on marker click. No summary overview of which mints were represented without mousing over each marker.
+
+## Decision
+
+Added `MintListPanel.vue` alongside `MintMapLeaflet.vue` in two-column CSS grid layout:
+
+- **Desktop:** 260px scrollable list on left, map fills remaining width
+- **Mobile:** Single-column stack; map first (primary), list below capped at 280px
+- List items show: `displayName`, `region` (uppercase label), count badge, coin name preview (first 2, with `+N more` suffix)
+- Selecting mint from list emits `select-mint` to page, updates `selectedMintId`, highlights marker, opens drawer
+- Detail view: existing `MintCoinDrawer` (fixed-position, `z-[1100]`) continues as selected-mint surface
+
+## Validation
+
+- 9 new `MintListPanel.test.ts` unit tests
+- 2 new `MintMapPage.test.ts` integration tests
+- All 23 targeted tests pass; `vue-tsc --build` clean
+
+## Alignment
+
+- Principle IV: reused MintCoinDrawer, existing groupCoinsByMint, existing selectedMintId state
+- Principle VI: design tokens throughout; dark theme; mobile-responsive
+- §17 Quality Gate: targeted tests pass, type-check clean
+
+---
+
+### Decision: Mint Map Layout — Equal-Height Panel and Map Cards
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+After `MintListPanel.vue` was added, stray vertical scrollbar appeared in gap between list panel and map. List panel taller than map card, causing mismatched heights on desktop.
+
+Root cause: `.map-layout` used `align-items: start`, so each grid column sized independently. List panel (~692px) exceeded map (~640px). Scrollbar on `.mint-list` leaked into column gap.
+
+## Decision
+
+1. Set `height: min(70vh, 640px)` on `.map-layout`, remove `align-items: start` (default stretch). Both columns fill same row height.
+2. Changed `.mint-map-leaflet` from `height: min(70vh, 640px)` to `height: 100%`. Added `@media (max-width: 768px)` override to `height: min(50vh, 380px)` (mobile grid is `height: auto`).
+3. Removed `max-height: min(70vh, 640px)` from `.mint-list`. Added `min-height: 0` (critical flex-child shrink property). Grid row height bounds panel; `flex: 1; min-height: 0; overflow-y: auto` produces correctly scrollable list with no overflow artifact.
+4. Mobile grid overrides to `grid-template-columns: 1fr; height: auto`. List panel `max-height: 280px` retained on mobile.
+
+## Validation
+
+- All 22 targeted tests pass
+- Added layout structure test: verifies `.map-layout` contains both `MintListPanel` and `MintMapLeaflet`
+- `vue-tsc --noEmit` clean
+
+## Alignment
+
+- Principle IV: minimal surgical change; 3 CSS properties across 3 files
+- §17 Quality Gate: targeted tests pass, type-check clean
+
+---
+
+### Decision: TrayCoin Adapters Must Forward All MuseumTrayWell Caption Fields
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+`MuseumTrayWell.displayCaption` reads three fields from `TrayCoin`: `purchaseDate`, `placeholder`, `wishlistPlaceholder`. Any adapter that converts a `Coin` into `TrayCoin` must explicitly map all three or captions fall back to `'TBD'`.
+
+`ImperialFigureWellGrid.toTrayCoin()` was missing `purchaseDate`, causing every owned emperor-tracker well to display `TBD` even when coin had valid purchase date.
+
+## Decision
+
+- Any `Coin → TrayCoin` adapter must include `purchaseDate: coin.purchaseDate`
+- Unowned figure/goal placeholders with no purchase date correctly show `'TBD'`
+- Collection > Tray continues to pass `showCaptions: false` — unaffected
+
+## Validation
+
+- `npm.cmd run test -- src/components/__tests__/MuseumTrayWell.test.ts src/components/__tests__/MuseumTray.test.ts src/components/emperor-tracker/__tests__/ImperialFigureWellGrid.test.ts src/pages/__tests__/TrayViewPage.test.ts` — all 37 tests pass
+- `npm.cmd run type-check` — clean
+
+## Alignment
+
+- Principle IV: smallest complete fix
+- Principle IX: UI correctness — real dates shown where real dates exist
+
+---
+
+### Decision: Unknown Mint moved into the side panel as a first-class list entry
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+`UnattributedMintBucket` lived below map row as collapsible card. Consumed vertical space below map/list pair; required separate expand interaction; second-class compared to matched-mint list.
+
+## Decision
+
+All unattributable coins (both `aggregation.unknown` and `aggregation.unmatched`) collapsed into single virtual `MintGroup` using sentinel `UNKNOWN_MINT_ID = 0`. This group appended to `panelGroups` and passed to `MintListPanel`.
+
+- `MintMapLeaflet` continues to receive only `aggregation.matched` (no phantom marker)
+- `selectedGroup` checks `selectedMintId === UNKNOWN_MINT_ID`, returns virtual group, opens `MintCoinDrawer`
+- `UnattributedMintBucket` no longer imported or rendered
+- Map-layout height increased from `min(70vh, 640px)` to `min(80vh, 800px)` since below-map section removed
+- Mobile stacked layout preserved
+
+## Validation
+
+- `npm.cmd run test -- src/pages/__tests__/MintMapPage.test.ts src/components/map/__tests__/MintListPanel.test.ts src/utils/__tests__/mintMap.test.ts` — 29/29 pass
+- `npm.cmd run type-check` — clean
+
+## Alignment
+
+- Principle IV: simplest complete change; reuses existing panel + drawer
+- Principle VI: consistent tap-to-select interaction
+- §17: targeted test coverage for all acceptance criteria
+
+---
+
+### Decision: Phase 2 Python Set-Builder QA Coverage
+
+**Date:** 2026-07-26
+**Agent:** Brutus
+**Status:** IMPLEMENTED
+**Issue:** specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+
+## Context
+
+Cassius landed the Phase 2 Python set-builder workflow while Brutus was drafting QA coverage in the same session. Test coverage was added against the landed contract.
+
+## Confirmed Contract
+
+1. Route: `POST /api/set-builder/run`, guarded by existing `X-Internal-Service-Token` middleware
+2. Route body: `await run_set_builder_workflow(request)` — route does not build/invoke graph itself
+3. Response contract:
+   - `SetBuilderResponse.status` is one of `completed`, `clarification_needed`, `rejected`, `failed`, `limit_reached`
+   - Only `status == "completed"` populates `proposal`; ambiguous/unbounded prompts return clarification/failed/limit with `proposal = None`
+   - `SetBuilderSlot` carries `criteria`, `group`, `sort_order`, `verification_status`
+
+## Test Additions
+
+`src/agent/tests/test_set_builder_api.py` (24 tests, all passing):
+- Request validation: empty/missing/oversized prompt, oversized feedback, bounds checks
+- Response schema: slot defaults, verification status, proposal presence/absence by status
+- Route: requires internal token (401), rejects invalid body (422), returns structured response, handles workflow failure as structured failure (not 500)
+
+## Alignment
+
+- Constitution §17/§21: targeted regression coverage without editing implementation files
+- Principle IV: test-only change validated against actual landed contract
+
+---
+
+### Decision: Agentic Set Builder Correction — QA Checklist & Phase 3 Submit Coverage
+
+**Date:** 2026-07-26
+**Agent:** Brutus
+**Status:** IN PROGRESS (tracking, not implementation-blocking)
+
+## Context
+
+`specs/011-dynamic-set-builder-correction-plan.md` defines Phases 0-6. Cassius/Aurelia have active uncommitted work. Brutus added only a new, independent test file.
+
+## What Exists Today
+
+- Models: `SetBuilderRun`, `SetProposal`, `ProposalSlot`
+- Repository: full lifecycle (`CreateRun`, `StartRun`, `CompleteRun`, `FailRun`, `CreateProposalWithSlots`, `ListProposals`, `GetProposalForUser`, `MarkApproved`, `MarkRejected`, `MarkExpired`)
+- Service: `CreateRun`, `FindPendingProposalByPrompt`, `CreateProposalFromWorkflow`, `ListProposals`, `GetProposal`, `RejectProposal`
+- Handler: only `POST /set-builder/runs` (`CreateRun`) implemented and wired
+- Not yet implemented: GET list/get routes, PUT edit, POST approve (transactional set creation), POST reject, POST regenerate handlers
+
+## Added This Session
+
+`src/api/handlers/set_builder_handler_test.go` — proves currently live Phase 0/Phase 3 contract at HTTP layer:
+- `TestSetBuilderHandlerCreateRunRequiresAuth` — 401 without bearer token
+- `TestSetBuilderHandlerCreateRunRejectsBlankPrompt` — 400, zero persisted runs
+- `TestSetBuilderHandlerCreateRunPersistsQueuedRunWithoutCreatingSet` — 202, run persisted with status=queued, trimmed prompt, correct userId, **zero** `CoinSet`/`CoinSetTarget`/`SetProposal` rows
+- `TestSetBuilderHandlerCreateRunIsScopedPerUser` — two users get independent runs
+
+All new tests pass: `go test ./handlers -run TestSetBuilderHandler -v` (4/4 PASS).
+
+## Full Phase Test Checklist (summary)
+
+### Phase 0 — Stop misleading behavior
+- [x] Submitting prompt does not create set immediately
+- [ ] Python agent unavailable surfaces actionable error
+- [ ] Legacy deterministic Agentic rows remain readable
+
+### Phase 1 — Backend data model
+- [x] Proposals persist without creating sets
+- [x] `ProposalSlot` verification defaults
+
+### Phase 2 — Python agent workflow
+- [ ] Tests for set-builder endpoint
+- [ ] Intent analyst rejects non-numismatic
+- [ ] Roster researcher structured-only output
+- [ ] Orchestrator enforces max turns/budget
+- [ ] Backend/provider logs show real Python calls
+
+### Phase 3 — Backend agent proxy and proposal service
+- [x] Prompt submission creates run, no set
+- [x] Proposal review fetch is user-scoped
+- [ ] Dedup identical pending prompts end-to-end
+- [ ] GET proposals handlers
+- [ ] PUT edit handler
+- [ ] POST approve (transactional)
+- [ ] POST reject handler
+- [ ] POST regenerate handler
+- [ ] Expired proposal cannot be approved
+
+### Phase 4 — Human review UI
+- [ ] Wizard submits builder run instead of creating set
+- [ ] Notification deep-links to proposal review
+- [ ] Review screen renders roster
+- [ ] Approve/Reject/Regenerate actions
+
+### Phase 5 — Roman-Emperor-style matching
+- [ ] Matching auto-fills owned coins into slots
+- [ ] Matching recalculates on coin lifecycle
+- [ ] Deterministic tie-break
+- [ ] Tray renders every slot
+
+### Phase 6 — Integration tests
+Items 1 and 3 covered; items 2, 4-10 and all frontend/integration open.
+
+## Alignment
+
+- Principle IX / §17: regression coverage without modifying implementation files
+- Constitution §18.2 Strict Lockout: no BLOCK; Phase 3 behavior matches documented acceptance criterion
+
+---
+
+### Decision: Auction Sync Auto-Creates In-App Calendar Events
+
+**Date:** 2026-07-01
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+
+## Context
+
+`/auctions/sync` upserts NumisBids and CNG watchlist lots, but newly tracked active lots were not linked to in-app calendar entries despite `AuctionLot.EventID` and `AuctionEvent` already existing.
+
+## Decision
+
+Add repository-level `UpsertWithCalendarEvent` for sync paths only. It creates an `AuctionEvent` and links `AuctionLot.EventID` in the same transaction only when the source-aware upsert inserts a new lot with status `watching` or `bidding`. Existing lots update without new events, and `passed`/`won`/`lost` lots do not auto-create events.
+
+## Validation
+
+- `go test -v .\repository -run "TestAuctionLotRepository_Upsert"`
+- `go test -v .\handlers -run "TestAuctionLotHandlerUpdateStatus"`
+- `go test ./...`
+
+## Alignment
+
+- Principle I: GORM and multi-step create/link live in repository transaction.
+- Principle IV: Small, source-aware extension of existing upsert/sync workflow.
+- §17: Targeted regression coverage plus full Go API tests pass.
+
+---
+
+### Decision: Cassius Scraper Transport Helper
+
+**Date:** 2026-07-01
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+
+## Context
+
+Issue #373 starts with auditing shared scraper behavior across NumisBids and CNG. Both providers need authenticated HTTP session mechanics, but their login payloads, auth verification rules, URL safety, pagination, parsing, and provider-specific sentinel errors must remain provider-owned.
+
+## Decision
+
+Added a package-private shared helper in `src/api/services/scraper_transport.go` for cookie-jar client creation, request/header construction, form POST construction, request execution, status checks, response body read/close behavior, and request error wrapping. The first segment intentionally does not refactor `NumisBidsService` or `CNGAuctionService` to use it yet.
+
+## Validation
+
+- `go test -v ./services -run "Test(NewScraper|DoScraper|ReadScraper|CNGAuctionService|CanonicalCNG|ParseWatchlist|WatchlistDiagnostics|FetchWatchlist|Login|VerifyAuthentication)"`
+
+## Alignment
+
+- Principle I: helper stays in service layer and remains HTTP-provider agnostic.
+- Principle IV: simple, focused extraction without broad provider refactor.
+- §21: new helper methods have focused regression coverage.
+
+---
+
+### Decision: User-Initiated Camera Start
+
+**Date:** 2026-06-30
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+iOS/PWA users should not see a camera permission prompt just by opening Add Coin agentic mode or Identify Coin. The app still needs to preserve the guided live camera experience once the user intentionally starts capture.
+
+## Decision
+
+`src/web/src/pages/AddCoinPage.vue` and `src/web/src/pages/CoinLookupPage.vue` no longer start camera streams from page mount, agentic mode entry, or Identify Coin retake. Both pages show a clear "Start Camera" placeholder action that calls `startCamera()` only from a user tap. Existing upload-library actions remain available, shutter buttons stay disabled until `cameraReady`, and Add Coin continues stopping active streams when leaving agentic mode.
+
+## Validation
+
+- `npm.cmd run test -- src/pages/__tests__/CoinLookupPage.test.ts src/__tests__/ui-patterns.test.ts`
+- `npm.cmd run type-check`
+
+## Alignment
+
+- Principle III: Vue strict type-check passed.
+- Principle IV: Simple complete change across both affected camera entry points.
+- Principle VI: Preserves existing dark, token-based camera UI and upload fallback.
+
+---
+
+### Decision: Shared Typed HTTP Client for Numista Lookup
 
 **Date:** 2026-08-11
 **Agent:** Maximus
@@ -42,7 +1236,6 @@ Implement single injected `NumistaClient` interface with typed request/response 
 ---
 
 ### Decision: Bounded TTL Caches with In-Flight Request Coalescing
-
 
 **Date:** 2026-08-11
 **Agent:** Maximus
@@ -94,7 +1287,6 @@ Implement injectable-clock bounded TTL caches in `NumistaCache` with independent
 
 ### Decision: Deterministic Versioned Scoring with Weighted Dimensions
 
-
 **Date:** 2026-08-11
 **Agent:** Maximus
 **Status:** DECISION (spec/research documented; implementation pending)
@@ -143,7 +1335,6 @@ Implement `NumistaScorer` (pure service) using `numista-v1` versioned normalizat
 ---
 
 ### Decision: Transactional Selected-Reference Persistence for Quick Capture Drafts
-
 
 **Date:** 2026-08-11
 **Agent:** Maximus
@@ -208,7 +1399,6 @@ CREATE TABLE quick_capture_draft_references (
 
 ### Decision: Six Explicit Domain Statuses for Lookup Outcomes
 
-
 **Date:** 2026-08-11
 **Agent:** Maximus
 **Status:** DECISION (spec/research documented; implementation pending)
@@ -262,7 +1452,6 @@ Define six domain statuses for all lookup outcomes, mapping provider errors and 
 ---
 
 ### Decision: Redacted Bounded Telemetry for Numista Lookup Health
-
 
 **Date:** 2026-08-11
 **Agent:** Maximus
@@ -323,7 +1512,6 @@ Implement thread-safe bounded `NumistaTelemetry` ring buffer with 500-operation 
 
 ### Decision: Gate saved-coin Numista disclosure collapse on refreshed persistence
 
-
 **Date:** 2026-08-11
 **Agent:** Aurelia
 **Feature:** 341 User Story 6
@@ -335,7 +1523,6 @@ Actions links to the existing `/coin/:id#catalog-references` anchor rather than 
 ---
 
 ### Decision: Feature 341 Phase 5 Frontend Status Contract
-
 
 **Date:** 2026-08-11  
 **Agent:** Aurelia  
@@ -361,7 +1548,6 @@ Actions links to the existing `/coin/:id#catalog-references` anchor rather than 
 
 ### Decision: Feature 341 Phase 5 Numista Outcome and Cancellation Boundaries
 
-
 **Date:** 2026-08-11  
 **Agent:** Cassius  
 **Feature:** 341 Improved Numista Lookup, Phase 5
@@ -377,7 +1563,6 @@ Only typed Numista/provider failures map to expected HTTP 200 domain outcomes. U
 
 ### Decision: Feature 341 Phase 5 Strict Lockout Cleared
 
-
 **Date:** 2026-08-11
 **Reviewer:** Brutus
 **Status:** APPROVED
@@ -390,7 +1575,6 @@ Alignment: Constitution §0, Principles III/V/VI/IX, §17, §18.2, and §21.
 ---
 
 ### Decision: Feature 341 User Story 6 QA Acceptance Tests and Final Approval
-
 
 **Date:** 2026-08-11  
 **Reviewer:** Brutus  
@@ -413,7 +1597,6 @@ Alignment: Constitution Principles III/IV/V/VI/VII/X, §17 Quality Gate, §21 De
 ## Feature 341 MVP — Reviewed & APPROVED
 
 ### Decision: Feature 341 Backend MVP — Numista Direct Lookup Architecture
-
 
 **Date:** 2026-08-11  
 **Agent:** Cassius  
@@ -452,7 +1635,6 @@ Generated Swagger/OpenAPI artifacts were not refreshed as OpenAPI regeneration i
 
 ### Decision: Feature 341 Frontend MVP — Direct Date Evidence & Panel Composition
 
-
 **Date:** 2026-08-11  
 **Agent:** Aurelia  
 **Scope:** T002, T018–T019, T024–T027  
@@ -482,7 +1664,6 @@ No OpenAPI deviations introduced. All frontend tests pass (640/640).
 ---
 
 ### Decision: Feature 341 MVP Cache Coalescing & Cancellation Safety
-
 
 **Date:** 2026-08-11  
 **Agent:** Tacitus  
@@ -514,7 +1695,6 @@ This preserves caller cancellation/deadline errors, prevents a cancelled first c
 ---
 
 ### Decision: Feature 341 MVP QA Approval — Final Sixth Revision
-
 
 **Date:** 2026-08-11  
 **Reviewer:** Brutus  
@@ -551,7 +1731,6 @@ Limited to unavailable `go test -race` execution because `CGO_ENABLED=0`. Determ
 
 ### Decision: Feature 341 Phase 4 Backend — Selected Reference Persistence
 
-
 **Date:** 2026-08-11  
 **Agent:** Cassius  
 **Scope:** T028–T032, T036–T042  
@@ -582,7 +1761,6 @@ Canonical selection validation is performed before draft writes and then delegat
 ---
 
 ### Decision: Quick Capture Numista Selection — Explicit Tri-State Mutation
-
 
 **Date:** 2026-08-11  
 **Agent:** Aurelia  
@@ -619,7 +1797,6 @@ Identify Coin leaves the Numista panel visible with a disabled search button whe
 ---
 
 ### Decision: Feature 341 Phase 4 QA Review — Final Approval
-
 
 **Date:** 2026-08-11  
 **Reviewer:** Brutus  
@@ -666,7 +1843,6 @@ Limited to unavailable Gitleaks and Trivy scanning. All code quality and functio
 ---
 
 ### Decision: Feature 341 Phase 6 QA Review and Approved Implementation
-
 
 **Date:** 2026-08-11  
 **Reviewers:** Brutus (QA/approval), Claudius (implementation fix)  
@@ -750,7 +1926,6 @@ Limited to unavailable race detector and binary scanners. All code, architecture
 
 # ADR 0008 Acceptance
 
-
 **Date:** 2026-08-11
 **Author:** Cincinnatus
 **Status:** ACCEPTED
@@ -803,7 +1978,6 @@ Constitution §0, Principle VII, §17, §21 items 14 and 17, and §22.
 ## Feature 341 Release Review — feature-341-adr0008-rereview-block.ToUpper().Replace('-', ' ')
 
 # Feature 341 ADR 0008 Final Re-Review
-
 
 **Date:** 2026-08-11
 **Reviewer:** Maximus
@@ -861,7 +2035,6 @@ Strict Lockout remains active. Scribe must not commit, push `beta`, or open the
 ## Feature 341 Release Review — feature-341-final-clearance-approved.ToUpper().Replace('-', ' ')
 
 # Feature 341 Final Release Clearance
-
 
 **Date:** 2026-08-11
 **Reviewer:** Maximus
@@ -992,7 +2165,6 @@ subject only to ADR 0008's exact immutable exceptions.
 
 # Feature 341 Final Combined Clearance
 
-
 **Date:** 2026-08-11  
 **Reviewer:** Maximus  
 **Verdict:** BLOCK
@@ -1058,7 +2230,6 @@ live-provider E2E was performed.
 
 # Feature 341 Phase 8 Documentation Reconciliation
 
-
 **Date:** 2026-08-11  
 **Agent:** Maximus  
 **Status:** DOCUMENTED
@@ -1106,7 +2277,6 @@ subject compliance.
 ## Feature 341 Release Review — feature-341-phase8-final-block.ToUpper().Replace('-', ' ')
 
 # Feature 341 Phase 8 Final Re-Review
-
 
 **Date:** 2026-08-11  
 **Reviewer:** Maximus  
@@ -1162,7 +2332,6 @@ clears these findings.
 
 ### Decision: Feature 343 Phase 1 — Nomisma OpenRefine Wire Contract Verification and Fix
 
-
 **Date:** 2026-08-14  
 **Agent:** GitHub Copilot CLI (QC follow-up)  
 **Branch:** `343-nomisma-mint-authority-linking`  
@@ -1203,7 +2372,6 @@ Confirmed against `https://nomisma.org/apis/reconcile` for "Roma"/"Rome":
 
 ### Decision: OCRE/RPC Identified as Required Phase 2 Identify Coin Data Sources (Deferred, Distinct from F343)
 
-
 **Date:** 2026-08-14  
 **Agent:** Specifier / Feature 343 Phase 1 closure  
 **Status:** DEFERRED to Phase 2 specification  
@@ -1229,5 +2397,4 @@ OCRE/RPC are separate API contracts, licensing terms, and UI workflows from Nomi
 3. **No regression in F343**: Nomisma mint authority linking remains production-ready; Identify Coin UI does not yet depend on OCRE/RPC (future feature backlog)
 
 ---
-
 
