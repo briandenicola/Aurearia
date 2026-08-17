@@ -31,7 +31,21 @@ tasks:
       # diagnosing a prior failed run.
       - cmd: perl -0777 -pi -e 'my $v = do { local @ARGV = ("../../VERSION"); local $/; <> }; chomp $v; s{(?m)^(//\t\@version\s+)\S+}{$1$v}' main.go
         platforms: [linux, darwin]
-      - cmd: powershell -NoProfile -Command "$v = (Get-Content '../../VERSION' -Raw).Trim(); $c = Get-Content main.go -Raw; $c = $c -replace '(?m)^(//\t@version\s+)\S+', ('$1' + $v); Set-Content -NoNewline main.go $c"
+      # NOTE (Windows, two compounding bugs):
+      # 1. Task parses `cmd:` lines with its own POSIX-like shell (mvdan.cc/sh)
+      #    before handing the string to powershell.exe. Inside a double-quoted
+      #    string that shell expands `$name` on its own (undefined -> empty),
+      #    which mangled this step into `('' + )` and threw a PowerShell parser
+      #    error. Every PowerShell `$variable` below must be escaped as
+      #    `\$variable` so Task's shell passes it through literally.
+      # 2. The replacement text used the bare `$1` backreference directly
+      #    followed by the version digits (e.g. `$1` + "4.0.0" -> "$14.0.0").
+      #    .NET regex reads `$14` as "capture group 14" (nonexistent), so the
+      #    substitution silently produced the literal text "$14.0.0" instead
+      #    of the version, corrupting the annotation without an error. Use
+      #    `${1}` (braced group reference) so the group number can never fuse
+      #    with the following version digits, regardless of VERSION's shape.
+      - cmd: powershell -NoProfile -Command "\$v = (Get-Content '../../VERSION' -Raw).Trim(); \$c = Get-Content main.go -Raw; \$c = \$c -replace '(?m)^(//\t@version\s+)\S+', ('\${1}' + \$v); Set-Content -NoNewline -Path main.go -Value \$c"
         platforms: [windows]
       - go install github.com/swaggo/swag/cmd/swag@v1.16.6
       - '"$(go env GOPATH)/bin/swag" init -g main.go -o ./docs --parseDependency --parseInternal'
