@@ -97,7 +97,7 @@
             <button class="btn btn-primary btn-sm" @click="handleApplyEstimate">
               Apply as Current Value
             </button>
-            <button class="btn btn-ghost btn-sm" @click="valueEstimate = null">
+            <button class="btn btn-ghost btn-sm" @click="dismissEstimate">
               Dismiss
             </button>
           </div>
@@ -152,22 +152,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { uploadImage, proxyImage, estimateCoinValue, updateCoin, getAIJob, getCoinAIJobs } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { Camera, X } from 'lucide-vue-next'
-import { useDialog } from '@/composables/useDialog'
-import { useNotifications } from '@/composables/useNotifications'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
-import { useToast } from '@/composables/useToast'
 import { useDeepAnalysisLauncher } from '@/composables/useDeepAnalysisLauncher'
+import { useCoinImageUpload } from '@/composables/useCoinImageUpload'
+import { useCoinValueEstimate } from '@/composables/useCoinValueEstimate'
 import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalysisEntryButton.vue'
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
-import type { AIJob, AIJobStartResponse, Coin, CreateDeepIdentificationJobInput, ValueEstimate } from '@/types'
+import type { Coin, CreateDeepIdentificationJobInput } from '@/types'
 
 const props = defineProps<{
   coinId: number
@@ -190,9 +188,6 @@ const emit = defineEmits<{
   estimateApplied: []
 }>()
 
-const { showAlert } = useDialog()
-const { refresh: refreshNotifications } = useNotifications()
-const { showToast } = useToast()
 const launcher = useDeepAnalysisLauncher()
 const {
   deepIdentification,
@@ -208,321 +203,43 @@ const deepAnalysisDisabledTitle = computed(() =>
 )
 const coinHasObverseImage = computed(() => props.coinHasObverseImage ?? false)
 const coinHasReverseImage = computed(() => props.coinHasReverseImage ?? false)
-const POLL_INTERVAL_MS = 3_000
 
-const uploadType = ref('obverse')
-const uploadStatus = ref('')
-const uploadError = ref(false)
-const imageUrl = ref('')
-const urlLoading = ref(false)
-const estimating = ref(false)
-const valueEstimate = ref<ValueEstimate | null>(null)
-const estimateError = ref('')
 const showCameraModal = ref(false)
-const activeEstimateJob = ref<AIJob | null>(null)
-let estimatePollTimer: ReturnType<typeof setTimeout> | null = null
-let unmounted = false
 
-const estimateStatusMessage = computed(() => {
-  const status = activeEstimateJob.value?.status
-  if (!status) return ''
-  return `Value estimate ${formatStatus(status)}. This will continue in the background; you can leave this page.`
-})
+const {
+  uploadType,
+  uploadStatus,
+  uploadError,
+  imageUrl,
+  urlLoading,
+  handleImageUpload,
+  handleCameraCaptured,
+  handleUrlUpload,
+} = useCoinImageUpload(
+  () => props.coinId,
+  () => props.imageCount,
+  { onUploaded: () => emit('imagesChanged') },
+)
 
-onMounted(() => {
-  void resumeEstimateJob()
-})
-
-onUnmounted(() => {
-  unmounted = true
-  clearEstimatePollTimer()
-})
+const {
+  estimating,
+  estimateStatusMessage,
+  estimateError,
+  valueEstimate,
+  handleEstimateValue,
+  handleApplyEstimate,
+  dismissEstimate,
+} = useCoinValueEstimate(
+  () => props.coinId,
+  { onApplied: () => emit('estimateApplied') },
+)
 
 function safeComparableUrl(url: string | null | undefined): string | null {
   return sanitizeExternalUrl(url)
 }
 
-async function handleImageUpload(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-
-  uploadStatus.value = 'Uploading...'
-  uploadError.value = false
-
-  try {
-    await uploadImage(props.coinId, file, uploadType.value, props.imageCount === 0)
-    uploadStatus.value = 'Upload complete!'
-    emit('imagesChanged')
-  } catch {
-    uploadStatus.value = 'Upload failed'
-    uploadError.value = true
-  }
-}
-
-async function handleCameraCaptured(file: File) {
-  uploadStatus.value = 'Uploading...'
-  uploadError.value = false
-
-  try {
-    // Pass circleClip=true for obverse/reverse, false for other types
-    const shouldCircleClip = uploadType.value === 'obverse' || uploadType.value === 'reverse'
-    await uploadImage(props.coinId, file, uploadType.value, props.imageCount === 0, shouldCircleClip)
-    uploadStatus.value = 'Upload complete!'
-    emit('imagesChanged')
-  } catch {
-    uploadStatus.value = 'Upload failed'
-    uploadError.value = true
-  }
-}
-
-async function handleUrlUpload() {
-  if (!imageUrl.value) return
-
-  urlLoading.value = true
-  uploadStatus.value = 'Fetching image...'
-  uploadError.value = false
-
-  try {
-    const imgRes = await proxyImage(imageUrl.value)
-    const blob = imgRes.data as Blob
-    if (blob.size === 0) {
-      uploadStatus.value = 'No image data received from URL'
-      uploadError.value = true
-      return
-    }
-    const ext = blob.type.includes('png') ? '.png' : '.jpg'
-    const file = new File([blob], `${uploadType.value}${ext}`, { type: blob.type || 'image/jpeg' })
-    await uploadImage(props.coinId, file, uploadType.value, props.imageCount === 0)
-    uploadStatus.value = 'Image saved from URL!'
-    imageUrl.value = ''
-    emit('imagesChanged')
-  } catch {
-    uploadStatus.value = 'Failed to fetch image from URL'
-    uploadError.value = true
-  } finally {
-    urlLoading.value = false
-  }
-}
-
-async function handleEstimateValue() {
-  clearEstimatePollTimer()
-  estimating.value = true
-  estimateError.value = ''
-  valueEstimate.value = null
-  activeEstimateJob.value = null
-  try {
-    const res = await estimateCoinValue(props.coinId)
-    const job = normalizeStartedJob(res.data)
-    rememberEstimateJob(job.id)
-    showToast('Value estimate queued. You can leave this page; we will notify you when it is done.', 'info')
-    await pollEstimateJob(job.id, job)
-  } catch (err: unknown) {
-    estimateError.value = err instanceof Error ? err.message : 'Failed to estimate value'
-    if (typeof err === 'object' && err !== null && 'response' in err) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      estimateError.value = axiosErr.response?.data?.error || estimateError.value
-    }
-    estimating.value = false
-  }
-}
-
-async function handleApplyEstimate() {
-  if (!valueEstimate.value) return
-  try {
-    await updateCoin(props.coinId, { currentValue: valueEstimate.value.estimatedValue }, { source: 'estimate' })
-    valueEstimate.value = null
-    emit('estimateApplied')
-  } catch {
-    await showAlert('Failed to update coin value', { title: 'Error' })
-  }
-}
-
 async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {
   await launcher.submitDeepAnalysis({ ...input, coinId: props.coinId })
-}
-
-async function resumeEstimateJob() {
-  try {
-    const res = await getCoinAIJobs(props.coinId, true)
-    const jobs = normalizeJobList(res.data)
-    const activeJob = jobs.find((job) => isEstimateJob(job) && !isTerminalStatus(job.status))
-    if (activeJob?.id) {
-      estimating.value = true
-      estimateError.value = ''
-      await pollEstimateJob(activeJob.id, activeJob)
-      return
-    }
-  } catch {
-    // Stored job ID below still lets this component recover after navigation.
-  }
-
-  const jobId = sessionStorage.getItem(estimateJobStorageKey())
-  if (!jobId) return
-  try {
-    const res = await getAIJob(jobId)
-    if (!isEstimateJob(res.data)) return
-    if (isTerminalStatus(res.data.status)) {
-      await finishEstimateJob(res.data)
-    } else {
-      estimating.value = true
-      estimateError.value = ''
-      await pollEstimateJob(jobId, res.data)
-    }
-  } catch {
-    sessionStorage.removeItem(estimateJobStorageKey())
-  }
-}
-
-async function pollEstimateJob(jobId: string, knownJob?: AIJob) {
-  if (unmounted) return
-  if (knownJob) activeEstimateJob.value = knownJob
-  try {
-    const res = await getAIJob(jobId)
-    activeEstimateJob.value = res.data
-    if (isTerminalStatus(res.data.status)) {
-      await finishEstimateJob(res.data)
-      return
-    }
-  } catch {
-    // Keep polling through transient failures; the backend job still owns the work.
-  }
-  scheduleEstimatePoll(jobId)
-}
-
-function scheduleEstimatePoll(jobId: string) {
-  clearEstimatePollTimer()
-  estimatePollTimer = setTimeout(() => {
-    void pollEstimateJob(jobId)
-  }, POLL_INTERVAL_MS)
-}
-
-async function finishEstimateJob(job: AIJob) {
-  clearEstimatePollTimer()
-  sessionStorage.removeItem(estimateJobStorageKey())
-  activeEstimateJob.value = job
-  estimating.value = false
-  if (isFailedStatus(job.status)) {
-    estimateError.value = job.errorMessage || 'Value estimate failed. Please retry.'
-    showToast(estimateError.value, 'error')
-    return
-  }
-
-  const parsed = parseValueEstimate(job.result)
-  if (!parsed) {
-    estimateError.value = 'No estimate returned from AI'
-    return
-  }
-  valueEstimate.value = parsed
-  activeEstimateJob.value = null
-  showToast('Value estimate ready.', 'success')
-  await refreshNotifications()
-}
-
-function clearEstimatePollTimer() {
-  if (estimatePollTimer) {
-    clearTimeout(estimatePollTimer)
-    estimatePollTimer = null
-  }
-}
-
-function parseValueEstimate(result: unknown): ValueEstimate | null {
-  const raw = unwrapEstimateResult(result)
-  if (!raw || typeof raw !== 'object') return null
-  const data = raw as Record<string, unknown>
-  const estimatedValue = Number(data.estimatedValue ?? data.estimated_value ?? data.value ?? 0)
-  const confidenceValue = typeof data.confidence === 'string' ? data.confidence.toLowerCase() : 'medium'
-  const confidence: ValueEstimate['confidence'] = confidenceValue === 'high' || confidenceValue === 'low' ? confidenceValue : 'medium'
-  const reasoning = typeof data.reasoning === 'string'
-    ? data.reasoning
-    : typeof data.summary === 'string'
-      ? data.summary
-      : ''
-  const comparables = Array.isArray(data.comparables)
-    ? data.comparables.map(normalizeComparable).filter((item): item is ValueEstimate['comparables'][number] => item !== null)
-    : []
-
-  if (!estimatedValue && !reasoning) return null
-  return {
-    estimatedValue,
-    confidence,
-    reasoning,
-    comparables,
-  }
-}
-
-function unwrapEstimateResult(result: unknown): unknown {
-  if (typeof result === 'string') {
-    try {
-      return unwrapEstimateResult(JSON.parse(result))
-    } catch {
-      return { reasoning: result }
-    }
-  }
-  if (result && typeof result === 'object') {
-    const data = result as Record<string, unknown>
-    return data.valueEstimate ?? data.estimate ?? data.result ?? result
-  }
-  return result
-}
-
-function normalizeComparable(item: unknown): ValueEstimate['comparables'][number] | null {
-  if (!item || typeof item !== 'object') return null
-  const data = item as Record<string, unknown>
-  return {
-    source: String(data.source ?? data.title ?? 'Comparable'),
-    price: String(data.price ?? data.value ?? ''),
-    url: String(data.url ?? ''),
-  }
-}
-
-function normalizeStartedJob(job: AIJobStartResponse): AIJob {
-  const data = job.job ?? job
-  const id = String(('jobId' in data ? data.jobId : data.id) ?? '')
-  if (!id) throw new Error('Missing AI job ID')
-  return {
-    id,
-    coinId: data.coinId,
-    jobType: data.jobType,
-    side: data.side,
-    status: data.status,
-    result: data.result,
-    errorMessage: data.errorMessage,
-    createdAt: data.createdAt ?? '',
-    updatedAt: data.updatedAt ?? '',
-    startedAt: data.startedAt,
-    completedAt: data.completedAt,
-  }
-}
-
-function normalizeJobList(data: AIJob[] | { jobs?: AIJob[] }): AIJob[] {
-  return Array.isArray(data) ? data : data.jobs ?? []
-}
-
-function isEstimateJob(job: AIJob) {
-  return job.coinId === props.coinId && /(estimate|value|valuation)/i.test(job.jobType)
-}
-
-function isTerminalStatus(status: string) {
-  return ['completed', 'succeeded', 'success', 'failed', 'error', 'cancelled', 'canceled'].includes(status.toLowerCase())
-}
-
-function isFailedStatus(status: string) {
-  return ['failed', 'error', 'cancelled', 'canceled'].includes(status.toLowerCase())
-}
-
-function rememberEstimateJob(jobId: string) {
-  sessionStorage.setItem(estimateJobStorageKey(), jobId)
-}
-
-function estimateJobStorageKey() {
-  return `aiJob:value:${props.coinId}`
-}
-
-function formatStatus(status: string) {
-  const normalized = status.toLowerCase()
-  if (normalized === 'queued' || normalized === 'pending') return 'queued'
-  if (normalized === 'running' || normalized === 'processing') return 'in progress'
-  return normalized
 }
 </script>
 
