@@ -4,6 +4,15 @@
 return `{"evidence": [one_row]}` and LangGraph merges them without a
 node needing to see (or clobber) results from sibling nodes running
 concurrently in the same fan-out step.
+
+T102: `tools_base_url`, `internal_token`, and `errors` were previously
+declared here but never populated into the state dict nor read by any
+node — `run_deep_identification_stream` builds its `ProviderToolsClient`
+directly from `request.tools_base_url`/`request.internal_token` (the real,
+still-used request fields of the same name), never from this state's own
+copies, and nothing ever wrote to `state["errors"]`. All three were
+genuinely internal dead declarations (no Go↔Python wire dependency), so
+they were removed rather than kept as documented placeholders.
 """
 
 import operator
@@ -31,8 +40,6 @@ class DeepIdentificationState(TypedDict, total=False):
     catalog: list[DeepProviderCatalogEntry]
     provider_override: list[str]
     bounds: DeepIdentifyBounds
-    tools_base_url: str
-    internal_token: str
 
     # prepare_evidence (vision) output — the typed hypothesis (Phase 3/4,
     # contracts/vision-hypothesis.md §1). Produced primarily by a real
@@ -82,4 +89,3 @@ class DeepIdentificationState(TypedDict, total=False):
 
     # synthesizer output
     synthesis: dict | None
-    errors: Annotated[list[str], operator.add]

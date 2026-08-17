@@ -3,26 +3,23 @@
 `prepare_evidence` (vision) -> `router` -> bounded provider fan-out ->
 `evaluator` -> `synthesizer` (contracts/agent-internal-contract.md §6).
 
-Two entry points are exposed:
+`run_deep_identification_stream(request)` is the sole production driver. It
+is a hand-written async generator (not a compiled `StateGraph.astream`)
+because the internal SSE envelope (contract §3) needs a
+`provider_started`/`provider_result` frame *per provider* as fan-out
+proceeds — a single `provider_fanout` graph node only yields once it has
+fully completed, which cannot express that per-provider progress.
 
-- `build_graph()` compiles a `StateGraph` using the exact same node
-  callables the streaming runner uses, so graph *topology* (node names,
-  edges, recursion-limit wiring) is independently testable.
-- `run_deep_identification_stream(request)` is the actual production
-  driver. It is a hand-written async generator (not `graph.astream`)
-  because the internal SSE envelope (contract §3) needs a
-  `provider_started`/`provider_result` frame *per provider* as fan-out
-  proceeds — a single `provider_fanout` graph node only yields once it has
-  fully completed, which cannot express that per-provider progress. Both
-  entry points call the identical node functions below, so there is no
-  behavioral drift between the tested topology and the runtime driver.
+(T100: a `build_graph()` compiled-`StateGraph` entry point previously lived
+here as a topology-testable stand-in. It was test-only — production never
+called it — and it was deleted once the topology test that exercised it was
+rewritten to assert on this module's real node functions/emitted stages
+instead, so nothing that ships is tested by code that never runs.)
 """
 
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-
-from langgraph.graph import END, StateGraph
 
 from app.config import settings
 from app.llm.provider import get_chat_model
@@ -65,8 +62,7 @@ async def prepare_evidence_node(state: DeepIdentificationState, llm_config: LLMC
     it no longer also produces a separate free-prose `image_analysis`
     string (that write-only field is deleted, see state.py). When
     `llm_config` is supplied, `build_hypothesis_from_vision` runs the real
-    structured vision call with its full degrade ladder; when it is not
-    (e.g. the topology-only `build_graph` compiled-but-never-invoked path),
+    structured vision call with its full degrade ladder; when it is not,
     this falls back to the deterministic `quick_evidence` adapter with no
     LLM call at all.
     """
@@ -299,55 +295,6 @@ async def synthesizer_node(state: DeepIdentificationState, model, partial_succes
         hypothesis=state.get("hypothesis"),
     )
     return {"synthesis": synthesis.model_dump()}
-
-
-def build_graph(model, tools: ProviderToolsClient | None, recursion_limit: int | None = None):
-    """Compile a topology-testable `StateGraph` using the same node
-    callables the streaming runner uses. Not used at request-serving time
-    (see module docstring) — this exists so graph shape is independently
-    verifiable without needing to drive the fine-grained SSE frames.
-
-    When `recursion_limit` is provided (contract §6, `bounds.recursion_limit`),
-    it is bound into the compiled graph's invocation config so any
-    `.ainvoke`/`.astream` on the returned graph is capped at that iteration
-    bound. The production SSE driver is a hand-written generator that does not
-    invoke the compiled graph, so this binding governs graph-based callers and
-    the topology tests rather than the streaming path.
-    """
-
-    async def _prepare(state: DeepIdentificationState) -> dict:
-        return await prepare_evidence_node(state)
-
-    async def _route(state: DeepIdentificationState) -> dict:
-        return await router_node(state)
-
-    async def _fanout(state: DeepIdentificationState) -> dict:
-        return await provider_fanout_node(state, tools)
-
-    async def _evaluate(state: DeepIdentificationState) -> dict:
-        return await evaluator_node(state, model)
-
-    async def _synthesize(state: DeepIdentificationState) -> dict:
-        return await synthesizer_node(state, model)
-
-    graph = StateGraph(DeepIdentificationState)
-    graph.add_node("prepare_evidence", _prepare)
-    graph.add_node("router", _route)
-    graph.add_node("provider_fanout", _fanout)
-    graph.add_node("evaluator", _evaluate)
-    graph.add_node("synthesizer", _synthesize)
-
-    graph.set_entry_point("prepare_evidence")
-    graph.add_edge("prepare_evidence", "router")
-    graph.add_edge("router", "provider_fanout")
-    graph.add_edge("provider_fanout", "evaluator")
-    graph.add_edge("evaluator", "synthesizer")
-    graph.add_edge("synthesizer", END)
-
-    compiled = graph.compile()
-    if recursion_limit is not None:
-        return compiled.with_config({"recursion_limit": recursion_limit})
-    return compiled
 
 
 def _classify_pipeline_error(exc: BaseException) -> str:

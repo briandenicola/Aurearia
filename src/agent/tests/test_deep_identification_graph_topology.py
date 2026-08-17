@@ -1,51 +1,127 @@
-"""Graph topology test (T067) — verifies node/edge shape without ever
-invoking a real LLM or provider call.
+"""Graph topology test (T067/T100) — verifies node/stage sequence without
+ever invoking a real LLM or provider call.
+
+T100: the previous version of this test asserted on `build_graph()`, a
+compiled `StateGraph` that is test-only — production always runs the
+hand-written async generator `run_deep_identification_stream`, which never
+invokes the compiled graph at all. That meant this test was passing while
+proving nothing about the code path users actually execute (the same class
+of defect that caused the original outage: something fully tested that
+production never ran). `build_graph()` has been deleted; the test below
+drives `run_deep_identification_stream` itself (with the LLM/provider calls
+faked out, same pattern as `test_deep_identification_sse.py`) and asserts
+its emitted progress/stage frames occur in the exact
+prepare_evidence -> router -> provider_fanout -> evaluator -> synthesizer
+order (contract §3/§6), so it now verifies the real production topology.
 """
 
 import asyncio
+import json
 
+import pytest
+
+import app.teams.deep_identification.graph as graph_module
+import app.teams.deep_identification.hypothesis as hypothesis_module
+from app.models.requests import (
+    DeepIdentifyBounds,
+    DeepIdentifyImage,
+    DeepIdentifyRequest,
+    DeepProviderCatalogEntry,
+    LLMConfig,
+)
 from app.models.responses import ProviderClaim, ProviderEvidence
-from app.teams.deep_identification.graph import build_graph
 from app.teams.deep_identification.providers.ocre import OCRE_ATTRIBUTION
 from app.teams.deep_identification.synthesis import _build_attributions, synthesize
 
 
-def test_build_graph_has_expected_node_topology():
-    graph = build_graph(model=None, tools=None)
-    nodes = set(graph.get_graph().nodes.keys())
-
-    assert nodes == {
-        "__start__",
-        "prepare_evidence",
-        "router",
-        "provider_fanout",
-        "evaluator",
-        "synthesizer",
-        "__end__",
-    }
-
-    edges = {(edge.source, edge.target) for edge in graph.get_graph().edges}
-    assert ("__start__", "prepare_evidence") in edges
-    assert ("prepare_evidence", "router") in edges
-    assert ("router", "provider_fanout") in edges
-    assert ("provider_fanout", "evaluator") in edges
-    assert ("evaluator", "synthesizer") in edges
-    assert ("synthesizer", "__end__") in edges
+class _FakeChatModel:
+    async def ainvoke(self, messages, **kwargs):
+        return type("Resp", (), {"content": "A generic ancient bronze coin with worn legends."})()
 
 
-def test_build_graph_binds_recursion_limit_into_invocation_config():
-    """F3 (contract §6): `bounds.recursion_limit` is bound into the compiled
-    graph's invocation config so graph-based invocation is capped at the
-    iteration bound."""
-    graph = build_graph(model=None, tools=None, recursion_limit=12)
-    assert graph.config.get("recursion_limit") == 12
-    # Topology is preserved through the config binding.
-    assert "synthesizer" in set(graph.get_graph().nodes.keys())
+class _FakeStructuredModel:
+    """Same stand-in as `test_deep_identification_sse.py`'s: schema parsing
+    always "fails" so the vision path degrades immediately to the
+    deterministic quick-evidence hypothesis with no real network call."""
+
+    async def ainvoke(self, messages, **kwargs):
+        return {"raw": type("Resp", (), {"content": ""})(), "parsed": None, "parsing_error": None}
 
 
-def test_build_graph_without_recursion_limit_is_unbound():
-    graph = build_graph(model=None, tools=None)
-    assert (getattr(graph, "config", None) or {}).get("recursion_limit") is None
+def _tiny_data_uri() -> str:
+    return (  # noqa: E501 — a real minimal PNG data URI cannot be shortened
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+
+
+def _topology_request() -> DeepIdentifyRequest:
+    return DeepIdentifyRequest(
+        job_id=1,
+        llm=LLMConfig(provider="anthropic", model="claude-3-5-sonnet-20241022", api_key="test-key"),
+        images=[
+            DeepIdentifyImage(role="obverse", data_uri=_tiny_data_uri()),
+            DeepIdentifyImage(role="reverse", data_uri=_tiny_data_uri()),
+        ],
+        notes="",
+        provider_catalog=[DeepProviderCatalogEntry(provider="numista", automatable=True)],
+        bounds=DeepIdentifyBounds(
+            max_providers=1,
+            max_concurrency=1,
+            provider_timeout_s=5,
+            total_timeout_s=30,
+            recursion_limit=10,
+        ),
+        tools_base_url="http://test-api:8080",
+        internal_token="test-token-12345",
+    )
+
+
+@pytest.mark.asyncio
+async def test_production_stream_visits_the_five_nodes_in_order(monkeypatch):
+    """Proves `run_deep_identification_stream` — the actual production
+    driver — visits prepare_evidence, router, provider_fanout, evaluator,
+    and synthesizer, strictly in that order, via its emitted frames."""
+    monkeypatch.setattr(hypothesis_module, "get_structured_model", lambda config, schema: _FakeStructuredModel())
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: _FakeChatModel())
+
+    async def fake_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
+        return ProviderEvidence(provider="numista", status="no_match", automatable=True, call_count=1)
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", fake_numista_run)
+
+    frames = []
+    async for chunk in graph_module.run_deep_identification_stream(_topology_request()):
+        assert chunk.startswith("data: ")
+        frames.append(json.loads(chunk[len("data: "):].strip()))
+
+    markers = [frame.get("stage") or frame["type"] for frame in frames]
+
+    def index_of(marker: str) -> int:
+        assert marker in markers, f"expected {marker!r} in {markers}"
+        return markers.index(marker)
+
+    prepare_evidence_order = (index_of("image_evidence_ready"), index_of("vision_completed"))
+    router_order = (index_of("router_selected"),)
+    provider_fanout_order = (
+        index_of("provider_fanout_started"),
+        index_of("provider_started"),
+        index_of("provider_result"),
+    )
+    evaluator_order = (index_of("evaluation_started"), index_of("evaluation"))
+    synthesizer_order = (index_of("synthesis_started"), index_of("synthesis"))
+
+    node_boundaries = [
+        max(prepare_evidence_order),
+        max(router_order),
+        max(provider_fanout_order),
+        max(evaluator_order),
+        max(synthesizer_order),
+    ]
+    assert node_boundaries == sorted(node_boundaries), (
+        f"nodes did not run in prepare_evidence -> router -> provider_fanout -> "
+        f"evaluator -> synthesizer order: {markers}"
+    )
+    assert frames[-1]["type"] == "synthesis"
 
 
 # --- Feature 345 (T026): deterministic provider attribution synthesis ---
