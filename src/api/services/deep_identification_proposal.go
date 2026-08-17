@@ -671,23 +671,49 @@ func deepWishlistCoinName(doc *deepProposalDocument) string {
 // deepProposalCoinFieldAllowlist - the identical field surface "coin"
 // already uses. isWishlist is never read from proposed_fields (FR-028); it
 // is set directly here from the caller's chosen destination. Like
-// applyToCoin, it also records a CoinJournal entry on the newly created
-// coin noting the deep-analysis fields that seeded it.
+// applyToCoin (Phase 6b), an accepted "catalogReferences" field is decoded
+// and validated through the same
+// isDeepProposalCollectionField/resolveDeepProposalCatalogReferences path
+// and, once CreateCoin has succeeded, applied additively through
+// CoinReferenceService.AppendForCoin - never ReplaceForCoin, so no existing
+// reference can ever be deleted (plan.md Phase 6b, R2). The new coin's
+// owner is always the caller's userID/coin.ID; no user or coin identifier
+// is ever read from the proposal document. If the reference write fails,
+// this returns an error and Apply never calls repo.ApplyJob nor records the
+// journal entry, matching applyToCoin's existing failure ordering (plan.md
+// Phase 3 risk 3/R8). applyToWishlist also records a CoinJournal entry on
+// the newly created coin noting the deep-analysis fields that seeded it.
 func (s *DeepIdentificationProposalService) applyToWishlist(userID uint, doc *deepProposalDocument, fieldNames []string) (uint, error) {
 	coin := &models.Coin{UserID: userID, IsWishlist: true}
+	var catalogRefs []models.CoinReference
+	applyCatalogReferences := false
 	for _, name := range fieldNames {
-		goField, ok := deepProposalCoinFieldAllowlist[name]
-		if !ok {
+		switch {
+		case isDeepProposalScalarCoinField(name):
+			goField := deepProposalCoinFieldAllowlist[name]
+			value := resolveDeepProposalFieldValue(doc.Fields[name])
+			if err := setCoinFieldFromProposalValue(coin, goField, value); err != nil {
+				return 0, err
+			}
+		case isDeepProposalCollectionField(name):
+			refs, err := s.resolveDeepProposalCatalogReferences(doc.Fields[name])
+			if err != nil {
+				return 0, err
+			}
+			catalogRefs = refs
+			applyCatalogReferences = true
+		default:
 			return 0, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
-		}
-		value := resolveDeepProposalFieldValue(doc.Fields[name])
-		if err := setCoinFieldFromProposalValue(coin, goField, value); err != nil {
-			return 0, err
 		}
 	}
 	coin.Name = deepWishlistCoinName(doc)
 	if err := s.coinSvc.CreateCoin(coin); err != nil {
 		return 0, err
+	}
+	if applyCatalogReferences {
+		if _, err := s.coinRefSvc.AppendForCoin(coin.ID, userID, catalogRefs); err != nil {
+			return 0, err
+		}
 	}
 	s.recordDeepProposalJournalEntry(coin.ID, userID, fieldNames)
 	return coin.ID, nil
