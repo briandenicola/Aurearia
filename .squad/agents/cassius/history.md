@@ -75,9 +75,12 @@
   - Status: Complete; ready for merge
   - Orchestration log: `.squad/orchestration-log/20260623-175501-cassius.md`
 
-- **2026-06-19:** Scope assessment for #321 (Lock Python dependencies) and #319 (Non-root Docker users):
-  - #321 is ready: uv.lock strategy, CI/Docker changes isolated, low risk
-  - #319 is ready: standard USER/chown pattern, no privileged ops, write-path validation straightforward
+- **2026-08-17 — Spec 351 Vision-First Deep Identification: Python Agent Backend (Phases 3-5, cassius-2/-3/-4, 3 commits d35dd64/e740df9/1adccbe):**
+  - **Phase 3 (cassius-2, synthesis seam):** Implemented synthesis layer consuming `quick_evidence` through `CoinHypothesis` seam. Applied Nomisma 200-char query cap. Fallback narrative paths when providers return no results. Wired quick-evidence coin fields into synthesis context; narratives render even when deep identification returns nothing.
+  - **Phase 4 (cassius-3, real vision hypothesis):** Built structured-vision-LLM-call hypothesis extraction replacing placeholder. Degrade ladder: structured → retry once → prose regex → quick-evidence fallback → typed-empty. Deviated from tasks.md literal to prefer quick-evidence (strictly better, zero cost, matches prior shipping). Provider-specific methods: Anthropic `function_calling`, Ollama `json_schema`. `include_raw=True` enables prose extraction from same response with zero additional LLM calls. Tests: +20 new, 299 passing (was 279). Verified `pytest tests/ -q` and `ruff check app/ tests/`.
+  - **Phase 5 (cassius-4, query terms + ranking):** Built deterministic query-term composition (`query_terms.py`): precedence `numista_query` → `label_text` → hypothesis (`ruler+denomination` → `ruler` → `denomination+material` → `obverseInscription`) → `notes[:200]`. Built candidate ranker (`candidate_ranking.py`) over provider results using hypothesis reverse-type/legend tokens. Deleted placeholder `_DEFAULT_QUERY`; now return `no_match`/`insufficient_query_evidence`/zero-call when no terms available. Hypothesis parameter added to `numista.run()`, `nomisma.run()`, `ocre.run()` with default `None` but not yet wired from `graph.py` (one-line fix needed). Quick-evidence tiers and zero-placeholder guarantee already live. Tests: +36 new, 335 passing. 
+  - **Wiring gap identified:** Hypothesis-derived query terms (tier 3) and reverse-signal ranking not yet reachable in live pipeline until `graph.py`'s provider-fanout call site threads `state.get("hypothesis")` through as fifth argument. Flagged for next graph.py owner.
+  - Orchestration logs: `.squad/orchestration-log/2026-08-17T14-19-06Z-cassius-*.md` (3 files)
   - Both independent; recommend #321→#319 sequence if merged in single PR to avoid line-number conflicts on `src/agent/Dockerfile`
 
 - **2026-06-19 (Charts Session):** Completed OpenAPI route-drift automation (`route_openapi_drift_test.go`), non-root Docker hardening, Python dependency locking strategy (`uv.lock`), and streaming token guard. All four deliverables are implementation-ready.

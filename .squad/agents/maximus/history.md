@@ -49,6 +49,13 @@
   - Outcome: Fix ready for Brutus final approval
   - Orchestration log: `.squad/orchestration-log/2026-06-30T02-12-02Z-maximus-find-coin-strict-lockout-fix.md`
 
+- **2026-08-17 — Spec 351 Vision-First Deep Identification Team Coordination (8 agents, 3 phases complete):**
+  - **SQLite contention fix** (maximus-2, merged c9b0fa1): Diagnosed concurrent `SQLITE_BUSY` as deferred-txn lock upgrade failure. Added `_txlock=immediate&_pragma=busy_timeout(5000)` to DSN; eliminated errors under load on real on-disk WAL SQLite. Test: `TestDeepIdentificationRepository_ConcurrentClaimNoLockContention` proves 0/300 failures with fix (was 29/300 before).
+  - **Wishlist apply destination** (maximus-3, merged 25fad91): Extended deep proposal apply to support `target="wishlist"` alongside draft/coin. Reused existing 14-entry field allowlist. `isWishlist` remains intent-only (set from destination choice, never as proposed field). Verified rejection via `TestDeepIdentificationProposal_WishlistApplyRejectsIsWishlistAsProposedField`.
+  - **Deterministic router + wiring addenda** (maximus-4, merged 1adccbe): Replaced LLM-driven router with pure function `route(catalog, override, bounds, quick_evidence, hypothesis)` — saves one LLM call per job. Added `skipped[]` array to `router_selected` SSE frame. Two critical wiring addenda fixed downstream gaps: (1) Phase 7 evaluator now receives hypothesis, (2) Phase 5 provider nodes now receive hypothesis via `_run_one_provider` choke point. Tests: +27 new router/SSE tests, evaluator gap test, provider wiring test. Final count 337 passing (was 299).
+  - **Coordination outcome:** All three maximus batches tested to DoD and landed without regressions. `go test ./...`, `go vet ./...`, `pytest tests/ -q` all passing. Decisions merged into `.squad/decisions.md`.
+  - Orchestration logs: `.squad/orchestration-log/2026-08-17T14-19-06Z-maximus-*.md` (3 files)
+
 - **2026-06-30:** CNG Auctions Integration Spike — Architecture Analysis
   - **Scope:** Research phase to assess feasibility of adding CNG Auctions alongside existing NumisBids auction tracking
   - **Current State:** NumisBids is fully integrated: dedicated scraper service, user credential storage (plaintext in `User.NumisBidsUsername/Password`), cookie-based session auth, HTML parsing with regex, provider-specific handler endpoints

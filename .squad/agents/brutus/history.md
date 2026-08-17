@@ -47,6 +47,14 @@
   - The implementation was narrowed to wishlist creation only: `prepareCoinForCreate` clears `coin.References` when `coin.IsWishlist` is true.
   - Regression coverage focuses on wishlist paths: service-level creation with supplied references, handler-level `POST /api/coins` with `isWishlist:true`, and wishlist search alert candidate conversion carrying references.
 
+- **2026-08-17 — Spec 351 Vision-First Deep Identification: Phase 7 Image Claims & Evaluation (brutus-1, merged 1adccbe):**
+  - **Phase 7 complete:** Extended evaluator to flatten `CoinHypothesis` fields as `(source="image", claim_index=None, value)` claims alongside provider entries. Image and provider claims for a field never reconciled by precedence (both kept unresolved). Field with one image + one provider → unresolved; one image only (or provider only) → no disagreement, not counted in `resolved_count`.
+  - **Type safety proven:** `EvidenceRef.provider` accepts `"image"` as string; `ProviderEvidence.provider` rejects it (literal union). Added `test_image_never_becomes_a_provider_name` ensuring `ProviderEvidence(provider="image")` raises `ValidationError`.
+  - **Pure detection constraint:** `detect_disagreements()` takes no `model` parameter (structural proof of LLM-free operation). Model used only by `_summarize()` for phrasing `unresolved_questions`; poisoned/error tests prove disagreement list identical regardless.
+  - **Known wiring gap (not mine to fix):** `graph.py::evaluator_node` still calls `evaluate(model, state.get("evidence", []))` without `hypothesis=` kwarg. Parameter defaults to `None`; hypothesis invisible in real pipeline pending graph.py fix.
+  - **Tests:** +10 new evaluator tests; full suite 335 passing (was 299). One pre-existing timing flake regressed in full run (sleep/timeout race, not this batch).
+  - Orchestration log: `.squad/orchestration-log/2026-08-17T14-19-06Z-brutus-1.md`
+
 - **2026-07-20:** NumisBids #490 Regression Coverage — Reduced Watchlist Scope
   - Cassius delivered a complete rewrite of `numisbids_service.go` (browseDivRe/togglewatchRe/summaryHrefRe/summaryTextRe/priceFieldRe) matching the real NumisBids watchlist markup structure confirmed by HAR inspection.
   - Cassius also produced `testdata/numisbids_watchlist.html` (sanitized fixture from real account) and 10 updated parser/diagnostics tests in `numisbids_service_test.go`.

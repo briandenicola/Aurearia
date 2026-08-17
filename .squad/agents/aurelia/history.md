@@ -42,6 +42,16 @@
 - **2026-06-01 (Learnings):** Fixed PWA tap-blocking (pull-to-refresh touchcancel leak) and agent FAB hidden bug (module-level state leak); documented back navigation pattern and responsive table overflow handling
 - **2026-06-02:** Coin detail UI reordering (Inscription consolidation, section renames, metadata hierarchy); Settings tab split (Backups ↔ API Keys as separate tabs); Camera modal extraction; Camera permissions pre-check; Per-coin value trend subpage
 
+- **2026-08-17 — Spec 351 Vision-First Deep Identification: Frontend Activity Timeline (aurelia-2, merged 89c98fa):**
+  - **FR-040 frontend half:** Implemented `DeepAnalysisActivityTimeline.vue` deriving step-by-step progress from existing `DeepStreamEvent[]` stream (no backend contract changes required).
+  - **Known lifecycle events:** `job_accepted`, `router_selected`, `evaluation`, `synthesis_started`, `terminal` get curated labels. `progress` events use `knownPhaseLabels` map with titleCase fallback for unknown phases — new backend phases render immediately without frontend deploy.
+  - **Accessibility & UX:** Icon + text label per step (never color alone); `role="log"` with `aria-live="polite"`. `<details>` auto-collapses on terminal status but respects manual toggle afterward. Elapsed-time deltas (`+12s`, `+1m 4s`) computed from consecutive event timestamps.
+  - **Provider grouping:** `provider_started`/`provider_result` events grouped into "Provider fan-out" step with per-provider status rows. `no_match`/`skipped`/`not_automated`/`unavailable` render as distinct "No result" state (icon + chip), visually different from "Done"/"Contributed" success.
+  - **Design-for-unknown-phases:** Totally unrecognized event types also render generically (`titleCase(type)` + first string payload field) instead of being dropped.
+  - **Backend contract request (out of scope for this batch):** Backend should emit `progress` phases: `vision_completed`, `provider_query_dispatched`, `synthesis_started` with step detail (counts, query terms, outcome) per FR-040's owner-scoped SSE binding limits.
+  - **Tests:** +9 new in `DeepAnalysisActivityTimeline.test.ts`, updated `DeepAnalysisProgressTimeline.test.ts` for new DOM shape. Full suite: 131 files / 830 tests passing (was 821). `npm run type-check` ✅
+  - Orchestration log: `.squad/orchestration-log/2026-08-17T14-19-06Z-aurelia-2.md`
+
 ## Learnings
 
 - **2026-06-30 (User-initiated camera start):** `src/web/src/pages/AddCoinPage.vue` and `src/web/src/pages/CoinLookupPage.vue` now keep the custom live viewfinder and circular alignment overlay, but never call `getUserMedia()` on mount. Camera placeholders show a user-tapped "Start Camera" action; shutter controls stay disabled until `cameraReady`, upload remains available, and Add Coin still stops active streams when leaving agentic mode.

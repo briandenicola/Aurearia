@@ -200,6 +200,115 @@ package tests as the likely root cause.
 
 ---
 
+## Decision: Real vision-hypothesis structured output + degrade-ladder deviation
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 3+4 (T019-T033)  
+**Status:** IMPLEMENTED
+
+Implemented structured vision extraction with `get_structured_model(config, schema)` factory. Degrade ladder: structured → retry once → prose regex → quick-evidence fallback → typed-empty. Deviated from tasks.md literal to prefer quick-evidence hypothesis over typed-empty (strictly better, zero cost, matches prior shipping behavior). Provider-specific methods: Anthropic `function_calling`, Ollama `json_schema`. Wiring to router/query-builder/evaluator deferred to later phases per task dependency ordering.
+
+**Key decision:** `include_raw=True` surfaces schema-validation failures as `parsing_error` in return value, not exception — enables prose extraction from same response with zero additional LLM calls. Retry-once logic lives in `build_hypothesis_from_vision` only on failure branch; happy path makes exactly one call.
+
+**Test coverage:** +20 new tests, 299 passing (was 279). Verified via `pytest tests/ -q` and `ruff check app/ tests/`.
+
+---
+
+## Decision: Fix deep-identification worker SQLITE_BUSY claim contention
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 2 infrastructure  
+**Status:** IMPLEMENTED
+
+Root cause: deferred SQLite transactions in `ClaimNextQueuedJob` race an upgrade lock from read to write, failing with `SQLITE_BUSY` under concurrent workers. Fix: added `_txlock=immediate&_pragma=busy_timeout(5000)` to DSN in `database/database.go`, enforcing write-lock acquisition at `BEGIN` rather than on first write.
+
+**Hard constraint verified:** Reproduction test (`TestDeepIdentificationRepository_ConcurrentClaimNoLockContention`) confirmed 29/300 failures before fix, 0/300 after, even with just `busy_timeout` alone. Blast radius assessed safe across all schedulers (valuation, health, auction, coin-of-day, etc.); all benefit from reduced transient lock contention.
+
+**Test coverage:** New `TestDeepIdentificationRepository_ConcurrentClaimNoLockContention` on real on-disk WAL SQLite file; 5+ consecutive runs passing. Log line downgraded from ERROR to WARN (transient, self-healing condition).
+
+---
+
+## Decision: Phase 10 wishlist save destination
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 10 (T072-T075, T119)  
+**Status:** IMPLEMENTED
+
+Extended `DeepIdentificationProposalService.Apply` to support `target="wishlist"` alongside `"draft"` and `"coin"`. Builds `models.Coin{IsWishlist: true}` via existing 14-entry allowlist (no schema migration). `isWishlist` remains intent-only (set from destination, never proposed). Name derivation: reads `proposal.Fields["workingTitle"]` or falls back to `"Unidentified Coin (Deep Analysis)"` when hypothesis empty.
+
+**Validation:** No new `validateCoinMinimumForPromotion`-equivalent; `CoinService.prepareCoinForCreate` already validates Era/Category. Confirmed `isWishlist` rejection via `TestDeepIdentificationProposal_WishlistApplyRejectsIsWishlistAsProposedField`.
+
+---
+
+## Decision: Phase 5 provider query terms + candidate ranking
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 5 (T034-T043, T121-T123)  
+**Status:** IMPLEMENTED (partial wiring)
+
+Built deterministic query composition (`query_terms.py`): precedence `numista_query` → `label_text` → hypothesis (ruler+denomination → ruler → denomination+material → obverseInscription) → notes[:200]. Built candidate ranker (`candidate_ranking.py`) over provider results using hypothesis reverse-type/legend tokens. Deleted placeholder `_DEFAULT_QUERY = "unidentified ancient coin"`; now return `no_match`/`insufficient_query_evidence`/zero-call when no terms available.
+
+**Implementation gap (not mine to fix):** Hypothesis parameter added to `numista.run()`, `nomisma.run()`, `ocre.run()` with default `None`, but `graph.py`'s provider-fanout call site does not yet pass `state.get("hypothesis")` through. One-line wire-up needed; hypothesis-derived tiers (3) and ranking currently unreachable in live pipeline. Quick-evidence tiers (1-2, 4) and zero-placeholder guarantee (FR-011) already live.
+
+**Test coverage:** +36 new tests, 335 passing. Verified `pytest tests/ -q` and `ruff check app/ tests/`.
+
+---
+
+## Decision: Phase 6 deterministic router + wiring addenda
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 6 (T044-T050)  
+**Status:** IMPLEMENTED (with two addenda)
+
+Replaced LLM-driven router with pure function of `(catalog, provider_override, bounds, quick_evidence, hypothesis)`. Removed one LLM call per job. Added `skipped[]` array to `router_selected` SSE frame. RD-7 inclusion-by-default: selects all automatable, in-bounds providers unless evidence indicates non-Roman coin → skip OCRE. Determinism proven by `test_route_is_deterministic_across_identical_runs`.
+
+**Addendum 1 — Evaluator wiring:** Fixed `evaluator_node` to pass `hypothesis=state.get("hypothesis")` to `evaluate()` call. Prior: hypothesis available in unit tests only, inert in pipeline.
+
+**Addendum 2 — Provider wiring:** Added `hypothesis` parameter to `_run_one_provider()` and threaded through from `provider_fanout_node`. Updated 13 test fakes with `hypothesis=None` signature.
+
+**Test coverage:** +27 new/updated router and SSE tests from Phase 6, +10 from both addenda. Final count 337 passing (was 299). One pre-existing timing flake in `test_deep_identification_sse.py` regressed (timing-sensitive, not caused by this batch).
+
+---
+
+## Decision: Phase 7 image as first-class claim source
+
+**Author:** Brutus (QA/Integration)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — Phase 7 (T051-T055)  
+**Status:** IMPLEMENTED (partial wiring)
+
+Extended evaluator to flatten `CoinHypothesis` fields into claim-disagreement pipeline as `(source="image", claim_index=None, value)` entries. Image/provider claims never resolved by precedence (both kept). Field with one image + one provider claim → unresolved; one image only (or one provider only) → no disagreement, not counted in `resolved_count`.
+
+**Type safety:** `EvidenceRef.provider` accepts `"image"` as string; `ProviderEvidence.provider` rejects it (literal union). Verified by `test_image_never_becomes_a_provider_name`.
+
+**Constraint verified:** `detect_disagreements()` takes no `model` parameter (pure function). Model used only by `_summarize()` for `unresolved_questions`; poisoned/error tests prove return values identical regardless.
+
+**Implementation gap (not mine to fix):** `graph.py::evaluator_node` still calls `evaluate(model, state.get("evidence", []))` without `hypothesis=` kwarg. Parameter defaults to `None`; hypothesis invisible in pipeline.
+
+---
+
+## Decision: Deep Analysis activity timeline UI
+
+**Author:** Aurelia (Frontend Developer)  
+**Date:** 2026-08-17  
+**Feature:** `specs/351-vision-first-deep-identification` — FR-040 frontend half  
+**Status:** SHIPPED
+
+Implemented `DeepAnalysisActivityTimeline.vue` deriving step-by-step progress from existing `DeepStreamEvent[]` stream (no backend contract changes). Recognizes lifecycle events (`job_accepted`, `router_selected`, `evaluation`, `synthesis_started`, `terminal`) with curated labels. `progress` events use `knownPhaseLabels` map with titleCase fallback for unknown phases — new backend phases render immediately without frontend deploy.
+
+**Accessibility:** Icon + text label per step (never color alone); `role="log"` with `aria-live="polite"`. `<details>` auto-collapses on terminal status but respects manual toggle afterward. Elapsed-time deltas (`+12s`, `+1m 4s`) from consecutive event timestamps.
+
+**Backend contract request (out of scope, for backend agent):** Backend should emit `progress` phases: `vision_completed`, `provider_query_dispatched`, `synthesis_started` (with hypothesis/query/outcome detail per FR-040's binding limits: owner-scoped stream only, no images/logs, bounded length).
+
+**Test coverage:** +9 new tests in `DeepAnalysisActivityTimeline.test.ts`, updated `DeepAnalysisProgressTimeline.test.ts` for new DOM shape. Full suite 131 files / 830 tests passing (was 821).
+
+---
+
 ## Active Decisions
 
 ### Decision: Feature 344 — Preserve provider claims across the analysis stream (B1 re-remediation)
