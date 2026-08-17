@@ -134,7 +134,7 @@ test('T124: a partial-success terminal job shows an editable proposal that only 
   // Partial-success banner and coverage must remain visible alongside the
   // editable proposal - a partial result never hides provider status.
   await expect(page.getByText('Partial results')).toBeVisible()
-  await expect(page.getByText('Not automated').first()).toBeVisible()
+  await expect(page.getByText('Manual verification').first()).toBeVisible()
   await expect(page.getByText('Unavailable', { exact: true })).toBeVisible()
 
   const confirmButton = page.getByRole('button', { name: 'Save as Draft' })

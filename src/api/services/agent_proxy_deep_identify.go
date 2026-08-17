@@ -42,6 +42,20 @@ type DeepIdentifyBoundsProxy struct {
 	RecursionLimit   int `json:"recursion_limit"`
 }
 
+type DeepQuickEvidenceNGCProxy struct {
+	CertNumber string `json:"cert_number,omitempty"`
+	Grade      string `json:"grade,omitempty"`
+	LookupURL  string `json:"lookup_url,omitempty"`
+}
+
+type DeepQuickEvidenceProxy struct {
+	LabelText    string                     `json:"label_text,omitempty"`
+	CoinFields   map[string]string          `json:"coin_fields,omitempty"`
+	Confidence   string                     `json:"confidence,omitempty"`
+	NGC          *DeepQuickEvidenceNGCProxy `json:"ngc,omitempty"`
+	NumistaQuery string                     `json:"numista_query,omitempty"`
+}
+
 // DeepIdentifyProxyRequest mirrors app.models.requests.DeepIdentifyRequest
 // exactly (field-for-field, including the `llm` key name used consistently
 // by every other Go->Python proxy request in this file).
@@ -51,6 +65,7 @@ type DeepIdentifyProxyRequest struct {
 	LLM              LLMConfig                       `json:"llm"`
 	Images           []DeepIdentifyImageProxy        `json:"images"`
 	Notes            string                          `json:"notes,omitempty"`
+	QuickEvidence    *DeepQuickEvidenceProxy         `json:"quick_evidence,omitempty"`
 	ProviderOverride []string                        `json:"provider_override,omitempty"`
 	ProviderCatalog  []DeepProviderCatalogEntryProxy `json:"provider_catalog"`
 	Bounds           DeepIdentifyBoundsProxy         `json:"bounds"`

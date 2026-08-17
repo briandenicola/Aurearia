@@ -33,6 +33,12 @@ type DeepIdentificationPipelineRunner struct {
 	toolsBaseURL string
 	logger       *Logger
 	broker       *DeepIdentificationBroker
+	coinLookup   *CoinLookupService
+}
+
+func (r *DeepIdentificationPipelineRunner) WithQuickEvidence(coinLookup *CoinLookupService) *DeepIdentificationPipelineRunner {
+	r.coinLookup = coinLookup
+	return r
 }
 
 // NewDeepIdentificationPipelineRunner constructs the real pipeline runner,
@@ -103,7 +109,24 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 	}
 
 	settings := r.settingsSvc.GetDeepIdentificationSettings()
+	quickCtx, cancelQuick := context.WithTimeout(ctx, 15*time.Second)
+	quickEvidence := r.extractQuickEvidence(quickCtx, job.UserID, images, job.Notes)
+	cancelQuick()
+
 	bounds := deepPipelineBounds(settings)
+	if deadline, ok := ctx.Deadline(); ok {
+		remainingDuration := time.Until(deadline)
+		if remainingDuration <= 0 {
+			return nil, context.DeadlineExceeded
+		}
+		remaining := int((remainingDuration + time.Second - 1) / time.Second)
+		if remaining > deepPipelineHardTimeoutSafetyMarginS {
+			remaining -= deepPipelineHardTimeoutSafetyMarginS
+		}
+		if remaining < bounds.TotalTimeoutS {
+			bounds.TotalTimeoutS = remaining
+		}
+	}
 
 	internalToken, err := r.tokenSvc.MintForJobWithTTL(
 		job.UserID, job.ID,
@@ -124,6 +147,7 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		LLM:              llmCfg,
 		Images:           images,
 		Notes:            job.Notes,
+		QuickEvidence:    quickEvidence,
 		ProviderOverride: providerOverride,
 		ProviderCatalog:  deepPipelineProviderCatalog(settings),
 		Bounds:           bounds,
@@ -151,6 +175,7 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+
 		// persistPayload is the JSON persisted into the user-visible event
 		// log. It defaults to the raw internal frame, but privacy/event-bloat
 		// sensitive frames (provider_result) are reduced to the bounded
@@ -369,6 +394,93 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		lastErrorMessage = "The identification pipeline reported an error."
 	}
 	return nil, fmt.Errorf("deep identification pipeline error %s: %s", lastErrorCode, lastErrorMessage)
+}
+
+func (r *DeepIdentificationPipelineRunner) extractQuickEvidence(
+	ctx context.Context,
+	userID uint,
+	images []DeepIdentifyImageProxy,
+	notes string,
+) *DeepQuickEvidenceProxy {
+	if r.coinLookup == nil {
+		return nil
+	}
+	lookupImages := make([]string, 0, len(images))
+	imageRoles := make([]string, 0, len(images))
+	for _, image := range images {
+		lookupImages = append(lookupImages, image.DataURI)
+		role := image.Role
+		if role == "hint" {
+			role = "notes"
+		}
+		imageRoles = append(imageRoles, role)
+	}
+	result, err := r.coinLookup.Lookup(ctx, userID, CoinLookupRequest{
+		Images:     lookupImages,
+		ImageRoles: imageRoles,
+		Notes:      notes,
+	})
+	if err != nil {
+		if r.logger != nil {
+			r.logger.Warn("deep-identification", "quick evidence extraction failed for user %d: %v", userID, err)
+		}
+		return nil
+	}
+
+	keys := make([]string, 0, len(result.ExtractedData.CoinFields))
+	for key := range result.ExtractedData.CoinFields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if len(keys) > 50 {
+		keys = keys[:50]
+	}
+	coinFields := make(map[string]string, len(keys))
+	for _, key := range keys {
+		value := result.ExtractedData.CoinFields[key]
+		if value == nil {
+			continue
+		}
+		normalized := truncateDeepEvidence(strings.TrimSpace(fmt.Sprint(value)), 500)
+		if normalized != "" && normalized != "<nil>" {
+			coinFields[truncateDeepEvidence(key, 100)] = normalized
+		}
+	}
+	evidence := &DeepQuickEvidenceProxy{
+		LabelText:    truncateDeepEvidence(result.ExtractedData.LabelText, 2000),
+		CoinFields:   coinFields,
+		Confidence:   truncateDeepEvidence(result.ExtractedData.Confidence, 16),
+		NumistaQuery: truncateDeepEvidence(result.ProposedNumistaQuery, 300),
+	}
+	if ngc := result.ExtractedData.NGC; ngc != nil {
+		certNumber := ngc.NormalizedCert
+		if certNumber == "" {
+			certNumber = ngc.CertNumber
+		}
+		evidence.NGC = &DeepQuickEvidenceNGCProxy{
+			CertNumber: truncateDeepEvidence(certNumber, 40),
+			Grade:      truncateDeepEvidence(ngc.Grade, 32),
+			LookupURL:  boundedDeepEvidenceURL(ngc.LookupURL),
+		}
+	}
+	return evidence
+}
+
+func truncateDeepEvidence(value string, maxRunes int) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes])
+}
+
+func boundedDeepEvidenceURL(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 500 {
+		return ""
+	}
+	return value
 }
 
 func deepProviderName(value string) (models.DeepProviderName, bool) {

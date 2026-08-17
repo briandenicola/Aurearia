@@ -15,11 +15,11 @@ from app.models.responses import ProviderEvidence
 
 def run(catalog_entry: DeepProviderCatalogEntry, quick_evidence: QuickEvidence | None) -> ProviderEvidence:
     link_out = catalog_entry.link_out or ""
-    if link_out and quick_evidence and quick_evidence.ngc and quick_evidence.ngc.cert_number:
+    if quick_evidence and quick_evidence.ngc and quick_evidence.ngc.lookup_url:
+        link_out = str(quick_evidence.ngc.lookup_url)
+    elif link_out and quick_evidence and quick_evidence.ngc and quick_evidence.ngc.cert_number:
         separator = "&" if "?" in link_out else "?"
         link_out = f"{link_out}{separator}{urlencode({'certNumber': quick_evidence.ngc.cert_number})}"
-    elif quick_evidence and quick_evidence.ngc and quick_evidence.ngc.lookup_url:
-        link_out = link_out or quick_evidence.ngc.lookup_url
 
     return ProviderEvidence(
         provider="ngc",

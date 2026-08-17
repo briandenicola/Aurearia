@@ -16,7 +16,7 @@ describe('DeepProviderCoverageList', () => {
     })
 
     expect(wrapper.text()).toContain('No match')
-    expect(wrapper.text()).toContain('Not automated')
+    expect(wrapper.text()).toContain('Manual verification')
     expect(wrapper.text()).toContain('Unavailable')
     expect(wrapper.text()).toContain('Timed out')
     expect(wrapper.find('a[href="https://www.ngccoin.com/verify/"]').exists()).toBe(true)

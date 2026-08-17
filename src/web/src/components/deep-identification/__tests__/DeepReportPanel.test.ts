@@ -50,7 +50,7 @@ describe('DeepReportPanel', () => {
   it('renders every provider coverage status distinctly, never collapsing not_automated/unavailable into no_match', () => {
     const wrapper = mount(DeepReportPanel, { props: { report: baseReport() } })
     const text = wrapper.text()
-    expect(text).toContain('Not automated')
+    expect(text).toContain('Manual verification')
     expect(text).toContain('Unavailable')
     expect(text).not.toContain('No match')
   })

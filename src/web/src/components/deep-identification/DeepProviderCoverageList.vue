@@ -47,7 +47,7 @@ const statusLabels: Record<DeepProviderStatus, string> = {
   failed: 'Failed',
   timed_out: 'Timed out',
   skipped: 'Skipped',
-  not_automated: 'Not automated',
+  not_automated: 'Manual verification',
   unavailable: 'Unavailable',
 }
 
