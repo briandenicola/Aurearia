@@ -10,16 +10,27 @@
           Some earlier progress details are no longer available, but the job continues below.
         </span>
       </div>
-      <button
-        v-if="showCancel"
-        type="button"
-        class="btn btn-danger btn-sm min-h-[44px]"
-        :disabled="cancelDisabled"
-        aria-label="Cancel Deep Analysis"
-        @click="$emit('cancel')"
-      >
-        {{ cancelling ? 'Cancelling…' : 'Cancel' }}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="showRetry"
+          type="button"
+          class="btn btn-secondary btn-sm min-h-[44px]"
+          aria-label="Retry Deep Analysis connection"
+          @click="$emit('retry')"
+        >
+          Retry
+        </button>
+        <button
+          v-if="showCancel"
+          type="button"
+          class="btn btn-danger btn-sm min-h-[44px]"
+          :disabled="cancelDisabled"
+          aria-label="Cancel Deep Analysis"
+          @click="$emit('cancel')"
+        >
+          {{ cancelling ? 'Cancelling…' : 'Cancel' }}
+        </button>
+      </div>
     </div>
 
     <ol v-if="events.length" class="m-0 grid gap-2 p-0" style="list-style: none;">
@@ -44,15 +55,30 @@ const props = defineProps<{
   events: DeepStreamEvent[]
   connected: boolean
   streaming: boolean
+  /**
+   * True only while an actual reconnect attempt is scheduled or in flight
+   * (T085/B6). Never derived as a fallback default - a badge reading
+   * "Reconnecting…" must only appear when a reconnect is genuinely
+   * happening, otherwise it lies to a user watching a dead stream.
+   */
+  reconnecting?: boolean
   truncated?: boolean
   terminalStatus?: string | null
   cancelling?: boolean
 }>()
 
-defineEmits<{ (e: 'cancel'): void }>()
+defineEmits<{ (e: 'cancel'): void; (e: 'retry'): void }>()
 
 const showCancel = computed(() => !props.terminalStatus)
 const cancelDisabled = computed(() => Boolean(props.cancelling) || Boolean(props.terminalStatus))
+
+// The Retry control is offered whenever the stream is neither live,
+// actively (re)connecting, nor finished - i.e. genuinely disconnected with
+// no reconnect scheduled, so the user has an explicit recovery action
+// instead of a badge that silently lies about reconnecting forever.
+const showRetry = computed(() =>
+  !props.terminalStatus && !props.connected && !props.streaming && !props.reconnecting,
+)
 
 const connectionClasses = computed(() => {
   if (props.terminalStatus) {
@@ -61,15 +87,16 @@ const connectionClasses = computed(() => {
       : 'border-byzantine text-byzantine'
   }
   if (props.connected) return 'border-gold text-gold'
-  if (props.streaming) return 'border-border-accent text-text-secondary'
+  if (props.reconnecting || props.streaming) return 'border-border-accent text-text-secondary'
   return 'border-byzantine text-byzantine'
 })
 
 const connectionLabel = computed(() => {
   if (props.terminalStatus) return props.terminalStatus
   if (props.connected) return 'Live'
+  if (props.reconnecting) return 'Reconnecting…'
   if (props.streaming) return 'Connecting…'
-  return 'Reconnecting…'
+  return 'Disconnected'
 })
 
 const eventLabels: Record<string, string> = {

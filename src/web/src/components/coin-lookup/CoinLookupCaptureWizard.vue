@@ -92,7 +92,8 @@
           v-if="obverse && deepAnalysisEnabled"
           type="button"
           class="btn btn-secondary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
-          :disabled="submitting || preparingImage"
+          :disabled="submitting || preparingImage || deepAnalysisDisabled"
+          :title="deepAnalysisDisabled ? deepAnalysisDisabledTitle : undefined"
           @click="startDeepAnalysis"
         >
           <Microscope :size="19" class="hidden sm:block" aria-hidden="true" />
@@ -135,8 +136,17 @@ const props = withDefaults(defineProps<{
   preparingImage: boolean
   uploadError: string
   deepAnalysisEnabled?: boolean
+  /**
+   * True when the user is already at the Deep Analysis `MaxActivePerUser`
+   * limit (T088/F6) - disables the control instead of letting the click
+   * round-trip to the backend and surface an error toast.
+   */
+  deepAnalysisDisabled?: boolean
+  deepAnalysisDisabledTitle?: string
 }>(), {
   deepAnalysisEnabled: false,
+  deepAnalysisDisabled: false,
+  deepAnalysisDisabledTitle: undefined,
 })
 
 const emit = defineEmits<{

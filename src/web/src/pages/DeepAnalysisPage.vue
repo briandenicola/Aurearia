@@ -34,10 +34,12 @@
             :events="stream.events.value"
             :connected="stream.connected.value"
             :streaming="stream.streaming.value"
+            :reconnecting="reconnecting"
             :truncated="stream.truncated.value"
             :terminal-status="terminalStatus"
             :cancelling="deep.cancelling.value"
             @cancel="onCancel"
+            @retry="onManualStreamRetry"
           />
 
           <DeepProviderCoverageList
@@ -159,6 +161,84 @@ async function onCancel() {
   await deep.cancel(jobId.value)
 }
 
+// Real reconnect (T085/B6, contract §3): the composable's own `finally`
+// clears `connected`/`streaming` on any exit path, including an
+// unexpected mid-job drop. Previously the Timeline's fallback branch
+// then displayed "Reconnecting…" forever, even though nothing ever
+// reconnected. This resumes the stream from the last durably-seen `seq`
+// (the same resume mechanism used on mount/T101) with capped, backed-off
+// automatic retries, plus an explicit manual Retry control for when
+// those attempts are exhausted or the drop happened before any event
+// was ever seen.
+const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000]
+const reconnecting = ref(false)
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempt = 0
+
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnecting.value = false
+}
+
+function resetReconnectState() {
+  clearReconnectTimer()
+  reconnectAttempt = 0
+}
+
+// Set right before any *intentional* stream teardown (navigating to a new
+// job, unmounting) so the `connected` watcher below can tell that drop
+// apart from a genuine unexpected disconnect and never auto-reconnects a
+// stream we meant to close.
+let suppressAutoReconnect = false
+
+function stopStreamIntentionally() {
+  suppressAutoReconnect = true
+  resetReconnectState()
+  stream.disconnect()
+}
+
+function scheduleReconnect() {
+  // Never auto-reconnect once the server sent `event: end` (contract §2)
+  // or the job has already settled - GET is the source of truth then.
+  if (jobId.value === null || stream.ended.value || terminalStatus.value !== null) return
+  if (reconnectAttempt >= RECONNECT_DELAYS_MS.length) return
+  const id = jobId.value
+  const delay = RECONNECT_DELAYS_MS[reconnectAttempt] ?? RECONNECT_DELAYS_MS[RECONNECT_DELAYS_MS.length - 1]
+  reconnectAttempt += 1
+  reconnecting.value = true
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void stream.connect(id, { since: stream.lastSeq.value })
+  }, delay)
+}
+
+// Only a stream that was actually live and then unexpectedly dropped
+// triggers an automatic reconnect - an initial connect failure surfaces
+// its error via `streamError` and the manual Retry control instead.
+watch(() => stream.connected.value, (isConnected, wasConnected) => {
+  if (isConnected) {
+    resetReconnectState()
+    suppressAutoReconnect = false
+    return
+  }
+  if (!wasConnected) return
+  if (suppressAutoReconnect) {
+    suppressAutoReconnect = false
+    return
+  }
+  scheduleReconnect()
+})
+
+function onManualStreamRetry() {
+  suppressAutoReconnect = false
+  resetReconnectState()
+  if (jobId.value === null) return
+  void stream.connect(jobId.value, { since: stream.lastSeq.value })
+}
+
 const isTerminal = computed(() => terminalStatus.value === 'completed' || terminalStatus.value === 'partial')
 const routerRationale = computed(() => {
   if (job.value?.routerRationale) return job.value.routerRationale
@@ -213,7 +293,7 @@ async function onRetry() {
   // The retry is a brand-new job row: tear down the current stream and its
   // resume key, then navigate to the new job's route. The jobId watcher
   // re-initializes the page (refresh + reconnect) for the new id.
-  stream.disconnect()
+  stopStreamIntentionally()
   if (jobId.value !== null) sessionStorage.removeItem(storageKey(jobId.value))
   await router.push({ name: 'deep-analysis', params: { jobId: String(newJob.id) } })
 }
@@ -295,7 +375,7 @@ async function activateJob(id: number) {
 // stream, refresh, reconnect) whenever the id actually changes.
 watch(jobId, async (newId, oldId) => {
   if (oldId !== null && newId !== oldId) {
-    stream.disconnect()
+    stopStreamIntentionally()
     retryError.value = ''
     applyError.value = ''
   }
@@ -311,6 +391,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  stream.disconnect()
+  stopStreamIntentionally()
 })
 </script>

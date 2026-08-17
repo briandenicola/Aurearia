@@ -113,7 +113,11 @@
 
       <div v-if="deepAnalysisEnabled" class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
         <span class="text-body text-text-secondary">Re-analyze this coin with multiple catalog providers</span>
-        <DeepAnalysisEntryButton @click="showDeepAnalysisModal = true" />
+        <DeepAnalysisEntryButton
+          :disabled="Boolean(deepAnalysisDisabledTitle)"
+          :title="deepAnalysisDisabledTitle"
+          @click="showDeepAnalysisModal = true"
+        />
       </div>
     </div>
 
@@ -148,10 +152,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 import { uploadImage, proxyImage, estimateCoinValue, updateCoin, getAIJob, getCoinAIJobs } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
-import { RouterLink } from 'vue-router'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { Camera, X } from 'lucide-vue-next'
@@ -159,8 +162,7 @@ import { useDialog } from '@/composables/useDialog'
 import { useNotifications } from '@/composables/useNotifications'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { useToast } from '@/composables/useToast'
-import { useDeepIdentification } from '@/composables/useDeepIdentification'
-import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
+import { useDeepAnalysisLauncher } from '@/composables/useDeepAnalysisLauncher'
 import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalysisEntryButton.vue'
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
@@ -190,13 +192,19 @@ const emit = defineEmits<{
 const { showAlert } = useDialog()
 const { refresh: refreshNotifications } = useNotifications()
 const { showToast } = useToast()
-const router = useRouter()
-const deepIdentification = useDeepIdentification()
+const launcher = useDeepAnalysisLauncher()
 const {
-  enabled: deepAnalysisEnabled,
-  providers: deepAnalysisProviders,
-} = useDeepIdentificationCapability()
-const showDeepAnalysisModal = ref(false)
+  deepIdentification,
+  deepAnalysisEnabled,
+  deepAnalysisProviders,
+  showDeepAnalysisModal,
+  activeJobCount,
+} = launcher
+const deepAnalysisDisabledTitle = computed(() =>
+  activeJobCount.value > 0
+    ? 'You already have an active Deep Analysis job. Wait for it to finish before starting another.'
+    : undefined,
+)
 const coinHasObverseImage = computed(() => props.coinHasObverseImage ?? false)
 const coinHasReverseImage = computed(() => props.coinHasReverseImage ?? false)
 const POLL_INTERVAL_MS = 3_000
@@ -329,11 +337,7 @@ async function handleApplyEstimate() {
 }
 
 async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {
-  const job = await deepIdentification.start({ ...input, coinId: props.coinId })
-  if (job) {
-    showDeepAnalysisModal.value = false
-    await router.push(`/deep-analysis/${job.id}`)
-  }
+  await launcher.submitDeepAnalysis({ ...input, coinId: props.coinId })
 }
 
 async function resumeEstimateJob() {

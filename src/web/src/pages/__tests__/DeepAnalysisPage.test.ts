@@ -101,6 +101,36 @@ describe('DeepAnalysisPage', () => {
     expect(cancelDeepIdentificationJob).toHaveBeenCalledWith(9)
   })
 
+  it('never shows "Reconnecting…" when nothing is scheduled, and the Retry control actually recovers the stream (T085/B6)', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: { job: runningJob() },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    const fetchMock = vi.fn()
+      // Initial connect fails outright (e.g. transient 5xx) - never
+      // becomes connected, so no automatic reconnect is scheduled.
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      // A manual Retry click reconnects and this time succeeds.
+      .mockResolvedValueOnce(new Response(new ReadableStream(), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs: { RouterLink: true, Search: true } } })
+    await flushPromises()
+
+    // Honest "Disconnected" label, never a lying "Reconnecting…" with
+    // nothing actually scheduled to recover the stream.
+    expect(wrapper.text()).not.toContain('Reconnecting')
+    expect(wrapper.text()).toContain('Disconnected')
+    const retryButton = wrapper.find('button[aria-label="Retry Deep Analysis connection"]')
+    expect(retryButton.exists()).toBe(true)
+
+    await retryButton.trigger('click')
+    await flushPromises()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Live')
+    expect(wrapper.find('button[aria-label="Retry Deep Analysis connection"]').exists()).toBe(false)
+  })
+
   const stubs = { RouterLink: true, Search: true }
 
   it.each(['failed', 'cancelled', 'completed', 'partial'] as const)(
