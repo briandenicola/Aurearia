@@ -551,7 +551,7 @@ func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.
 		t.Fatal(err)
 	}
 
-	svc.runRetentionSweep()
+	svc.janitor.runRetentionSweep()
 
 	for _, artifact := range []*models.DeepIdentificationArtifact{obverse, hint} {
 		var reloaded models.DeepIdentificationArtifact
@@ -904,7 +904,7 @@ func TestDeepIdentificationService_RestartRecovery_StaleJobsSettleToFailed(t *te
 		t.Fatal(err)
 	}
 
-	svc.recoverStaleAndSweepHints()
+	svc.janitor.recoverStaleAndSweepHints()
 
 	var final models.DeepIdentificationJob
 	if err := db.First(&final, job.ID).Error; err != nil {
@@ -935,7 +935,7 @@ func TestDeepIdentificationService_JanitorSweepsOrphanedHintsFromCrash(t *testin
 		t.Fatalf("failed to seed hint artifact: %v", err)
 	}
 
-	svc.recoverStaleAndSweepHints()
+	svc.janitor.recoverStaleAndSweepHints()
 
 	var reloaded models.DeepIdentificationArtifact
 	if err := db.First(&reloaded, hint.ID).Error; err != nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -96,16 +95,31 @@ func (noopPipelineRunner) Run(ctx context.Context, job *models.DeepIdentificatio
 type DeepIdentificationService struct {
 	repo        *repository.DeepIdentificationRepository
 	imageRepo   *repository.ImageRepository
-	imageSvc    *ImageService
 	settingsSvc *SettingsService
 	logger      *Logger
-	uploadDir   string
+
+	// artifacts is the artifact-management seam (T103): validation,
+	// storage, reuse, and deletion of job artifacts. Split out because it
+	// is fully self-contained (repo/imageRepo/imageSvc/uploadDir/metrics)
+	// with no dependency on job-lifecycle or worker-pool state.
+	artifacts *deepIdentificationArtifactStore
+
+	// janitor is the retention/recovery seam (T103): stale-job recovery and
+	// scheduled event/artifact pruning. It depends on artifacts for
+	// hint/job artifact deletion but owns no state shared with the worker
+	// pool or job-lifecycle seams.
+	janitor *deepIdentificationJanitor
 
 	runnerMu sync.RWMutex
 	runner   DeepPipelineRunner
 
 	// intakeMu prevents workers from claiming a queued intake job before its
-	// obverse/reverse artifacts have been persisted.
+	// obverse/reverse artifacts have been persisted. Shared, load-bearing
+	// synchronization between job-creation (CreateJobFromIntake) and the
+	// worker claim loop (workerLoop) - see
+	// .squad/decisions/inbox/maximus-service-decomposition.md for why this
+	// keeps job lifecycle and the worker pool on one type rather than
+	// splitting them across a shared-mutex seam.
 	intakeMu sync.RWMutex
 
 	cancelMu sync.Mutex
@@ -132,17 +146,20 @@ type DeepIdentificationService struct {
 // NewDeepIdentificationService constructs the service, following the
 // repo -> service -> handler DI pattern used elsewhere (main.go:246-249).
 func NewDeepIdentificationService(repo *repository.DeepIdentificationRepository, imageRepo *repository.ImageRepository, imageSvc *ImageService, settingsSvc *SettingsService, logger *Logger, uploadDir string) *DeepIdentificationService {
+	metrics := &deepIdentificationRuntimeMetrics{}
+	broker := NewDeepIdentificationBroker()
+	artifacts := newDeepIdentificationArtifactStore(repo, imageRepo, imageSvc, uploadDir, metrics)
 	return &DeepIdentificationService{
 		repo:        repo,
 		imageRepo:   imageRepo,
-		imageSvc:    imageSvc,
 		settingsSvc: settingsSvc,
 		logger:      logger,
-		uploadDir:   uploadDir,
+		artifacts:   artifacts,
+		janitor:     newDeepIdentificationJanitor(repo, settingsSvc, broker, metrics, logger, artifacts),
 		runner:      noopPipelineRunner{},
 		cancels:     make(map[uint]context.CancelFunc),
-		broker:      NewDeepIdentificationBroker(),
-		metrics:     &deepIdentificationRuntimeMetrics{},
+		broker:      broker,
+		metrics:     metrics,
 		wake:        make(chan struct{}, 1),
 	}
 }
@@ -176,6 +193,7 @@ func (s *DeepIdentificationService) SetPipelineRunner(runner DeepPipelineRunner)
 // forever.
 func (s *DeepIdentificationService) SetProviderBudgetTracker(tracker *DeepProviderBudgetTracker) {
 	s.providerBudgets = tracker
+	s.janitor.setProviderBudgetTracker(tracker)
 }
 
 // SetInternalTokenService wires the internal token service into the job
@@ -184,6 +202,7 @@ func (s *DeepIdentificationService) SetProviderBudgetTracker(tracker *DeepProvid
 // was minted for has already completed, failed, or been cancelled.
 func (s *DeepIdentificationService) SetInternalTokenService(tokenSvc *InternalTokenService) {
 	s.internalTokenSvc = tokenSvc
+	s.janitor.setInternalTokenService(tokenSvc)
 }
 
 func (s *DeepIdentificationService) pipelineRunner() DeepPipelineRunner {
@@ -202,199 +221,32 @@ func (s *DeepIdentificationService) notifyWorkers() {
 	}
 }
 
-// ValidateAndSaveArtifact validates an uploaded image (allowlisted type,
-// magic-byte match, size cap - reusing services.ValidateImageData /
-// NormalizeImageExt / MaxImageUploadBytes per FR-005) and, if valid, saves
-// it to the job's artifact directory and creates the artifact row.
-//
-// Enforces: at most one obverse, at most one reverse, at most
-// MaxDeepIdentificationHintArtifacts hint artifacts per job.
+// ValidateAndSaveArtifact delegates to the artifact-management seam
+// (T103); see deepIdentificationArtifactStore.ValidateAndSaveArtifact for
+// the full behavior contract.
 func (s *DeepIdentificationService) ValidateAndSaveArtifact(jobID, userID uint, role models.DeepArtifactRole, filename string, fileData []byte) (*models.DeepIdentificationArtifact, error) {
-	switch role {
-	case models.DeepArtifactRoleObverse, models.DeepArtifactRoleReverse, models.DeepArtifactRoleHint:
-	default:
-		return nil, ErrDeepArtifactRoleInvalid
-	}
-
-	if len(fileData) == 0 {
-		return nil, ErrDeepArtifactMissingUpload
-	}
-	if err := ValidateImageData(fileData); err != nil {
-		return nil, err
-	}
-	ext, err := NormalizeImageExt(filepath.Ext(filename))
-	if err != nil {
-		return nil, err
-	}
-
-	existing, err := s.listArtifacts(jobID)
-	if err != nil {
-		return nil, err
-	}
-	obverseCount, reverseCount, hintCount := countArtifactRoles(existing)
-	switch role {
-	case models.DeepArtifactRoleObverse:
-		if obverseCount > 0 {
-			return nil, ErrDeepArtifactRoleExists
-		}
-	case models.DeepArtifactRoleReverse:
-		if reverseCount > 0 {
-			return nil, ErrDeepArtifactRoleExists
-		}
-	case models.DeepArtifactRoleHint:
-		if hintCount >= MaxDeepIdentificationHintArtifacts {
-			return nil, ErrDeepArtifactHintLimit
-		}
-	}
-
-	dir := s.imageSvc.DeepJobArtifactDir(jobID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to prepare artifact directory: %w", err)
-	}
-	seq := len(existing) + 1
-	filePath := filepath.Join(dir, fmt.Sprintf("%d-%s%s", seq, role, ext))
-	if err := os.WriteFile(filePath, fileData, 0o644); err != nil {
-		return nil, fmt.Errorf("failed to save artifact: %w", err)
-	}
-
-	hash := sha256.Sum256(fileData)
-	artifact := &models.DeepIdentificationArtifact{
-		JobID:       jobID,
-		UserID:      userID,
-		Role:        role,
-		Origin:      models.DeepArtifactOriginUploaded,
-		FilePath:    filePath,
-		ContentHash: hex.EncodeToString(hash[:]),
-		ByteSize:    int64(len(fileData)),
-		MimeType:    detectMimeType(fileData),
-		Ephemeral:   role == models.DeepArtifactRoleHint,
-	}
-	if err := s.createArtifact(artifact); err != nil {
-		os.Remove(filePath)
-		return nil, err
-	}
-	return artifact, nil
+	return s.artifacts.ValidateAndSaveArtifact(jobID, userID, role, filename, fileData)
 }
 
-// ReuseSavedCoinImage creates an artifact row referencing an existing saved
-// coin image without copying bytes (FR-003). The fingerprint input is
-// derived from the stored file's path, size, and mtime rather than
-// re-reading the (potentially large) file - if the underlying file changes
-// later, a subsequent job attempt sees a different fingerprint (retry-after-
-// change edge case, data-model.md §2.3).
+// ReuseSavedCoinImage delegates to the artifact-management seam (T103); see
+// deepIdentificationArtifactStore.ReuseSavedCoinImage for the full behavior
+// contract.
 func (s *DeepIdentificationService) ReuseSavedCoinImage(jobID, userID, coinID uint, role models.DeepArtifactRole, sourceCoinImageID uint) (*models.DeepIdentificationArtifact, error) {
-	switch role {
-	case models.DeepArtifactRoleObverse, models.DeepArtifactRoleReverse:
-	default:
-		return nil, ErrDeepArtifactRoleInvalid
-	}
-
-	if _, err := s.imageRepo.FindCoinByOwner(coinID, userID); err != nil {
-		return nil, ErrDeepArtifactMissingCoin
-	}
-	image, err := s.imageRepo.FindImage(sourceCoinImageID, coinID)
-	if err != nil {
-		return nil, ErrDeepArtifactMissingImage
-	}
-
-	existing, err := s.listArtifacts(jobID)
-	if err != nil {
-		return nil, err
-	}
-	obverseCount, reverseCount, _ := countArtifactRoles(existing)
-	if role == models.DeepArtifactRoleObverse && obverseCount > 0 {
-		return nil, ErrDeepArtifactRoleExists
-	}
-	if role == models.DeepArtifactRoleReverse && reverseCount > 0 {
-		return nil, ErrDeepArtifactRoleExists
-	}
-
-	hashHex, size, err := s.savedImageFingerprintHash(image)
-	if err != nil {
-		return nil, err
-	}
-
-	artifact := &models.DeepIdentificationArtifact{
-		JobID:             jobID,
-		UserID:            userID,
-		Role:              role,
-		Origin:            models.DeepArtifactOriginSavedCoinImage,
-		SourceCoinImageID: &sourceCoinImageID,
-		FilePath:          "",
-		ContentHash:       hashHex,
-		ByteSize:          size,
-		Ephemeral:         false,
-	}
-	if err := s.createArtifact(artifact); err != nil {
-		return nil, err
-	}
-	return artifact, nil
+	return s.artifacts.ReuseSavedCoinImage(jobID, userID, coinID, role, sourceCoinImageID)
 }
 
-// savedImageFingerprintHash computes the fingerprint-input hash for an
-// existing saved coin image from its stored file's path, size, and mtime
-// (data-model.md §2.3) - shared by ReuseSavedCoinImage and by the job-create
-// orchestration's up-front fingerprint computation, so both agree on the
-// exact same hash for the same image.
-func (s *DeepIdentificationService) savedImageFingerprintHash(image *models.CoinImage) (hashHex string, size int64, err error) {
-	fullPath := filepath.Join(s.uploadDir, image.FilePath)
-	var mtime time.Time
-	if info, statErr := os.Stat(fullPath); statErr == nil {
-		size = info.Size()
-		mtime = info.ModTime()
-	}
-	fingerprintSource := fmt.Sprintf("%s|%d|%d", image.FilePath, size, mtime.UnixNano())
-	hash := sha256.Sum256([]byte(fingerprintSource))
-	return hex.EncodeToString(hash[:]), size, nil
-}
-
-// DeleteHintArtifacts deletes (files + DeletedAt stamp) every not-yet-deleted
-// hint artifact for a job. Tolerant of an already-missing file. Called from
-// every terminal path (completed/partial/failed/cancelled) and the
-// janitor's restart sweep (FR-030, SC-004).
+// DeleteHintArtifacts delegates to the artifact-management seam (T103); see
+// deepIdentificationArtifactStore.DeleteHintArtifacts for the full behavior
+// contract.
 func (s *DeepIdentificationService) DeleteHintArtifacts(jobID uint) error {
-	err := s.deleteArtifacts(jobID, true)
-	if err != nil {
-		s.metrics.hintDeletionFailure.Add(1)
-	} else {
-		s.metrics.hintDeletionSuccess.Add(1)
-	}
-	return err
+	return s.artifacts.DeleteHintArtifacts(jobID)
 }
 
-// DeleteJobArtifacts deletes every not-yet-deleted artifact (hint and
-// coin-face) for a job, used by the result-retention janitor sweep
-// (FR-034, data-model.md §9). Idempotent - calling it twice is a no-op the
-// second time.
+// DeleteJobArtifacts delegates to the artifact-management seam (T103); see
+// deepIdentificationArtifactStore.DeleteJobArtifacts for the full behavior
+// contract.
 func (s *DeepIdentificationService) DeleteJobArtifacts(jobID uint) error {
-	return s.deleteArtifacts(jobID, false)
-}
-
-func (s *DeepIdentificationService) deleteArtifacts(jobID uint, hintOnly bool) error {
-	artifacts, err := s.listArtifacts(jobID)
-	if err != nil {
-		return err
-	}
-	now := time.Now()
-	for i := range artifacts {
-		a := artifacts[i]
-		if a.DeletedAt != nil {
-			continue
-		}
-		if hintOnly && a.Role != models.DeepArtifactRoleHint {
-			continue
-		}
-		if a.FilePath != "" {
-			// Tolerant of an already-missing file (crash/retry edge case).
-			if err := os.Remove(a.FilePath); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("failed to delete artifact file: %w", err)
-			}
-		}
-		if err := s.markArtifactDeleted(a.ID, now); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.artifacts.DeleteJobArtifacts(jobID)
 }
 
 // --- Phase 4: job orchestration (worker pool, cancel, timeout, janitor) ---
@@ -574,7 +426,7 @@ func (s *DeepIdentificationService) resolveRoleHash(uploaded []byte, coinID *uin
 	if err != nil {
 		return "", missingErr
 	}
-	hashHex, _, err := s.savedImageFingerprintHash(image)
+	hashHex, _, err := s.artifacts.savedImageFingerprintHash(image)
 	if err != nil {
 		return "", err
 	}
@@ -628,7 +480,7 @@ func (s *DeepIdentificationService) RetryJob(sourceJobID, userID uint, notesOver
 		return nil, false, ErrDeepJobRetryDepth
 	}
 
-	artifacts, err := s.listArtifacts(sourceJobID)
+	artifacts, err := s.artifacts.listArtifacts(sourceJobID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -913,136 +765,20 @@ func (s *DeepIdentificationService) runJob(parent context.Context, job *models.D
 	}
 }
 
-// StartJanitor runs the retention/recovery sweep loop (FR-012/FR-017/
-// FR-034): on boot and every 60s it recovers stale running jobs; hourly it
-// prunes events past the retention window and expires job/artifact rows
-// past ExpiresAt. It also sweeps hint artifacts left un-deleted by a crash
-// (T040 defensive backstop), independent of the terminal-hook path.
+// StartJanitor delegates to the janitor/retention seam (T103); see
+// deepIdentificationJanitor.StartJanitor for the full behavior contract
+// (FR-012/FR-017/FR-034).
 func (s *DeepIdentificationService) StartJanitor(ctx context.Context) {
-	s.recoverStaleAndSweepHints()
-
-	staleTicker := time.NewTicker(60 * time.Second)
-	retentionTicker := time.NewTicker(time.Hour)
-	go func() {
-		defer staleTicker.Stop()
-		defer retentionTicker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-staleTicker.C:
-				s.recoverStaleAndSweepHints()
-			case <-retentionTicker.C:
-				s.runRetentionSweep()
-			}
-		}
-	}()
+	s.janitor.StartJanitor(ctx)
 }
 
 // RecoverStaleAndSweepHintsForTest exposes the janitor's stale-job
 // recovery + hint-sweep sweep for handler-package tests (T105) that need
 // to trigger a restart-recovery pass without waiting for StartJanitor's
 // ticker, since deep_identification_sse_test.go lives outside this
-// package and recoverStaleAndSweepHints is unexported.
+// package and the janitor's recovery method is unexported.
 func (s *DeepIdentificationService) RecoverStaleAndSweepHintsForTest() {
-	s.recoverStaleAndSweepHints()
-}
-
-func (s *DeepIdentificationService) recoverStaleAndSweepHints() {
-	s.metrics.janitorRecoverySweeps.Add(1)
-	failed := false
-	settings := s.settingsSvc.GetDeepIdentificationSettings()
-	staleAfter := settings.HardTimeout + 2*time.Minute
-	recoveredIDs, err := s.repo.RecoverStaleJobs(staleAfter)
-	if err != nil {
-		failed = true
-		if s.logger != nil {
-			s.logger.Error("deep-identification", "failed to recover stale jobs: %v", err)
-		}
-	}
-	for _, id := range recoveredIDs {
-		s.broker.Publish(id)
-		// Same terminal-cleanup guarantee as runJob's own terminal path
-		// (T078): a job whose worker goroutine never returned (e.g. wedged
-		// past a restart) still needs its tracked budget entries released
-		// once the janitor forces it to a terminal state.
-		if s.providerBudgets != nil {
-			s.providerBudgets.Reset(id)
-		}
-		if s.internalTokenSvc != nil {
-			s.internalTokenSvc.RevokeJob(id)
-		}
-		if err := s.DeleteHintArtifacts(id); err != nil {
-			failed = true
-			if s.logger != nil {
-				s.logger.Error("deep-identification", "failed to clean up hints for recovered job %d: %v", id, err)
-			}
-		}
-	}
-
-	// Defensive backstop: sweep hint artifacts for any terminal job that a
-	// crash left un-cleaned (independent of the two hooks above).
-	jobIDs, err := s.repo.ListJobIDsWithUndeletedHintArtifacts()
-	if err != nil {
-		failed = true
-		if s.logger != nil {
-			s.logger.Error("deep-identification", "failed to list jobs with undeleted hints: %v", err)
-		}
-		if failed {
-			s.metrics.janitorFailures.Add(1)
-		}
-		return
-	}
-	for _, id := range jobIDs {
-		if err := s.DeleteHintArtifacts(id); err != nil {
-			failed = true
-			if s.logger != nil {
-				s.logger.Error("deep-identification", "failed to sweep hints for job %d: %v", id, err)
-			}
-		}
-	}
-	if failed {
-		s.metrics.janitorFailures.Add(1)
-	}
-	if s.logger != nil {
-		s.logger.Debug("deep-identification", "janitor recovery sweep recovered_jobs=%d hint_jobs=%d failed=%t", len(recoveredIDs), len(jobIDs), failed)
-	}
-}
-
-func (s *DeepIdentificationService) runRetentionSweep() {
-	s.metrics.janitorRetentionSweep.Add(1)
-	failed := false
-	settings := s.settingsSvc.GetDeepIdentificationSettings()
-	cutoff := time.Now().Add(-settings.EventRetention)
-	if err := s.repo.PruneEventsBefore(cutoff); err != nil {
-		failed = true
-		if s.logger != nil {
-			s.logger.Error("deep-identification", "failed to prune events: %v", err)
-		}
-	}
-	expiredIDs, err := s.repo.ListExpiredJobIDs(time.Now())
-	if err != nil {
-		failed = true
-		if s.logger != nil {
-			s.logger.Error("deep-identification", "failed to list expired jobs: %v", err)
-		}
-		s.metrics.janitorFailures.Add(1)
-		return
-	}
-	for _, id := range expiredIDs {
-		if err := s.DeleteJobArtifacts(id); err != nil {
-			failed = true
-			if s.logger != nil {
-				s.logger.Error("deep-identification", "failed to delete artifacts for expired job %d: %v", id, err)
-			}
-		}
-	}
-	if failed {
-		s.metrics.janitorFailures.Add(1)
-	}
-	if s.logger != nil {
-		s.logger.Debug("deep-identification", "janitor retention sweep expired_jobs=%d failed=%t", len(expiredIDs), failed)
-	}
+	s.janitor.recoverStaleAndSweepHints()
 }
 
 // FingerprintInput is the normalized set of inputs hashed into a job's
@@ -1103,28 +839,4 @@ func countArtifactRoles(artifacts []models.DeepIdentificationArtifact) (obverse,
 		}
 	}
 	return
-}
-
-func detectMimeType(data []byte) string {
-	// Mirrors ValidateImageData's http.DetectContentType-based allowlist so
-	// the stored MimeType always matches what was actually validated.
-	if len(data) == 0 {
-		return ""
-	}
-	return http.DetectContentType(data)
-}
-
-// --- thin persistence helpers (kept private; repository has no direct
-// artifact CRUD yet beyond what the service needs) ---
-
-func (s *DeepIdentificationService) listArtifacts(jobID uint) ([]models.DeepIdentificationArtifact, error) {
-	return s.repo.ListArtifacts(jobID)
-}
-
-func (s *DeepIdentificationService) createArtifact(a *models.DeepIdentificationArtifact) error {
-	return s.repo.CreateArtifact(a)
-}
-
-func (s *DeepIdentificationService) markArtifactDeleted(id uint, when time.Time) error {
-	return s.repo.MarkArtifactDeleted(id, when)
 }
