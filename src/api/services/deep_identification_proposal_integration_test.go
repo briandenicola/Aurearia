@@ -258,3 +258,55 @@ func TestDeepIdentificationProposal_RunnerSynthesisThroughApply_NewIntake(t *tes
 		t.Fatalf("expected era seeded onto draft, got %q", draft.Era)
 	}
 }
+
+// TestDeepIdentificationProposal_ImageOnlyFieldRetainedWithEmptyEvidence is
+// the T070 regression for Brian's exact bug reappearing in the proposal
+// layer: a synthesis `proposed_fields` entry whose only evidence_ref is
+// `{"provider": "image"}` (contract §5 — the image is not a provider and
+// carries no citation) must still survive translation into the rich
+// deepProposalDocument. buildDeepProposalDocumentJSON correctly skips
+// *refs* whose provider is "image" (FR-025: "image" must never appear as a
+// provider on any provider-facing surface), but that ref-level skip must
+// never cascade into dropping the *field* itself — an image-only
+// identification is still a real, owner-reviewable proposal.
+//
+// realisticRunnerStreamFrames' "notes" field has exactly one evidence_ref,
+// `{"provider": "image"}`, and no other claims — it is the image-only case.
+func TestDeepIdentificationProposal_ImageOnlyFieldRetainedWithEmptyEvidence(t *testing.T) {
+	_, repo, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{UserID: userID, Name: "Test Coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepJobWithRunnerProposal(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID)
+
+	job, err := repo.GetJob(jobID, userID)
+	if err != nil {
+		t.Fatalf("get job: %v", err)
+	}
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(job.ProposalJSON), &doc); err != nil {
+		t.Fatalf("proposal did not parse as the rich document: %v", err)
+	}
+
+	notes, ok := doc.Fields["notes"]
+	if !ok || notes == nil {
+		t.Fatal("image-only field must not be dropped from the proposal document — it must be present for owner review")
+	}
+	if notes.Proposed != "Bought at a show; dealer said Severan." {
+		t.Fatalf("expected the AI-proposed value preserved even without provider evidence, got %#v", notes.Proposed)
+	}
+	if len(notes.Evidence) != 0 {
+		t.Fatalf("expected an empty evidence array for an image-only field (no provider citation exists), got %#v", notes.Evidence)
+	}
+	if notes.Accepted != nil {
+		t.Fatalf("expected pristine accepted=nil before any owner decision, got %#v", notes.Accepted)
+	}
+
+	// The whole document must be non-empty: an image-only proposal is still
+	// a real proposal, not silently discarded down to "{}".
+	if len(doc.Fields) == 0 {
+		t.Fatal("proposal document must not be empty when the synthesis proposed at least one image-only field")
+	}
+}
