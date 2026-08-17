@@ -78,7 +78,16 @@
     </fieldset>
 
     <p v-if="validationError" role="alert" class="text-body text-byzantine">{{ validationError }}</p>
-    <p v-if="submitError" role="alert" class="text-body text-byzantine">{{ submitError }}</p>
+    <div v-if="submitError" role="alert" class="grid gap-2">
+      <p class="m-0 text-body text-byzantine">{{ submitError }}</p>
+      <RouterLink
+        v-if="conflictJobId"
+        class="btn btn-secondary btn-sm justify-self-start"
+        :to="`/deep-analysis/${conflictJobId}`"
+      >
+        View running analysis
+      </RouterLink>
+    </div>
 
     <div class="flex flex-wrap justify-end gap-3">
       <BaseButton type="button" variant="ghost" @click="$emit('cancel')">Cancel</BaseButton>
@@ -89,6 +98,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import type { CreateDeepIdentificationJobInput, DeepProviderId } from '@/types'
 
@@ -117,6 +127,11 @@ const props = withDefaults(defineProps<{
   eligibleProviders?: DeepProviderId[]
   submitting?: boolean
   submitError?: string
+  // Set only when submitError came from a `job_at_capacity` (HTTP 409)
+  // conflict - the id of the already-running job to link the user to, so
+  // they can go wait on it or cancel it instead of being stuck with a
+  // dead-end error.
+  conflictJobId?: number | null
 }>(), {
   coinId: null,
   hasExistingObverse: false,
@@ -129,6 +144,7 @@ const props = withDefaults(defineProps<{
   eligibleProviders: () => ['nomisma', 'numista'],
   submitting: false,
   submitError: '',
+  conflictJobId: null,
 })
 
 const emit = defineEmits<{

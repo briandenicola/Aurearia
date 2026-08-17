@@ -29,19 +29,32 @@ export function useDeepAnalysisLauncher() {
   // Any active job at all is treated as "at the limit" so this is accurate
   // for the default and never worse than the previous unwired `disabled`.
   const activeJobCount = ref(0)
+  // The id of the (first) currently active job, if any - used so a
+  // `job_at_capacity` conflict can point the user straight at the job
+  // that is already running instead of just naming the problem.
+  const activeJobId = ref<number | null>(null)
+  // Set to the running job's id only right after a submit is rejected with
+  // `job_at_capacity` (HTTP 409); cleared on every new submit attempt. The
+  // start panel uses this to render a "View running analysis" link next to
+  // the error text so the user has somewhere to go - that job's own page
+  // already has the Cancel control (DeepAnalysisProgressTimeline).
+  const capacityConflictJobId = ref<number | null>(null)
 
   async function refreshActiveJobCount(): Promise<void> {
     if (!deepAnalysisEnabled.value) {
       activeJobCount.value = 0
+      activeJobId.value = null
       return
     }
     try {
       const { data } = await listDeepIdentificationJobs({ activeOnly: true })
       activeJobCount.value = data.jobs.length
+      activeJobId.value = data.jobs[0]?.id ?? null
     } catch {
       // Fail open on the count probe alone - the backend remains
       // authoritative and still enforces the real limit on submit.
       activeJobCount.value = 0
+      activeJobId.value = null
     }
   }
 
@@ -54,11 +67,22 @@ export function useDeepAnalysisLauncher() {
   }
 
   async function submitDeepAnalysis(input: CreateDeepIdentificationJobInput): Promise<DeepJob | null> {
+    capacityConflictJobId.value = null
     const job = await deepIdentification.start(input)
     if (job) {
       showDeepAnalysisModal.value = false
       await refreshActiveJobCount()
       await router.push(`/deep-analysis/${job.id}`)
+      return job
+    }
+    // `job_at_capacity` (HTTP 409) means the new submission never started -
+    // the modal stays open with the error visible (deepIdentification.error)
+    // and `starting` is already back to false, so nothing spins forever.
+    // Refresh the active-job probe so the conflict link points at whichever
+    // job is actually running right now, not a stale id.
+    if (deepIdentification.errorCode.value === 'job_at_capacity') {
+      await refreshActiveJobCount()
+      capacityConflictJobId.value = activeJobId.value
     }
     return job
   }
@@ -76,6 +100,8 @@ export function useDeepAnalysisLauncher() {
     deepAnalysisProviders,
     showDeepAnalysisModal,
     activeJobCount,
+    activeJobId,
+    capacityConflictJobId,
     refreshActiveJobCount,
     openDeepAnalysisModal,
     closeDeepAnalysisModal,

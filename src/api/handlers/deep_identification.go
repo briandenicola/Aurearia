@@ -189,7 +189,7 @@ func (h *DeepIdentificationHandler) Capability(c *gin.Context) {
 // CreateJob starts a Deep Analysis job from multipart intake.
 //
 //	@Summary		Start a Deep Analysis job
-//	@Description	Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions return the existing in-flight job with reused=true.
+//	@Description	Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions (same owner, coin, image content hashes, notes, provider override) return the existing in-flight job with reused=true. A distinct submission that would exceed the per-user concurrency limit is refused with 409 job_at_capacity rather than being matched to an unrelated in-flight job.
 //	@Tags			Deep Identification
 //	@Accept			multipart/form-data
 //	@Produce		json
@@ -209,6 +209,7 @@ func (h *DeepIdentificationHandler) Capability(c *gin.Context) {
 //	@Failure		415	{object}	ErrorResponse
 //	@Failure		422	{object}	ErrorResponse
 //	@Failure		429	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse
 //	@Failure		503	{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/deep-identification/jobs [post]
@@ -605,6 +606,8 @@ func (h *DeepIdentificationHandler) respondDeepJobError(c *gin.Context, err erro
 		c.JSON(http.StatusConflict, gin.H{"error": "Retry depth limit reached"})
 	case errors.Is(err, services.ErrDeepJobQueueFull):
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Deep Analysis queue is full, try again shortly"})
+	case errors.Is(err, services.ErrDeepJobAtCapacity):
+		c.JSON(http.StatusConflict, gin.H{"error": "An analysis is already running. Wait for it to finish or cancel it.", "code": "job_at_capacity"})
 	case repository.IsRecordNotFound(err):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 	default:

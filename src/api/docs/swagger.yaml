@@ -1571,6 +1571,7 @@ definitions:
         enum:
         - draft
         - coin
+        - wishlist
         type: string
     required:
     - target
@@ -10106,8 +10107,11 @@ paths:
       - multipart/form-data
       description: Accepts obverse/reverse coin images (uploaded or reused from a
         saved coin), optional notes, optional ephemeral hint images, and an optional
-        provider override. Idempotent duplicate submissions return the existing in-flight
-        job with reused=true.
+        provider override. Idempotent duplicate submissions (same owner, coin, image
+        content hashes, notes, provider override) return the existing in-flight job
+        with reused=true. A distinct submission that would exceed the per-user concurrency
+        limit is refused with 409 job_at_capacity rather than being matched to an
+        unrelated in-flight job.
       parameters:
       - description: Saved coin to analyse; omit for new-coin intake
         in: formData
@@ -10158,6 +10162,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
         "413":
@@ -10223,7 +10231,7 @@ paths:
         name: id
         required: true
         type: integer
-      - description: Apply target and optional field subset
+      - description: Apply target (draft, coin, or wishlist) and optional field subset
         in: body
         name: request
         required: true

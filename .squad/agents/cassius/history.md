@@ -790,3 +790,34 @@ umista_detail() on ProviderToolsClient had zero call sites anywhere in src/agent
 - New file `src/agent/tests/test_contract_schema_fixture_is_current.py`: recomputes `DeepIdentifyRequest.model_json_schema()`/`DeepSynthesis.model_json_schema()` right now (same call the regeneration command uses) and asserts byte-for-byte equality (via `json.dumps(..., sort_keys=True)`) against the checked-in `src/api/services/testdata/deep_identify_contract_schema.json`, excluding only the `_generated_by` provenance key. Fixture path resolved relative to `__file__` (`Path(__file__).resolve().parents[3]`), not cwd; skips with a clear message if the expected repo layout isn't found, rather than risking a false red.
 - Falsification: renamed `DeepSynthesis.attributions` -> `attribution_list` in `app/models/responses.py` -- confirmed the new test went RED with the exact regeneration command printed in the failure message, then restored exactly (`git diff --stat` clean) and confirmed GREEN.
 - Full gate: `ruff check app/ tests/` clean; `python -m pytest tests/ -q` -> 351 passed (was 350 before this addition, +1 for the new test); `test_deep_identification_maximinus.py` all 6 passed in isolation. No Go files touched.
+
+---
+
+## 2026-08-17 — Deep Analysis: StartJob at-capacity non-matching-fingerprint fix
+
+Fixed a live-confirmed defect: DeepIdentificationService.StartJob's per-user
+capacity branch (MaxActivePerUser, default 1) fell through to ListJobs and
+handed a genuinely non-matching submission the user's *other* in-flight
+job's identity, still marked reused=true. The handler then returned 200
+with that unrelated job's report/proposal — a second coin's submission
+received the first coin's answer. Fixed with a new sentinel
+ErrDeepJobAtCapacity -> 409/job_at_capacity, generic message, no IDs. The
+matching-fingerprint duplicate path (FR-007 idempotency) is untouched and
+still returns reused=true.
+
+Key lesson: RetryJob shares the exact same StartJob path via
+CreateJobFromIntake, so fixing StartJob and respondDeepJobError's central
+switch was sufficient to make Retry coherent too — no duplicate handling
+needed. Also: fixing a service bug like this can silently break *other*
+pre-existing tests beyond the one named in the task (here,
+TestDeepIdentificationService_StartJob_QueueDepthAndPerUserLimit in
+deep_identification_service_test.go also pinned the old behavior) — always
+run the full package test suite after a service-level behavioral change,
+not just the named test file, to catch tightly-coupled collateral breakage.
+
+Also learned: this repo's 	ask openapi target has a pre-existing,
+unrelated PowerShell templating bug in its version-bump step (fails before
+swag even runs) — when it fails, regenerate manually with
+swag init -g main.go -o ./docs --parseDependency --parseInternal from
+src/api, then copy docs/swagger.json to ../../docs/openapi.json. Confirmed
+this does not touch main.go's @version line.

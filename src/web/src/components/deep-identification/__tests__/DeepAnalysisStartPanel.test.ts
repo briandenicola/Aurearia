@@ -6,8 +6,13 @@ function makeFile(name: string) {
   return new File(['data'], name, { type: 'image/jpeg' })
 }
 
+const routerLinkStub = {
+  props: ['to'],
+  template: '<a :href="to"><slot /></a>',
+}
+
 describe('DeepAnalysisStartPanel', () => {
-  function mountPanel() {
+  function mountPanel(props: Record<string, unknown> = {}) {
     Object.defineProperty(URL, 'createObjectURL', {
       value: () => 'blob:deep-analysis',
       configurable: true,
@@ -16,7 +21,10 @@ describe('DeepAnalysisStartPanel', () => {
       value: () => {},
       configurable: true,
     })
-    return mount(DeepAnalysisStartPanel)
+    return mount(DeepAnalysisStartPanel, {
+      props,
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
   }
 
   function setFile(wrapper: ReturnType<typeof mountPanel>, index: number, file: File) {
@@ -87,6 +95,25 @@ describe('DeepAnalysisStartPanel', () => {
     expect(values).toEqual(['numista', 'ocre'])
     expect(wrapper.text()).not.toContain('RPC')
     expect(wrapper.text()).not.toContain('NGC')
+  })
+
+  it('shows a "View running analysis" link alongside a job_at_capacity error, pointing at the running job', () => {
+    const wrapper = mountPanel({
+      submitError: 'An analysis is already running. Wait for it to finish or cancel it.',
+      conflictJobId: 99,
+    })
+
+    expect(wrapper.text()).toContain('An analysis is already running. Wait for it to finish or cancel it.')
+    const link = wrapper.find('a[href="/deep-analysis/99"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toContain('View running analysis')
+  })
+
+  it('shows the generic error alone (no conflict link) when the failure was not a capacity conflict', () => {
+    const wrapper = mountPanel({ submitError: 'Unable to start Deep Analysis.' })
+
+    expect(wrapper.text()).toContain('Unable to start Deep Analysis.')
+    expect(wrapper.find('a').exists()).toBe(false)
   })
 
   it('emits cancel when the Cancel button is clicked', async () => {

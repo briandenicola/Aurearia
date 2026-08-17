@@ -50,6 +50,7 @@
             :eligible-providers="deepAnalysisProviders"
             :submitting="deepIdentification.starting.value"
             :submit-error="deepIdentification.error.value"
+            :conflict-job-id="launcher.capacityConflictJobId.value"
             @submit="onDeepAnalysisSubmit"
             @cancel="showDeepAnalysisModal = false"
           />

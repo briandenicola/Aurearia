@@ -221,6 +221,76 @@ func TestDeepIdentificationHandler_CreateJob_HappyPathReturns202(t *testing.T) {
 	}
 }
 
+// TestDeepIdentificationHandler_CreateJob_AtCapacityWithDifferentFingerprintReturns409
+// is the regression test for the wrong-job-returned defect: with the
+// default MaxActivePerUser=1, a second submission whose image bytes (and
+// therefore InputFingerprint) genuinely differ from the user's first
+// in-flight job must be refused with 409 job_at_capacity, never handed the
+// first job's envelope as if it were an answer for the second submission.
+// This is an approved breaking change to a shipped endpoint (see
+// .squad/decisions/inbox/cassius-job-at-capacity.md): the endpoint used to
+// return 200 reused=true with the unrelated job in this exact scenario.
+func TestDeepIdentificationHandler_CreateJob_AtCapacityWithDifferentFingerprintReturns409(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+
+	firstBody, firstContentType := multipartWithImages(t, nil, true, true, 0)
+	firstReq := httptest.NewRequest(http.MethodPost, "/api/deep-identification/jobs", firstBody)
+	firstReq.Header.Set("Content-Type", firstContentType)
+	firstRec := httptest.NewRecorder()
+	deps.router.ServeHTTP(firstRec, firstReq)
+	if firstRec.Code != http.StatusAccepted {
+		t.Fatalf("expected first submission to be accepted with 202, got %d: %s", firstRec.Code, firstRec.Body.String())
+	}
+
+	// A distinct image (different marker bytes -> different sha256 ->
+	// different InputFingerprint) submitted while the first job is still
+	// queued/running and MaxActivePerUser=1 (the default) is at capacity.
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	obversePart, err := writer.CreateFormFile("obverse", "obverse.png")
+	if err != nil {
+		t.Fatalf("create obverse part: %v", err)
+	}
+	if _, err := obversePart.Write(deepTestPNGVariant(t, 0xAA)); err != nil {
+		t.Fatalf("write obverse bytes: %v", err)
+	}
+	reversePart, err := writer.CreateFormFile("reverse", "reverse.png")
+	if err != nil {
+		t.Fatalf("create reverse part: %v", err)
+	}
+	if _, err := reversePart.Write(deepTestPNGVariant(t, 0xBB)); err != nil {
+		t.Fatalf("write reverse bytes: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/deep-identification/jobs", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for a non-matching submission at capacity, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp["code"] != "job_at_capacity" {
+		t.Fatalf("expected code=job_at_capacity, got %v", resp["code"])
+	}
+	if _, hasJob := resp["job"]; hasJob {
+		t.Fatalf("409 job_at_capacity response must not include an unrelated job envelope, got %+v", resp)
+	}
+
+	var jobCount int64
+	deps.db.Model(&models.DeepIdentificationJob{}).Count(&jobCount)
+	if jobCount != 1 {
+		t.Fatalf("expected the refused submission to create no job row, got %d job rows", jobCount)
+	}
+}
+
 func TestDeepIdentificationHandler_CreateJob_DisabledReturns403(t *testing.T) {
 	deps := setupDeepIdentificationHandlerTest(t, 1, false)
 	body, contentType := multipartWithImages(t, nil, true, true, 0)

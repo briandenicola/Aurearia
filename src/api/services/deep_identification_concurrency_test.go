@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -37,10 +38,16 @@ import (
 //   - distinct fingerprints, both under MaxActivePerUser -> both admitted as
 //     genuinely separate jobs;
 //   - distinct fingerprints, but the user is already at MaxActivePerUser ->
-//     the second submission is bounced to the user's existing active job
-//     (reused=true) even though its fingerprint does not match - it is
-//     "reused" only in the sense of "you already have a job in flight, here
-//     it is", not a content dedupe.
+//     the losing submission is refused with ErrDeepJobAtCapacity (surfaced
+//     to the handler as 409 job_at_capacity), never handed an unrelated
+//     job's identity. This is a deliberate, approved contract change
+//     (2026-08-17): the prior behavior silently returned the user's other
+//     active job with reused=true even though its fingerprint did not
+//     match, which meant a second coin's submission could receive the
+//     first coin's report presented as its own answer. The assertion below
+//     was rewritten to require the 409/sentinel, not weakened to make a
+//     build pass - a matching fingerprint at capacity still legitimately
+//     dedupes with reused=true (see the third sub-test).
 // Both halves of that contract are asserted below under real goroutines so
 // a regression in either the fingerprint comparison or the MaxActivePerUser
 // gate is caught by -race and by a plain failure, not just logically implied
@@ -131,7 +138,7 @@ func TestDeepIdentificationService_ServiceTest_ConcurrentSameCoinDifferentImages
 		}
 	})
 
-	t.Run("distinct fingerprints at the per-user cap are bounded to one job", func(t *testing.T) {
+	t.Run("distinct fingerprints at the per-user cap: one is admitted, the other is refused with ErrDeepJobAtCapacity", func(t *testing.T) {
 		svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 		user := models.User{Username: "concurrent-bound-owner", Email: "concurrent-bound-owner@example.com", PasswordHash: "x"}
 		if err := db.Create(&user).Error; err != nil {
@@ -189,34 +196,42 @@ func TestDeepIdentificationService_ServiceTest_ConcurrentSameCoinDifferentImages
 		close(start)
 		wg.Wait()
 
-		for i, r := range results {
-			if r.err != nil {
-				t.Fatalf("submission %d failed: %v", i, r.err)
-			}
-			if r.job == nil {
-				t.Fatalf("submission %d returned a nil job", i)
-			}
-		}
-
 		// Exactly one submission must have created the job; the other must
-		// have been bounced to it via the MaxActivePerUser gate, regardless
-		// of its own (different) fingerprint.
-		reusedCount := 0
-		var createdID uint
-		for _, r := range results {
-			if r.reused {
-				reusedCount++
-			} else {
-				createdID = r.job.ID
-			}
-		}
-		if reusedCount != 1 {
-			t.Fatalf("expected exactly one of the two racing submissions to be marked reused under MaxActivePerUser=1, got %d reused", reusedCount)
-		}
+		// be refused outright with ErrDeepJobAtCapacity (409 job_at_capacity
+		// at the handler), regardless of its own (different) fingerprint. It
+		// must NOT be silently handed the winner's job with reused=true -
+		// that was the wrong-job-returned defect this test now guards
+		// against (approved breaking change, 2026-08-17).
+		var admittedIdx, refusedIdx = -1, -1
 		for i, r := range results {
-			if r.reused && r.job.ID != createdID {
-				t.Fatalf("submission %d was marked reused but points at job %d, want the created job %d", i, r.job.ID, createdID)
+			switch {
+			case r.err == nil:
+				admittedIdx = i
+			case errors.Is(r.err, ErrDeepJobAtCapacity):
+				refusedIdx = i
+			default:
+				t.Fatalf("submission %d returned unexpected error: %v", i, r.err)
 			}
+		}
+		if admittedIdx == -1 {
+			t.Fatalf("expected exactly one of the two racing submissions to be admitted, neither was: %+v", results)
+		}
+		if refusedIdx == -1 {
+			t.Fatalf("expected the losing submission to be refused with ErrDeepJobAtCapacity, got: %+v", results)
+		}
+		admitted := results[admittedIdx]
+		if admitted.job == nil {
+			t.Fatalf("admitted submission %d returned a nil job", admittedIdx)
+		}
+		if admitted.reused {
+			t.Fatalf("admitted submission %d must not be marked reused - it is the first job created for this user, not a duplicate", admittedIdx)
+		}
+		refused := results[refusedIdx]
+		if refused.job != nil {
+			t.Fatalf("refused submission %d must not return a job (must not surface an unrelated job's data), got job id %d", refusedIdx, refused.job.ID)
+		}
+		if refused.reused {
+			t.Fatalf("refused submission %d must not be marked reused", refusedIdx)
 		}
 
 		var jobCount int64

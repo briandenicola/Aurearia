@@ -7,6 +7,7 @@ import {
   patchDeepIdentificationProposal,
   applyDeepIdentificationProposal,
   getApiErrorMessage,
+  getApiErrorCode,
 } from '@/api/client'
 import type {
   ApplyDeepIdentificationProposalInput,
@@ -35,16 +36,28 @@ export function useDeepIdentification() {
   const retrying = ref(false)
   const applying = ref(false)
   const error = ref('')
+  // Machine-readable code for the most recent `start()` failure, e.g.
+  // `job_at_capacity` (HTTP 409: a genuinely different in-flight job is
+  // already running for this user - distinct from an idempotent duplicate
+  // submission, which still returns 200 with `reused: true` and never
+  // reaches this branch). Callers use this to offer a targeted recovery
+  // action instead of only showing the generic error text.
+  const errorCode = ref('')
 
   async function start(input: CreateDeepIdentificationJobInput): Promise<DeepJob | null> {
     starting.value = true
     error.value = ''
+    errorCode.value = ''
     try {
       const { data } = await createDeepIdentificationJob(input)
       job.value = data.job
       return data.job
     } catch (err) {
-      error.value = getApiErrorMessage(err) || 'Unable to start Deep Analysis.'
+      errorCode.value = getApiErrorCode(err)
+      const fallback = errorCode.value === 'job_at_capacity'
+        ? 'An analysis is already running. Wait for it to finish or cancel it.'
+        : 'Unable to start Deep Analysis.'
+      error.value = getApiErrorMessage(err) || fallback
       return null
     } finally {
       starting.value = false
@@ -218,6 +231,7 @@ export function useDeepIdentification() {
     retrying,
     applying,
     error,
+    errorCode,
     start,
     refresh,
     cancel,

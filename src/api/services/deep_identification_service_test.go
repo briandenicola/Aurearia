@@ -640,18 +640,23 @@ func TestDeepIdentificationService_StartJob_QueueDepthAndPerUserLimit(t *testing
 	})
 
 	job1, reused1, err := svc.StartJob(newDeepStartJob(t, user.ID, "first"))
-	if err != nil || reused1 {
-		t.Fatalf("expected first job to be newly created, got reused=%v err=%v", reused1, err)
+	if err != nil || reused1 || job1 == nil {
+		t.Fatalf("expected first job to be newly created, got job=%v reused=%v err=%v", job1, reused1, err)
 	}
 
-	// Same user, different fingerprint: blocked by the per-user active limit
-	// and should surface the existing active job rather than a new one.
+	// Same user, different fingerprint: this is a genuinely new request, not
+	// a duplicate submission, so it must be refused with ErrDeepJobAtCapacity
+	// rather than silently handed job1's identity (approved breaking change,
+	// 2026-08-17 - see .squad/decisions/inbox/cassius-job-at-capacity.md).
 	job2, reused2, err := svc.StartJob(newDeepStartJob(t, user.ID, "second"))
-	if err != nil {
-		t.Fatalf("expected per-user limit to return the existing job, got err=%v", err)
+	if !errors.Is(err, ErrDeepJobAtCapacity) {
+		t.Fatalf("expected ErrDeepJobAtCapacity for a non-matching submission at the per-user limit, got job=%v reused=%v err=%v", job2, reused2, err)
 	}
-	if !reused2 || job2.ID != job1.ID {
-		t.Fatalf("expected the existing active job to be returned, got reused=%v id=%d (want %d)", reused2, job2.ID, job1.ID)
+	if job2 != nil {
+		t.Fatalf("expected no job to be returned for a refused at-capacity submission, got job id %d", job2.ID)
+	}
+	if reused2 {
+		t.Fatalf("expected reused=false for a refused at-capacity submission")
 	}
 
 	// Different user: allowed (fills the queue depth of 2).

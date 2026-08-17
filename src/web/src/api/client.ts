@@ -15,6 +15,7 @@ type ApiErrorPayload = {
   error?: unknown
   message?: unknown
   detail?: unknown
+  code?: unknown
 }
 
 function formatApiErrorCandidate(candidate: unknown): string {
@@ -53,6 +54,21 @@ export function getApiErrorMessage(error: unknown): string {
 
   if (error instanceof Error) return error.message
 
+  return ''
+}
+
+/**
+ * Extracts the backend's machine-readable `code` field (e.g.
+ * `job_at_capacity`, `already_applied`) from a failed API response, when
+ * present. Callers should still fall back to `getApiErrorMessage` for the
+ * user-facing text - `code` is only for branching UI behavior.
+ */
+export function getApiErrorCode(error: unknown): string {
+  if (typeof error === 'object' && error !== null) {
+    const maybeResponse = error as { response?: { data?: ApiErrorPayload } }
+    const data = maybeResponse.response?.data ?? (error as ApiErrorPayload)
+    if (typeof data.code === 'string') return data.code
+  }
   return ''
 }
 

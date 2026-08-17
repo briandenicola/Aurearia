@@ -8739,7 +8739,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions return the existing in-flight job with reused=true.",
+                "description": "Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions (same owner, coin, image content hashes, notes, provider override) return the existing in-flight job with reused=true. A distinct submission that would exceed the per-user concurrency limit is refused with 409 job_at_capacity rather than being matched to an unrelated in-flight job.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -8821,6 +8821,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -8929,7 +8935,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Apply target and optional field subset",
+                        "description": "Apply target (draft, coin, or wishlist) and optional field subset",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19869,7 +19875,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "draft",
-                        "coin"
+                        "coin",
+                        "wishlist"
                     ]
                 }
             }

@@ -41,6 +41,7 @@ const MaxDeepIdentificationRetryDepth = 3
 // (Phase 4/5). Also generic per Principle V / FR-036.
 var (
 	ErrDeepJobQueueFull      = errors.New("deep identification queue is full, try again shortly")
+	ErrDeepJobAtCapacity     = errors.New("an analysis is already running for this user")
 	ErrDeepJobDisabled       = errors.New("deep identification is currently disabled")
 	ErrDeepJobNotFound       = errors.New("job not found")
 	ErrDeepJobNotCancellable = errors.New("job is already in a terminal state")
@@ -252,9 +253,11 @@ func (s *DeepIdentificationService) DeleteJobArtifacts(jobID uint) error {
 // --- Phase 4: job orchestration (worker pool, cancel, timeout, janitor) ---
 
 // StartJob enqueues a new job or, per FR-007, returns the existing
-// active (queued/running) job for the same (user, fingerprint) pair, or the
-// user's existing active job if they are already at their concurrency
-// limit. Returns ErrDeepJobQueueFull if the global queue depth is exceeded.
+// active (queued/running) job for the same (user, fingerprint) pair. If the
+// user is already at their per-user concurrency limit with a *different*
+// in-flight job, StartJob refuses the new submission with
+// ErrDeepJobAtCapacity rather than substituting an unrelated job's result.
+// Returns ErrDeepJobQueueFull if the global queue depth is exceeded.
 func (s *DeepIdentificationService) StartJob(job *models.DeepIdentificationJob) (*models.DeepIdentificationJob, bool, error) {
 	settings := s.settingsSvc.GetDeepIdentificationSettings()
 	if !settings.Enabled {
@@ -270,18 +273,12 @@ func (s *DeepIdentificationService) StartJob(job *models.DeepIdentificationJob) 
 		if err == nil && existing != nil {
 			return existing, true, nil
 		}
-		// Different fingerprint than the user's existing active job(s):
-		// still bounded by the per-user limit (FR-007), so surface the
-		// most recent active job rather than silently enqueueing another.
-		jobs, listErr := s.repo.ListJobs(job.UserID, repository.DeepJobListFilters{})
-		if listErr == nil {
-			for i := range jobs {
-				if isDeepJobActive(jobs[i].Status) {
-					return &jobs[i], true, nil
-				}
-			}
-		}
-		return nil, false, ErrDeepJobQueueFull
+		// Different fingerprint than the user's existing active job(s): this
+		// is not a duplicate submission, it is a genuinely new request that
+		// the per-user concurrency limit has no room for. Refuse it rather
+		// than handing back an unrelated job's (eventual) result under
+		// someone else's coin - see ErrDeepJobAtCapacity.
+		return nil, false, ErrDeepJobAtCapacity
 	}
 
 	queuedCount, err := s.repo.CountQueuedJobs()
