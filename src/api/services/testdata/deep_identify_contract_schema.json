@@ -1,0 +1,765 @@
+{
+  "DeepIdentifyRequest": {
+    "$defs": {
+      "DeepIdentifyBounds": {
+        "additionalProperties": false,
+        "description": "Per-run bounds Go supplies; the graph must never exceed these\n(contracts/agent-internal-contract.md \u00a72/\u00a76).",
+        "properties": {
+          "max_concurrency": {
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Max Concurrency",
+            "type": "integer"
+          },
+          "max_providers": {
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Max Providers",
+            "type": "integer"
+          },
+          "provider_timeout_s": {
+            "maximum": 120,
+            "minimum": 1,
+            "title": "Provider Timeout S",
+            "type": "integer"
+          },
+          "recursion_limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Recursion Limit",
+            "type": "integer"
+          },
+          "total_timeout_s": {
+            "maximum": 900,
+            "minimum": 1,
+            "title": "Total Timeout S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_providers",
+          "max_concurrency",
+          "provider_timeout_s",
+          "total_timeout_s",
+          "recursion_limit"
+        ],
+        "title": "DeepIdentifyBounds",
+        "type": "object"
+      },
+      "DeepIdentifyImage": {
+        "additionalProperties": false,
+        "description": "A single obverse/reverse/hint image passed as a data URI.\n\nHint images are marked by role=\"hint\" and are used only as router/LLM\ncontext \u2014 they never enter the coin-face vision-prompt slots (FR-004).",
+        "properties": {
+          "data_uri": {
+            "maxLength": 10485760,
+            "title": "Data Uri",
+            "type": "string"
+          },
+          "hint_kind": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Hint Kind",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "obverse",
+              "reverse",
+              "hint"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "data_uri"
+        ],
+        "title": "DeepIdentifyImage",
+        "type": "object"
+      },
+      "DeepProviderCatalogEntry": {
+        "additionalProperties": false,
+        "description": "One entry of the per-run provider catalog Go supplies (\u00a72/\u00a77).\n\n`automatable: false` entries are never contacted upstream by Python;\nthe router short-circuits them into a typed `not_automated`/\n`unavailable` evidence row (FR-025).",
+        "properties": {
+          "automatable": {
+            "title": "Automatable",
+            "type": "boolean"
+          },
+          "call_budget": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Call Budget",
+            "type": "integer"
+          },
+          "link_out": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Link Out",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "numista",
+              "nomisma",
+              "ngc",
+              "ocre",
+              "rpc"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 100,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "automatable"
+        ],
+        "title": "DeepProviderCatalogEntry",
+        "type": "object"
+      },
+      "LLMConfig": {
+        "additionalProperties": false,
+        "description": "LLM configuration passed per-request from Go.",
+        "properties": {
+          "api_key": {
+            "default": "",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "ollama_url": {
+            "default": "",
+            "title": "Ollama Url",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "searxng_url": {
+            "default": "",
+            "title": "Searxng Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "LLMConfig",
+        "type": "object"
+      },
+      "QuickEvidence": {
+        "additionalProperties": false,
+        "description": "Optional normalized output of CoinLookupService.Lookup, passed\nthrough as additional router/synthesis context. Never required \u2014\nabsent when Go has no prior quick-lookup result for this job.",
+        "properties": {
+          "coin_fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 50,
+            "title": "Coin Fields",
+            "type": "object"
+          },
+          "confidence": {
+            "default": "",
+            "maxLength": 16,
+            "title": "Confidence",
+            "type": "string"
+          },
+          "label_text": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Label Text",
+            "type": "string"
+          },
+          "ngc": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QuickEvidenceNGC"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "numista_query": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Numista Query",
+            "type": "string"
+          }
+        },
+        "title": "QuickEvidence",
+        "type": "object"
+      },
+      "QuickEvidenceNGC": {
+        "additionalProperties": false,
+        "description": "Optional NGC cert data already extracted upstream (F341 Quick\nIdentify). Never re-extracted or re-OCR'd by this pipeline.",
+        "properties": {
+          "cert_number": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Cert Number",
+            "type": "string"
+          },
+          "grade": {
+            "default": "",
+            "maxLength": 32,
+            "title": "Grade",
+            "type": "string"
+          },
+          "lookup_url": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Lookup Url",
+            "type": "string"
+          }
+        },
+        "title": "QuickEvidenceNGC",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Go \u2192 Python deep-identification pipeline request (\u00a72). Python holds\nno database handle, no API keys beyond `llm`, and no persistent state\n(Principle II, FR-035) \u2014 every field needed to run the pipeline for\nthis one job is supplied here.",
+    "properties": {
+      "bounds": {
+        "$ref": "#/$defs/DeepIdentifyBounds"
+      },
+      "images": {
+        "items": {
+          "$ref": "#/$defs/DeepIdentifyImage"
+        },
+        "maxItems": 4,
+        "title": "Images",
+        "type": "array"
+      },
+      "internal_token": {
+        "default": "",
+        "title": "Internal Token",
+        "type": "string"
+      },
+      "job_id": {
+        "minimum": 1,
+        "title": "Job Id",
+        "type": "integer"
+      },
+      "llm": {
+        "$ref": "#/$defs/LLMConfig"
+      },
+      "notes": {
+        "default": "",
+        "maxLength": 10000,
+        "title": "Notes",
+        "type": "string"
+      },
+      "provider_catalog": {
+        "items": {
+          "$ref": "#/$defs/DeepProviderCatalogEntry"
+        },
+        "maxItems": 10,
+        "title": "Provider Catalog",
+        "type": "array"
+      },
+      "provider_override": {
+        "items": {
+          "enum": [
+            "numista",
+            "nomisma",
+            "ngc",
+            "ocre",
+            "rpc"
+          ],
+          "type": "string"
+        },
+        "maxItems": 10,
+        "title": "Provider Override",
+        "type": "array"
+      },
+      "quick_evidence": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/QuickEvidence"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "schema_version": {
+        "default": 1,
+        "title": "Schema Version",
+        "type": "integer"
+      },
+      "tools_base_url": {
+        "default": "",
+        "maxLength": 2048,
+        "title": "Tools Base Url",
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id",
+      "llm",
+      "bounds"
+    ],
+    "title": "DeepIdentifyRequest",
+    "type": "object"
+  },
+  "DeepSynthesis": {
+    "$defs": {
+      "CoinHypothesis": {
+        "additionalProperties": false,
+        "description": "Coin-field vocabulary shared with `proposed_fields` / the Go\nproposal allowlist (contract \u00a71), so an image-only field lands in the\ndraft through the *existing* allowlist \u2014 no new write surface. Carries\nno citation and is never converted into a `ProviderClaim` (FR-004).",
+        "properties": {
+          "coin_type": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "dateRange": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "denomination": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "diameterMm": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "era": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "legible": {
+            "default": false,
+            "title": "Legible",
+            "type": "boolean"
+          },
+          "material": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "mint": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "observations": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Observations",
+            "type": "string"
+          },
+          "obverseDescription": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "obverseInscription": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "reverseDescription": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "reverseInscription": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "ruler": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "weightGrams": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "CoinHypothesis",
+        "type": "object"
+      },
+      "DisagreementEntry": {
+        "additionalProperties": false,
+        "description": "A field where two or more providers disagree \u2014 surfaced, never\nsilently resolved by precedence (FR-027).",
+        "properties": {
+          "claim_refs": {
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Claim Refs",
+            "type": "array"
+          },
+          "field": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Field",
+            "type": "string"
+          },
+          "resolution": {
+            "default": "unresolved",
+            "enum": [
+              "unresolved",
+              "resolved"
+            ],
+            "title": "Resolution",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "title": "DisagreementEntry",
+        "type": "object"
+      },
+      "EvidenceRef": {
+        "additionalProperties": false,
+        "description": "A reference from a proposed field or disagreement back to one\nprovider's evidence (or `provider: \"image\"` for image-only support).",
+        "properties": {
+          "claim_index": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Claim Index"
+          },
+          "provider": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "EvidenceRef",
+        "type": "object"
+      },
+      "HypothesisField": {
+        "additionalProperties": false,
+        "description": "One typed, bounded-confidence value the hypothesis source supports\nfor a single coin field. A field the source does not support is\n**omitted** entirely \u2014 never emitted with a guessed value at low\nconfidence (spec FR-003).",
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "value": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "confidence"
+        ],
+        "title": "HypothesisField",
+        "type": "object"
+      },
+      "ProposedFieldValue": {
+        "additionalProperties": false,
+        "description": "One proposed coin-field value with its supporting evidence.",
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/$defs/EvidenceRef"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "value": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "confidence"
+        ],
+        "title": "ProposedFieldValue",
+        "type": "object"
+      },
+      "ProviderAttribution": {
+        "additionalProperties": false,
+        "description": "Visible attribution/license metadata for one provider that actually\ncontributed to the report (\u00a76 / FR-019). Present only when that provider\nsurfaced \u22651 claim; each provider's text is distinct and never merged.",
+        "properties": {
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Identifier"
+          },
+          "provider": {
+            "enum": [
+              "numista",
+              "nomisma",
+              "ngc",
+              "ocre",
+              "rpc"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 200,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "text"
+        ],
+        "title": "ProviderAttribution",
+        "type": "object"
+      },
+      "ProviderCoverageEntry": {
+        "additionalProperties": false,
+        "description": "One provider's final status, for the run's coverage summary.",
+        "properties": {
+          "provider": {
+            "enum": [
+              "numista",
+              "nomisma",
+              "ngc",
+              "ocre",
+              "rpc"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "contributed",
+              "no_match",
+              "failed",
+              "timed_out",
+              "not_automated",
+              "unavailable",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "status"
+        ],
+        "title": "ProviderCoverageEntry",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Typed final synthesis output (\u00a75) \u2014 the terminal-success SSE frame\npayload. `proposed_fields` keys are re-validated against the coin-field\nallowlist Go-side on ingest; unknown keys are dropped there, not here.",
+    "properties": {
+      "attributions": {
+        "items": {
+          "$ref": "#/$defs/ProviderAttribution"
+        },
+        "maxItems": 10,
+        "title": "Attributions",
+        "type": "array"
+      },
+      "coverage": {
+        "items": {
+          "$ref": "#/$defs/ProviderCoverageEntry"
+        },
+        "maxItems": 10,
+        "title": "Coverage",
+        "type": "array"
+      },
+      "disagreements": {
+        "items": {
+          "$ref": "#/$defs/DisagreementEntry"
+        },
+        "maxItems": 50,
+        "title": "Disagreements",
+        "type": "array"
+      },
+      "image_hypothesis": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CoinHypothesis"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "narrative": {
+        "default": "",
+        "maxLength": 8000,
+        "title": "Narrative",
+        "type": "string"
+      },
+      "partial_success": {
+        "default": false,
+        "title": "Partial Success",
+        "type": "boolean"
+      },
+      "proposed_fields": {
+        "additionalProperties": {
+          "$ref": "#/$defs/ProposedFieldValue"
+        },
+        "maxProperties": 50,
+        "title": "Proposed Fields",
+        "type": "object"
+      },
+      "unresolved_questions": {
+        "items": {
+          "maxLength": 500,
+          "type": "string"
+        },
+        "maxItems": 20,
+        "title": "Unresolved Questions",
+        "type": "array"
+      }
+    },
+    "title": "DeepSynthesis",
+    "type": "object"
+  },
+  "_generated_by": "src/agent (python -m app.models.requests/responses .model_json_schema()) - see src/api/services/deep_identification_contract_drift_test.go header for regeneration command"
+}
