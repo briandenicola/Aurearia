@@ -24,6 +24,7 @@ from collections.abc import AsyncGenerator
 
 from langgraph.graph import END, StateGraph
 
+from app.config import settings
 from app.llm.content import extract_text_content
 from app.llm.provider import get_chat_model
 from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdentifyRequest, QuickEvidence
@@ -308,6 +309,21 @@ def _emit(frame: dict) -> str:
     return format_sse(sanitize_user_facing_payload(frame))
 
 
+def _clamp_bounds_to_ceilings(bounds: DeepIdentifyBounds) -> DeepIdentifyBounds:
+    """Clamp Go-supplied per-run bounds to the deployment's configured
+    `AGENT_DEEP_*` ceilings (T077). Callers must never be able to exceed
+    the service-level maximums regardless of what `request.bounds`
+    claims, so every field is `min(request_value, setting_value)`.
+    """
+    return DeepIdentifyBounds(
+        max_providers=min(bounds.max_providers, settings.deep_max_providers),
+        max_concurrency=min(bounds.max_concurrency, settings.deep_max_concurrency),
+        provider_timeout_s=min(bounds.provider_timeout_s, settings.deep_provider_timeout),
+        total_timeout_s=min(bounds.total_timeout_s, settings.deep_total_timeout),
+        recursion_limit=min(bounds.recursion_limit, settings.deep_recursion_limit),
+    )
+
+
 async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncGenerator[str, None]:
     """Production streaming driver — the sole caller from `routes.py`
     (T068). Emits the internal envelope frame types from contract §3.
@@ -316,7 +332,7 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
     with `partial_success: true`; if nothing was gathered at all, a typed
     `error` frame is emitted instead.
     """
-    bounds = request.bounds
+    bounds = _clamp_bounds_to_ceilings(request.bounds)
     model = get_chat_model(request.llm)
     tools = (
         ProviderToolsClient(request.tools_base_url, request.internal_token, timeout_s=bounds.provider_timeout_s)

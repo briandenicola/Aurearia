@@ -437,6 +437,96 @@ func TestDeepIdentificationService_AllTerminalStatesDeleteHints(t *testing.T) {
 	}
 }
 
+// TestDeepIdentificationService_ProviderBudgetTracker_ResetOnEveryTerminalState
+// proves T078's fix: once a job settles into completed, failed, or
+// cancelled, the injected DeepProviderBudgetTracker no longer holds any
+// entries for that job id, while a concurrently running second job's
+// entries are left untouched (T079).
+func TestDeepIdentificationService_ProviderBudgetTracker_ResetOnEveryTerminalState(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error)
+		cancel bool
+	}{
+		{
+			name: "completed",
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return &DeepPipelineResult{ReportJSON: `{"narrative":"complete"}`, ProposalJSON: `{"fields":{}}`}, nil
+			},
+		},
+		{
+			name: "failed",
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return nil, errors.New("provider unavailable")
+			},
+		},
+		{
+			name: "cancelled",
+			run: func(ctx context.Context, _ *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+			cancel: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+			user := models.User{
+				Username:     "budget-terminal-" + tc.name,
+				Email:        "budget-terminal-" + tc.name + "@example.com",
+				PasswordHash: "x",
+			}
+			if err := db.Create(&user).Error; err != nil {
+				t.Fatal(err)
+			}
+			enableDeepIdentification(t, svc, nil)
+
+			// Job under test.
+			jobID := seedDeepTestJob(t, db, user.ID)
+			if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", jobID).
+				Updates(map[string]any{"status": models.DeepJobStatusRunning, "started_at": time.Now()}).Error; err != nil {
+				t.Fatal(err)
+			}
+			var job models.DeepIdentificationJob
+			if err := db.First(&job, jobID).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			// A concurrently running second job whose tracked entries must
+			// survive this job's settlement untouched.
+			otherJobID := seedDeepTestJob(t, db, user.ID)
+
+			tracker := NewDeepProviderBudgetTracker()
+			svc.SetProviderBudgetTracker(tracker)
+			if allowed, _ := tracker.TryConsume(jobID, "numista", 4); !allowed {
+				t.Fatal("expected TryConsume to allow first call within budget")
+			}
+			if allowed, _ := tracker.TryConsume(otherJobID, "numista", 4); !allowed {
+				t.Fatal("expected TryConsume to allow first call within budget for other job")
+			}
+
+			svc.SetPipelineRunner(&fakeRunner{run: tc.run})
+			ctx := context.Background()
+			if tc.cancel {
+				cancelled, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = cancelled
+			}
+
+			svc.runJob(ctx, &job)
+
+			if allowed, count := tracker.TryConsume(jobID, "numista", 4); !allowed || count != 1 {
+				t.Fatalf("expected settled job's tracker entries to be released, got allowed=%v count=%d", allowed, count)
+			}
+			if _, count := tracker.TryConsume(otherJobID, "numista", 4); count != 2 {
+				t.Fatalf("expected concurrent job's tracker entry to be untouched, got count=%d", count)
+			}
+		})
+	}
+}
+
 func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "expired-artifacts", Email: "expired-artifacts@example.com", PasswordHash: "x"}

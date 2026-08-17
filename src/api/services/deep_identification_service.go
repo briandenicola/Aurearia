@@ -116,6 +116,17 @@ type DeepIdentificationService struct {
 
 	wakeMu sync.Mutex
 	wake   chan struct{}
+
+	// providerBudgets is the per-job/per-provider call-budget tracker
+	// (T078). It is optional (nil in tests that don't wire it) so its
+	// terminal-path Reset is always nil-guarded.
+	providerBudgets *DeepProviderBudgetTracker
+
+	// internalTokenSvc mints/verifies the job-scoped internal tokens used
+	// by the Python pipeline to call back into Go's provider-tool
+	// endpoints. Optional (nil-guarded) so the terminal path can revoke a
+	// settled job's token (T081) without requiring every test to wire it.
+	internalTokenSvc *InternalTokenService
 }
 
 // NewDeepIdentificationService constructs the service, following the
@@ -154,6 +165,25 @@ func (s *DeepIdentificationService) SetPipelineRunner(runner DeepPipelineRunner)
 		runner = noopPipelineRunner{}
 	}
 	s.runner = runner
+}
+
+// SetProviderBudgetTracker wires the per-job/per-provider call-budget
+// tracker (constructed alongside the rest of the object graph in main.go)
+// into the job service so its terminal path can release a job's tracked
+// budget entries the moment the job settles (T078). Without this, the
+// tracker - injected only into DeepProviderToolsHandler - has no caller of
+// Reset in production and accumulates one entry per (jobID, provider)
+// forever.
+func (s *DeepIdentificationService) SetProviderBudgetTracker(tracker *DeepProviderBudgetTracker) {
+	s.providerBudgets = tracker
+}
+
+// SetInternalTokenService wires the internal token service into the job
+// service so its terminal path can revoke a settled job's job-scoped token
+// (T081), preventing a long-TTL token from being replayed after the job it
+// was minted for has already completed, failed, or been cancelled.
+func (s *DeepIdentificationService) SetInternalTokenService(tokenSvc *InternalTokenService) {
+	s.internalTokenSvc = tokenSvc
 }
 
 func (s *DeepIdentificationService) pipelineRunner() DeepPipelineRunner {
@@ -859,6 +889,12 @@ func (s *DeepIdentificationService) runJob(parent context.Context, job *models.D
 		s.logger.Info("deep-identification", "job %d user %d settled status=%s duration_ms=%d", job.ID, job.UserID, newStatus, durationMS)
 	}
 	s.broker.Publish(job.ID)
+	if s.providerBudgets != nil {
+		s.providerBudgets.Reset(job.ID)
+	}
+	if s.internalTokenSvc != nil {
+		s.internalTokenSvc.RevokeJob(job.ID)
+	}
 	if err := s.DeleteHintArtifacts(job.ID); err != nil {
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to clean up hint artifacts for job %d: %v", job.ID, err)
@@ -915,6 +951,16 @@ func (s *DeepIdentificationService) recoverStaleAndSweepHints() {
 	}
 	for _, id := range recoveredIDs {
 		s.broker.Publish(id)
+		// Same terminal-cleanup guarantee as runJob's own terminal path
+		// (T078): a job whose worker goroutine never returned (e.g. wedged
+		// past a restart) still needs its tracked budget entries released
+		// once the janitor forces it to a terminal state.
+		if s.providerBudgets != nil {
+			s.providerBudgets.Reset(id)
+		}
+		if s.internalTokenSvc != nil {
+			s.internalTokenSvc.RevokeJob(id)
+		}
 		if err := s.DeleteHintArtifacts(id); err != nil {
 			failed = true
 			if s.logger != nil {
