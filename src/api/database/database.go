@@ -13,7 +13,51 @@ var DB *gorm.DB
 
 func Connect(dbPath string) {
 	var err error
-	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	// Root cause of "database is locked (SQLITE_BUSY)" on job claim: every
+	// GORM db.Transaction() begins a *deferred* SQLite transaction, which
+	// takes no lock until its first statement, and only a *read* lock on
+	// the initial SELECT. When the later UPDATE in the same transaction
+	// tries to upgrade that read lock to a write lock, and a concurrent
+	// writer has taken the write lock (or already committed a change to
+	// the WAL) in the meantime, SQLite has no choice but to fail the
+	// upgrade immediately (SQLITE_BUSY / SQLITE_BUSY_SNAPSHOT) - a
+	// deferred transaction cannot "wait" its way out of a lock upgrade
+	// conflict, because waiting could deadlock two transactions that each
+	// hold the other's needed read lock. This is exactly the
+	// SELECT-then-UPDATE shape of ClaimNextQueuedJob, and is why it
+	// reproduces reliably under concurrent claims (verified with a
+	// standalone probe: 30 goroutines racing 300 claims against a real
+	// on-disk WAL db hit ~29 SQLITE_BUSY/SQLITE_BUSY_SNAPSHOT errors).
+	//
+	// busy_timeout alone (a PRAGMA that only makes an *outright lock
+	// acquisition* wait, not a lock-upgrade conflict) measurably did NOT
+	// fix this in the same probe (still ~29 errors) - it is necessary but
+	// not sufficient here, confirming the deferred-transaction upgrade
+	// race, not a slow writer, is the true cause.
+	//
+	// The fix is `_txlock=immediate`: every transaction acquires SQLite's
+	// write lock (RESERVED) at BEGIN time instead of deferring and later
+	// trying to upgrade, so competing writers simply queue for the lock
+	// instead of racing to upgrade an existing read lock. Combined with
+	// busy_timeout so that queuing waits (default 0ms) rather than
+	// failing immediately, this eliminated all errors in the same probe
+	// (0/300 failures, all claims eventually succeeded).
+	//
+	// Both settings are per-connection SQLite driver options, not
+	// something a one-off PRAGMA exec after Open can guarantee across a
+	// pooled *sql.DB (each pooled connection needs it applied as it is
+	// opened), so they are encoded in the DSN rather than exec'd once.
+	//
+	// This is a global change: every scheduler in this process (deep
+	// identification, valuation, health, auction, coin-of-day, shipments,
+	// wishlist, ...) shares this one *gorm.DB/*sql.DB. Making every write
+	// transaction acquire its lock immediately plus wait up to 5s under
+	// contention is strictly safer for all of them than the previous
+	// fail-fast default - none of those schedulers currently retry a bare
+	// write failure themselves, and none holds a transaction open long
+	// enough for a 5s busy_timeout to introduce a meaningful stall.
+	dsn := dbPath + "?_txlock=immediate&_pragma=busy_timeout(5000)"
+	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {

@@ -789,8 +789,19 @@ func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID str
 			job, claimed, err := s.repo.ClaimNextQueuedJob(workerID)
 			s.intakeMu.RUnlock()
 			if err != nil {
+				// A failed claim never mutates job state: ClaimNextQueuedJob
+				// runs its SELECT+UPDATE inside a single transaction, so on
+				// any error (including SQLITE_BUSY from a competing writer)
+				// the whole transaction rolls back and the job is left
+				// exactly as it was - still status=queued. Nothing is lost:
+				// this worker (or another) retries it on the next wake/tick
+				// (deepJobPollInterval, 25ms) without janitor involvement.
+				// With busy_timeout now set (database.Connect), SQLite waits
+				// out a competing writer instead of failing immediately, so
+				// this branch should be rare; treat it as a transient,
+				// self-healing condition rather than an operator page.
 				if s.logger != nil {
-					s.logger.Error("deep-identification", "worker %s failed to claim job: %v", workerID, err)
+					s.logger.Warn("deep-identification", "worker %s failed to claim job (will retry): %v", workerID, err)
 				}
 				break
 			}

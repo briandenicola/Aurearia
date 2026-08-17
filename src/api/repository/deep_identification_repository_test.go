@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -430,6 +431,140 @@ func TestDeepIdentificationRepository_StaleRecovery(t *testing.T) {
 	}
 	if terminalCount != 1 {
 		t.Fatalf("expected exactly one terminal event, got %d", terminalCount)
+	}
+}
+
+// newDeepIdentificationFileTestDB opens a real on-disk SQLite database (not
+// the in-memory shared-cache DSN used by newDeepIdentificationTestDB) with
+// WAL journal mode, mirroring how database.Connect provisions the
+// production database. This is required to exercise real SQLite locking:
+// SQLite silently ignores WAL mode for ":memory:"/shared-cache databases,
+// so the deferred-transaction lock-upgrade contention this test targets
+// cannot be reproduced against an in-memory DB - it needs a real file.
+//
+// dsnParams, if non-empty, is appended verbatim as the DSN query string
+// (e.g. "_txlock=immediate&_pragma=busy_timeout(5000)"). It must be kept in
+// sync with the production DSN built in database.Connect
+// (src/api/database/database.go) - repository/ must not import database/
+// (architecture_test.go: TestNoDirectDatabaseImports), so it is duplicated
+// here rather than shared.
+func newDeepIdentificationFileTestDB(t *testing.T, dsnParams string) *gorm.DB {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "deep_identification.db")
+	dsn := path
+	if dsnParams != "" {
+		dsn = path + "?" + dsnParams
+	}
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open file test db: %v", err)
+	}
+	db.Exec("PRAGMA journal_mode=WAL")
+	if err := db.AutoMigrate(
+		&models.User{}, &models.Coin{},
+		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
+		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
+	); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get sql.DB: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(16)
+	// Windows cannot remove a file (t.TempDir()'s cleanup) while it is
+	// still open, so the sqlite connection pool must be closed before the
+	// temp dir teardown runs.
+	t.Cleanup(func() { sqlDB.Close() })
+	return db
+}
+
+// TestDeepIdentificationRepository_ConcurrentClaimNoLockContention is the
+// regression test for the production "database is locked (5) (SQLITE_BUSY)"
+// defect logged by deep-identification workers: multiple worker goroutines
+// calling ClaimNextQueuedJob concurrently against a real on-disk WAL
+// database. ClaimNextQueuedJob's transaction does a SELECT (queued job)
+// followed by an UPDATE inside the *same* GORM db.Transaction(), which - on
+// SQLite's default *deferred* transaction mode - takes a read lock on the
+// SELECT and then must upgrade to a write lock for the UPDATE. Under
+// concurrent claims, that upgrade races with another connection's write
+// lock and SQLite fails it outright (SQLITE_BUSY / SQLITE_BUSY_SNAPSHOT) -
+// a plain busy_timeout does not help an upgrade conflict, only an initial
+// lock wait. Verified against this exact reproduction: with the DSN used
+// for the "before" case below (no _txlock, no busy_timeout - i.e. what
+// database.Connect used before this fix), 30 goroutines racing 300 claims
+// reliably produced ~29 SQLITE_BUSY errors. This test asserts the fixed
+// DSN (_txlock=immediate, so every transaction takes its write lock at
+// BEGIN instead of upgrading later, plus busy_timeout so acquiring that
+// lock waits instead of failing under load) produces zero claim errors and
+// claims every queued job exactly once.
+func TestDeepIdentificationRepository_ConcurrentClaimNoLockContention(t *testing.T) {
+	const jobCount = 150
+	const workerCount = 20
+
+	db := newDeepIdentificationFileTestDB(t, "_txlock=immediate&_pragma=busy_timeout(5000)")
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "claimuser")
+
+	for i := 0; i < jobCount; i++ {
+		job := &models.DeepIdentificationJob{
+			UserID: owner.ID, Source: models.DeepJobSourceIntake,
+			InputFingerprint: fmt.Sprintf("fp-claim-%d", i),
+			ExpiresAt:        time.Now().Add(90 * 24 * time.Hour),
+		}
+		if _, _, err := repo.CreateJob(job); err != nil {
+			t.Fatalf("failed to seed queued job %d: %v", i, err)
+		}
+	}
+
+	var claimErrs int32
+	var claimedTotal int32
+	claimedIDs := make(chan uint, jobCount)
+	var wg sync.WaitGroup
+	for w := 0; w < workerCount; w++ {
+		wg.Add(1)
+		go func(workerID string) {
+			defer wg.Done()
+			for {
+				job, claimed, err := repo.ClaimNextQueuedJob(workerID)
+				if err != nil {
+					atomic.AddInt32(&claimErrs, 1)
+					t.Logf("worker %s claim error: %v", workerID, err)
+					return
+				}
+				if !claimed {
+					return
+				}
+				atomic.AddInt32(&claimedTotal, 1)
+				claimedIDs <- job.ID
+			}
+		}(fmt.Sprintf("worker-%d", w))
+	}
+	wg.Wait()
+	close(claimedIDs)
+
+	if claimErrs != 0 {
+		t.Fatalf("expected zero claim errors with the fixed DSN, got %d", claimErrs)
+	}
+	if claimedTotal != jobCount {
+		t.Fatalf("expected all %d jobs claimed, got %d", jobCount, claimedTotal)
+	}
+	seen := make(map[uint]bool, jobCount)
+	for id := range claimedIDs {
+		if seen[id] {
+			t.Fatalf("job %d claimed more than once - concurrent claim double-dequeue", id)
+		}
+		seen[id] = true
+	}
+
+	var stillQueued int64
+	if err := db.Model(&models.DeepIdentificationJob{}).
+		Where("status = ?", models.DeepJobStatusQueued).
+		Count(&stillQueued).Error; err != nil {
+		t.Fatalf("failed to count remaining queued jobs: %v", err)
+	}
+	if stillQueued != 0 {
+		t.Fatalf("expected no jobs left queued, got %d", stillQueued)
 	}
 }
 
