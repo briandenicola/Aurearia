@@ -1072,3 +1072,268 @@ named enum over any clever inference trick — even a provably-correct one —
 because the enum is legible to the next reader/caller and its correctness
 doesn't depend on an incidental invariant of unrelated code (here,
 `normalizeCatalogAlias`'s idempotency) that nothing enforces or tests for.
+
+## Feature 352 Phase 2 — AppendForCoin implemented
+
+Added CoinReferenceService.AppendForCoin(coinID, userID uint, refs []models.CoinReference) ([]models.CoinReference, error)
+per the locked interface and plan.md Phase 2. Loads existing refs via
+epo.ListByCoin, builds a dedupeKey set from them, then for each proposed
+ref: validates/normalizes via NormalizeAndValidateOne, skips it if its key
+already exists in the existing-or-earlier-survivors set (FR-051,
+case-insensitive on Catalog/Volume/Number — dedupeKey already folded case,
+no fix needed), else scopes it to coinID and keeps it. Survivors are
+inserted with the existing epo.CreateBatch (a single gorm.Create on a
+slice, already one atomic INSERT — did not need WithTx, since there is no
+multi-step write to wrap: ListByCoin is a read, and the only write is the
+one batch insert). Returns only the newly inserted survivor rows (IDs
+populated in place by GORM through the shared slice backing array), not the
+merged set. Empty or all-duplicate input returns []models.CoinReference{}
+(non-nil empty slice) with no repo write, matching repository/service
+no-op conventions elsewhere in this file.
+
+Also clarified the doc comment on ReplaceForCoin: it is owner-editor
+replacement semantics (deletes-then-inserts) and agent/enrichment paths must
+use AppendForCoin instead — per plan.md's Risk R2 mitigation and existing
+decisions.md D-3.
+
+No discrepancy from Maximus's assumption: epo.WithTx and epo.CreateBatch
+both already exist as named in his composition; I simply didn't need
+WithTx because there was nothing to wrap beyond the single already-atomic
+batch insert.
+
+Did not touch coin_reference_repository.go (Maximus confirmed no repo
+change needed — ListByCoin and CreateBatch were already sufficient), did
+not create/edit coin_reference_service_test.go (Brutus owns it; it does not
+exist yet in the tree as of this change), and did not touch
+ocre_scoring.go, providers/rpc.py, specs, or generated docs.
+
+Verified: `gofmt -l -w services\coin_reference_service.go` (reformatted),
+`go build ./...`, `go vet ./...`, `go test ./services/...` — all clean.
+Left uncommitted per task instructions.
+
+## 2026-08-17 — Feature 352 Phase 3: collection-valued proposal write surface
+
+Committed Phase 2 alone first (7a4fc30): CoinReferenceService.AppendForCoin
++ its test suite (FR-013/FR-051), verified in isolation via git stash around
+the Phase 3 WIP so the Phase 2 commit's own build/vet/test run was clean and
+didn't accidentally include uncommitted Phase 3 code.
+
+Implemented Phase 3 in deep_identification_proposal.go (uncommitted, for
+Brutus/reviewer):
+- New closed deepProposalCollectionFieldAllowlist (exactly catalogReferences),
+  kept strictly separate from the two scalar allowlists.
+- New deepProposalCatalogReference DTO mirroring FR-004; decoded by
+  re-marshaling the proposal's ny value to JSON bytes and re-parsing
+  through a json.Decoder with DisallowUnknownFields() — this is required
+  because the outer deepProposalDocument unmarshal already lost per-element
+  strictness by the time Proposed/OwnerValue become ny.
+- pplyToCoin now dispatches each accepted field name through an explicit
+  two-map switch (scalar allowlist -> UpdateCoinWithFields; collection
+  allowlist -> decode/validate -> CoinReferenceService.AppendForCoin) with a
+  default: rejection, so catalogReferences can never reach
+  setCoinFieldFromProposalValue/deepProposalValueToString.
+- pplyToDraft/pplyToWishlist needed **no changes** — they already only
+  consult their own maps (which don't include catalogReferences per
+  FR-002), so an accepted catalogReferences field is naturally rejected
+  with ErrDeepProposalFieldNotAllowed for those targets. Phase 6b will add
+  wishlist reference persistence deliberately, not as a side effect here.
+- UpdateProposal now validates a catalogReferences owner edit (decode +
+  registry validation via CoinReferenceService.NormalizeAndValidateOne)
+  *before* persisting ProposalJSON.
+- Widened NewDeepIdentificationProposalService to take a *CoinReferenceService
+  (5th param) and updated the one main.go call site — coinReferenceSvc was
+  already constructed earlier in the same DI block, no new instantiation
+  needed.
+
+Known consequence, expected and not a bug: widening the constructor breaks
+compilation of services/deep_identification_proposal_test.go:38 and
+handlers/deep_identification_test.go:89, both of which call the 4-arg
+constructor. go build ./... (production only) is clean; go vet ./...
+fails only on those two test files. Brutus needs to add the
+CoinReferenceService arg at both call sites before Phase 3 tests can run.
+
+Also flagged (not fixed, out of authorized scope): espondDeepProposalError's
+default: branch maps any non-sentinel error to 500. A catalogReferences
+validation failure (bad confidence, unknown sourceProvider, registry
+rejection) is a plain mt.Errorf, not one of the sentinel errors, so it
+would currently surface as 500 instead of 400. Handler edits were scoped to
+docs-only for this phase; this is worth a follow-up ADR/ticket before Phase 3
+ships to review.
+
+## 2026-08-17 — Feature 352 Phase 4: pipeline emits NGC/RIC/RPC catalogReferences
+
+Implemented plan.md Phase 4 in deep_identification_pipeline_runner.go and
+main.go (uncommitted, for Brutus/reviewer), on top of Phase 2 (7a4fc30) and
+Phase 3 (26e4de4, rejection independently revised and cleared before I
+started).
+
+- `DeepIdentificationPipelineRunner` gained a `catalogRegistry
+  *repository.CatalogRegistryRepository` field, threaded through a new
+  8th constructor param, and a `loadCatalogRegistry()` method that loads the
+  full registry **once per Run()** into a `map[string]*models.CatalogRegistry`
+  (mirrors ReferenceMigrationService.MigrateLegacyReferences' exact
+  load-once-then-pass-the-map shape) — degrades to an empty, non-nil map on
+  a nil repo or a lookup failure rather than failing the whole job; a
+  failure is logged with no catalog/cert content (FR-043).
+- `buildDeepProposalDocumentJSON` gained two params
+  (`quickEvidence *DeepQuickEvidenceProxy`, `catalogRegistry
+  map[string]*models.CatalogRegistry`) and now also parses
+  `report.image_hypothesis.coin_type.value` (new `deepSynthesisImageHypothesis`
+  struct — carries no citation, matches CoinHypothesis's contract shape, is
+  read directly off the report rather than through providerClaims, exactly
+  as the 351 CoinHypothesis doc comment already said it must be).
+- New `buildDeepCatalogReferenceField(quickEvidence, hypothesisCoinType,
+  providerClaims, catalogRegistry) ([]deepProposalCatalogReference, bool)`
+  is the single builder called from **both** branches (saved-coin and
+  intake):
+  1. NGC — `quickEvidence.NGC.CertNumber` (trimmed) constructs the element
+     directly (catalog "NGC", confidence 1.0, sourceProvider
+     `models.DeepProviderNGC`); never touches `ParseCatalogReferenceText` or
+     `normalizeCatalogAlias` (FR-006/FR-007; the parser's existing "do NOT
+     add NGC here" comment from Phase 1 stays true).
+  2. RIC/coin_type — `rankedDeepCoinTypeClaims(providerClaims)` collects
+     every claim with `Field == "coin_type"` across every provider
+     (351 FR-013: OCRE emits several to preserve ambiguity), ranked highest
+     confidence first with a deterministic tie-break (provider keys sorted
+     before appending, then a *stable* sort so map-iteration randomness
+     never changes the winner). Only the single top-ranked claim is run
+     through `ParseCatalogReferenceText` — this is the "only the top-ranked
+     eligible claim, to avoid flooding" decision plan.md already recorded,
+     not a new one. `sourceProvider` is the contributing provider (e.g.
+     "ocre"); confidence/rawText/needsVolume come straight from the
+     parser's return (FR-017), never the claim's own confidence.
+  3. RPC — `buildDeepOpportunisticRPCReference` tries, in order,
+     `hypothesis.coin_type`, `quick_evidence.label_text`, then each ranked
+     coin_type claim, reusing the exact same `ParseCatalogReferenceText`
+     call and accepting the first result whose `Catalog == "RPC"`.
+     "Leading, word-boundaried" (FR-020) falls out of the parser itself —
+     it only ever inspects `strings.Fields(text)[0]` — so no bespoke regex
+     was written (plan.md Risk 3's stated mitigation). Hypothesis/label-text
+     matches get `sourceProvider: "image"` (FR-044: evidence-provenance-only,
+     since no RPC provider ran — RPC stays the untouched typed
+     `unavailable` stub per FR-021/FR-047, no Python change, no network
+     call); a claim match gets that claim's provider.
+  4. Every constructed element is rejected before being kept unless its
+     `sourceProvider` is in the existing
+     `deepProposalCatalogReferenceSourceProviders` closed vocabulary
+     (defence-in-depth: this code can never itself introduce an
+     unrecognised value even under a future provider-name typo).
+  5. Results are deduplicated case-insensitively on (Catalog, Volume,
+     Number) — same triple/casing convention as
+     `coin_reference_service.go`'s `dedupeKey` — and capped at 10 (FR-005).
+- Saved-coin branch: when the coin_type parse in step 2 succeeds, the
+  existing scalar `"coin_type" -> ReferenceText"` entry's `Accepted` is set
+  to an explicit `false` (not left `nil` like every other scalar field) —
+  this is FR-011.2's literal wording, a deliberate exception to the
+  system-wide "Go always leaves Accepted nil" convention documented in
+  decisions.md's RD-3 finding. When the parse fails, the scalar entry is
+  untouched (FR-011.3: normal confidence-driven treatment, value never
+  lost). The `catalogReferences` field entry itself always gets
+  `Accepted: nil` — no new auto-accept threshold was invented; RD-3's
+  finding that "Go always sets Accepted: nil regardless of confidence at
+  proposal-build time, front-end decides" applies unchanged to the new
+  field, same as everything else.
+- Intake branch: `buildDeepIntakeProposalFields` gained the same four new
+  params and adds a `catalogReferences` field entry when non-empty — no
+  scalar-coin_type supersession there (the draft allowlist has no
+  `coin_type` mapping, so there is nothing to supersede). Confirmed
+  `applyToDraft`/`applyToWishlist` need zero changes: both already consult
+  only their own scalar allowlists (Phase 3's existing note), so an accepted
+  `catalogReferences` on those targets is naturally rejected with
+  `ErrDeepProposalFieldNotAllowed` until Phase 6b adds it deliberately.
+- `Run()` calls `r.loadCatalogRegistry()` once, right before building the
+  terminal `DeepPipelineResult`, and passes both `quickEvidence` (the
+  Go-side value already computed earlier in `Run()` for the Python request —
+  `quick_evidence.ngc.cert_number` never has to round-trip through the
+  report; it was never removed from Go's own scope) and the registry map
+  into `buildDeepProposalDocumentJSON`.
+- main.go: added one new shared `deepIdentificationCatalogRegistryRepo :=
+  repository.NewCatalogRegistryRepository(database.DB)` next to
+  `deepIdentificationRepo`, before `SetPipelineRunner`, and passed it as the
+  runner's 8th constructor arg. This is a **new** instance of the same
+  stateless db-handle wrapper, not a shared reference to the
+  `catalogRegistryRepo` built later inside the protected-routes block — that
+  one is declared after the pipeline runner is constructed, and the
+  existing codebase already creates two other independent instances of this
+  same repo in different DI scopes (protected block ~line 297, admin block
+  ~line 700), all wrapping the same `*gorm.DB`. Did not restructure main.go's
+  block ordering to share a single instance across scopes — that's a larger,
+  unrelated diff than this phase's brief authorized-file list.
+  `deep_identification_service.go` needed **no change**: it only ever
+  consumes `result.ProposalJSON` from the runner's `Run()` return value and
+  never itself builds a proposal document or touches the registry.
+
+**Known consequence, expected and not a bug** (same shape as Phase 3's):
+widening `buildDeepProposalDocumentJSON` (2 new params) and
+`NewDeepIdentificationPipelineRunner` (1 new param) breaks compilation of
+`deep_identification_pipeline_runner_test.go` (6 call sites) and
+`deep_identification_pipeline_runner_stream_test.go` (1 call site), both in
+the `services` package. Because Go test binaries compile per-package, this
+means `go test ./services/...` cannot run *any* test in that package right
+now — not just these two files — until Brutus updates both call sites.
+`go build ./...` (production only) is clean; `go vet ./handlers/...
+./repository/... ./models/... .` (every other package, plus root) is clean;
+`TestArchitecture` (root package) passes. I did not edit either `_test.go`
+file per the DO-NOT-EDIT boundary, and did not create or run a scratch
+`_test.go` of my own to work around the block — verified the new pure
+functions (ranking/parsing/dedup/supersession) by full code-review trace
+against FR-006/007/008/010/011/017/019/020/021/044/045 instead, since no
+functional-test path is available until the two Brutus-owned files compile
+again.
+
+Also did not touch `ocre_scoring.go`, `providers/rpc.py`, any other Python
+file, `deep_identification_proposal.go` (Phase 3's collection allowlist,
+DTO, and apply/validate path were already complete and needed no
+Phase-4-driven adjustment), specs, or generated docs. Left everything
+uncommitted per task instructions.
+
+## Feature 352 Phase 6b — wishlist apply persists structured references (uncommitted)
+
+`applyToWishlist` (`src/api/services/deep_identification_proposal.go`) now
+dispatches each accepted field name through the same two-allowlist switch
+`applyToCoin` already uses (`isDeepProposalScalarCoinField` /
+`isDeepProposalCollectionField`), instead of only consulting
+`deepProposalCoinFieldAllowlist`. A `catalogReferences` field is decoded and
+validated via the existing `resolveDeepProposalCatalogReferences` ->
+`decodeDeepProposalCatalogReferences` -> `CoinReferenceService.
+NormalizeAndValidateOne` path (Phase 3's strict decoder/allowlist, verbatim,
+no second parser). No change to the decoder, DTO, or validation rules
+themselves. Owner/edited-value resolution (`resolveDeepProposalFieldValue`,
+OwnerEdited/OwnerValue) is unchanged and applies identically to both scalar
+and collection fields.
+
+Ordering: `CoinService.CreateCoin` runs first (unchanged — still the only
+write that sets `IsWishlist: true`, still owner-scoped to the caller's
+`userID`, still never reads `isWishlist` or any ID off the proposal
+document). Only once `CreateCoin` succeeds does
+`CoinReferenceService.AppendForCoin(coin.ID, userID, catalogRefs)` run,
+using the newly created coin's own ID and the caller's `userID` — never any
+ID sourced from the proposal. `AppendForCoin` (never `ReplaceForCoin`) is
+additive-only by construction, so this cannot delete anything; on a brand
+new coin "existing" is always empty, so the append is equivalent to a
+straight insert with Phase 2's case-insensitive `(Catalog, Volume, Number)`
+dedupe still applying defensively. If `AppendForCoin` errors, `applyToWishlist`
+returns that error immediately — `recordDeepProposalJournalEntry` is not
+called and `Apply()` never reaches `repo.ApplyJob`, so the job stays
+un-applied, matching `applyToCoin`'s existing failure ordering and Phase 3's
+documented R8 risk treatment. `applyToDraft` was not touched — it still only
+consults `deepProposalDraftFieldAllowlist`, which has no `catalogReferences`
+mapping, so an accepted `catalogReferences` on the draft target continues to
+be rejected with `ErrDeepProposalFieldNotAllowed` until Phase 7, unchanged.
+
+Content-free logging/journal behaviour is preserved: `catalogReferences`
+flows through `recordDeepProposalJournalEntry`/`deepProposalJournalEntryText`
+exactly like every other field name already does (field names only, no
+values), and `AppendForCoin`/`NormalizeAndValidateOne` were not modified, so
+their existing no-value-logging behaviour is untouched.
+
+Only `src/api/services/deep_identification_proposal.go` was edited (the sole
+authorized file). No changes to `coin_reference_service.go`,
+`deep_identification_proposal_test.go`, specs, or docs. `gofmt -l` clean,
+`go build ./...` clean, `go vet ./...` clean, and
+`go test ./services/...` passes in full (`ok`, ~16.6s), including the
+pre-existing `TestDeepIdentificationProposal_WishlistApplyCreatesWishlistCoin`,
+`TestDeepProposalApply_CatalogReferencesAppendWithoutReplacingExisting`, and
+every other `Deep*`/reference test. Left uncommitted for Brutus/review; no
+new decision recorded (this is exactly the two-write ordering plan.md Phase
+6b and Phase 3's R8/risk register already specified).

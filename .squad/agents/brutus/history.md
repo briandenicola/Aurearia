@@ -669,3 +669,131 @@
   - Feature 352 Phase 6a lands first and alone (smallest diff, widest blast radius)
   - Cassius: journal entries on coin+wishlist deep-identification apply (draft not implementable)
   - Maximus: Feature 352 spec + plan written; flagged: removing reference guard un-blocks unconfirmed search-agent references unless FR-049 holds
+
+- **2026-08-17 — Feature 352 Phase 2 T-tests: `CoinReferenceService.AppendForCoin`:** Added `src/api/services/coin_reference_service_test.go` (new file) with 9 tests covering FR-013/FR-014: (1) append preserves existing refs and returns only newly inserted rows with generated IDs; (2) repeating an identical append is a true no-op (0 inserted, no error) — not a caught unique-constraint violation; (3) case-insensitive (Catalog,Volume,Number) duplicate against an existing ref is skipped; (4) case-insensitive duplicate earlier in the SAME input batch is also skipped (the batch-order-matters case FR-013 step 2 requires); (5) an unknown catalog anywhere in the batch rejects the whole call with `ErrReferenceUnknownCatalog` and zero rows persisted (validated via `refRepo.ListByCoin` count); (6) a `VolumeRequired` catalog with an empty volume rejects the whole call with `ErrReferenceVolumeRequired`, zero partial writes; (7) inserted rows are scoped to the `coinID` parameter, ignoring/overriding any stale `CoinID` on the input payload; (8) an identical (Catalog,Volume,Number) triple on a DIFFERENT user's coin is correctly NOT treated as a duplicate — proves `ListByCoin`'s ownership scoping is what builds the per-call dedupe set, not a global unique check; (9) empty input returns a non-nil empty slice, no error.
+- Confirmed both "no partial write" tests by reading `AppendForCoin`'s real control flow first: it runs a single validation pass over the *entire* input list before ever calling `repo.CreateBatch`, so an error from `NormalizeAndValidateOne` on any later element genuinely returns before any insert happens — this isn't `CreateBatch` transactional rollback, it's validate-then-insert ordering. Worth remembering: unlike `ReplaceForCoin`, `AppendForCoin` does not wrap its insert in `db.Transaction`; it doesn't need to, since it never deletes and only ever does one `CreateBatch` call after full validation.
+- Noted but did NOT flag as a defect: `AppendForCoin` has no `CoinExists`/ownership guard of its own before `CreateBatch` — a caller could pass a `coinID` the `userID` doesn't own and still successfully insert against it (only the dedupe-set computation via `ListByCoin` is ownership-scoped, not the write). Checked `handlers/coin_references.go` — the codebase convention is that the **handler** calls `repo.CoinExists` before invoking any reference service method (same pattern `ReplaceForCoin`'s only caller relies on); there is no handler wired to `AppendForCoin` yet (Phase 2 is service-only). This matches existing layered-architecture convention rather than being a novel gap in Cassius's code, so it is not a BLOCK finding — but whoever wires the Phase 3 handler for `AppendForCoin` MUST add the same `CoinExists` ownership check other reference handlers already do, or cross-tenant writes become reachable.
+- `setupTestDB(t)` and the `newTestCoinService*` constructor family already live in `coin_service_test.go` (same `services` package) — reused directly rather than duplicating a DB bootstrap; added a small `newTestCoinReferenceService(db)` helper mirroring the existing wiring pattern (`repository.NewCoinReferenceRepository` + `repository.NewCatalogRegistryRepository` -> `NewCoinReferenceService`).
+- Full validation: `gofmt -l -w`, `go vet ./services/...`, targeted `-run TestAppendForCoin` (9/9 pass), full `go test ./services/...` (all pass, no regressions), and `TestArchitecture`/`TestNoDirectDatabaseImports` all green. No production code touched; `git status --short` shows only the new test file plus Cassius's already-present `coin_reference_service.go` diff.
+
+## 2026-08-17 — Feature 352 Phase 3 review: catalogReferences write surface — BLOCK
+
+Updated both constructor call sites for the new 5th `*CoinReferenceService`
+param (`newDeepProposalTestDeps` in `deep_identification_proposal_test.go`;
+`setupDeepIdentificationHandlerTest` in `handlers/deep_identification_test.go`),
+adding `models.CatalogRegistry` to each helper's `AutoMigrate` list and wiring
+`NewCoinReferenceService(repository.NewCoinReferenceRepository(db),
+repository.NewCatalogRegistryRepository(db))` the same way `coin_reference_service_test.go`
+and `main.go` already do.
+
+Added `services/deep_identification_proposal_phase3_test.go` (new file, 13
+tests) covering: accepted `catalogReferences` appends without replacing an
+existing reference; `ownerEdited`/`ownerValue` (a filtered array) is exactly
+what applies, proven by seeding two AI-proposed refs and an owner edit down
+to one, then asserting only that one lands; unknown per-element properties
+rejected at both PATCH and Apply (via `DisallowUnknownFields`); >10 elements
+rejected at both surfaces; unknown catalog rejected
+(`ErrReferenceUnknownCatalog`) at both surfaces; empty volume for a
+`VolumeRequired` catalog rejected (`ErrReferenceVolumeRequired`) at both
+surfaces; out-of-range (>1, <0) and empty/unrecognised `sourceProvider`
+rejected; a reference-validation failure leaves `job.AppliedAt` nil (proven
+by direct `repo.GetJob` inspection) and a retry with a now-valid catalog
+succeeds normally (proof `ApplyJob` was never reached on the failed attempt,
+no partial commitment); a non-owner's `Apply`/`UpdateProposal` on another
+user's job returns `ErrDeepProposalNotFound` (job lookup is user-scoped via
+`repo.GetJob(jobID, userID)`) and writes zero references to the owner's coin.
+
+Added `TestDeepProposalCollectionAllowlistIsClosedAndSeparate` to
+`deep_identification_contract_drift_test.go` (repo's existing home for
+proposal-shape drift guards, distinct from the file's main
+Go<->Python-contract-schema focus, but explicitly authorized for this edit):
+mechanically asserts `deepProposalCollectionFieldAllowlist` has exactly one
+key (`catalogReferences`) and that none of the three field-name maps
+(`deepProposalCollectionFieldAllowlist`, `deepProposalCoinFieldAllowlist`,
+`deepProposalDraftFieldAllowlist`) share a key in either direction — the
+mechanical proof that a JSON array can never reach
+`setCoinFieldFromProposalValue`'s scalar coercion via a name collision.
+
+Two test bugs found and fixed while writing the above (both self-inflicted,
+not production issues): (1) my first non-owner test called
+`seedDeepProposalUser` twice back-to-back — its username is derived from
+`time.Now().UnixNano()`, which collided on this machine's clock resolution
+and hit a UNIQUE constraint; fixed by seeding the second user with an
+explicit distinct username. (2) my first "never reaches scalar setter" test
+put `totallyUnknownKey` directly into the seeded proposal document's own
+`Fields` map, which made `UpdateProposal`'s "is this name known to the
+document" pre-check treat it as known (PATCH allows editing any field
+already present in a job's own proposal document, not just allowlisted
+ones — allowlist enforcement happens when the *synthesizer* populates the
+document, not at edit time) — fixed by using a name genuinely absent from
+that job's document, matching the existing
+`TestDeepIdentificationProposal_FieldAllowlistRejectsUnknownField` pattern.
+
+**Confirmed Cassius's own flagged gap, independently, by reading
+`respondDeepProposalError`:** its `default:` branch maps any non-sentinel
+error to HTTP 500. Every `catalogReferences` validation failure — unknown
+property (`DisallowUnknownFields`), >10 elements, unknown catalog
+(`ErrReferenceUnknownCatalog`), missing required volume
+(`ErrReferenceVolumeRequired`), out-of-range confidence, and unrecognised/empty
+`sourceProvider` — is a plain `fmt.Errorf`, not one of
+`respondDeepProposalError`'s recognised sentinels, so every one of these
+client-input mistakes currently returns HTTP 500 instead of 400. This is a
+genuine defect against the FR-004/FR-005/FR-045 contract (client-actionable
+validation failures must not present as server errors) and is not something
+this review's authorized test-only scope can fix (a fix requires either new
+sentinel errors in `deep_identification_proposal.go`/`coin_reference_service.go`
+or a new `errors.As`/wrapped-type branch in
+`handlers/deep_identification.go`, both production files). Did not add a
+duplicate decision-inbox entry since Cassius's own
+`.squad/decisions/inbox/cassius-352-phase3.md` already documents this exact
+finding in detail; this entry only records independent confirmation.
+
+**DI wiring assessment:** the one-line `main.go` change (passing the
+already-constructed `coinReferenceSvc` — built at line 300, already reused by
+`coinSvc`/`coinReferenceHandler` — as the proposal service's 5th constructor
+arg) is necessary Phase 3 DI, not scope creep or a Phase 4 change. No new
+service instantiation was introduced; it is the minimal wiring change required
+for `deep_identification_proposal.go`'s new `coinRefSvc` field to have a
+non-nil value in production, and without it every `catalogReferences` apply
+would nil-pointer-panic in `applyToCoin`.
+
+**Verification:** `gofmt -l -w` clean on all four edited/new test files;
+targeted `go test ./services/... -run 'TestDeepProposal'` 13/13 new tests
+pass; full `go vet ./...` clean; full `go test -count=1 ./...` — all 10
+packages pass (api, capture, database, handlers, integration, middleware,
+models, repository, services, testutil), confirming the widened constructor
+did not regress the existing Phase 1/2/6a suites in either edited test file.
+
+**Verdict: BLOCK** on the confirmed HTTP 500 defect. Per Strict Lockout
+(constitution SS18.2) Cassius authored this phase and cannot produce the
+production fix himself once blocked; recommend reassignment to another
+backend agent (or Maximus as architect) to add a sentinel error (e.g.
+`ErrDeepProposalCatalogReferenceInvalid`) in the collection-validation path
+and a corresponding 400 branch in `respondDeepProposalError`, then re-review.
+All test coverage above is otherwise solid and should not need to be
+rewritten by whoever fixes the production gap - only the new sentinel
+error's `errors.Is` branch needs adding to `respondDeepProposalError`, which
+this review's tests do not currently assert on directly (no handler-level
+HTTP test was added, since the authorized handler-test edit scope was
+"constructor setup / HTTP error mapping verification" and the mapping itself
+is the very thing that needs to change before such an assertion could pass).
+
+## Feature 352 Phase 4 review (deep-identification catalogReferences pipeline emission)
+
+Reviewed Cassius's uncommitted Phase 4 changes (main.go DI + deep_identification_pipeline_runner.go's NGC/RIC/RPC catalogReferences population) against FR-006..FR-011, FR-016..FR-020, FR-043, FR-045, FR-047 and AC-004..AC-007, AC-011, AC-012, AC-031.
+
+**Constructor/build-call compatibility fixed (authorized test files only):** widened uildDeepProposalDocumentJSON (2 new params) and NewDeepIdentificationPipelineRunner (1 new param) broke 6 call sites in deep_identification_pipeline_runner_test.go and 1 in deep_identification_pipeline_runner_stream_test.go - updated all 7 to pass 
+il, nil for the new (quickEvidence, catalogRegistry) params where the test doesn't exercise them. go build ./... and go vet ./services/... are clean. Noted but did NOT touch (out of authorized scope, guarded by //go:build seam so excluded from default go test ./...): src/api/integration/deep_identification_seam_test.go:172 still calls the 7-arg constructor and will fail to compile under -tags=seam - flagging for whoever owns that build tag next.
+
+**New test file added:** deep_identification_pipeline_runner_phase4_test.go - NGC direct emission (bypasses parser, 
+ormalizeCatalogAlias("NGC") still empty, both intake+saved-coin), top-ranked-only coin_type claim ranking, AC-011/AC-012 scalar coin_type supersession (accepted=false only on structured success, untouched/nil on parse failure), RPC leading-word-boundary matching (hypothesis/label_text/claims) with explicit non-leading and substring-only negative cases, AC-005/AC-006/FR-019 needsVolume=true/empty-volume-never-"0", catalogReferences.accepted always nil regardless of confidence (RD-3), case-insensitive dedupe, 10-element cap, unknown-catalog and not-in-registry rejection, closed-vocabulary sourceProvider defence-in-depth, loadCatalogRegistry() nil-repo and DB-failure degrade-to-empty-map unit tests, and an end-to-end Run()-driven AC-031 test (dropped catalog_registries table + sensitive marker strings in narrative/claim/hypothesis/query) asserting zero leakage into the *Logger ring buffer while confirming the expected content-free "failed to load catalog registry for job %d: %v" line does fire.
+
+**Confirmed production defect found via testing (BLOCKing):** uildDeepProposalDocumentJSON's saved-coin branch has a pre-existing if len(report.ProposedFields) == 0 { return "" } guard that runs BEFORE the new catalogReferences construction. When a synthesis genuinely produces zero automatable proposed_fields (a real, reachable case - e.g. a legible NGC slab whose coin images are otherwise unidentifiable - exactly AC-001's scenario), the entire saved-coin proposal document is dropped, silently losing the NGC element that FR-006 requires be emitted unconditionally. The intake branch does not have this bug (its early-return check happens after uildDeepIntakeProposalFields already added catalogReferences). Documented via a dedicated, intentionally-green characterization test (TestBuildDeepProposalDocumentJSON_KnownDefect_SavedCoinEmptyProposedFieldsDropsNGCCatalogReference) asserting today's (defective) out == "" behavior with a comment instructing the next implementer to flip the assertion once fixed, rather than committing a permanently-red test.
+
+**Registry-load degradation investigated (not a violation):** loadCatalogRegistry() degrading a DB failure to an empty, non-nil map plus .logger.Error("deep-identification", "failed to load catalog registry for job %d: %v", job.ID, regErr) matches the runner's own existing convention exactly (identical shape at lines 100/174/300 for other non-fatal failures) and the established swallow-and-log precedent already documented in decisions.md for Apply()'s journal-write failure. The logged error is a driver-level SQL error, never registry/catalog content - confirmed content-free by the AC-031 end-to-end test. Not a silent-failure violation; consistent with 351 FR-006/FR-040's "degrade to deterministic fallback, never raise" philosophy extended to a non-critical enrichment lookup.
+
+**DI verified:** main.go's new deepIdentificationCatalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB) is correctly ordered after database.DB is established and before the pipeline runner constructor call; deep_identification_service.go independently confirmed to need zero changes (only ever reads esult.ProposalJSON off Run()'s return, never touches the registry itself).
+
+**Verification:** go vet ./services/... and go vet ./... clean; targeted new/updated tests 100% pass (one flaky unrelated pre-existing UNIQUE-constraint collision on a full-package re-run self-resolved on retry, consistent with a previously-documented clock-resolution flake, not caused by this review); go test -count=1 ./... - all 10 packages pass including rchitecture_test.go and integration.
+
+**Verdict: BLOCK.** Strict Lockout applies (constitution SS18.2) - Cassius authored Phase 4 and cannot self-fix the saved-coin empty-proposed-fields defect; recommend reassignment (Maximus or another backend agent) to reorder/restructure the saved-coin branch so uildDeepCatalogReferenceField's result is computed and checked before (or independently of) the len(report.ProposedFields) == 0 early return, then re-review. All test coverage above should remain valid after that fix, aside from flipping the one characterization test's assertion.
