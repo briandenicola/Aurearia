@@ -574,6 +574,29 @@ amends a Feature 344 requirement, the superseded text is quoted verbatim in
   (populated-field count, confidence buckets, validation success/failure,
   timing). Legend text, owner notes, hypothesis values, and image data MUST NOT
   enter application logs or `progress` event messages (344 FR-036).
+  **AMENDED 2026-08-17 — see FR-040. The `progress` event clause is narrowed;
+  the application-log prohibition is unchanged and remains absolute.**
+- **FR-040** *(amendment to FR-030, authorized by Brian 2026-08-17)*: The
+  **user-scoped SSE `progress` stream** MAY carry step detail derived from the
+  owner's own submission — hypothesis field values, the application-authored
+  query terms sent to each provider, candidate counts, and per-provider
+  outcomes — so the owner can see what the system actually worked on at each
+  step. Rationale: the stream is delivered only to the authenticated owner of
+  the job, for their own coin, and the terminal report already discloses these
+  same values to that same user; streaming them live is the same disclosure
+  earlier, not a new one.
+  **Binding limits on this amendment:**
+  - The prohibition on **application logs** is untouched. Legend text, owner
+    notes, hypothesis values, query strings, and image data MUST NOT be written
+    to server logs. FR-030's log clause remains absolute.
+  - Detail MUST flow only through the job's owner-scoped stream. It MUST NOT
+    appear in any shared, admin, aggregate, or cross-user surface.
+  - Image data (data URIs, raw bytes) remains prohibited everywhere, including
+    the progress stream.
+  - Progress payloads remain subject to the existing sanitization boundary
+    (`sanitize_user_facing_payload`) and to bounded field lengths, so a
+    malformed or hostile upstream value cannot become an unbounded or unescaped
+    payload.
 - **FR-031**: The redesign MUST NOT increase the number of LLM calls per job. The
   vision call is unchanged in count; removing the LLM router (FR-014) reduces the
   count by one on runs without an override.
