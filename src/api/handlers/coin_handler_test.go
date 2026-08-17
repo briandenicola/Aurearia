@@ -2064,15 +2064,19 @@ func TestCoinHandler_ActiveCollectionCountInvariant(t *testing.T) {
 	}
 }
 
-// TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences is the
-// primary regression test for the wishlist catalog-reference invariant:
+// TestCoinHandler_Create_WishlistWithReferencesStoresReferences is the
+// primary regression test for the ADR 0013 rule
+// (docs/adr/0013-wishlist-coins-may-hold-catalog-references.md): wishlist
+// coins are no longer stripped of their References relation.
 //
 //	POST /api/coins with isWishlist:true and a non-empty references array
-//	must return HTTP 201 but persist ZERO coin_reference rows for the new
-//	coin. This covers both the agent-style create path (agent sends
-//	candidateReferences as part of the payload) and any other caller that
-//	supplies references on a wishlist coin.
-func TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences(t *testing.T) {
+//	must return HTTP 201 AND persist those coin_reference rows for the new
+//	coin, normalized exactly as a collection coin's references would be.
+//	This covers the agent-style create path (the request carries a
+//	candidateReferences-style payload directly via the request body's
+//	"references" field, as opposed to the WishlistSearchAlertService
+//	ConvertCandidate path, which is guarded separately per FR-049).
+func TestCoinHandler_Create_WishlistWithReferencesStoresReferences(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "wishlist-ref-test")
 
@@ -2117,12 +2121,16 @@ func TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences(t *testin
 		t.Error("created coin should be a wishlist coin")
 	}
 
-	// The invariant: no catalog reference rows must exist for the wishlist coin.
-	var refCount int64
-	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", created.ID).Count(&refCount).Error; err != nil {
-		t.Fatalf("count references: %v", err)
+	// ADR 0013: the reference must be persisted, normalized, for the wishlist coin.
+	var refs []models.CoinReference
+	if err := db.Where("coin_id = ?", created.ID).Find(&refs).Error; err != nil {
+		t.Fatalf("query references: %v", err)
 	}
-	if refCount != 0 {
-		t.Errorf("invariant violated: wishlist coin has %d persisted reference(s), want 0", refCount)
+	if len(refs) != 1 {
+		t.Fatalf("expected wishlist coin to persist 1 reference, got %d", len(refs))
+	}
+	if refs[0].Catalog != "RIC" || refs[0].Volume != "II" || refs[0].Number != "162" {
+		t.Fatalf("expected normalized RIC II 162, got %#v", refs[0])
 	}
 }
+

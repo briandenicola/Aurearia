@@ -870,3 +870,87 @@ since it wasn't tracked and wasn't part of this task.
   - First implementation returned journal write errors as fatal; rework made journal best-effort to match reference_migration_service.go precedent
   - Outcome: committed as 755593f
   - **Critical cross-agent awareness:** ADR 0013 reverses Feature 351's wishlist reference invariant (pending approval); Phase 6a of Feature 352 lands first and alone
+
+
+## Learnings (352 Phase 6a — ADR 0013 guard swap, 2026-08-17)
+
+Deleted the two wishlist-reference guards in coin_service.go
+(prepareCoinForCreate's if coin.IsWishlist { coin.References = nil } at
+old :154-156, and createPreparedCoinInTx's belt-and-suspenders
+if coin.IsWishlist { pendingReferences = nil } plus its comment at old
+:173-177). Kept :171-172
+(pendingReferences := coin.References; coin.References = nil) untouched —
+confirmed by re-reading the surrounding function before editing that this
+line is the GORM auto-cascade detach (root-cause fix layer 2 of 3 from the
+2026-07-21 crash), not wishlist logic; it sits three lines above the deleted
+block and reads as one block if skimmed. Verified post-edit by viewing the
+diff region: the detach remains, only the if coin.IsWishlist blocks are
+gone.
+
+Added the FR-049 untrusted-source guard in
+WishlistSearchAlertService.ConvertCandidate (coin.References = nil
+immediately after coin := input.Coin), with a comment explaining it is not
+redundant with the removed CoinService guard — same commit as the guard
+deletion, per ADR 0013's explicit same-commit requirement.
+
+Flipped ADR 0013 status from Proposed to Accepted (Brian approved).
+Rewrote the four tests named in the Phase 6a table to assert the new rule,
+citing ADR 0013/FR-049 in their doc comments; renamed
+TestCreateCoin_DropsReferencesForWishlist ->
+TestCreateCoin_PersistsReferencesForWishlist,
+TestCreateCoin_WishlistInvariant_AgentStylePayload ->
+TestCreateCoin_WishlistAgentStylePayload_PersistsNormalizedReferences, and
+TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences ->
+TestCoinHandler_Create_WishlistWithReferencesStoresReferences. The
+wishlist_search_alert_service_test.go:615 assertion (now further down after
+insertions) kept its zero-references expectation as instructed and only its
+comment changed, since it protects FR-049, not the removed FR-048 invariant.
+
+**Falsification, three rounds, on the FR-049 guard specifically:** the first
+falsification attempt (removing the new coin.References = nil line and
+rerunning the *existing* regression test
+TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict) stayed
+GREEN even with the guard removed — a hollow proof, because
+setupWishlistSearchAlertService's CoinService never calls
+WithReferenceSupport, so s.refRepo/s.refSvc are nil and
+createPreparedCoinInTx's own nil-guard prevents any reference write
+regardless of what ConvertCandidate does. Wrote a new test,
+TestConvertCandidate_ReferenceSupportEnabled_StillPersistsZeroReferences,
+that wires real reference support (mirroring main.go's production wiring)
+into the CoinService used by the alert service, so persistence is
+genuinely reachable. First version of that new test used a bare :memory:
+SQLite DSN with SetMaxOpenConns(1) (copying an existing helper's pattern),
+and with the FR-049 guard removed it deadlocked instead of failing cleanly:
+CoinReferenceService.NormalizeAndValidateOne calls
+CatalogRegistryRepository.FindByCatalog using the *base* (non-tx-scoped)
+connection pool while createPreparedCoinInTx's transaction already holds
+the single permitted connection — a real, pre-existing gap in
+CoinReferenceService (its egistryRepo is never WithTx'd), invisible
+before this change because wishlist coins never reached NormalizeAndValidate.
+This is NOT a production regression: production's database.Connect() sets
+no SetMaxOpenConns limit, and the existing SQLite DSN concurrency guard
+(_txlock=immediate + usy_timeout(5000), see the DSN Drift Guard entry
+above) is exactly the mitigation for a second connection reading while a
+write transaction holds the first. It is a test-harness footgun: any test
+combining a bare :memory: DSN + SetMaxOpenConns(1) with a CoinService
+that has reference support wired in will deadlock the instant a reference
+write is reachable in that path. Rewrote the new test's DB setup to the
+established ile:...?mode=memory&cache=shared pattern (matching
+coin_service_test.go's setupTestDB, which allows multiple connections
+against the same in-memory DB) instead of :memory: + SetMaxOpenConns(1).
+Reran: GREEN with the guard present, then falsified the guard a third time
+and got a clean, fast RED (FR-049 guard failed: expected 0 references
+despite reference support being enabled, got 1), restored the guard, GREEN
+again. Full gate (build, vet, go test -count=1 ./... 10/10 packages,
+TestArchitecture, TestNoDirectDatabaseImports) all green. Left
+uncommitted per task instructions.
+
+**Lesson for future test authors:** if a services package test needs a
+CoinService with WithReferenceSupport wired in AND must run inside a
+transaction that also does a non-tx-scoped registry lookup (any
+CoinReferenceService.NormalizeAndValidate* call), never combine bare
+:memory: with SetMaxOpenConns(1) — use ile:<name>?mode=memory&cache=shared
+instead so a second connection can actually be granted. A regression test
+that "passes" only because a dependency was left nil elsewhere in its own
+fixture is not a real proof; wire the dependency in before trusting the
+green.

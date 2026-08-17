@@ -435,7 +435,16 @@ func TestUpdateCoin_NormalizesAndReplacesReferences(t *testing.T) {
 	}
 }
 
-func TestCreateCoin_DropsReferencesForWishlist(t *testing.T) {
+// TestCreateCoin_PersistsReferencesForWishlist asserts the rule established by
+// ADR 0013 (docs/adr/0013-wishlist-coins-may-hold-catalog-references.md):
+// wishlist coins are no longer stripped of their References relation.
+// IsWishlist records acquisition intent only; it no longer participates in
+// reference handling. The incoming reference carries an occupied primary key
+// (copied from an unrelated existing coin's reference row) to prove that the
+// normal NormalizeAndValidate ID-zeroing path (not a wishlist-specific
+// bypass) is what makes this safe — the same defence that always protected
+// collection-coin creates.
+func TestCreateCoin_PersistsReferencesForWishlist(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinServiceWithReferences(db)
 	if err := db.Create(&models.CatalogRegistry{
@@ -469,25 +478,46 @@ func TestCreateCoin_DropsReferencesForWishlist(t *testing.T) {
 		t.Fatalf("CreateCoin wishlist with references failed: %v", err)
 	}
 
-	if len(wishlist.References) != 0 {
-		t.Fatalf("expected wishlist response to omit references, got %#v", wishlist.References)
+	if len(wishlist.References) != 1 {
+		t.Fatalf("expected wishlist response to carry one normalized reference, got %#v", wishlist.References)
 	}
+	if wishlist.References[0].ID == existingRef.ID {
+		t.Fatalf("expected incoming reference ID to be zeroed and reassigned, got reused ID %d", wishlist.References[0].ID)
+	}
+	if wishlist.References[0].Catalog != "RSC" || wishlist.References[0].Number != "234" {
+		t.Fatalf("expected normalized RSC 234, got %#v", wishlist.References[0])
+	}
+
 	var refCount int64
 	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", wishlist.ID).Count(&refCount).Error; err != nil {
 		t.Fatalf("failed to count wishlist references: %v", err)
 	}
-	if refCount != 0 {
-		t.Fatalf("expected wishlist coin to persist zero references, got %d", refCount)
+	if refCount != 1 {
+		t.Fatalf("expected wishlist coin to persist one reference, got %d", refCount)
+	}
+
+	// The pre-existing coin's reference must be untouched — the ID collision
+	// must not have mutated or reparented it.
+	var unchanged models.CoinReference
+	if err := db.First(&unchanged, existingRef.ID).Error; err != nil {
+		t.Fatalf("existing reference missing after wishlist create: %v", err)
+	}
+	if unchanged.CoinID != existing.ID {
+		t.Errorf("existing reference CoinID mutated to %d, want %d", unchanged.CoinID, existing.ID)
 	}
 }
 
-// TestCreateCoin_WishlistInvariant_AgentStylePayload proves the wishlist
-// invariant on the realistic agent path: when CreateCoin receives a wishlist
-// coin payload whose References slice carries non-zero IDs (as the agent sends
-// from source/database data), the resulting DB row must have zero references.
-// This test bypasses ConvertCandidate and calls CreateCoin directly to isolate
-// the service-layer guard in createPreparedCoinInTx.
-func TestCreateCoin_WishlistInvariant_AgentStylePayload(t *testing.T) {
+// TestCreateCoin_WishlistAgentStylePayload_PersistsNormalizedReferences proves
+// the ADR 0013 rule on the realistic agent path: when CreateCoin receives a
+// wishlist coin payload whose References slice carries non-zero IDs (as an
+// agent might send from source/database data), the resulting DB row persists
+// exactly those references, normalized with fresh IDs — the same outcome a
+// collection coin would get. This test bypasses ConvertCandidate and calls
+// CreateCoin directly to isolate the service-layer path in
+// createPreparedCoinInTx now that the wishlist-specific guard is gone
+// (see ADR 0013; FR-049 covers the ConvertCandidate untrusted-source boundary
+// separately, in wishlist_search_alert_service_test.go).
+func TestCreateCoin_WishlistAgentStylePayload_PersistsNormalizedReferences(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinServiceWithReferences(db)
 	if err := db.Create(&models.CatalogRegistry{
@@ -529,16 +559,19 @@ func TestCreateCoin_WishlistInvariant_AgentStylePayload(t *testing.T) {
 		t.Error("result coin must be a wishlist coin")
 	}
 
-	// The invariant: no references may be persisted for a wishlist coin.
+	// ADR 0013: wishlist coins persist normalized references exactly like
+	// collection coins do — no invariant strips them.
 	var refCount int64
 	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", wishlist.ID).Count(&refCount).Error; err != nil {
 		t.Fatalf("count wishlist refs: %v", err)
 	}
-	if refCount != 0 {
-		t.Errorf("wishlist invariant violated: expected 0 persisted references, got %d", refCount)
+	if refCount != 1 {
+		t.Errorf("expected 1 persisted reference for wishlist coin, got %d", refCount)
 	}
 
-	// The source reference must remain untouched.
+	// The source reference must remain untouched — the ID collision must not
+	// have mutated or reparented it (this is what layers 1-3 of the original
+	// crash defence still guarantee; see ADR 0013 Context).
 	var unchanged models.CoinReference
 	if err := db.First(&unchanged, sourceRef.ID).Error; err != nil {
 		t.Fatalf("source reference missing after wishlist create: %v", err)

@@ -2,8 +2,10 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -543,11 +545,16 @@ func TestWishlistSearchAlertService_ValidationAndNoAvailabilitySideEffects(t *te
 }
 
 // TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict proves the
-// wishlist invariant on the exact agent conversion path:
+// FR-049 / ADR 0013 untrusted-source guard on the exact agent conversion path:
 //   - ConvertCandidateInput.Coin carries References with non-zero IDs from
 //     existing rows (as the agent might send from source/database data).
 //   - Conversion must succeed with HTTP 201.
-//   - The converted wishlist coin must have ZERO persisted reference rows.
+//   - The converted wishlist coin must have ZERO persisted reference rows —
+//     not because wishlist coins discard references (ADR 0013 removed that
+//     rule), but because ConvertCandidateInput.Coin is a whole models.Coin
+//     bound straight off the request body, sourced from unconfirmed AI
+//     search-agent output with no confirm gate, so ConvertCandidate clears
+//     References at its own boundary regardless of IsWishlist.
 //   - The original reference row must remain untouched.
 func TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict(t *testing.T) {
 	svc, db := setupWishlistSearchAlertService(t)
@@ -612,7 +619,8 @@ func TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict(t *testing.
 		t.Error("converted coin should be a wishlist coin")
 	}
 
-	// Wishlist coins discard references — no coin_references rows should exist
+	// FR-049 / ADR 0013: ConvertCandidate clears input.Coin.References at its
+	// own untrusted-source boundary — no coin_references rows should exist
 	// for the newly created coin.
 	var refCount int64
 	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", result.Coin.ID).Count(&refCount).Error; err != nil {
@@ -630,5 +638,103 @@ func TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict(t *testing.
 	}
 	if unchanged.CoinID != existingCoin.ID {
 		t.Errorf("existing reference CoinID mutated to %d, want %d", unchanged.CoinID, existingCoin.ID)
+	}
+}
+
+// TestConvertCandidate_ReferenceSupportEnabled_StillPersistsZeroReferences is
+// a stronger proof of the FR-049 guard than
+// TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict above.
+// setupWishlistSearchAlertService wires a CoinService with no reference
+// support at all (WithReferenceSupport is never called there), so that older
+// test would pass for a hollow reason: references never persist for ANY coin
+// on that coinSvc, wishlist or not, because s.refRepo/s.refSvc are nil and
+// createPreparedCoinInTx's `s.refRepo != nil && s.refSvc != nil` guard short-
+// circuits regardless of ConvertCandidate.
+//
+// This test wires a CoinService WITH reference support (as main.go does in
+// production, main.go:304,306) so that persisting references is genuinely
+// possible, then proves ConvertCandidate still persists zero references for
+// the candidate's References payload — because ConvertCandidate itself clears
+// input.Coin.References before calling into CoinService, not because the
+// downstream write path is disabled.
+func TestConvertCandidate_ReferenceSupportEnabled_StillPersistsZeroReferences(t *testing.T) {
+	dbName := fmt.Sprintf("file:wishlist_alert_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), atomic.AddUint64(&testDBCounter, 1))
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.ValueSnapshot{}, &models.AppSetting{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:     "RIC",
+		DisplayName: "Roman Imperial Coinage",
+		Era:         models.EraAncient,
+	}).Error; err != nil {
+		t.Fatalf("seed catalog: %v", err)
+	}
+
+	coinRepo := repository.NewCoinRepository(db)
+	catalogRepo := repository.NewCatalogRegistryRepository(db)
+	refRepo := repository.NewCoinReferenceRepository(db)
+	refSvc := NewCoinReferenceService(refRepo, catalogRepo)
+	coinSvc := NewCoinService(coinRepo, nil).
+		WithStorageLocationSupport(repository.NewStorageLocationRepository(db)).
+		WithReferenceSupport(refRepo, refSvc)
+	svc := NewWishlistSearchAlertService(repository.NewWishlistSearchAlertRepository(db)).
+		WithCoinCreation(coinSvc)
+
+	alert, err := svc.CreateAlert(1, validAlertInput())
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	run := &models.AlertRun{
+		AlertID: alert.ID, UserID: 1,
+		TriggerType: models.AlertRunTriggerManual, Status: models.AlertRunStatusCompleted,
+		StartedAt: alert.CreatedAt, CriteriaSnapshot: "{}",
+	}
+	if err := db.Create(run).Error; err != nil {
+		t.Fatalf("seed run: %v", err)
+	}
+	candidate := &models.AlertCandidate{
+		UserID: 1, AlertID: alert.ID, RunID: run.ID,
+		SourceURL:          "https://dealer.example/ref-support-enabled",
+		CanonicalSourceURL: "https://dealer.example/ref-support-enabled",
+		Title:              "Domitian Denarius RIC 1", NormalizedTitle: "domitian denarius ric 1",
+		ReasonForMatch: "regression test", LastSeenAt: alert.CreatedAt, FirstSeenAt: alert.CreatedAt,
+		ProvenanceStatus: models.CandidateProvenanceVerified, LifecycleState: models.AlertCandidateStateActive,
+		DuplicateKey: DuplicateKey(alert.ID, "https://dealer.example/ref-support-enabled", "domitian denarius ric 1", nil, "USD"),
+	}
+	if err := db.Create(candidate).Error; err != nil {
+		t.Fatalf("seed candidate: %v", err)
+	}
+
+	// AI search-agent style payload: a valid, normalizable reference that
+	// WOULD persist if ConvertCandidate did not clear it at its own boundary.
+	input := ConvertCandidateInput{
+		Coin: models.Coin{
+			Name:     "Domitian Denarius RIC 1",
+			Category: models.CategoryRoman,
+			Era:      models.EraAncient,
+			References: []models.CoinReference{
+				{Catalog: "RIC", Number: "1"},
+			},
+		},
+	}
+
+	result, err := svc.ConvertCandidate(alert.ID, candidate.ID, 1, input)
+	if err != nil {
+		t.Fatalf("ConvertCandidate failed: %v", err)
+	}
+	if !result.Coin.IsWishlist {
+		t.Error("converted coin should be a wishlist coin")
+	}
+
+	var refCount int64
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", result.Coin.ID).Count(&refCount).Error; err != nil {
+		t.Fatalf("count converted coin references: %v", err)
+	}
+	if refCount != 0 {
+		t.Errorf("FR-049 guard failed: expected 0 references despite reference support being enabled, got %d", refCount)
 	}
 }

@@ -1,7 +1,7 @@
 # ADR 0013: Wishlist Coins May Hold Catalog References
 
 Date: 2026-08-17
-Status: Proposed
+Status: Accepted
 
 Amends: Feature 351 spec (`specs/351-vision-first-deep-identification/spec.md`
 lines 843-852) and `specs/351-vision-first-deep-identification/tasks.md:277`,
