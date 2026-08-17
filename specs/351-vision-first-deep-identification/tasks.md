@@ -213,18 +213,35 @@ is now visible. 344 FR-027 is real for the first time.
 narrative on `contributing`, and `synthesize()` does not even accept the image
 analysis as a parameter; `_build_proposed_fields()` reads only provider claims.
 
-- [ ] T056 [FR-019] Change the `synthesize(...)` signature in `src/agent/app/teams/deep_identification/synthesis.py` to accept the hypothesis, and thread it from `synthesizer_node` **and** from the total-timeout partial-synthesis fallback path in `src/agent/app/teams/deep_identification/graph.py` (both call sites — the timeout path must not silently keep the old behavior)
-- [ ] T057 [B2, FR-007] **Close the B2 defect class.** Add the SC-004 test asserting that the hypothesis is received by **all four** consumers — router, query-term builder, evaluator, synthesis — so a future write-only state field fails CI rather than review (Principle IX). File: `src/agent/tests/test_deep_identification_hypothesis.py`
-- [ ] T058 [FR-019] Rewrite `NARRATIVE_PROMPT` and its input assembly in `src/agent/app/teams/deep_identification/synthesis.py` to narrate "what the images support / what each provider confirmed, refined, or contradicted / what remains open", using `CoinHypothesis.observations` plus the typed fields
-- [ ] T059 [FR-020] Change the fallback gate at `src/agent/app/teams/deep_identification/synthesis.py:107-110`: `FALLBACK_NARRATIVE_NO_EVIDENCE` is reachable **only** when the hypothesis is empty **and** no provider contributed. Absence of provider contributions alone MUST NOT trigger it
-- [ ] T060 [FR-021] Rewrite `_build_proposed_fields` in `src/agent/app/teams/deep_identification/synthesis.py` to merge hypothesis fields with provider claims; an image-only field is proposed at its hypothesis confidence with `evidence_refs: [{"provider": "image"}]`
-- [ ] T061 [FR-022] Implement the corroboration confidence upgrade in `_build_proposed_fields`, **specified** (RD-2): `min(1.0, max(image_conf, provider_conf) + 0.10)` on exact normalized match, applied **once per field, no stacking** across multiple corroborating providers; both refs attached; provider citation carried; never LLM-adjusted; never > 1.0. Add an explicit **no-stacking test**: three providers corroborating the same field yield the same confidence as one
+> **2026-08-17 (Cassius)**: T056/T058/T059/T060/T061/T063/T065/T066/T067 landed
+> ahead of Phases 3-7 to fix the Maximinus no-evidence-fallback defect
+> (`.squad/decisions/inbox/cassius-hypothesis-seam.md`). The `hypothesis` state
+> key is populated in `prepare_evidence_node` by a **deterministic, LLM-free
+> adapter over `quick_evidence`**
+> (`app/teams/deep_identification/hypothesis.py`), not by a real vision call —
+> Phase 3/4 will replace only that adapter's body with the actual
+> single-vision-LLM-call output; every consumer (synthesis today) is wired
+> against the same `hypothesis` state key and needs no further change for that
+> swap. T057 (wiring the hypothesis into the router/query-term-builder/
+> evaluator — all four SC-004 consumers) is explicitly **deferred** to
+> Phases 3-7, which is where those consumers are (re)built; T062/T064 describe
+> pre-existing behavior that remains structurally unchanged (contradicted
+> fields already skip `proposed_fields`; provider-only fields already pass
+> `validate_citations`) but were not independently re-verified with new tests
+> in this pass.
+
+- [x] T056 [FR-019] Change the `synthesize(...)` signature in `src/agent/app/teams/deep_identification/synthesis.py` to accept the hypothesis, and thread it from `synthesizer_node` **and** from the total-timeout partial-synthesis fallback path in `src/agent/app/teams/deep_identification/graph.py` (both call sites — the timeout path must not silently keep the old behavior)
+- [ ] T057 [B2, FR-007] **Close the B2 defect class.** Add the SC-004 test asserting that the hypothesis is received by **all four** consumers — router, query-term builder, evaluator, synthesis — so a future write-only state field fails CI rather than review (Principle IX). File: `src/agent/tests/test_deep_identification_hypothesis.py`. **Deferred**: only the synthesis consumer is wired today; router/query-term-builder/evaluator wiring lands with Phases 3-7.
+- [x] T058 [FR-019] Rewrite `NARRATIVE_PROMPT` and its input assembly in `src/agent/app/teams/deep_identification/synthesis.py` to narrate "what the images support / what each provider confirmed, refined, or contradicted / what remains open", using `CoinHypothesis.observations` plus the typed fields
+- [x] T059 [FR-020] Change the fallback gate at `src/agent/app/teams/deep_identification/synthesis.py:107-110`: `FALLBACK_NARRATIVE_NO_EVIDENCE` is reachable **only** when the hypothesis is empty **and** no provider contributed. Absence of provider contributions alone MUST NOT trigger it
+- [x] T060 [FR-021] Rewrite `_build_proposed_fields` in `src/agent/app/teams/deep_identification/synthesis.py` to merge hypothesis fields with provider claims; an image-only field is proposed at its hypothesis confidence with `evidence_refs: [{"provider": "image"}]`
+- [x] T061 [FR-022] Implement the corroboration confidence upgrade in `_build_proposed_fields`, **specified** (RD-2): `min(1.0, max(image_conf, provider_conf) + 0.10)` on exact normalized match, applied **once per field, no stacking** across multiple corroborating providers; both refs attached; provider citation carried; never LLM-adjusted; never > 1.0. Add an explicit **no-stacking test**: three providers corroborating the same field yield the same confidence as one
 - [ ] T062 [FR-023, FR-024] Preserve today's behavior for provider-only fields (value + citation) and assert every proposed field has ≥1 source ref, with provider refs still passing the per-provider citation-host allowlist (`src/agent/app/teams/deep_identification/merge.py::validate_citations`)
-- [ ] T063 [FR-025] Assert `image` never enters `_build_coverage` or `_build_attributions` in `src/agent/app/teams/deep_identification/synthesis.py`; `ProviderCoverageEntry.provider` and `ProviderAttribution.provider` remain the `ProviderName` literal union
+- [x] T063 [FR-025] Assert `image` never enters `_build_coverage` or `_build_attributions` in `src/agent/app/teams/deep_identification/synthesis.py`; `ProviderCoverageEntry.provider` and `ProviderAttribution.provider` remain the `ProviderName` literal union
 - [ ] T064 [FR-017] Keep contradicted fields **out** of `proposed_fields` (existing disagreement-field skip) while surfacing them in `disagreements` and `unresolved_questions`
-- [ ] T065 [P] [FR-020] Test: provider-empty + hypothesis-present run does **not** emit `FALLBACK_NARRATIVE_NO_EVIDENCE`; hypothesis-empty + provider-empty run **does** (`src/agent/tests/test_deep_identification_synthesis.py`)
-- [ ] T066 [P] [FR-021, FR-022] Tests: image-only field carries the image ref at hypothesis confidence; corroborated field carries both refs, the citation, and the bounded upgrade (`src/agent/tests/test_deep_identification_synthesis.py`)
-- [ ] T067 [P] [FR-025] Test: `image` absent from coverage and attributions in every fixture (`src/agent/tests/test_deep_identification_synthesis.py`)
+- [x] T065 [P] [FR-020] Test: provider-empty + hypothesis-present run does **not** emit `FALLBACK_NARRATIVE_NO_EVIDENCE`; hypothesis-empty + provider-empty run **does** (`src/agent/tests/test_deep_identification_synthesis.py`)
+- [x] T066 [P] [FR-021, FR-022] Tests: image-only field carries the image ref at hypothesis confidence; corroborated field carries both refs, the citation, and the bounded upgrade (`src/agent/tests/test_deep_identification_synthesis.py`)
+- [x] T067 [P] [FR-025] Test: `image` absent from coverage and attributions in every fixture (`src/agent/tests/test_deep_identification_synthesis.py`)
 
 **Checkpoint**: The pipeline narrates from vision and providers, and produces
 draft fields without a provider match.
