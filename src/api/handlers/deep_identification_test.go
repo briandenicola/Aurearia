@@ -564,3 +564,83 @@ func TestDeepIdentificationHandler_CancelVsCompleteReturnsSettledState(t *testin
 		t.Fatalf("expected settled state 'completed' reported, got %s", cancelEnv.Job.Status)
 	}
 }
+
+// seedDeepHandlerIntakeJobWithProposal seeds a completed intake job (no
+// source coin) with an already-accepted denomination+workingTitle proposal,
+// ready to POST .../apply against, for T072/T073 handler-level tests.
+func seedDeepHandlerIntakeJobWithProposal(t *testing.T, db *gorm.DB, userID uint) uint {
+	t.Helper()
+	proposal := `{"schemaVersion":1,"fields":{
+		"denomination":{"proposed":"Denarius","confidence":0.8,"ownerEdited":false,"ownerValue":null,"accepted":true},
+		"workingTitle":{"proposed":"Trajan Denarius","confidence":0.8,"ownerEdited":false,"ownerValue":null,"accepted":null}
+	}}`
+	job := &models.DeepIdentificationJob{
+		UserID:           userID,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: fmt.Sprintf("fp-handler-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&deepHandlerTestDBCounter, 1)),
+		ExpiresAt:        time.Now().Add(90 * 24 * time.Hour),
+		ReportJSON:       `{"schemaVersion":1,"narrative":"n","coverage":[]}`,
+		ProposalJSON:     proposal,
+	}
+	if err := db.Create(job).Error; err != nil {
+		t.Fatalf("seed intake job: %v", err)
+	}
+	return job.ID
+}
+
+// T072/T073: POST .../apply with target=wishlist plumbs through to
+// DeepIdentificationProposalService.Apply and creates a wishlist coin.
+func TestDeepIdentificationHandler_ApplyProposal_WishlistTargetCreatesCoin(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	jobID := seedDeepHandlerIntakeJobWithProposal(t, deps.db, 1)
+
+	reqBody, _ := json.Marshal(map[string]any{"target": "wishlist"})
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", jobID), bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for wishlist apply, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp deepApplyResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal apply response: %v", err)
+	}
+	if resp.CoinID == nil {
+		t.Fatal("expected coinId in wishlist apply response")
+	}
+	var coin models.Coin
+	if err := deps.db.First(&coin, *resp.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !coin.IsWishlist {
+		t.Fatal("expected the created coin to have IsWishlist=true")
+	}
+	if coin.Name != "Trajan Denarius" {
+		t.Fatalf("expected derived name from workingTitle, got %q", coin.Name)
+	}
+}
+
+// T073: unknown apply targets are rejected exactly as today, through the
+// closed switch (binding:"oneof" plus normalizeDeepApplyTarget).
+func TestDeepIdentificationHandler_ApplyProposal_UnknownTargetReturns400(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	jobID := seedDeepHandlerIntakeJobWithProposal(t, deps.db, 1)
+
+	reqBody, _ := json.Marshal(map[string]any{"target": "not-a-real-target"})
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", jobID), bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown apply target, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var coinCount int64
+	deps.db.Model(&models.Coin{}).Count(&coinCount)
+	if coinCount != 0 {
+		t.Fatal("expected no coin created for a rejected unknown target")
+	}
+}

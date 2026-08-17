@@ -250,8 +250,11 @@ func selectDeepAppliedFieldNames(doc *deepProposalDocument, fieldsFilter []strin
 // (T111, FR-031/FR-033): "draft" seeds a new QuickCaptureDraft via
 // QuickCaptureService (existing promote flow finishes the job); "coin"
 // patches the saved coin via CoinService.UpdateCoinWithFields with journal
-// source "deep_identification". No direct coin/draft write exists in this
-// function or anywhere else in the deep-identification package.
+// source "deep_identification"; "wishlist" (T072, FR-027) creates a new
+// models.Coin with IsWishlist=true via CoinService.CreateCoin, populated
+// through the same deepProposalCoinFieldAllowlist as "coin". No direct
+// coin/draft write exists in this function or anywhere else in the
+// deep-identification package.
 func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target string, fieldsFilter []string) (*DeepApplyResult, error) {
 	job, doc, err := s.loadTerminalJobWithProposal(jobID, userID)
 	if err != nil {
@@ -261,7 +264,7 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 		return nil, ErrDeepProposalNotReady
 	}
 	switch target {
-	case "draft":
+	case "draft", "wishlist":
 		if job.Source != models.DeepJobSourceIntake {
 			return nil, ErrDeepProposalTargetMismatch
 		}
@@ -291,6 +294,12 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 		draftID = &id
 	case "coin":
 		id, err := s.applyToCoin(job, userID, doc, fieldNames)
+		if err != nil {
+			return nil, err
+		}
+		coinID = &id
+	case "wishlist":
+		id, err := s.applyToWishlist(userID, doc, fieldNames)
 		if err != nil {
 			return nil, err
 		}
@@ -342,6 +351,57 @@ func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentifi
 		return 0, err
 	}
 	return existing.ID, nil
+}
+
+// deepProposalWishlistFallbackName is used as the new coin's Name (models.Coin.Name
+// is `gorm:"not null"`) when the hypothesis yielded neither a ruler nor a
+// denomination to build a workingTitle from (T119). It states plainly that
+// identification is unresolved rather than inventing a name the evidence does
+// not support.
+const deepProposalWishlistFallbackName = "Unidentified Coin (Deep Analysis)"
+
+// deepWishlistCoinName derives the required Name for a wishlist coin created
+// from an intake job's proposal (T119). It deliberately reuses the
+// "workingTitle" entry that buildDeepIntakeProposalFields already computed
+// from the hypothesis's ruler + denomination (contracts/deep-identification,
+// mirrors buildDeepIntakeProposalFields in deep_identification_pipeline_runner.go)
+// rather than re-deriving a title from scratch, so there is exactly one
+// ruler+denomination naming rule in the codebase. workingTitle is not itself
+// a writable coin field (it's only in deepProposalDraftFieldAllowlist), so it
+// is read directly off the document here instead of going through
+// deepProposalCoinFieldAllowlist.
+func deepWishlistCoinName(doc *deepProposalDocument) string {
+	if entry, ok := doc.Fields["workingTitle"]; ok {
+		if name := deepProposalValueToString(resolveDeepProposalFieldValue(entry)); name != "" {
+			return name
+		}
+	}
+	return deepProposalWishlistFallbackName
+}
+
+// applyToWishlist implements the "wishlist" apply target (T072, FR-027):
+// create a new owner-scoped models.Coin with IsWishlist=true through
+// CoinService.CreateCoin, populated only through the existing, unwidened
+// deepProposalCoinFieldAllowlist - the identical field surface "coin"
+// already uses. isWishlist is never read from proposed_fields (FR-028); it
+// is set directly here from the caller's chosen destination.
+func (s *DeepIdentificationProposalService) applyToWishlist(userID uint, doc *deepProposalDocument, fieldNames []string) (uint, error) {
+	coin := &models.Coin{UserID: userID, IsWishlist: true}
+	for _, name := range fieldNames {
+		goField, ok := deepProposalCoinFieldAllowlist[name]
+		if !ok {
+			return 0, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+		}
+		value := resolveDeepProposalFieldValue(doc.Fields[name])
+		if err := setCoinFieldFromProposalValue(coin, goField, value); err != nil {
+			return 0, err
+		}
+	}
+	coin.Name = deepWishlistCoinName(doc)
+	if err := s.coinSvc.CreateCoin(coin); err != nil {
+		return 0, err
+	}
+	return coin.ID, nil
 }
 
 func (s *DeepIdentificationProposalService) applyToDraft(job *models.DeepIdentificationJob, doc *deepProposalDocument, fieldNames []string) (uint, error) {
