@@ -797,3 +797,29 @@ ormalizeCatalogAlias("NGC") still empty, both intake+saved-coin), top-ranked-onl
 **Verification:** go vet ./services/... and go vet ./... clean; targeted new/updated tests 100% pass (one flaky unrelated pre-existing UNIQUE-constraint collision on a full-package re-run self-resolved on retry, consistent with a previously-documented clock-resolution flake, not caused by this review); go test -count=1 ./... - all 10 packages pass including rchitecture_test.go and integration.
 
 **Verdict: BLOCK.** Strict Lockout applies (constitution SS18.2) - Cassius authored Phase 4 and cannot self-fix the saved-coin empty-proposed-fields defect; recommend reassignment (Maximus or another backend agent) to reorder/restructure the saved-coin branch so uildDeepCatalogReferenceField's result is computed and checked before (or independently of) the len(report.ProposedFields) == 0 early return, then re-review. All test coverage above should remain valid after that fix, aside from flipping the one characterization test's assertion.
+
+## 2026-08-17 — Feature 353 specification design review BLOCK
+
+Reviewed Maximus's initial Feature 353 artifacts (spec.md, plan.md, tasks.md). Three critical design findings:
+
+1. **Cycle retention ambiguity:** Spec FR-019 states "20 terminal completed cycles" globally, but plan D4 and contextual language elsewhere imply "20 per run type" — two different scale assumptions with different database fill implications. Spec does not settle which is the intended constraint.
+
+2. **Per-coin alert removal without justification:** Spec FR-014 proposes suppressing/removing the existing `NotifyWishlistUnavailable` per-coin notification in favor of run-level `wishlist_availability_run` (Task T029). This is a breaking change for users. Spec provides no impact analysis or clear justification for removal.
+
+3. **Synthetic legacy migration without ADR:** Spec FR-021 proposes fabricating parent `AvailabilityCycle` rows for every legacy `UserID=0` run, reparenting them, and optionally retagging `TriggerType` to `legacy_cycle`. This is a destructive/synthetic migration pattern. Per constitution Principle V (Security/Auth/Privacy by Default), Principle I (Clear Layering, no implicit state), and §17 Quality Gate, such patterns require an ADR and explicit approval. Spec does not propose one.
+
+**Verdict: BLOCK** — Strict Lockout (constitution §18.2). Maximus (originating author) reassigned from revision authority. Submitted for independent revision by another team member. Brutus awaiting independent revision.
+
+## 2026-08-17 — Feature 353 specification re-review (independent revision clearance)
+
+Re-reviewed Cassius's independent revision resolving all three BLOCK findings:
+
+1. **Cycle retention settled:** FR-019 and plan D4 both now target "20 terminal cycles globally (AvailabilityCycle) + 20 per-owner child runs (AvailabilityRun per user)". Dual-level retention. Aligned and clear. ✓
+
+2. **Per-coin alerts restored:** FR-014 rewritten from implicit suppression to explicit non-suppression rule. Both `NotifyWishlistUnavailable` per-coin and new `wishlist_availability_run` per-run notifications coexist and both fire on run completion. Added SC-009 + US3 AC #6 acceptance criterion requiring both. Tasks T027, T029 rewritten to match. ✓
+
+3. **Synthetic migration removed:** FR-021 replaced with additive-only schema change: new `AvailabilityCycle` table + nullable `AvailabilityRun.CycleID` FK via standard `AutoMigrate`. Zero backfill, zero reparenting, zero type retagging, zero ADR needed. New FR-021a requires "Legacy" UI label on `UserID=0` admin rows (UI-only, not a trigger type). Legacy rows remain unmodified post-migration, readable without synthesized parents. ✓
+
+Spec, plan, and tasks all aligned to Brian's settled decisions. No application code written or committed (specs-only session). Commit 54dc3f6.
+
+**Verdict: APPROVE** — Block clearance. Artifacts ready for implementation delegation.

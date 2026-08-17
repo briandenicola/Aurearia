@@ -15,6 +15,17 @@
 
 ## Recent Updates
 
+- **2026-08-17 — Feature 353 SpecKit artifacts authored (Wishlist Availability Run Observability):**
+  - Created `specs/353-wishlist-availability-run-observability/{spec,plan,tasks}.md` grounded in the existing `AvailabilityService` / `AvailabilityScheduler` / `AvailabilityRepository` / `handlers/availability.go` code and the `AdminAvailabilitySchedule.vue` frontend.
+  - **Design core:** new `AvailabilityCycle` table as admin/operational parent; `AvailabilityRun` gains nullable `CycleID`; per-user child runs own results and owner notifications; post-migration invariant `UserID > 0` for all children (eliminates the current `UserID=0` sentinel). Legacy `UserID=0` admin rows are non-destructively reparented into `legacy_cycle` parents; zero `AvailabilityResult` rows moved.
+  - **Notification matrix:** one in-app `wishlist_availability_run` per terminal child + Pushover best-effort (never affects run status). Zero-URL / no-change / failure all notify — no daily dedupe. Admin-triggered child failure also notifies the triggering admin with owner username + cycleId only. Per-coin `wishlist_unavailable` suppressed inside a run-outcome flow to avoid double-notify.
+  - **Retention:** 20 terminal children per owner + 20 terminal cycles global; cycle prune nulls surviving `cycle_id` before deleting; queued/running never pruned.
+  - **Aggregation:** parent status derived deterministically from child transitions inside `CompleteChildRun`'s transaction (no separate timer).
+  - **Duplicate protection:** cycle-level `EnqueueCycle` mirrors existing `EnqueueManualRun` 5-minute window; returns 409.
+  - **Non-goals explicit:** no Python agent contract change, no `CheckURL` logic change, no wishlist search-alert touch, no admin schedule setting changes.
+  - Tasks total: 51 across 10 phases with tests-before-implementation per §17 and explicit `[P]` markers only where files don't conflict; each requirement traced by FR/SC/US ID.
+  - No new material design decisions beyond what Brian settled — no inbox entry written.
+
 - **2026-07-26 — Sets Refinement: Contract Enforcement & Revalidation (sets-refinement merged to beta):**
   - Discovered strict payload contract mismatch during integration: frontend emitted `trackerCreationMode` while backend read `creationMode`, causing silent tracker creation failures
   - Issued Strict Lockout per Constitution §18.2 with clear blocking issue statement and required follow-up owner
@@ -28,10 +39,15 @@
 - **2026-05-31:** Re-reviewed #216 token remediation and approved: all originally flagged hardcoded colors moved to tokens except explicitly accepted contrast-safe black/white uses.
 - **2026-06-01:** Storage Location design investigation completed. Recommended per-user `StorageLocation` lookup table with nullable `Coin.StorageLocationID`, single-select semantics, settings-style management, rename updates shared lookup row, duplicates rejected case-insensitively per user, and delete-while-in-use blocked by default pending Brian's final decision.
 
-- **2026-06-01:** SQLite nullable-FK convention: for new nullable `Coin` lookup associations added after launch, keep the scalar `*_id` and preload association but use `constraint:-` to avoid destructive SQLite table rebuilds; enforce validity in service/repository code unless an explicit safe rebuild migration exists.
-- **2026-06-01:** "Assign Location" bulk action feature — Cassius backend + Aurelia frontend parallel implementation; extends bulk endpoint with assign-location case, DI wiring, and frontend modal/button integration; validates ownership and handles nil-safe NULL updates correctly.
-
-- **2026-06-07:** Coin Lookup Feature Architecture Scope + Decision
+- **2026-08-17 — Feature 353 Specification & Strict Lockout Resolution (Feature 353 wishlist availability observability):**
+  - Authored initial `specs/353-wishlist-availability-run-observability/{spec,plan,tasks}.md` grounded in existing `AvailabilityService`/scheduler architecture.
+  - Initial design proposed synthetic legacy-cycle backfill, per-coin alert removal, and dual retention counts.
+  - **Strict Lockout BLOCK issued by Brutus (constitution §18.2):** Three critical findings: ambiguous cycle retention (20 global vs. per-type), removal of per-coin alerts without justification, synthetic legacy migration (destructive pattern, no ADR, violates Principle V).
+  - Reassigned to Cassius for independent revision under strict lockout.
+  - All three BLOCK findings resolved by Cassius's revision; Brutus approved block clearance.
+  - Artifacts committed at 54dc3f6 as specs-only session (no application code).
+  - Orchestration log: `.squad/orchestration-log/2026-08-17T224852-maximus-feature353.md`
+  - Session log: `.squad/log/2026-08-17T224852-0500-feature353-breakdown.md`
   - **MVP Scope:** Numista-only (NGC deferred to post-MVP; no public API available). Stateless Python agent + Go proxy pattern. 1-2 photos (obverse/reverse preferred) → camera capture → AI analysis + Numista search → results display + quick actions (Add to Wishlist/Collection).
   - **Infrastructure Reuse:** 90%+ exists: AI Intake Draft (#216), Numista proxy, image analysis, agent proxy, catalog references. Recommended: extend intake draft with Go-only Numista enrichment service (low effort, 2-3 days).
   - **Open Decisions (Resolved for MVP):** NGC integration deferred; lookup history deferred (ephemeral); offline behavior fails gracefully (network required); spec-first workflow YES (create `specs/221-coin-lookup/`).

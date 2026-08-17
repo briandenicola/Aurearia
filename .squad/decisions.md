@@ -4217,3 +4217,265 @@ normalizeCatalogAlias.
 3. The notes append truncating or overwriting hand-written owner text.
 4. The draft migration breaking one of 34 consumers.
 5. An array Proposed value being stringified into a scalar column.
+
+---
+
+### Decision: Feature 353 — Wishlist Availability Run Observability (Specification & Clarifications)
+
+**Date:** 2026-08-17  
+**Author:** Brian DeNicola (Product Owner) via Copilot directive  
+**Feature:** specs/353-wishlist-availability-run-observability/  
+**Status:** Clarifications settled; revision ready for implementation
+
+## User Decisions
+
+Three blocking concerns from Feature 353 initial design review were settled by Brian:
+
+1. **Cycle retention (settled):** Parent `AvailabilityCycle` retains last 20 **globally** (terminal, completed status). Child `AvailabilityRun` (per owner) retains last 20 **per owner**. Dual-level retention prevents unbounded growth while maintaining per-user observability.
+
+2. **Per-coin unavailable alerts (settled):** Keep existing `NotifyWishlistUnavailable` per-coin notifications unchanged. New `wishlist_availability_run` per-run notification is an **addition**, not a replacement. Both coexist and fire on run completion — per-coin for each affected coin, per-run for the aggregate.
+
+3. **Legacy data handling (settled):** Additive-only schema migration: new `AvailabilityCycle` table + nullable `AvailabilityRun.CycleID` FK. Zero synthetic backfill, zero reparenting, zero `TriggerType` retagging, zero ADR needed. Legacy `UserID=0` rows remain unmodified in `run_history`, readable without synthesized parents, with "Legacy" UI label (FR-021a).
+
+## Alignment
+
+- Principle IV: Simple, complete, proportional (additive, not destructive)
+- Principle V: Security/Auth by Default (clear scoping of notifications)
+- §17 Quality Gate: Additive schema, no fabricated state, clear spec settlement
+
+---
+
+### Decision: Feature 353 — Block Resolution via Independent Revision
+
+**Date:** 2026-08-17T17:44:34-05:00  
+**Author:** Cassius (Backend Developer)  
+**Authorization:** Strict Lockout (Maximus reassigned)  
+**Feature:** specs/353-wishlist-availability-run-observability/  
+**Status:** Revision complete, approved
+
+## Scope
+
+Cassius independently revised Feature 353 spec/plan/tasks to resolve Brutus's three BLOCK findings:
+
+### Spec.md (FR-014, FR-019, FR-021/FR-021a)
+
+- **FR-014 rewritten:** Explicit non-suppression of per-coin alerts. `NotifyWishlistUnavailable` remains active; new `wishlist_availability_run` is additional, not replacement.
+- **FR-019 confirmed:** 20 terminal cycles globally + 20 per-owner child runs. No ambiguity.
+- **FR-021 replaced:** Additive-only schema change (new table + nullable FK). No backfill, no reparenting, no synthetic state.
+- **FR-021a added:** UI labels `UserID=0` admin rows as "Legacy" for visibility.
+- **Trigger vocabulary simplified:** Removed `legacy_cycle` and `legacy` types (not needed; "Legacy" is UI-only label).
+
+### Plan.md (Phases, D4, D6, Tasks T027/T029/T036–T038/T042)
+
+- **Phase 4:** Rewritten from synthetic migration to schema-additive test (verify table/column exist, verify legacy rows unmodified).
+- **D4/D6:** Confirmed dual-level retention and coexistent notifications.
+- **Tasks rewritten:** T027 (both notifications fire), T029 (per-coin alerts remain), T036–T038 (additive schema test, not data movement), T042 (add "Legacy" label).
+
+### Tasks.md (T001–T051 re-anchored)
+
+- All 51 tasks re-anchored to updated FR/SC/US IDs
+- No orphans remain
+- Scope discipline: specs-only, no application code
+
+## Outcome
+
+All three BLOCK findings resolved. Strict Lockout clearance approved by Brutus. Ready for implementation delegation.
+
+---
+
+### Decision: Feature 352 Phase 1 — Catalog Reference Parser Extraction
+
+**Date:** 2026-08-17  
+**Author:** Cassius (Backend Developer)  
+**Feature:** specs/352-deep-identification-structured-results/  
+**Phase:** 1 (Foundational)  
+**Status:** Implemented, tested, uncommitted
+
+## Scope
+
+- **New:** `src/api/services/catalog_reference_parser.go` with exported `ParseCatalogReferenceText()`, `ParsedCatalogReference{Catalog,Volume,Number,Confidence,NeedsVolume,RawText,Reason}`, and `CatalogParseReason` typed enum.
+- **Modified:** `src/api/services/reference_migration_service.go` — `parseLegacyReference` now delegates token/volume/number parsing to the new shared helper, reconstructs migration-specific journal messages.
+- **New:** `src/api/services/catalog_reference_parser_test.go` — confidence table (0.90 clean / 0.90 Roman-numeral / 0.50 inferred / 0.30 + NeedsVolume), never-emits-Volume-0 assertion, not-found branch coverage.
+- **Unchanged:** `reference_migration_service_test.go` (regression oracle, zero edits).
+
+## Design Decision Worth Recording
+
+`CatalogParseReason` enum (CatalogParseOK, CatalogParseEmpty, CatalogParseUnrecognizedCatalog, CatalogParseNotInRegistry, CatalogParseNoNumber) follows codebase convention (services.LogLevel) and prevents fragile future callers from re-inventing disambiguation tricks.
+
+## Verification
+
+- `reference_migration_service_test.go` unedited, all green before and after extraction.
+- Added `TestParseCatalogReferenceText_ReasonOKOnSuccess` and `Reason` assertions on not-found branches.
+- Falsified `CatalogParseNoNumber`, got real RED, restored, confirmed GREEN.
+- Full gate: `go build ./...`, `go vet ./...`, `go test -count=1 ./...` — 10/10 packages, TestArchitecture and TestNoDirectDatabaseImports both PASS.
+
+---
+
+### Decision: Feature 352 Phase 3 — Collection-Valued Proposal Write Surface
+
+**Date:** 2026-08-17  
+**Author:** Cassius (Backend Developer)  
+**Feature:** specs/352-deep-identification-structured-results/  
+**Phase:** 3 (Foundational)  
+**Status:** Implemented, uncommitted (test-file constructor wiring awaiting Brutus)
+
+## Scope
+
+- `src/api/services/deep_identification_proposal.go`:
+  - New closed `deepProposalCollectionFieldAllowlist` (exactly `catalogReferences`, FR-002/FR-003)
+  - New `deepProposalCatalogReference` DTO (FR-004) with `sourceProvider` vocabulary (closed: all `models.DeepProviderName` + "image")
+  - 10-element cap (FR-005)
+  - `decodeDeepProposalCatalogReferences` re-marshals proposal `any` value and re-decodes with `DisallowUnknownFields`, then validates each element through `CoinReferenceService.NormalizeAndValidateOne` (FR-045)
+  - `applyToCoin` dispatches through explicit switch over two allowlists; scalar names use existing `UpdateCoinWithFields`, `catalogReferences` uses new `CoinReferenceService.AppendForCoin` (additive, FR-013)
+  - `applyToDraft`/`applyToWishlist` left unchanged (scalar allowlists only; wishlist reference persistence is Phase 6b)
+  - `UpdateProposal` decodes/validates `catalogReferences` owner edit before persisting
+- `src/api/main.go`: Widened constructor to take 5th parameter `*CoinReferenceService` (reused existing instance)
+
+## Known Consequences
+
+Two test files have constructor call sites (`deep_identification_proposal_test.go:38`, `handlers/deep_identification_test.go:89`) that need the new 5th argument. Production code `go build ./...` is clean; `go vet ./...` fails only on these two test-file sites (Brutus's responsibility to wire).
+
+## Gap Found (Not Fixed, Out of Phase 3 Scope)
+
+`respondDeepProposalError` default branch maps non-sentinel errors to HTTP 500. A `catalogReferences` validation failure surfaces as plain `fmt.Errorf`, returning 500 instead of 400. Recommend either a new sentinel (`ErrDeepProposalInvalidCatalogReferences`) wrapping validation failures, or explicit decision that 500 is acceptable. Phase 3's authorization scoped handler edits to Swagger/docs-only, so this was left for Phase 3's follow-up or a separate task.
+
+## Verification
+
+- `go build ./...` clean (production).
+- `go vet ./...` clean except the two known test-file sites.
+- Phase 2 (`AppendForCoin`) verified and committed in isolation first (commit `7a4fc30`), all tests pass with Phase 3 stashed.
+
+---
+
+### Decision: Feature 352 Phase 3 — Client-Error Handling for Catalog References (BLOCK Cleared)
+
+**Date:** 2026-08-17  
+**Author:** Maximus (Lead/Architect)  
+**Authorization:** Strict Lockout (independent revision)  
+**Feature:** specs/352-deep-identification-structured-results/  
+**Phase:** 3 (Foundational)  
+**Status:** BLOCK cleared, revision ready for re-review
+
+## Block Condition
+
+Brutus identified that `decodeDeepProposalCatalogReferences` returned malformed/invalid content as plain `fmt.Errorf`, so `respondDeepProposalError` fell through to HTTP 500 instead of client 4xx (FR-004/FR-005/FR-045). Cassius had flagged this gap in Phase 3 but left it unfixed (out of scope); Brutus independently confirmed.
+
+## Revision (Typed Fix)
+
+- New sentinel `ErrDeepProposalInvalidCatalogReferences` in `deep_identification_proposal.go`
+- `decodeDeepProposalCatalogReferences` wraps every malformed/registry-invalid return with this sentinel via multi-`%w`, preserving error chain
+- New guard `isDeepProposalCatalogReferenceValidationError` distinguishes validation errors (4xx) from unwrapped registry-repository errors (5xx)
+- New handler case in `respondDeepProposalError`: `errors.Is(err, ErrDeepProposalInvalidCatalogReferences)` → `http.StatusBadRequest` with `code: "invalid_catalog_references"`
+- Both PATCH (`UpdateProposal`) and Apply (`applyToCoin`) surfaces fixed by one change
+
+## Verification
+
+- `go vet ./...` clean
+- Targeted: `go test ./services/... ./handlers/... -run "DeepProposal|DeepIdentification" -v` — all pass, including Brutus's sentinel assertions
+- Full: `go test ./...` — all packages pass
+
+## Outcome
+
+BLOCK condition resolved. Ready for Brutus re-review/clear.
+
+---
+
+### Decision: Feature 352 Phase 4 — Catalog References Pipeline Emission (BLOCK Condition & Remediation)
+
+**Date:** 2026-08-17  
+**Author:** Brutus (Reviewer/QA) — block identified  
+**Status:** BLOCK issued; remediation by Maximus in progress
+
+## Block Condition
+
+`buildDeepProposalDocumentJSON`'s saved-coin branch has an early guard:
+
+```go
+if len(report.ProposedFields) == 0 {
+    return ""
+}
+```
+
+This runs **before** the new `buildDeepCatalogReferenceField(...)` call. When a synthesis genuinely produces zero automatable `proposed_fields` but has a legible NGC cert (reachable: e.g. poor image quality for AI but clear slab), the entire proposal is dropped and the NGC evidence is silently lost. Violates FR-006 (catalog references emitted unconditionally when cert is non-empty) and AC-001 (NGC-driven proposal). Reproduced and documented with characterization test `TestBuildDeepProposalDocumentJSON_KnownDefect_SavedCoinEmptyProposedFieldsDropsNGCCatalogReference` (asserts current `out == ""` behavior with comment to flip assertion once fixed).
+
+Intake branch has no bug (builds `catalogReferences` before early-return check).
+
+## Non-Issues Investigated & Cleared
+
+- **Registry-load degradation** (empty non-nil map + log on DB failure): matches runner's existing degrade-and-log convention, content-free (job ID + driver error only). Not a silent-failure violation.
+- **DI wiring** (`deepIdentificationCatalogRegistryRepo`): correctly ordered and independently instantiated per codebase pattern. `deep_identification_service.go` needs zero changes.
+
+## Out-of-Scope Finding (Not Blocking)
+
+`src/api/integration/deep_identification_seam_test.go:172` still calls pre-Phase-4 7-arg constructor signature; will fail to compile under `-tags=seam` until the 8th argument (`catalogRegistry`) is added. Outside authorized test-file list, left untouched.
+
+---
+
+### Decision: Feature 352 Phase 4 — Saved-Coin Early-Return BLOCK Cleared
+
+**Date:** 2026-08-17  
+**Author:** Maximus (Lead/Architect)  
+**Authorization:** Strict Lockout (independent revision)  
+**Feature:** specs/352-deep-identification-structured-results/  
+**Phase:** 4 (Foundational)  
+**Status:** BLOCK cleared, revision ready for re-review
+
+## Revision (Smallest Change)
+
+Removed the early `if len(report.ProposedFields) == 0 { return "" }` guard from the saved-coin branch of `buildDeepProposalDocumentJSON`. The function's sole terminal empty-check `if len(fields) == 0 { return "" }` (after `catalogReferences`/supersession applied) is now the only place an empty proposal is produced — and only when genuinely no scalar or collection fields exist.
+
+- `fields` map construction, `buildDeepCatalogReferenceField` call, and scalar supersession logic unchanged and now always run
+- No changes to intake branch, parser, ranking, registry loading, schema version, or test files
+
+## Verification
+
+- `gofmt -l`/`gofmt -d` clean
+- `go vet ./...` clean
+- Targeted: `go test ./services/... -run "Phase4|CatalogReference|Proposal" -v` — all pass except the tripwire test (fails as expected, per its own comment "KNOWN DEFECT NO LONGER REPRODUCES... flip assertion")
+- Full: `go test ./...` — all other packages pass; `services` shows single expected tripwire failure only
+
+## Outcome
+
+BLOCK condition resolved. Requesting Brutus re-review/clear and tripwire test assertion flip (follow-up test-authorized pass).
+
+---
+
+### Decision: Feature 352 Phase 6a — Wishlist Catalog References & ADR 0013 Acceptance
+
+**Date:** 2026-08-17  
+**Author:** Cassius (Backend Developer)  
+**Feature:** specs/352-deep-identification-structured-results/  
+**Phase:** 6a (Foundational)  
+**Status:** Implemented, uncommitted (Brian's review pending)
+
+## Scope
+
+- ADR 0013 (`docs/adr/0013-wishlist-coins-may-hold-catalog-references.md`): Status flipped `Proposed` → `Accepted`
+- `src/api/services/coin_service.go`: Deleted two `if coin.IsWishlist { ... = nil }` guards (FR-048)
+- `src/api/services/wishlist_search_alert_service.go`: `ConvertCandidate` now clears `input.Coin.References` at its own boundary (FR-049, distinct trust-boundary guard, not duplicate)
+- Four Phase 6a tests rewritten (FR-052) to assert new rules, citing ADR 0013/FR-049:
+  - `coin_service_test.go`: Drop guard assertions → persist reference assertions
+  - `coin_handler_test.go`: Drop guard → persist reference
+  - `wishlist_search_alert_service_test.go:~615`: Comment changed from "discard references" to FR-049 trust reason
+- New test `TestConvertCandidate_ReferenceSupportEnabled_StillPersistsZeroReferences` wires real `CoinReferenceService` support to catch FR-049 regression (existing test cannot because its mock never calls support)
+
+## What Phase 6a Did Not Touch
+
+- ADR-0013 pointers in specs/351 — Brian handling separately
+- `applyToWishlist` (Phase 6b)
+- `ocre_scoring.go` (ADR 0010)
+
+## Real Gap Found During Verification
+
+Existing regression test `TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict` stayed GREEN even with FR-049 guard deleted because its `CoinService` never wires reference support. Test alone is not reliable oracle; new test actually catches guard regression by wiring support.
+
+## Verification
+
+- `go build ./...`, `go vet ./...` clean
+- `go test -count=1 ./...` — 10/10 packages ok
+- TestArchitecture and TestNoDirectDatabaseImports both pass
+- Falsified FR-049 guard three times, confirmed real RED each time, restored, confirmed GREEN
+
+## Minor Footgun Documented (Not a Bug)
+
+Test-authoring hazard: bare `:memory:` DSN + `SetMaxOpenConns(1)` + `CoinService` with reference support will deadlock on wishlist reference writes because `NormalizeAndValidate*` calls `CatalogRegistryRepository.FindByCatalog` through an unwrapped connection. Previously invisible because wishlist coins never reached that code path. Recorded in `.squad/agents/cassius/history.md` as a footgun, not filed as bug.

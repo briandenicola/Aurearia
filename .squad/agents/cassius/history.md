@@ -1337,3 +1337,38 @@ pre-existing `TestDeepIdentificationProposal_WishlistApplyCreatesWishlistCoin`,
 every other `Deep*`/reference test. Left uncommitted for Brutus/review; no
 new decision recorded (this is exactly the two-write ordering plan.md Phase
 6b and Phase 3's R8/risk register already specified).
+
+---
+
+## 2026-08-17 — Feature 353 independent revision (Strict Lockout, Maximus locked out)
+
+Revised `specs/353-wishlist-availability-run-observability/{spec.md,plan.md,tasks.md}`
+as the independent revision author resolving Brutus's BLOCK. Restored the
+existing per-coin `NotifyWishlistUnavailable` alert (FR-014 rewritten from
+suppression to explicit non-suppression; added SC-009 + US3 AC6); confirmed
+the settled 20-terminal-parent-cycles-globally retention number (FR-019, D4)
+was already correct and needed no invented count; replaced the synthetic
+legacy migration (reparenting, `TriggerType="legacy"`/`legacy_cycle`, and
+`scope` field) with the smallest additive schema change — new
+`AvailabilityCycle` table + nullable `AvailabilityRun.CycleID` column via
+plain `AutoMigrate`, no backfill, no ADR, plus a new FR-021a requiring a
+"Legacy" UI label on `UserID=0` admin rows.
+
+Task count unchanged at 51 (T001-T051); Phase 7 tasks (T036-T038) rewritten
+from data-migration tests to schema-additive tests instead of being deleted,
+so no renumbering cascade was needed. Recorded resolution in
+`.squad/decisions/inbox/cassius-20260817-174434-feature353-block-resolution.md`.
+No application code written or committed; no ADR created.
+
+## 2026-08-17 — Feature 352 Phase 1, 3, 6a parallel implementation (Three parallel work items)
+
+**Phase 1 — Catalog Reference Parser Extraction:**
+Extracted shared `ParseCatalogReferenceText()` from `ReferenceMigrationService` into new `catalog_reference_parser.go`. Added typed `CatalogParseReason` enum (`CatalogParseOK`, `CatalogParseEmpty`, `CatalogParseUnrecognizedCatalog`, `CatalogParseNotInRegistry`, `CatalogParseNoNumber`) following codebase convention (services.LogLevel); prevents future fragile disambiguation tricks. `ParsedCatalogReference` includes Reason field + RawText; migration service reconstructs journal messages. Full regression: `reference_migration_service_test.go` unedited, all green before/after. New test coverage on Reason enum. All gates: `go build ./...`, `go vet ./...`, `go test -count=1 ./...` (10/10 packages, TestArchitecture, TestNoDirectDatabaseImports).
+
+**Phase 3 — Collection-Valued Proposal Write Surface:**
+New `deepProposalCatalogReference` DTO (FR-004) with closed `sourceProvider` vocabulary (all `DeepProviderName` + "image", FR-044). 10-element cap per proposal (FR-005); re-marshaling + strict decode to validate each element through `CoinReferenceService.NormalizeAndValidateOne` (FR-045). `applyToCoin` dispatches through explicit switch: scalar names via `UpdateCoinWithFields` (unchanged), `catalogReferences` via new `CoinReferenceService.AppendForCoin` (additive, FR-013). `applyToDraft`/`applyToWishlist` left unchanged (scalar allowlists only; wishlist apply is Phase 6b). Widened `NewDeepIdentificationProposalService` constructor to 5th parameter `*CoinReferenceService`; updated `main.go` DI wiring (reused existing instance). Known consequence: two test files need constructor call-site updates (Brutus's responsibility). Gap found (not fixed, out of Phase 3 scope): `respondDeepProposalError` default branch returns 500 on validation failures; recommend new sentinel before Phase 3 ships. Production code `go build ./...` clean; Phase 2 (`AppendForCoin`, commit `7a4fc30`) verified in isolation first.
+
+**Phase 6a — Wishlist Catalog References & ADR 0013 Acceptance:**
+ADR 0013 status flipped `Proposed` → `Accepted`. Deleted two `if coin.IsWishlist { ... = nil }` guards from `coin_service.go` (FR-048); wishlist coins persist references. `wishlist_search_alert_service.go:ConvertCandidate` clears `input.Coin.References` at own boundary (FR-049, distinct trust-boundary guard). Four Phase 6a tests rewritten to assert persistence (FR-052); comment updated from "discard" to FR-049 reason. New test `TestConvertCandidate_ReferenceSupportEnabled_StillPersistsZeroReferences` wires real `CoinReferenceService` to catch FR-049 regression. All gates pass; falsification RED/GREEN/RED/GREEN on all three FR-049 assertions.
+
+(Decision entries for Phase 1/3/6a recorded in `.squad/decisions.md`; no new history entry created as these are purely implementation delivery records, not policy/design clarifications.)
