@@ -40,6 +40,6 @@ export async function loginThroughUi(page: Page, username: string, password: str
   await page.goto('/login')
   await page.locator('input[autocomplete="username"]').fill(username)
   await page.locator('input[type="password"]').fill(password)
-  await page.getByRole('button', { name: 'Sign In' }).click()
+  await page.getByRole('button', { name: 'Sign In', exact: true }).click()
   await page.waitForURL((url) => url.pathname === '/', { timeout: 20_000 })
 }
