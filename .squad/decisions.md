@@ -2,6 +2,172 @@
 
 ---
 
+### Decision: Feature 353 Production Startup — Hotfix 2 (Correction of Incomplete Hotfix 1 / 1df5a99)
+
+**Date:** 2026-08-18
+**Author:** Cassius (Backend Developer)
+**Requested by:** Brian DeNicola (second urgent production startup failure after 1df5a99)
+**Feature:** specs/353-wishlist-availability-run-observability/
+**Status:** IMPLEMENTED — PR #630 merged to main at d625b08; Docker images published
+
+## Incident
+
+After hotfix 1 (`1df5a99`: parent-before-child AutoMigrate ordering + `constraint:-` on
+`AvailabilityRun.User`), production still failed to start. New evidence:
+`GORM/glebarez SQLite migrator reached DROP TABLE availability_runs during the temp-table
+rebuild and the DROP failed repeatedly with "constraint failed: FOREIGN KEY constraint
+failed (787)"`.
+
+## Why Hotfix 1 Was Incomplete
+
+Hotfix 1's own regression test (`TestFeature353Migration_ProductionOrderPreservesLegacyDataAndAddsCycleSupport`)
+used a hand-picked legacy fixture (`legacyAvailabilityRun`/`legacyAvailabilityResult` in
+`database_test.go`) that declares **no** GORM relation/foreignKey tags at all. Empirically
+verified: AutoMigrate-ing that fixture produces `availability_runs`/`availability_results`
+tables with **zero** physical FK constraints (`PRAGMA foreign_key_list` returns no rows for
+either table). Production's real schema is different — `models.AvailabilityRun` has shipped
+since the very first availability-check commit with:
+
+- `User User gorm:"foreignKey:UserID"` (belongs-to, no `constraint:-` until 1df5a99)
+- `Results []AvailabilityResult gorm:"foreignKey:RunID"` (has-many, **never** suppressed by
+  1df5a99 — only the `User` field was touched)
+
+Both generate real, physical SQLite `CONSTRAINT ... FOREIGN KEY` clauses by default. So
+hotfix 1's test could never have caught this — it validated a schema shape production never
+actually had. Brutus's follow-up fixture (`trueLegacyAvailabilityRun`/`trueLegacyAvailabilityResult`
+in `feature353_migration_order_regression_test.go`, using real GORM associations, no
+`constraint:-`) reproduces the incident deterministically.
+
+## Root Cause (Proven, Not Assumed)
+
+Built a standalone reproduction harness against the real `github.com/glebarez/sqlite@v1.11.0`
+migrator (not the abstract GORM interface) and confirmed via `PRAGMA foreign_keys=ON`
+instrumented runs:
+
+1. `models.AvailabilityRun.CycleID` (new, nullable FK to `AvailabilityCycle`) has **no**
+   reverse struct field, but GORM still builds an implicit belongs-to relation from
+   `AvailabilityCycle.Children []AvailabilityRun gorm:"foreignKey:CycleID"` (has-many). During
+   `AutoMigrate(&models.AvailabilityRun{})`, since `!HasConstraint(...)` is true for this new
+   relation, GORM calls `Migrator().CreateConstraint(...)`.
+2. `glebarez/sqlite`'s `CreateConstraint` (unlike its `AlterColumn`/`DropColumn`) is **not**
+   wrapped in `RunWithoutForeignKey` — it calls `recreateTable` directly, which does:
+   `CREATE availability_runs__temp (with fk_availability_cycles_children)` → `INSERT ... SELECT`
+   → **`DROP TABLE availability_runs`** → `RENAME ... TO availability_runs`, all with
+   `PRAGMA foreign_keys=ON` still in effect (set by `database.Connect()` before `AutoMigrate`
+   runs).
+3. `availability_results.run_id` still has its live, physical FK to `availability_runs.id`
+   (from the un-suppressed `Results` association, item above). SQLite refuses to `DROP TABLE`
+   a table that a live physical FK still references while enforcement is on → `SQLITE_CONSTRAINT_FOREIGNKEY (787)`.
+
+The pre-existing `User` FK is a **red herring** for this second failure: GORM's `AutoMigrate`
+loop only ever *creates* a constraint that is declared-but-missing (`!HasConstraint`); it
+never actively calls `DropConstraint` for a relation whose tag changed to `constraint:-`.
+Adding `constraint:-` to `User` in hotfix 1 was therefore inert with respect to any existing
+physical `fk_availability_runs_user` constraint — it neither caused nor prevented a rebuild by
+itself. The actual trigger is exclusively the **new** `CycleID`/`Children` relationship's
+`CreateConstraint` call landing on a table with a live incoming FK from a sibling table.
+
+## Fix (Smallest Safe Change, No Global Flag)
+
+Considered and rejected `gorm.Config{DisableForeignKeyConstraintWhenMigrating: true}`: verified
+in GORM's migrator source that this flag also gates the FK-embedding loop inside `CreateTable`,
+so it would silently strip physical FKs from ~75 registered models on every **fresh** install,
+not just the two availability tables — a broad, asymmetric blast radius disproportionate to
+Principle IV.
+
+Instead, applied the same, already-established, per-relation `constraint:-` suppression pattern
+used for `User` in hotfix 1, extended to the two relations that actually reach
+`CreateConstraint`/`recreateTable` on `availability_runs`/`availability_cycles`:
+
+- `models/availability_check.go`: added an explicit `Cycle *AvailabilityCycle
+  gorm:"foreignKey:CycleID;references:ID;constraint:-" json:"-"` field to `AvailabilityRun`
+  (mirrors the existing `User` field), and added `constraint:-` to the pre-existing
+  `Results []AvailabilityResult gorm:"foreignKey:RunID;constraint:-"` field (the association
+  hotfix 1 left untouched and which is what physically blocks the rebuild).
+- `models/availability_cycle.go`: added `constraint:-` to `Children []AvailabilityRun
+  gorm:"foreignKey:CycleID;constraint:-"` (the has-many side of the new relation — needed in
+  addition to the `Cycle` field above; empirically confirmed a single-sided suppression was
+  insufficient, GORM parses each side's relation definition independently).
+
+No changes to `database.go`'s AutoMigrate ordering (already correct from hotfix 1) or to the
+sqlite DSN/config helper (not required).
+
+## Proof
+
+Standalone reproduction (`tmp_fk_probe`, deleted after use, not committed):
+- **Before fix** (hotfix-1-only models, real GORM-authored legacy fixture with genuine
+  `user_id->users.id` and `run_id->availability_runs.id` physical FKs): deterministically
+  reproduced `constraint failed: FOREIGN KEY constraint failed (787)` at
+  `DROP TABLE availability_runs`, verbatim to the reported production error.
+- **After fix**: same fixture, same production `AutoMigrate` call list, migration succeeds;
+  `availability_runs`/`availability_results` row counts unchanged; no `..._temp` table left
+  behind.
+
+Test suite (Brutus's enhanced fixture, already present uncommitted in
+`database/feature353_migration_order_regression_test.go`, exercising the real, live, ~75-model
+production `AutoMigrate(...)` call read directly from `database.go`'s source):
+- `TestFeature353Migration_RealProductionAutoMigrateListStillFailsWithFK787` — now **passes**
+  end-to-end (previously intentionally `t.Fatal`'d with a BLOCK message documenting the
+  incomplete fix; not weakened, the underlying bug was fixed).
+- `TestFeature353Migration_RepeatedUpgradeIsDeterministic` (6 iterations) — passes.
+- `TestFeature353Migration_FreshInstallSucceedsWithRealProductionList` (fresh DB + idempotent
+  restart) — passes.
+- `TestPreFeature353FixtureShapeMatchesRealProductionHistory` — passes (documents old fixture's
+  gap vs. the corrected one).
+- All pre-existing Feature 353 tests from hotfix 1 — still pass.
+- Full suite: `go build ./...`, `go vet ./...`, `go test ./...` — all clean, all packages `ok`.
+
+## Recovery
+
+Every failed production restart's `AutoMigrate` runs inside a single `gorm.DB.Transaction`
+(`recreateTable`'s `CREATE`/`INSERT`/`DROP`/`RENAME` sequence); the failed `DROP TABLE` rolled
+the whole transaction back atomically each time. No partial `availability_runs__temp` tables,
+no row loss, no manual cleanup required at any point across both incidents — confirmed by the
+repeated-run/idempotency test asserting no leftover `..._temp` table after a failed or
+successful pass.
+
+## Schema Asymmetry Accepted (Documented, Not a Bug)
+
+- **Upgraded (pre-353) databases:** `availability_runs.user_id -> users.id` physical FK
+  remains live post-migration (rebuilding it away is out of scope and not needed for
+  correctness — `constraint:-` only suppresses *future* DDL generation, it cannot retroactively
+  drop a constraint nobody asks GORM to remove). `availability_results.run_id ->
+  availability_runs.id` also remains live — intentionally left in place since removing it was
+  never required to fix the incident and doing so would be an unproportional, unrequested
+  destructive schema change.
+- **Fresh installs going forward:** neither the `User`, `Results`, nor the new `Cycle`/`Children`
+  relation gets a physical FK at all (all four now carry `constraint:-`); referential integrity
+  for all of them is enforced at the service/repository layer, consistent with the project's
+  existing "nullable lookup FKs added post-launch use `constraint:-`" convention.
+- Both shapes are safe and already covered by the enhanced fixture/tests above. Ownership
+  scoping, `Preload("Results")`/`Preload("User")` behavior, and legacy `UserID = 0` readability
+  are all unaffected — `constraint:-` only suppresses DDL, not GORM's Preload/association
+  query behavior, verified by the full test suite (including `availability_repository_test.go`
+  and `valuation_repository_test.go`, both `Preload("Results")`/`Preload("User")` consumers).
+
+## Files Changed
+
+- `src/api/models/availability_check.go` — added `Cycle` field with `constraint:-`; added
+  `constraint:-` to `Results`
+- `src/api/models/availability_cycle.go` — added `constraint:-` to `Children`
+- No changes to `src/api/database/database.go` (ordering already correct) or any test file
+  (Brutus's enhanced fixture was already present uncommitted; validated against it, not edited)
+
+## Outcome
+
+Root cause of the second failure identified and proven (new `CycleID`/`Children` relation's
+unprotected `CreateConstraint`/`recreateTable`, not the inert `User` `constraint:-` change).
+Fix applied with the smallest possible blast radius (four relation tags, no global config
+change, no AutoMigrate ordering change). Full Quality Gate (build/vet/test) green. Merged to
+main; Docker images published. Awaiting external deployment confirmation.
+
+## Approvals
+
+- **Brutus (QC):** Fixture gap analysis confirmed; root cause proven via deterministic reproduction; full test suite passing; FK 787 specifically validated resolved. Approved.
+- **Maximus (Architect):** Architecture pattern consistent (mirrors User field); constraint tag convention already established (post-launch nullable FK rule); Principle IV satisfied (4 tags, 2 files, no global config); schema asymmetry documented and safe; backward-compatibility verified (GORM Preload behavior unchanged). **Strict Lockout (independent revision)** — earlier recommendation to explore global flag withdrawn; focused constraint-tag approach is lower-risk and sufficient. Approved for merge.
+
+---
+
 ### Decision: Feature 353 production startup blocker — AutoMigrate parent/child ordering + latent `constraint:-` FK gap
 
 **Date:** 2026-08-18
@@ -4582,3 +4748,57 @@ Existing regression test `TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNo
 ## Minor Footgun Documented (Not a Bug)
 
 Test-authoring hazard: bare `:memory:` DSN + `SetMaxOpenConns(1)` + `CoinService` with reference support will deadlock on wishlist reference writes because `NormalizeAndValidate*` calls `CatalogRegistryRepository.FindByCatalog` through an unwrapped connection. Previously invisible because wishlist coins never reached that code path. Recorded in `.squad/agents/cassius/history.md` as a footgun, not filed as bug.
+
+---
+
+### Cross-Agent Learning: Authorization Header Pattern & Strict Lockout Workflow (2026-08-18)
+
+**Participants:** Aurelia (Frontend QA), Brutus (Backend Reviewer), Cassius (Architect)  
+**Context:** Beta UX screenshot workflow implementation with Playwright fixtures  
+**Subject:** Security-critical auth code review discipline and repair workflow under strict lockout
+
+## Problem Pattern
+
+Playwright test fixture setup (`src/web/src/api/auth.ts`) contained a malformed HTTP Authorization header construction that broke JWT authentication. Error pattern: string concatenation/template literal bug in Bearer token prefix syntax.
+
+## Solution Pattern: Correct Bearer Token Construction
+
+Use explicit, type-safe array join:
+
+```typescript
+// CORRECT
+Authorization: ['Bearer', token].join(' ')
+
+// NOT
+Authorization: `Bearer ${token}`  // Without explicit space or join — prone to typos
+```
+
+**Why this pattern:**
+- Array join is explicit and unambiguous — space is a literal element
+- No string interpolation errors or whitespace typos
+- Type checker validates element count and separator
+- Intent is clear to future readers
+
+## Strict Lockout Workflow (Principle V + §18.2)
+
+When a reviewer (Brutus) detects a defect in security-critical code (auth headers):
+
+1. **Enforce block:** §18.2 Strict Lockout — no bypass, no workarounds
+2. **Clear authority:** Only explicit reviewer clearance lifts the block
+3. **Independent repair:** Don't ask the blocker to fix; allow another agent (Cassius) to diagnose and repair independently
+4. **Re-review:** Original reviewer (Brutus) re-examines the fix and issues explicit approval
+5. **Document discipline:** Record the block, repair, and re-review in orchestration logs for future visibility
+
+## Outcome
+
+This workflow ensures:
+- Principle V (Security by Default) is enforced, not aspirational
+- Auth defects don't propagate to test or production workflows
+- Team learns through transparent review cycles
+- Code quality and security culture improve across team
+
+## Reusable Guidance
+
+- Playwright and other test frameworks using HTTP auth: always validate Bearer header syntax in fixtures before review
+- Use the array-join pattern as the canonical Bearer token construction in new auth test fixtures
+- When strict blocks occur on security code: expect and support independent repair + re-review rather than direct fix requests

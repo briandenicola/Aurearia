@@ -30,6 +30,10 @@ src/web/dist/
 src/web/test-results/
 src/web/playwright-report/
 
+# Beta screenshot tour output (npm run screenshots:beta) — review/select
+# before publishing; never auto-committed as docs assets.
+src/web/artifacts/
+
 # Environment
 .env
 .env*

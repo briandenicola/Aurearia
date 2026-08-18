@@ -4,7 +4,27 @@ Aurearia provides a comprehensive set of features for managing a personal coin c
 
 ## Visual Assets
 
-The repository currently includes app icons in `src/web/public/` but does not include captured product screenshots or workflow GIFs. Recommended future captures are: collection dashboard, coin entry form, coin detail image upload, Coin Sets dashboard, wishlist availability checks, statistics/health dashboards, and PWA mobile gallery.
+Approved product screenshots live in `docs/assets/screenshots/`. Generated captures first land in the
+git-ignored `src/web/artifacts/screenshots/` (see `npm run screenshots:beta` in `src/web/README.md`) for
+Brian's review; only approved images are copied/moved into `docs/assets/screenshots/` for use in docs.
+
+| File | Description |
+|---|---|
+| `desktop-01-collection-gallery.png` | Desktop collection gallery tour capture |
+| `desktop-02-coin-detail.png` | Desktop coin detail tour capture |
+| `desktop-03-wishlist.png` | Desktop wishlist tour capture |
+| `desktop-04-stats-overview.png` | Desktop stats overview tour capture |
+| `desktop-05-deep-analysis-entry.png` | Desktop Deep Analysis entry-point tour capture |
+| `mobile-01-collection-gallery.png` | Mobile collection gallery tour capture |
+| `mobile-02-coin-detail.png` | Mobile coin detail tour capture |
+| `mobile-03-wishlist.png` | Mobile wishlist tour capture |
+| `mobile-04-stats-overview.png` | Mobile stats overview tour capture |
+| `mobile-05-deep-analysis-entry.png` | Mobile Deep Analysis entry-point tour capture |
+| `coin-detail-justinian.png` | Coin detail page — Justinian coin |
+| `collection-tray.png` | Collection tray view |
+| `wishlist-detail-maximinus.png` | Wishlist detail — Maximinus coin |
+| `auctions-dashboard.png` | Auctions dashboard view |
+| `rulers-set-completion.png` | Rulers set/completion tray view |
 
 ## Core Collection Features
 
