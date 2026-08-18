@@ -36,6 +36,7 @@ type AvailabilityRun struct {
 	User          User                 `gorm:"foreignKey:UserID;constraint:-" json:"-"`
 	UserName      string               `gorm:"-" json:"userName"`
 	CycleID       *uint                `gorm:"index" json:"cycleId"`
+	Cycle         *AvailabilityCycle   `gorm:"foreignKey:CycleID;references:ID;constraint:-" json:"-"`
 	TriggerType   string               `gorm:"type:varchar(20);not null" json:"triggerType"`
 	TriggerUserID *uint                `json:"triggerUserId"`
 	Status        string               `gorm:"type:varchar(20);not null;default:completed" json:"status"`
@@ -48,7 +49,7 @@ type AvailabilityRun struct {
 	DurationMs    int64                `json:"durationMs"`
 	StartedAt     time.Time            `gorm:"not null" json:"startedAt"`
 	CompletedAt   *time.Time           `json:"completedAt"`
-	Results       []AvailabilityResult `gorm:"foreignKey:RunID" json:"results,omitempty"`
+	Results       []AvailabilityResult `gorm:"foreignKey:RunID;constraint:-" json:"results,omitempty"`
 	CreatedAt     time.Time            `json:"createdAt"`
 }
 
