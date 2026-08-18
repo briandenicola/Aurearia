@@ -176,8 +176,12 @@ npm run screenshots:beta
 Screenshots are written to `src/web/artifacts/screenshots/` as
 `<desktop|mobile>-NN-<name>.png` (e.g. `desktop-01-collection-gallery.png`). This
 directory is **git-ignored** (`src/web/artifacts/`) so Brian can review and select
-images locally before publishing any of them elsewhere (e.g. copying a chosen file
-into `docs/` deliberately).
+images locally before publishing any of them elsewhere.
+
+Once reviewed and approved, images are copied/moved into `docs/assets/screenshots/`
+(the committed, non-ignored location) for use in docs — see the gallery inventory in
+`docs/features/INDEX.md`. Move originals out of `artifacts/screenshots/` only after
+confirming the destination copy is byte-for-byte identical.
 
 ### Privacy warning
 
