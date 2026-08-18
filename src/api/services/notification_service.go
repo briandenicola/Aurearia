@@ -26,7 +26,11 @@ const (
 	NotificationTypeAuctionPriceAlert  = "auction_price_alert"
 	NotificationTypeAuctionBidReminder = "auction_bid_reminder"
 	NotificationTypeAuctionEndingSoon  = "auction_ending_soon"
-	NotificationTypeShipmentStatus      = "shipment_status"
+	NotificationTypeShipmentStatus     = "shipment_status"
+	// NotificationTypeAvailabilityRun is the terminal-outcome notification created for every
+	// terminal child AvailabilityRun (owner/scheduled/admin-triggered), in addition to (never
+	// instead of) any per-coin wishlist_unavailable notifications fired during the same run (D6).
+	NotificationTypeAvailabilityRun = "wishlist_availability_run"
 )
 
 // NewNotificationService creates a new NotificationService.
@@ -71,6 +75,89 @@ func (s *NotificationService) NotifyWishlistUnavailable(userID uint, coin models
 	}
 
 	go s.sendPushover(userID, title, message, coin.ReferenceURL)
+}
+
+// NotifyAvailabilityRunTerminal creates the owner-facing terminal-outcome notification for a
+// single completed or failed child AvailabilityRun. Exactly one is created per terminal child
+// run, regardless of how many (if any) per-coin wishlist_unavailable notifications also fired
+// for that run — this is purely additive and never gates or replaces the per-coin call (D6).
+// The message is always generic: no URLs, no query text, no internal error details (FR-015);
+// it may mention up to 3 newly-unavailable coin names (plus "and N more") for readability.
+func (s *NotificationService) NotifyAvailabilityRunTerminal(userID uint, run *models.AvailabilityRun, newlyUnavailableCoinNames []string) {
+	title := "Wishlist availability check complete"
+	message := fmt.Sprintf(
+		"Checked %d item(s): %d available, %d unavailable, %d unknown.",
+		run.CoinsChecked, run.Available, run.Unavailable, run.Unknown,
+	)
+
+	if run.Status == models.AvailabilityRunStatusFailed {
+		title = "Wishlist availability check failed"
+		message = models.GenericAvailabilityFailureMessage
+	} else if len(newlyUnavailableCoinNames) > 0 {
+		message = fmt.Sprintf("%s %s", message, summarizeUnavailableCoinNames(newlyUnavailableCoinNames))
+	}
+
+	refURL := fmt.Sprintf("/wishlist/availability-runs/%d", run.ID)
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypeAvailabilityRun,
+		Title:        title,
+		Message:      message,
+		ReferenceID:  run.ID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create availability run notification for user %d, run %d: %v", userID, run.ID, err)
+	}
+
+	go s.sendPushover(userID, title, message, refURL)
+}
+
+// NotifyAdminCycleChildFailure notifies the admin who triggered a cycle that one of its
+// per-owner child runs failed. The message is generic (owner username + cycle ID only) — no
+// URLs, no query text, no internal error details (FR-012, FR-015).
+func (s *NotificationService) NotifyAdminCycleChildFailure(adminID uint, ownerUsername string, cycleID uint) {
+	if adminID == 0 {
+		return
+	}
+	if ownerUsername == "" {
+		ownerUsername = "a user"
+	}
+
+	title := "Wishlist availability check failed"
+	message := fmt.Sprintf("The wishlist availability check for %s failed (cycle #%d). %s",
+		ownerUsername, cycleID, models.GenericAvailabilityFailureMessage)
+	refURL := fmt.Sprintf("/admin/availability-cycles/%d", cycleID)
+
+	n := &models.Notification{
+		UserID:       adminID,
+		Type:         NotificationTypeAvailabilityRun,
+		Title:        title,
+		Message:      message,
+		ReferenceID:  cycleID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create admin cycle-child-failure notification for admin %d, cycle %d: %v", adminID, cycleID, err)
+	}
+
+	go s.sendPushover(adminID, title, message, refURL)
+}
+
+// summarizeUnavailableCoinNames formats up to 3 newly-unavailable coin names plus an
+// "and N more" suffix for the remainder, for use in the generic availability-run summary.
+func summarizeUnavailableCoinNames(names []string) string {
+	const maxShown = 3
+	if len(names) == 0 {
+		return ""
+	}
+	shown := names
+	suffix := ""
+	if len(names) > maxShown {
+		shown = names[:maxShown]
+		suffix = fmt.Sprintf(", and %d more", len(names)-maxShown)
+	}
+	return fmt.Sprintf("Newly unavailable: %s%s.", strings.Join(shown, ", "), suffix)
 }
 
 // NotifyShipmentStatusTransition creates an in-app shipment milestone notification

@@ -34,10 +34,13 @@
             :events="stream.events.value"
             :connected="stream.connected.value"
             :streaming="stream.streaming.value"
+            :reconnecting="reconnecting"
             :truncated="stream.truncated.value"
             :terminal-status="terminalStatus"
+            :ended="stream.ended.value"
             :cancelling="deep.cancelling.value"
             @cancel="onCancel"
+            @retry="onManualStreamRetry"
           />
 
           <DeepProviderCoverageList
@@ -120,6 +123,7 @@ import DeepProposalEditor from '@/components/deep-identification/DeepProposalEdi
 import DeepProviderCoverageList from '@/components/deep-identification/DeepProviderCoverageList.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
 import { useDeepIdentificationStream } from '@/composables/useDeepIdentificationStream'
+import { isDeepProposalConfidenceAccepted } from '@/utils/deepProposalAcceptance'
 import type {
   DeepApplyTarget,
   DeepProposalFieldEdit,
@@ -157,6 +161,84 @@ const terminalStatus = computed(() => {
 async function onCancel() {
   if (jobId.value === null) return
   await deep.cancel(jobId.value)
+}
+
+// Real reconnect (T085/B6, contract §3): the composable's own `finally`
+// clears `connected`/`streaming` on any exit path, including an
+// unexpected mid-job drop. Previously the Timeline's fallback branch
+// then displayed "Reconnecting…" forever, even though nothing ever
+// reconnected. This resumes the stream from the last durably-seen `seq`
+// (the same resume mechanism used on mount/T101) with capped, backed-off
+// automatic retries, plus an explicit manual Retry control for when
+// those attempts are exhausted or the drop happened before any event
+// was ever seen.
+const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000]
+const reconnecting = ref(false)
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempt = 0
+
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnecting.value = false
+}
+
+function resetReconnectState() {
+  clearReconnectTimer()
+  reconnectAttempt = 0
+}
+
+// Set right before any *intentional* stream teardown (navigating to a new
+// job, unmounting) so the `connected` watcher below can tell that drop
+// apart from a genuine unexpected disconnect and never auto-reconnects a
+// stream we meant to close.
+let suppressAutoReconnect = false
+
+function stopStreamIntentionally() {
+  suppressAutoReconnect = true
+  resetReconnectState()
+  stream.disconnect()
+}
+
+function scheduleReconnect() {
+  // Never auto-reconnect once the server sent `event: end` (contract §2)
+  // or the job has already settled - GET is the source of truth then.
+  if (jobId.value === null || stream.ended.value || terminalStatus.value !== null) return
+  if (reconnectAttempt >= RECONNECT_DELAYS_MS.length) return
+  const id = jobId.value
+  const delay = RECONNECT_DELAYS_MS[reconnectAttempt] ?? RECONNECT_DELAYS_MS[RECONNECT_DELAYS_MS.length - 1]
+  reconnectAttempt += 1
+  reconnecting.value = true
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void stream.connect(id, { since: stream.lastSeq.value })
+  }, delay)
+}
+
+// Only a stream that was actually live and then unexpectedly dropped
+// triggers an automatic reconnect - an initial connect failure surfaces
+// its error via `streamError` and the manual Retry control instead.
+watch(() => stream.connected.value, (isConnected, wasConnected) => {
+  if (isConnected) {
+    resetReconnectState()
+    suppressAutoReconnect = false
+    return
+  }
+  if (!wasConnected) return
+  if (suppressAutoReconnect) {
+    suppressAutoReconnect = false
+    return
+  }
+  scheduleReconnect()
+})
+
+function onManualStreamRetry() {
+  suppressAutoReconnect = false
+  resetReconnectState()
+  if (jobId.value === null) return
+  void stream.connect(jobId.value, { since: stream.lastSeq.value })
 }
 
 const isTerminal = computed(() => terminalStatus.value === 'completed' || terminalStatus.value === 'partial')
@@ -213,7 +295,7 @@ async function onRetry() {
   // The retry is a brand-new job row: tear down the current stream and its
   // resume key, then navigate to the new job's route. The jobId watcher
   // re-initializes the page (refresh + reconnect) for the new id.
-  stream.disconnect()
+  stopStreamIntentionally()
   if (jobId.value !== null) sessionStorage.removeItem(storageKey(jobId.value))
   await router.push({ name: 'deep-analysis', params: { jobId: String(newJob.id) } })
 }
@@ -236,6 +318,32 @@ async function onUpdateProposalField(name: string, edit: DeepProposalFieldEdit) 
 async function onApplyProposal() {
   if (jobId.value === null || !job.value) return
   applyError.value = ''
+
+  // RD-3: acceptance is confidence-driven, not source-driven, and the
+  // editor renders that default without writing it anywhere — Apply only
+  // ever reads persisted `accepted === true` fields, so any field still at
+  // its unrecorded default (`accepted === null`) that qualifies on
+  // confidence must be explicitly persisted now, right before confirming.
+  // Batched into a single request (the server applies every edit
+  // atomically) rather than one PATCH per field, both to avoid a
+  // half-written proposal and to avoid up to a dozen-plus round trips.
+  const proposalFields = deep.proposal.value?.fields ?? {}
+  const pendingDefaults: Record<string, DeepProposalFieldEdit> = {}
+  for (const [name, entry] of Object.entries(proposalFields)) {
+    if (entry.accepted === null && isDeepProposalConfidenceAccepted(entry.confidence)) {
+      pendingDefaults[name] = { accepted: true }
+    }
+  }
+  if (Object.keys(pendingDefaults).length > 0) {
+    const persisted = await deep.updateProposalFields(jobId.value, pendingDefaults)
+    if (!persisted) {
+      // Do not apply a partial proposal silently: a field the owner saw
+      // rendered as accepted must not be dropped without being told.
+      applyError.value = deep.error.value || 'Unable to save the confidence-based default acceptances before applying. Nothing was applied.'
+      return
+    }
+  }
+
   const target: DeepApplyTarget = job.value.source === 'saved_coin' ? 'coin' : 'draft'
   const result = await deep.applyProposal(jobId.value, { target })
   if (!result) {
@@ -295,7 +403,7 @@ async function activateJob(id: number) {
 // stream, refresh, reconnect) whenever the id actually changes.
 watch(jobId, async (newId, oldId) => {
   if (oldId !== null && newId !== oldId) {
-    stream.disconnect()
+    stopStreamIntentionally()
     retryError.value = ''
     applyError.value = ''
   }
@@ -311,6 +419,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  stream.disconnect()
+  stopStreamIntentionally()
 })
 </script>

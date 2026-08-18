@@ -71,7 +71,7 @@ func newDeepRunnerOnDB(t *testing.T, db *gorm.DB, agentURL string) *DeepIdentifi
 	}
 	proxy := NewAgentProxy(agentURL, "svc-token", NewLogger(50))
 	tokenSvc := NewInternalTokenService("internal-secret")
-	return NewDeepIdentificationPipelineRunner(proxy, repo, settingsSvc, tokenSvc, "http://api:8080", NewLogger(50), nil)
+	return NewDeepIdentificationPipelineRunner(proxy, repo, settingsSvc, tokenSvc, "http://api:8080", NewLogger(50), nil, nil)
 }
 
 // pythonShapedDeepStreamFrames returns the SSE stream a real
@@ -325,6 +325,135 @@ func TestDeepIdentificationPipelineRunnerPassesQuickLookupEvidence(t *testing.T)
 	}
 }
 
+// TestQuickLookupOutcomeTypedAndJobStillCompletes is the T017 regression:
+// forced Lookup error yields `unavailable` and the job still completes,
+// empty result yields `no_data`, success yields `ok`. It also asserts no
+// user content (cert numbers, label text, ruler names) ever appears in the
+// emitted progress event payload — only the fixed outcome-class message
+// (FR-030, 344 FR-036).
+func TestQuickLookupOutcomeTypedAndJobStillCompletes(t *testing.T) {
+	tests := []struct {
+		name            string
+		analyzeStatus   int
+		analyzeBody     map[string]any
+		wantOutcome     quickLookupOutcome
+		wantMessage     string
+		forbiddenSubstr []string
+	}{
+		{
+			name:          "forced lookup error yields unavailable",
+			analyzeStatus: http.StatusInternalServerError,
+			wantOutcome:   quickLookupOutcomeUnavailable,
+			wantMessage:   "Quick lookup did not complete",
+		},
+		{
+			name:          "empty result yields no_data",
+			analyzeStatus: http.StatusOK,
+			analyzeBody: map[string]any{
+				"ngcCert": nil, "ngcGrade": nil, "ngcDescription": nil,
+				"labelText": "", "name": nil, "ruler": nil, "denomination": nil,
+				"category": nil, "confidence": "low",
+			},
+			wantOutcome: quickLookupOutcomeNoData,
+			wantMessage: "Quick lookup completed with no supporting data",
+		},
+		{
+			name:          "success yields ok",
+			analyzeStatus: http.StatusOK,
+			analyzeBody: map[string]any{
+				"ngcCert": "8232252-186", "ngcGrade": "Ch AU", "ngcDescription": "Maximinus I denarius",
+				"labelText": "8232252-186 Maximinus I", "name": "Maximinus I AR Denarius",
+				"ruler": "Maximinus I", "denomination": "Denarius", "category": "Roman", "confidence": "high",
+			},
+			wantOutcome:     quickLookupOutcomeOK,
+			wantMessage:     "Quick lookup found supporting data",
+			forbiddenSubstr: []string{"8232252", "Maximinus", "Denarius", "Ch AU"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/analyze":
+					if tt.analyzeStatus != http.StatusOK {
+						http.Error(w, "analysis unavailable", tt.analyzeStatus)
+						return
+					}
+					analysis, _ := json.Marshal(tt.analyzeBody)
+					_ = json.NewEncoder(w).Encode(map[string]string{"analysis": string(analysis)})
+				case "/api/deep-identify/stream":
+					w.Header().Set("Content-Type", "text/event-stream")
+					flusher := w.(http.Flusher)
+					_, _ = w.Write([]byte("data: {\"type\":\"synthesis\",\"report\":{\"narrative\":\"stub\",\"partial_success\":false}}\n\n"))
+					flusher.Flush()
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			runner, repo, db := newDeepRunnerStreamTestDeps(t, server.URL)
+			runner.WithQuickEvidence(NewCoinLookupService(runner.proxy, runner.settingsSvc, NewLogger(20)))
+			job, userID := seedDeepRunnerJob(t, db, models.DeepJobSourceIntake, nil)
+			imagePath := filepath.Join(t.TempDir(), "obverse.png")
+			if err := os.WriteFile(imagePath, []byte("valid-enough-for-proxy-test"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Create(&models.DeepIdentificationArtifact{
+				JobID: job.ID, UserID: userID, Role: models.DeepArtifactRoleObverse,
+				Origin: models.DeepArtifactOriginUploaded, FilePath: imagePath, MimeType: "image/png",
+			}).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := runner.Run(context.Background(), job)
+			// The job must still complete: a quick-lookup failure/no-data
+			// outcome must never surface as a pipeline error (T017).
+			if err != nil {
+				t.Fatalf("runner.Run returned an error; job did not complete: %v", err)
+			}
+			if result == nil || result.ReportJSON == "" {
+				t.Fatal("expected a synthesized report even when quick lookup did not contribute")
+			}
+
+			var report map[string]any
+			if jsonErr := json.Unmarshal([]byte(result.ReportJSON), &report); jsonErr != nil {
+				t.Fatalf("unmarshal report: %v", jsonErr)
+			}
+			if got := report["quickLookupOutcome"]; got != string(tt.wantOutcome) {
+				t.Fatalf("report quickLookupOutcome = %v, want %q", got, tt.wantOutcome)
+			}
+
+			events, err := repo.ListEventsSince(job.ID, userID, 0)
+			if err != nil {
+				t.Fatalf("ListEventsSince: %v", err)
+			}
+			var found bool
+			for _, event := range events {
+				if event.Type != models.DeepEventProgress {
+					continue
+				}
+				if !strings.Contains(event.PayloadJSON, `"phase":"quick_lookup"`) {
+					continue
+				}
+				found = true
+				if !strings.Contains(event.PayloadJSON, tt.wantMessage) {
+					t.Fatalf("progress payload = %s, want message %q", event.PayloadJSON, tt.wantMessage)
+				}
+				for _, forbidden := range tt.forbiddenSubstr {
+					if strings.Contains(event.PayloadJSON, forbidden) {
+						t.Fatalf("progress payload leaked user content %q: %s", forbidden, event.PayloadJSON)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("expected a quick_lookup progress event to be recorded")
+			}
+		})
+	}
+}
+
 // TestRunnerAccumulatesStreamedClaimsIntoProposal is the core B1 regression:
 // it feeds the exact Python-shaped SSE frames (provider_result carrying full
 // claims) through the real Run, and asserts the resulting ProposalJSON
@@ -415,6 +544,120 @@ func TestRunnerAccumulatesStreamedClaimsIntoProposal(t *testing.T) {
 	}
 	if providerRun.ClaimsJSON != "" {
 		t.Fatalf("provider run must not persist claims: %q", providerRun.ClaimsJSON)
+	}
+}
+
+// TestRunnerRouterSelectedSkippedSurvivesTranslation is the T049/B4
+// regression: the deterministic router (Phase 6) now emits a populated
+// `skipped[]` on the `router_selected` frame. This proves the Go translator
+// (`deepRouterSelectedPublicPayloadJSON`) — which has always parsed
+// `skipped` but never received a non-empty one — carries it through
+// end-to-end into the persisted, user-visible event payload instead of
+// silently dropping it.
+func TestRunnerRouterSelectedSkippedSurvivesTranslation(t *testing.T) {
+	frames := []map[string]any{
+		{"type": "progress", "stage": "image_evidence_ready"},
+		{
+			"type":      "router_selected",
+			"selected":  []string{"numista"},
+			"rationale": "inclusion by default: selected 1 of 2 automatable providers; evidence-driven skip: ocre (non-Roman-Imperial era signal: greek)",
+			"skipped": []map[string]any{
+				{"provider": "ocre", "reason": "non-Roman-Imperial era signal: greek"},
+			},
+		},
+		{"type": "provider_started", "provider": "numista"},
+		{
+			"type":        "provider_result",
+			"provider":    "numista",
+			"status":      "contributed",
+			"automatable": true,
+			"confidence":  0.7,
+			"call_count":  1,
+			"error_kind":  nil,
+			"link_out":    "",
+			"attribution": "Source: Numista",
+			"claims": []map[string]any{
+				{
+					"field":      "denomination",
+					"value":      "Denarius",
+					"confidence": 0.8,
+					"citation":   "https://en.numista.com/catalogue/pieces12345.html",
+					"excerpt":    "Silver denarius, Rome mint",
+				},
+			},
+		},
+		{"type": "evaluation", "disagreement_count": 0, "resolved_count": 0},
+		{"type": "synthesis_started"},
+		{
+			"type": "synthesis",
+			"report": map[string]any{
+				"narrative": "A silver denarius.",
+				"proposed_fields": map[string]any{
+					"denomination": map[string]any{
+						"value":      "Denarius",
+						"confidence": 0.82,
+						"evidence_refs": []map[string]any{
+							{"provider": "numista", "claim_index": 0},
+						},
+					},
+				},
+				"partial_success": false,
+			},
+		},
+	}
+	sseLines := make([]string, 0, len(frames))
+	for _, f := range frames {
+		raw, err := json.Marshal(f)
+		if err != nil {
+			t.Fatalf("marshal fixture frame: %v", err)
+		}
+		sseLines = append(sseLines, "data: "+string(raw)+"\n\n")
+	}
+
+	server := newPythonShapedDeepAgent(t, sseLines)
+	defer server.Close()
+
+	runner, repo, db := newDeepRunnerStreamTestDeps(t, server.URL)
+	var coinID uint = 78
+	job, userID := seedDeepRunnerJob(t, db, models.DeepJobSourceSavedCoin, &coinID)
+
+	if _, err := runner.Run(context.Background(), job); err != nil {
+		t.Fatalf("runner.Run: %v", err)
+	}
+
+	events, err := repo.ListEventsSince(job.ID, userID, 0)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	var routerEvent *models.DeepIdentificationEvent
+	for i := range events {
+		if events[i].Type == models.DeepEventRouterSelected {
+			routerEvent = &events[i]
+		}
+	}
+	if routerEvent == nil {
+		t.Fatal("expected a persisted router_selected event")
+	}
+
+	var publicPayload struct {
+		SelectedProviders []string `json:"selectedProviders"`
+		Rationale         string   `json:"rationale"`
+		Skipped           []struct {
+			Provider string `json:"provider"`
+			Reason   string `json:"reason"`
+		} `json:"skipped"`
+	}
+	if err := json.Unmarshal([]byte(routerEvent.PayloadJSON), &publicPayload); err != nil {
+		t.Fatalf("public router_selected payload did not parse: %v (raw=%s)", err, routerEvent.PayloadJSON)
+	}
+	if len(publicPayload.Skipped) != 1 {
+		t.Fatalf("expected exactly one persisted skip, got %#v (raw=%s)", publicPayload.Skipped, routerEvent.PayloadJSON)
+	}
+	if publicPayload.Skipped[0].Provider != "ocre" {
+		t.Fatalf("expected skipped provider ocre, got %q", publicPayload.Skipped[0].Provider)
+	}
+	if publicPayload.Skipped[0].Reason != "non-Roman-Imperial era signal: greek" {
+		t.Fatalf("expected the stated skip reason to survive translation, got %q", publicPayload.Skipped[0].Reason)
 	}
 }
 

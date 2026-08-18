@@ -437,6 +437,96 @@ func TestDeepIdentificationService_AllTerminalStatesDeleteHints(t *testing.T) {
 	}
 }
 
+// TestDeepIdentificationService_ProviderBudgetTracker_ResetOnEveryTerminalState
+// proves T078's fix: once a job settles into completed, failed, or
+// cancelled, the injected DeepProviderBudgetTracker no longer holds any
+// entries for that job id, while a concurrently running second job's
+// entries are left untouched (T079).
+func TestDeepIdentificationService_ProviderBudgetTracker_ResetOnEveryTerminalState(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error)
+		cancel bool
+	}{
+		{
+			name: "completed",
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return &DeepPipelineResult{ReportJSON: `{"narrative":"complete"}`, ProposalJSON: `{"fields":{}}`}, nil
+			},
+		},
+		{
+			name: "failed",
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return nil, errors.New("provider unavailable")
+			},
+		},
+		{
+			name: "cancelled",
+			run: func(ctx context.Context, _ *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+			cancel: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+			user := models.User{
+				Username:     "budget-terminal-" + tc.name,
+				Email:        "budget-terminal-" + tc.name + "@example.com",
+				PasswordHash: "x",
+			}
+			if err := db.Create(&user).Error; err != nil {
+				t.Fatal(err)
+			}
+			enableDeepIdentification(t, svc, nil)
+
+			// Job under test.
+			jobID := seedDeepTestJob(t, db, user.ID)
+			if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", jobID).
+				Updates(map[string]any{"status": models.DeepJobStatusRunning, "started_at": time.Now()}).Error; err != nil {
+				t.Fatal(err)
+			}
+			var job models.DeepIdentificationJob
+			if err := db.First(&job, jobID).Error; err != nil {
+				t.Fatal(err)
+			}
+
+			// A concurrently running second job whose tracked entries must
+			// survive this job's settlement untouched.
+			otherJobID := seedDeepTestJob(t, db, user.ID)
+
+			tracker := NewDeepProviderBudgetTracker()
+			svc.SetProviderBudgetTracker(tracker)
+			if allowed, _ := tracker.TryConsume(jobID, "numista", 4); !allowed {
+				t.Fatal("expected TryConsume to allow first call within budget")
+			}
+			if allowed, _ := tracker.TryConsume(otherJobID, "numista", 4); !allowed {
+				t.Fatal("expected TryConsume to allow first call within budget for other job")
+			}
+
+			svc.SetPipelineRunner(&fakeRunner{run: tc.run})
+			ctx := context.Background()
+			if tc.cancel {
+				cancelled, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = cancelled
+			}
+
+			svc.runJob(ctx, &job)
+
+			if allowed, count := tracker.TryConsume(jobID, "numista", 4); !allowed || count != 1 {
+				t.Fatalf("expected settled job's tracker entries to be released, got allowed=%v count=%d", allowed, count)
+			}
+			if _, count := tracker.TryConsume(otherJobID, "numista", 4); count != 2 {
+				t.Fatalf("expected concurrent job's tracker entry to be untouched, got count=%d", count)
+			}
+		})
+	}
+}
+
 func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "expired-artifacts", Email: "expired-artifacts@example.com", PasswordHash: "x"}
@@ -461,7 +551,7 @@ func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.
 		t.Fatal(err)
 	}
 
-	svc.runRetentionSweep()
+	svc.janitor.runRetentionSweep()
 
 	for _, artifact := range []*models.DeepIdentificationArtifact{obverse, hint} {
 		var reloaded models.DeepIdentificationArtifact
@@ -550,18 +640,23 @@ func TestDeepIdentificationService_StartJob_QueueDepthAndPerUserLimit(t *testing
 	})
 
 	job1, reused1, err := svc.StartJob(newDeepStartJob(t, user.ID, "first"))
-	if err != nil || reused1 {
-		t.Fatalf("expected first job to be newly created, got reused=%v err=%v", reused1, err)
+	if err != nil || reused1 || job1 == nil {
+		t.Fatalf("expected first job to be newly created, got job=%v reused=%v err=%v", job1, reused1, err)
 	}
 
-	// Same user, different fingerprint: blocked by the per-user active limit
-	// and should surface the existing active job rather than a new one.
+	// Same user, different fingerprint: this is a genuinely new request, not
+	// a duplicate submission, so it must be refused with ErrDeepJobAtCapacity
+	// rather than silently handed job1's identity (approved breaking change,
+	// 2026-08-17 - see .squad/decisions/inbox/cassius-job-at-capacity.md).
 	job2, reused2, err := svc.StartJob(newDeepStartJob(t, user.ID, "second"))
-	if err != nil {
-		t.Fatalf("expected per-user limit to return the existing job, got err=%v", err)
+	if !errors.Is(err, ErrDeepJobAtCapacity) {
+		t.Fatalf("expected ErrDeepJobAtCapacity for a non-matching submission at the per-user limit, got job=%v reused=%v err=%v", job2, reused2, err)
 	}
-	if !reused2 || job2.ID != job1.ID {
-		t.Fatalf("expected the existing active job to be returned, got reused=%v id=%d (want %d)", reused2, job2.ID, job1.ID)
+	if job2 != nil {
+		t.Fatalf("expected no job to be returned for a refused at-capacity submission, got job id %d", job2.ID)
+	}
+	if reused2 {
+		t.Fatalf("expected reused=false for a refused at-capacity submission")
 	}
 
 	// Different user: allowed (fills the queue depth of 2).
@@ -814,7 +909,7 @@ func TestDeepIdentificationService_RestartRecovery_StaleJobsSettleToFailed(t *te
 		t.Fatal(err)
 	}
 
-	svc.recoverStaleAndSweepHints()
+	svc.janitor.recoverStaleAndSweepHints()
 
 	var final models.DeepIdentificationJob
 	if err := db.First(&final, job.ID).Error; err != nil {
@@ -845,7 +940,7 @@ func TestDeepIdentificationService_JanitorSweepsOrphanedHintsFromCrash(t *testin
 		t.Fatalf("failed to seed hint artifact: %v", err)
 	}
 
-	svc.recoverStaleAndSweepHints()
+	svc.janitor.recoverStaleAndSweepHints()
 
 	var reloaded models.DeepIdentificationArtifact
 	if err := db.First(&reloaded, hint.ID).Error; err != nil {

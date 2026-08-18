@@ -60,6 +60,13 @@ paths:
         content hashes, notes, provider override) is already `queued` or
         `running`, the existing job is returned with `reused: true` and HTTP
         200 instead of creating a duplicate.
+
+        Per-user capacity (breaking change, approved): if the submission is
+        NOT an equivalent/duplicate of the owner's existing in-flight job but
+        the owner is already at `MaxActivePerUser` active jobs, the request
+        is refused with `409 job_at_capacity` rather than being matched to
+        that unrelated in-flight job. Reuse is reserved strictly for genuine
+        duplicate submissions.
       requestBody:
         required: true
         content:
@@ -129,6 +136,14 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '429':
           description: Per-user active job limit reached (a different in-flight job exists)
+        '409':
+          description: |
+            Per-user active job limit reached with a non-matching (non-duplicate)
+            submission. `code` is `job_at_capacity`. Superseded '429' text above
+            described this same scenario in the original planning contract;
+            the shipped behavior for this case is 409, not 429, per the
+            approved fix for the wrong-job-returned defect (2026-08-17).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '503':
           description: Job queue full (backpressure) or agent service unavailable
     get:

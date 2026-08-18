@@ -22,6 +22,8 @@
           :preparing-image="preparingImage"
           :upload-error="uploadError"
           :deep-analysis-enabled="deepAnalysisEnabled"
+          :deep-analysis-disabled="deepAnalysisLaunchDisabled"
+          :deep-analysis-disabled-title="deepAnalysisDisabledTitle"
           @captured="handleCameraCapture"
           @selected="handleGallerySelection"
           @remove="removeCapturedImage"
@@ -48,6 +50,7 @@
             :eligible-providers="deepAnalysisProviders"
             :submitting="deepIdentification.starting.value"
             :submit-error="deepIdentification.error.value"
+            :conflict-job-id="launcher.capacityConflictJobId.value"
             @submit="onDeepAnalysisSubmit"
             @cancel="showDeepAnalysisModal = false"
           />
@@ -288,8 +291,7 @@ import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
-import { useDeepIdentification } from '@/composables/useDeepIdentification'
-import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
+import { useDeepAnalysisLauncher } from '@/composables/useDeepAnalysisLauncher'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
 import { normalizeGalleryImage } from '@/utils/galleryImage'
 import { useAuthStore } from '@/stores/auth'
@@ -322,19 +324,20 @@ const obverseImage = computed(() => capturedImages.value.find(image => image.rol
 const reverseImage = computed(() => capturedImages.value.find(image => image.role === 'reverse') ?? null)
 const notesImage = computed(() => capturedImages.value.find(image => image.role === 'notes') ?? null)
 
-const showDeepAnalysisModal = ref(false)
-const {
-  enabled: deepAnalysisEnabled,
-  providers: deepAnalysisProviders,
-} = useDeepIdentificationCapability()
-const deepIdentification = useDeepIdentification()
+const launcher = useDeepAnalysisLauncher()
+const showDeepAnalysisModal = launcher.showDeepAnalysisModal
+const deepAnalysisEnabled = launcher.deepAnalysisEnabled
+const deepAnalysisProviders = launcher.deepAnalysisProviders
+const deepIdentification = launcher.deepIdentification
+const deepAnalysisDisabledTitle = computed(() =>
+  launcher.activeJobCount.value > 0
+    ? 'You already have an active Deep Analysis job. Wait for it to finish before starting another.'
+    : undefined,
+)
+const deepAnalysisLaunchDisabled = computed(() => Boolean(deepAnalysisDisabledTitle.value))
 
 async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {
-  const job = await deepIdentification.start(input)
-  if (job) {
-    showDeepAnalysisModal.value = false
-    await router.push(`/deep-analysis/${job.id}`)
-  }
+  await launcher.submitDeepAnalysis(input)
 }
 
 

@@ -5,7 +5,23 @@ import { createDeepIdentificationJob, getDeepIdentificationJob } from '@/api/cli
 vi.mock('@/api/client', () => ({
   createDeepIdentificationJob: vi.fn(),
   getDeepIdentificationJob: vi.fn(),
-  getApiErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  getApiErrorMessage: (error: unknown) => {
+    if (typeof error === 'object' && error !== null) {
+      const maybeResponse = error as { response?: { data?: { error?: unknown } } }
+      const message = maybeResponse.response?.data?.error
+      if (typeof message === 'string') return message
+      return error instanceof Error ? error.message : ''
+    }
+    return error instanceof Error ? error.message : String(error)
+  },
+  getApiErrorCode: (error: unknown) => {
+    if (typeof error === 'object' && error !== null) {
+      const maybeResponse = error as { response?: { data?: { code?: unknown } } }
+      const code = maybeResponse.response?.data?.code
+      if (typeof code === 'string') return code
+    }
+    return ''
+  },
 }))
 
 const baseJob = {
@@ -42,6 +58,39 @@ describe('useDeepIdentification', () => {
 
     expect(result).toBeNull()
     expect(error.value).toBe('boom')
+  })
+
+  it('surfaces the job_at_capacity conflict as a specific actionable message, code, and non-loading state', async () => {
+    vi.mocked(createDeepIdentificationJob).mockRejectedValue({
+      response: {
+        status: 409,
+        data: { error: 'An analysis is already running. Wait for it to finish or cancel it.', code: 'job_at_capacity' },
+      },
+    })
+    const { start, error, errorCode, starting, job } = useDeepIdentification()
+
+    const result = await start({ obverseImage: null, reverseImage: null })
+
+    // The failed submission must not look like success: no job stored, the
+    // spinner state cleared, and a message the user can act on (not a
+    // generic "something went wrong").
+    expect(result).toBeNull()
+    expect(job.value).toBeNull()
+    expect(starting.value).toBe(false)
+    expect(errorCode.value).toBe('job_at_capacity')
+    expect(error.value).toBe('An analysis is already running. Wait for it to finish or cancel it.')
+  })
+
+  it('falls back to a local job_at_capacity message when the server sends no message text', async () => {
+    vi.mocked(createDeepIdentificationJob).mockRejectedValue({
+      response: { status: 409, data: { code: 'job_at_capacity' } },
+    })
+    const { start, error, errorCode } = useDeepIdentification()
+
+    await start({ obverseImage: null, reverseImage: null })
+
+    expect(errorCode.value).toBe('job_at_capacity')
+    expect(error.value).toBe('An analysis is already running. Wait for it to finish or cancel it.')
   })
 
   it('refreshes an existing job by id', async () => {

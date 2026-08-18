@@ -169,21 +169,30 @@ func TestTimeUntilNextRun_IgnoresManualRuns(t *testing.T) {
 	}
 }
 
-// setupAvailSchedulerWithService creates a full scheduler with a real AvailabilityService
-// backed by an in-memory DB, suitable for async processing tests.
-func setupAvailSchedulerWithService(t *testing.T, listingURL string) (*AvailabilityScheduler, *repository.AvailabilityRepository, *gorm.DB) {
+// setupAvailSchedulerWithService creates a full scheduler + cycle repository backed by an
+// in-memory DB, wired exactly like main.go (availRepo.WithCycleRepo + scheduler.WithCycleRepo),
+// suitable for cycle-based async processing tests (Feature 353).
+func setupAvailSchedulerWithService(t *testing.T, listingURL string) (*AvailabilityScheduler, *repository.AvailabilityCycleRepository, *gorm.DB) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
+	// StartWorkers processes cycles on a background goroutine while the test polls the same
+	// DB from the main goroutine; pin the pool to one connection so it can't land on a second,
+	// unmigrated ":memory:" instance (same pattern used for Pushover-goroutine tests).
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Coin{},
 		&models.CoinImage{},
+		&models.AvailabilityCycle{},
 		&models.AvailabilityRun{},
 		&models.AvailabilityResult{},
 		&models.AppSetting{},
+		&models.Notification{},
 	); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
@@ -199,48 +208,38 @@ func setupAvailSchedulerWithService(t *testing.T, listingURL string) (*Availabil
 
 	coinRepo := repository.NewCoinRepository(db)
 	availRepo := repository.NewAvailabilityRepository(db)
+	availCycleRepo := repository.NewAvailabilityCycleRepository(db)
+	availRepo.WithCycleRepo(availCycleRepo)
 	settingsRepo := repository.NewSettingsRepository(db)
 	settingsSvc := NewSettingsService(settingsRepo)
 	logger := NewLogger(100)
-	availSvc := NewAvailabilityService(coinRepo, availRepo, nil, nil, nil, nil, settingsSvc, logger)
-	scheduler := NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
-	return scheduler, availRepo, db
+	availSvc := NewAvailabilityService(coinRepo, availRepo, nil, nil, nil, nil, settingsSvc, logger).WithCycleRepo(availCycleRepo)
+	scheduler := NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger).WithCycleRepo(availCycleRepo)
+	return scheduler, availCycleRepo, db
 }
 
 // TestAvailabilityScheduler_RunNowEnqueuesWithoutBlocking verifies that RunNowWithTrigger
-// returns immediately with a queued run and does NOT process coins synchronously.
+// returns immediately with a queued cycle and does NOT process any coins synchronously.
 func TestAvailabilityScheduler_RunNowEnqueuesWithoutBlocking(t *testing.T) {
 	agentCalled := false
 	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		agentCalled = true
-		t.Fatal("listing server should not be called until worker processes the queued run")
+		t.Fatal("listing server should not be called until worker processes the queued cycle")
 	}))
 	defer listing.Close()
 
-	// Use a fresh DB (no listing server hit expected during enqueue)
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("db: %v", err)
-	}
-	db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.AppSetting{})
-	owner := models.User{Username: "owner", Email: "owner@test.com"}
-	db.Create(&owner)
-	db.Create(&models.Coin{UserID: owner.ID, Name: "Coin", ReferenceURL: listing.URL, IsWishlist: true})
+	scheduler, _, _ := setupAvailSchedulerWithService(t, listing.URL)
 
-	coinRepo := repository.NewCoinRepository(db)
-	availRepo := repository.NewAvailabilityRepository(db)
-	settingsSvc := NewSettingsService(repository.NewSettingsRepository(db))
-	logger := NewLogger(100)
-	svc := NewAvailabilityService(coinRepo, availRepo, nil, nil, nil, nil, settingsSvc, logger)
-	scheduler := NewAvailabilityScheduler(svc, coinRepo, availRepo, settingsSvc, logger)
-
-	triggerID := owner.ID
-	run, err := scheduler.RunNowWithTrigger(&triggerID)
+	triggerID := uint(1)
+	cycle, err := scheduler.RunNowWithTrigger(&triggerID)
 	if err != nil {
 		t.Fatalf("RunNowWithTrigger: %v", err)
 	}
-	if run.Status != models.AvailabilityRunStatusQueued {
-		t.Fatalf("expected queued status, got %q", run.Status)
+	if cycle.Status != models.AvailabilityCycleStatusQueued {
+		t.Fatalf("expected queued status, got %q", cycle.Status)
+	}
+	if cycle.TriggerType != models.AvailabilityRunTriggerAdmin {
+		t.Fatalf("expected admin trigger type, got %q", cycle.TriggerType)
 	}
 	if agentCalled {
 		t.Fatal("listing server was called synchronously during RunNowWithTrigger")
@@ -248,7 +247,8 @@ func TestAvailabilityScheduler_RunNowEnqueuesWithoutBlocking(t *testing.T) {
 }
 
 // TestAvailabilityScheduler_DuplicateRunBlocked verifies that a second RunNowWithTrigger
-// call is rejected while a queued or running manual run exists.
+// call is rejected (409-equivalent sentinel) while a queued or running cycle exists
+// (FR-007, US2 AC2 — T016).
 func TestAvailabilityScheduler_DuplicateRunBlocked(t *testing.T) {
 	scheduler, _, _ := setupAvailSchedulerWithService(t, "https://example.test/coin")
 
@@ -258,113 +258,220 @@ func TestAvailabilityScheduler_DuplicateRunBlocked(t *testing.T) {
 	}
 	_, err := scheduler.RunNowWithTrigger(&id)
 	if err == nil {
-		t.Fatal("expected error for duplicate run, got nil")
+		t.Fatal("expected error for duplicate cycle, got nil")
 	}
 	if err != ErrAvailabilityRunInProgress {
 		t.Fatalf("expected ErrAvailabilityRunInProgress, got %v", err)
 	}
 }
 
-// TestAvailabilityScheduler_ProcessRun_Completed verifies that ProcessRun claims a queued
-// run, checks all user coins, and marks the run completed.
-func TestAvailabilityScheduler_ProcessRun_Completed(t *testing.T) {
+// TestAvailabilityScheduler_ProcessCycle_Completed verifies that ProcessCycle claims a
+// queued cycle, fans out one child run per wishlist owner, and marks both the child and
+// the parent cycle completed.
+func TestAvailabilityScheduler_ProcessCycle_Completed(t *testing.T) {
 	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`<html><body><p>Add to Cart</p></body></html>`))
 	}))
 	defer listing.Close()
 
-	scheduler, availRepo, db := setupAvailSchedulerWithService(t, listing.URL)
+	scheduler, availCycleRepo, db := setupAvailSchedulerWithService(t, listing.URL)
 
 	triggerID := uint(1)
-	run, err := scheduler.RunNowWithTrigger(&triggerID)
+	cycle, err := scheduler.RunNowWithTrigger(&triggerID)
 	if err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
 
-	if err := scheduler.ProcessRun(run.ID); err != nil {
-		t.Fatalf("ProcessRun: %v", err)
+	if err := scheduler.ProcessCycle(cycle.ID); err != nil {
+		t.Fatalf("ProcessCycle: %v", err)
 	}
 
-	var completed models.AvailabilityRun
-	if err := db.First(&completed, run.ID).Error; err != nil {
-		t.Fatalf("load run: %v", err)
+	var completedCycle models.AvailabilityCycle
+	if err := db.First(&completedCycle, cycle.ID).Error; err != nil {
+		t.Fatalf("load cycle: %v", err)
 	}
-	if completed.Status != models.AvailabilityRunStatusCompleted {
-		t.Fatalf("expected completed, got %q", completed.Status)
+	if completedCycle.Status != models.AvailabilityCycleStatusCompleted {
+		t.Fatalf("expected cycle completed, got %q", completedCycle.Status)
 	}
-	if completed.CoinsChecked != 1 {
-		t.Fatalf("expected 1 coin checked, got %d", completed.CoinsChecked)
+	if completedCycle.CompletedChildren != 1 || completedCycle.TotalChildren < 1 {
+		t.Fatalf("expected 1 completed child, got completed=%d total=%d", completedCycle.CompletedChildren, completedCycle.TotalChildren)
 	}
-	if completed.Available != 1 {
-		t.Fatalf("expected 1 available, got %d", completed.Available)
+
+	var childRuns []models.AvailabilityRun
+	db.Where("cycle_id = ?", cycle.ID).Find(&childRuns)
+	if len(childRuns) != 1 {
+		t.Fatalf("expected exactly 1 child run, got %d", len(childRuns))
+	}
+	child := childRuns[0]
+	if child.Status != models.AvailabilityRunStatusCompleted {
+		t.Fatalf("expected child completed, got %q", child.Status)
+	}
+	if child.UserID == 0 {
+		t.Fatal("expected child run UserID > 0")
+	}
+	if child.CoinsChecked != 1 || child.Available != 1 {
+		t.Fatalf("expected 1 coin checked/available, got checked=%d available=%d", child.CoinsChecked, child.Available)
 	}
 
 	// Verify result record was created
 	var results []models.AvailabilityResult
-	db.Where("run_id = ?", run.ID).Find(&results)
+	db.Where("run_id = ?", child.ID).Find(&results)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
 
-	_ = availRepo
+	_ = availCycleRepo
 }
 
-// TestAvailabilityScheduler_StaleRunRecovery verifies that StartWorkers re-queues
-// any runs that were stuck in running state (e.g. from a crashed process).
-func TestAvailabilityScheduler_StaleRunRecovery(t *testing.T) {
+// TestAvailabilityScheduler_StaleChildRunRecovery verifies that RecoverStaleChildRuns fails
+// orphaned "running" child runs from a previous crashed process and finalizes their parent
+// cycle as a side effect (there is no queued state for a child to resume from — Feature 353
+// replaces the old queued-manual-run recovery model with fail-and-aggregate for children).
+func TestAvailabilityScheduler_StaleChildRunRecovery(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("db: %v", err)
 	}
-	db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.AppSetting{})
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.AvailabilityCycle{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.AppSetting{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 
 	owner := models.User{Username: "u"}
 	db.Create(&owner)
 
-	// Seed a run that was in "running" state and started more than the stale timeout ago
+	cycle := &models.AvailabilityCycle{
+		TriggerType: models.AvailabilityRunTriggerAdmin,
+		Status:      models.AvailabilityCycleStatusRunning,
+		StartedAt:   time.Now().Add(-(availabilityStaleRunTimeout + time.Minute)),
+	}
+	db.Create(cycle)
+
+	// Seed a child run that was in "running" state and started more than the stale timeout ago.
 	staleStart := time.Now().Add(-(availabilityStaleRunTimeout + time.Minute))
 	staleRun := &models.AvailabilityRun{
 		UserID:      owner.ID,
-		TriggerType: "manual",
+		CycleID:     &cycle.ID,
+		TriggerType: models.AvailabilityRunTriggerAdmin,
 		Status:      models.AvailabilityRunStatusRunning,
 		StartedAt:   staleStart,
 	}
 	db.Create(staleRun)
 
+	availCycleRepo := repository.NewAvailabilityCycleRepository(db)
 	availRepo := repository.NewAvailabilityRepository(db)
-	ids, err := availRepo.RecoverStaleRuns(availabilityStaleRunTimeout)
-	if err != nil {
-		t.Fatalf("RecoverStaleRuns: %v", err)
-	}
-	if len(ids) != 1 || ids[0] != staleRun.ID {
-		t.Fatalf("expected stale run %d to be recovered, got %v", staleRun.ID, ids)
+	availRepo.WithCycleRepo(availCycleRepo)
+
+	availRepo.RecoverStaleChildRuns(availabilityStaleRunTimeout)
+
+	var recoveredRun models.AvailabilityRun
+	db.First(&recoveredRun, staleRun.ID)
+	if recoveredRun.Status != models.AvailabilityRunStatusFailed {
+		t.Fatalf("expected stale child run to be failed (not requeued), got %q", recoveredRun.Status)
 	}
 
-	// Verify the run was reset to queued in the DB
-	var recovered models.AvailabilityRun
-	db.First(&recovered, staleRun.ID)
-	if recovered.Status != models.AvailabilityRunStatusQueued {
-		t.Fatalf("expected queued after recovery, got %q", recovered.Status)
+	var recoveredCycle models.AvailabilityCycle
+	db.First(&recoveredCycle, cycle.ID)
+	if recoveredCycle.Status != models.AvailabilityCycleStatusFailed {
+		t.Fatalf("expected parent cycle aggregated to failed once its only child failed, got %q", recoveredCycle.Status)
 	}
 }
 
-// TestAvailabilityScheduler_ProcessRun_IdempotentWhenAlreadyClaimed verifies that
-// ProcessRun silently no-ops when the run has already been claimed by another worker.
-func TestAvailabilityScheduler_ProcessRun_IdempotentWhenAlreadyClaimed(t *testing.T) {
-	scheduler, _, db := setupAvailSchedulerWithService(t, "https://example.test/coin")
+// TestAvailabilityScheduler_ProcessCycle_IdempotentWhenAlreadyClaimed verifies that
+// ProcessCycle silently no-ops when the cycle has already been claimed by another worker.
+func TestAvailabilityScheduler_ProcessCycle_IdempotentWhenAlreadyClaimed(t *testing.T) {
+	scheduler, availCycleRepo, db := setupAvailSchedulerWithService(t, "https://example.test/coin")
 
 	triggerID := uint(1)
-	run, err := scheduler.RunNowWithTrigger(&triggerID)
+	cycle, err := scheduler.RunNowWithTrigger(&triggerID)
 	if err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
 
 	// Manually set to running to simulate another worker claiming it
-	db.Model(run).Update("status", models.AvailabilityRunStatusRunning)
+	db.Model(&models.AvailabilityCycle{}).Where("id = ?", cycle.ID).Update("status", models.AvailabilityCycleStatusRunning)
 
-	// ProcessRun should return nil (no-op)
-	if err := scheduler.ProcessRun(run.ID); err != nil {
-		t.Fatalf("ProcessRun on already-running run should return nil, got: %v", err)
+	// ProcessCycle should return nil (no-op)
+	if err := scheduler.ProcessCycle(cycle.ID); err != nil {
+		t.Fatalf("ProcessCycle on already-running cycle should return nil, got: %v", err)
+	}
+	_ = availCycleRepo
+}
+
+// --- T039: RecoverStaleCycles wiring through StartWorkers ---
+
+// TestAvailabilityScheduler_StartWorkers_ReQueuesQueuedCycles verifies that StartWorkers
+// discovers any cycle left in "queued" status by a previous process (enqueued but never
+// claimed before a restart) and re-enqueues it into the in-memory worker queue so it will
+// still be processed.
+func TestAvailabilityScheduler_StartWorkers_ReQueuesQueuedCycles(t *testing.T) {
+	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`<html><body><p>Add to Cart</p></body></html>`))
+	}))
+	defer listing.Close()
+
+	scheduler, availCycleRepo, db := setupAvailSchedulerWithService(t, listing.URL)
+
+	// Seed a cycle stuck in "queued" as if the process crashed before a worker claimed it.
+	queuedCycle := &models.AvailabilityCycle{
+		TriggerType: models.AvailabilityRunTriggerAdmin,
+		Status:      models.AvailabilityCycleStatusQueued,
+		StartedAt:   time.Now(),
+	}
+	if err := db.Create(queuedCycle).Error; err != nil {
+		t.Fatalf("seed queued cycle: %v", err)
+	}
+
+	scheduler.StartWorkers(1)
+	defer scheduler.Stop()
+
+	// Poll briefly for the worker to claim and complete the re-queued cycle.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		var reloaded models.AvailabilityCycle
+		db.First(&reloaded, queuedCycle.ID)
+		if reloaded.Status == models.AvailabilityCycleStatusCompleted {
+			_ = availCycleRepo
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("expected StartWorkers to re-queue and eventually complete the previously-queued cycle")
+}
+
+// TestAvailabilityScheduler_RecoverStaleCycles_FinalizesTerminalChildrenOnBoot verifies the
+// boot-time recovery path: a "running" cycle whose children are all terminal is finalized,
+// while a "running" cycle with an active child is left alone (T039).
+func TestAvailabilityScheduler_RecoverStaleCycles_FinalizesTerminalChildrenOnBoot(t *testing.T) {
+	scheduler, availCycleRepo, db := setupAvailSchedulerWithService(t, "https://example.test/coin")
+	_ = scheduler
+
+	owner := models.User{Username: "boot-owner", Email: "boot-owner@test.com"}
+	db.Create(&owner)
+
+	staleStart := time.Now().Add(-(availabilityStaleRunTimeout + time.Minute))
+
+	finishedCycle := &models.AvailabilityCycle{TriggerType: models.AvailabilityRunTriggerAdmin, Status: models.AvailabilityCycleStatusRunning, StartedAt: staleStart}
+	db.Create(finishedCycle)
+	db.Create(&models.AvailabilityRun{UserID: owner.ID, CycleID: &finishedCycle.ID, TriggerType: models.AvailabilityRunTriggerAdmin, Status: models.AvailabilityRunStatusCompleted, StartedAt: staleStart})
+
+	activeCycle := &models.AvailabilityCycle{TriggerType: models.AvailabilityRunTriggerScheduled, Status: models.AvailabilityCycleStatusRunning, StartedAt: staleStart}
+	db.Create(activeCycle)
+	db.Create(&models.AvailabilityRun{UserID: owner.ID, CycleID: &activeCycle.ID, TriggerType: models.AvailabilityRunTriggerScheduled, Status: models.AvailabilityRunStatusRunning, StartedAt: staleStart})
+
+	if _, err := availCycleRepo.RecoverStaleCycles(availabilityStaleRunTimeout); err != nil {
+		t.Fatalf("RecoverStaleCycles: %v", err)
+	}
+
+	var reloadedFinished, reloadedActive models.AvailabilityCycle
+	db.First(&reloadedFinished, finishedCycle.ID)
+	db.First(&reloadedActive, activeCycle.ID)
+
+	if reloadedFinished.Status != models.AvailabilityCycleStatusCompleted {
+		t.Fatalf("expected cycle with all-terminal children to be finalized completed, got %q", reloadedFinished.Status)
+	}
+	if reloadedActive.Status != models.AvailabilityCycleStatusRunning {
+		t.Fatalf("expected cycle with an active child to remain running, got %q", reloadedActive.Status)
 	}
 }

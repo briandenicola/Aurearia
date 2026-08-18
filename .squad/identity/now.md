@@ -1,9 +1,1 @@
----
-updated_at: 2026-06-30T22:37:09.133Z
-focus_area: Spike for adding CNG Auctions alongside NumisBids auction support
-active_issues: []
----
-
-# What We're Focused On
-
-Researching what it would take to add `https://auctions.cngcoins.com/` with a feature set similar to the existing NumisBids auction integration.
+---updated_at: 2026-08-17T19:13:00-05:00focus_area: Feature 353 wishlist availability run observability implementation complete, quality-gated, pending releaseactive_issues: []handoff_commit: 60945f8---# What We're Focused OnFeature 353 — Wishlist Availability Run Observability — **fully implemented, tested, and quality-gated**.**Implementation status:**- ✓ Backend complete (commit 1c5f3e8, Cassius): schema, repository, handlers, notification routing- ✓ Frontend complete (commit 60945f8, Aurelia): admin cycle UI, owner run history, types, notifications- ✓ Architecture review approved (Maximus)- ✓ QC audit passed (Brutus): all tests green, Block B1 cleared (notification routing regression disproven)- ✓ Quality Gate: Go build/vet/test/architecture/OpenAPI drift PASS; Vue type-check/871 tests/build PASS- ✓ Four orchestration logs written; formal session log created- ✓ Four non-blocking follow-ups documented (pagination, deleted-owner edge, error counter, legacy helper deprecation)**Design locked:**- `AvailabilityCycle` parent (20 global terminal) + `AvailabilityRun` children per-user (20 per owner)- Additive-only schema: new table + nullable `CycleID` FK, no synthetic backfill- Per-coin `NotifyWishlistUnavailable` alerts + per-run `wishlist_availability_run` notifications coexist- Legacy `UserID=0` admin rows labeled "Legacy" in UI, left unmodified post-migration**Status:** Ready for push to main branch / beta release. All 51 tasks (T001–T051) implemented and validated.**Next Phase:** Release coordination and deployment (outside squad scope).

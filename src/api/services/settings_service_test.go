@@ -381,17 +381,18 @@ func TestGetSetting_DeepIdentificationDefaults(t *testing.T) {
 	svc, _ := newTestSettingsService(t)
 
 	wantDefaults := map[string]string{
-		SettingDeepIdentificationEnabled:             "false",
-		SettingDeepIdentificationWorkerCount:         "2",
-		SettingDeepIdentificationMaxActivePerUser:    "1",
-		SettingDeepIdentificationQueueDepth:          "32",
-		SettingDeepIdentificationHardTimeoutSeconds:  "300",
-		SettingDeepIdentificationEventRetentionHours: "24",
-		SettingDeepIdentificationResultRetentionDays: "90",
-		SettingDeepIdentificationMaxProviders:        "4",
-		SettingDeepIdentificationNumistaCallBudget:   "4",
-		SettingDeepIdentificationOCREEnabled:         "false",
-		SettingDeepIdentificationRPCEnabled:          "false",
+		SettingDeepIdentificationEnabled:                   "false",
+		SettingDeepIdentificationWorkerCount:               "2",
+		SettingDeepIdentificationMaxActivePerUser:          "1",
+		SettingDeepIdentificationQueueDepth:                "32",
+		SettingDeepIdentificationHardTimeoutSeconds:        "420",
+		SettingDeepIdentificationQuickLookupTimeoutSeconds: "90",
+		SettingDeepIdentificationEventRetentionHours:       "24",
+		SettingDeepIdentificationResultRetentionDays:       "90",
+		SettingDeepIdentificationMaxProviders:              "4",
+		SettingDeepIdentificationNumistaCallBudget:         "4",
+		SettingDeepIdentificationOCREEnabled:               "false",
+		SettingDeepIdentificationRPCEnabled:                "false",
 	}
 
 	for key, want := range wantDefaults {

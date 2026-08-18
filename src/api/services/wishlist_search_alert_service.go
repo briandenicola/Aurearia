@@ -526,6 +526,13 @@ func (s *WishlistSearchAlertService) ConvertCandidate(alertID, candidateID, user
 		return nil, ErrWishlistSearchAlertCandidateState
 	}
 	coin := input.Coin
+	// FR-049 / ADR 0013: input.Coin is a whole models.Coin bound straight off the
+	// request body, and this path is fed by AI search-agent output scraped from
+	// dealer pages. Brian authorized confirm-gated deep identification to write
+	// wishlist references; he did NOT authorize the search agent to write
+	// unconfirmed ones. Clear references at this untrusted-source boundary —
+	// this is not redundant with the (now-removed) CoinService wishlist guard.
+	coin.References = nil
 	coin.UserID = userID
 	coin.IsWishlist = true
 	coin.SourceAlertCandidateID = &candidate.ID

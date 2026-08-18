@@ -1,30 +1,33 @@
 """Numista provider node (T060) — automated, calls provider_tools.py only.
 
-Query text is built deterministically from `quick_evidence`/`notes` (never
-chosen freely by an LLM), matching FR "no arbitrary URL/tool selection".
+Query text is built deterministically by `query_terms.build_query_terms`
+(never chosen freely by an LLM), matching FR "no arbitrary URL/tool
+selection" (FR-009). When no precedence tier yields usable terms, this node
+makes ZERO upstream calls and reports `insufficient_query_evidence`
+(FR-011) instead of searching for a placeholder string.
 """
 
 import logging
 
+from app.models.hypothesis import CoinHypothesis
 from app.models.requests import DeepProviderCatalogEntry, QuickEvidence
 from app.models.responses import ProviderClaim, ProviderEvidence
+from app.teams.deep_identification.candidate_ranking import rank_candidates
 from app.teams.deep_identification.merge import validate_citations
+from app.teams.deep_identification.query_terms import build_query_terms
 from app.tools.provider_tools import ProviderToolError, ProviderToolsClient
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_QUERY = "unidentified ancient coin"
+# Candidate text fields consulted by the reverse-legend/type ranker
+# (T121/FR-039) — ranking only, never query input.
+_RANK_TEXT_FIELDS = ("title", "denomination", "issuer", "mint", "material")
 
 
-def _build_query(quick_evidence: QuickEvidence | None, notes: str) -> str:
-    if quick_evidence:
-        if quick_evidence.numista_query:
-            return quick_evidence.numista_query
-        if quick_evidence.label_text:
-            return quick_evidence.label_text
-    if notes:
-        return notes[:200]
-    return _DEFAULT_QUERY
+def _build_query(
+    quick_evidence: QuickEvidence | None, notes: str, hypothesis: CoinHypothesis | None = None
+) -> str:
+    return build_query_terms(quick_evidence, hypothesis, notes)
 
 
 async def run(
@@ -32,8 +35,16 @@ async def run(
     tools: ProviderToolsClient,
     quick_evidence: QuickEvidence | None,
     notes: str,
+    hypothesis: CoinHypothesis | None = None,
 ) -> ProviderEvidence:
-    query = _build_query(quick_evidence, notes)
+    query = _build_query(quick_evidence, notes, hypothesis)
+    if not query:
+        # No precedence tier yielded usable terms (FR-011) — zero upstream
+        # calls, never a search for a placeholder string.
+        return ProviderEvidence(
+            provider="numista", status="no_match", automatable=True,
+            error_kind="insufficient_query_evidence", call_count=0,
+        )
     try:
         result = await tools.numista_search(query, limit=5)
     except ProviderToolError:
@@ -66,7 +77,11 @@ async def run(
             provider="numista", status="no_match", automatable=True, call_count=1, attribution=attribution
         )
 
-    top = candidates[0]
+    # T121/FR-039: rank the already-returned candidates against hypothesis
+    # reverse-legend/type signals before picking one — zero additional
+    # upstream calls, no LLM choice, ties keep the provider's own order.
+    ranked = rank_candidates(candidates, hypothesis, _RANK_TEXT_FIELDS)
+    top = ranked[0]
     raw_claims: list[ProviderClaim] = []
     citation = str(top.get("canonicalUrl") or "")
     if citation:

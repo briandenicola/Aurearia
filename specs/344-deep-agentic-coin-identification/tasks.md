@@ -177,7 +177,7 @@ No post-MVP task (T125+) is marked complete by this work.
 - [X] T059 Create `src/agent/app/tools/provider_tools.py` — Go internal tool client mirroring `app/tools/collection_tools.py`, calling only the endpoints from T051
 - [X] T060 Create `src/agent/app/teams/deep_identification/providers/nomisma.py` and `providers/numista.py` — automated provider nodes that call `provider_tools.py` only, never the upstream directly
 - [X] T061 Create `src/agent/app/teams/deep_identification/providers/ngc.py` — reuses existing OCR cert-number extraction, emits `not_automated` + `link_out`, no live NGC API call (Terms-of-Use prohibited)
-- [X] T062 Create `src/agent/app/teams/deep_identification/providers/ocre.py` and `providers/rpc.py` — **MVP-only typed stubs** emitting `not_automated` (OCRE) / `unavailable` (RPC) respectively; explicitly NO upstream client, NO SPARQL query, NO scraping (real adapters are out of MVP scope — see "Later Provider Gates" below)
+- [X] T062 Create `src/agent/app/teams/deep_identification/providers/ocre.py` and `providers/rpc.py` — **MVP-only typed stubs** emitting `not_automated` (OCRE) / `unavailable` (RPC) respectively; explicitly NO upstream client, NO SPARQL query, NO scraping (real adapters are out of MVP scope — see "Later Provider Gates" below). **Record correction (Feature 351 T095):** superseded — `ocre.py` shipped a real Nomisma SPARQL-backed adapter via Feature 345 / ADR 0010; this row now describes history, not current behavior.
 - [X] T063 Create `src/agent/app/teams/deep_identification/merge.py` — deterministic claim ordering `(field, provider_rank, -confidence, citation)` per contract §5
 - [X] T064 Add citation host-allowlist validation to `src/agent/app/teams/deep_identification/merge.py` (or a new `validators.py`): allowed hosts `en.numista.com`/`api.numista.com`, `nomisma.org`, `numismatics.org`, `www.ngccoin.com`, `rpc.ashmus.ox.ac.uk`; claims failing validation are dropped and counted as `invalid_response` (SC-006)
 - [X] T065 Create `src/agent/app/teams/deep_identification/evaluator.py` — contradiction/provenance node; surfaces both claims for a disagreement, never silently resolves by precedence (FR-027)
@@ -355,7 +355,7 @@ These are represented in the job/event/report contracts today (typed
 production adapters in this feature. Do not create tasks that assume these
 gates pass; each is its own future release with its own ADR amendment.
 
-- [ ] T155 [DEFERRED] Gate G-OCRE: record ODbL/attribution license review; build an OCRE adapter over the Nomisma SPARQL endpoint; flip `SettingDeepIdentificationOCREEnabled` — **not part of this MVP**; requires separate authorization
+- [x] T155 [SHIPPED via Feature 345 / ADR 0010] Gate G-OCRE: record ODbL/attribution license review; build an OCRE adapter over the Nomisma SPARQL endpoint; flip `SettingDeepIdentificationOCREEnabled`. **Record correction (Feature 351 T095):** no longer deferred — shipped and enabled via Feature 345 (ADR 0010); see CHANGELOG.
 - [ ] T156 [DEFERRED] Gate G-RPC: requires written permission or a documented public API from the RPC Online project; until granted, RPC stays `unavailable` and no adapter is written — **not part of this MVP**; blocked pending external action
 
 ---

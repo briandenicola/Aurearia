@@ -377,6 +377,12 @@ class DeepIdentifyImage(StrictRequestModel):
 
     role: Literal["obverse", "reverse", "hint"]
     data_uri: BoundedDeepDataURI
+    # Wire contract §2 forward-compatibility placeholder (contracts/agent-
+    # internal-contract.md §2, e.g. "label"/"slab"): Go populates this today
+    # but no Python provider/router/hypothesis logic reads it yet — kept per
+    # T102 rather than dropped, since removing it would silently break the
+    # Go↔Python wire contract for a field Go already sends on every hint
+    # image.
     hint_kind: Annotated[str, StringConstraints(max_length=40)] = ""
 
 
@@ -390,6 +396,12 @@ class DeepProviderCatalogEntry(StrictRequestModel):
 
     provider: Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
     automatable: bool
+    # Wire contract §2 forward-compatibility placeholder (contracts/agent-
+    # internal-contract.md §2): Go already sends a per-provider call budget
+    # on every catalog entry, but no Python provider node currently reads or
+    # enforces it — kept documented per T102 rather than removed, since
+    # deleting it here would silently drop a field Go still populates on
+    # every request.
     call_budget: int = Field(default=0, ge=0)
     reason: Annotated[str, StringConstraints(max_length=100)] = ""
     link_out: BoundedOptionalURL = ""
@@ -438,6 +450,12 @@ class DeepIdentifyRequest(StrictRequestModel):
     """
 
     job_id: int = Field(ge=1)
+    # Wire contract §2 forward-compatibility placeholder (contracts/agent-
+    # internal-contract.md §2): accepted from Go on every request but not
+    # yet branched on by any Python logic — no request currently sends a
+    # value other than the default. Kept documented per T102 rather than
+    # removed so future contract revisions can rely on Python already
+    # accepting/round-tripping this field.
     schema_version: int = 1
     llm: LLMConfig
     images: list[DeepIdentifyImage] = Field(default_factory=list, max_length=MAX_DEEP_IMAGES)

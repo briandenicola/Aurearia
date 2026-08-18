@@ -122,10 +122,31 @@ Beyond basic image analysis, the chat agent includes specialized analysis teams:
 ### Deep Analysis
 
 Deep Analysis is a separate optional identification workflow, not a replacement
-for saved obverse/reverse analysis. It creates a persisted background job,
-combines image observations with available reference providers, streams
-replayable progress, and returns cited evidence plus a confirm-gated proposal.
-See [Deep Analysis](deep-analysis.md).
+for saved obverse/reverse analysis. It is **vision-first** (ADR 0012, Feature
+351): the single vision LLM call already made on every job produces a typed
+hypothesis (a per-field, per-confidence read of what the images alone show,
+with no citation), a **deterministic router** function then selects providers
+from that hypothesis plus the quick-lookup evidence (no LLM call — identical
+inputs always pick the same providers), and the selected providers act as
+**fact-checkers** of the hypothesis rather than starting from nothing:
+deterministic, application-authored query terms are composed from the
+hypothesis's highest-confidence fields, and any provider claim that confirms
+or contradicts the hypothesis is surfaced accordingly before synthesis writes
+the final cited narrative and proposal. It creates a persisted background job,
+streams replayable progress, and returns cited evidence plus a confirm-gated
+proposal. See [Deep Analysis](deep-analysis.md).
+
+Deep Analysis also runs a fast Quick Lookup pass internally (the same vision
+lookup used by the standalone Quick Capture flow) to seed provider queries
+with an NGC cert, grade, and coin fields when available. This pass is
+budget-limited by an admin-tunable setting
+(`DeepIdentificationQuickLookupTimeoutSeconds`, default 90s, bounded above by
+the agent proxy's own 5-minute request ceiling) rather than a fixed internal
+constant. If the pass does not complete in time, finds no usable data, or
+otherwise fails, that outcome is now recorded as a typed, observable result on
+the job (`ok` / `no_data` / `unavailable`) instead of failing silently — the
+job still completes either way. Outcome recording carries only the outcome
+class, never label text, cert numbers, notes, or image data.
 
 ## Limitations
 

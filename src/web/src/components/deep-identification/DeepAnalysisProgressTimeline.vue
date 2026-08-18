@@ -10,49 +10,72 @@
           Some earlier progress details are no longer available, but the job continues below.
         </span>
       </div>
-      <button
-        v-if="showCancel"
-        type="button"
-        class="btn btn-danger btn-sm min-h-[44px]"
-        :disabled="cancelDisabled"
-        aria-label="Cancel Deep Analysis"
-        @click="$emit('cancel')"
-      >
-        {{ cancelling ? 'Cancelling…' : 'Cancel' }}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="showRetry"
+          type="button"
+          class="btn btn-secondary btn-sm min-h-[44px]"
+          aria-label="Retry Deep Analysis connection"
+          @click="$emit('retry')"
+        >
+          Retry
+        </button>
+        <button
+          v-if="showCancel"
+          type="button"
+          class="btn btn-danger btn-sm min-h-[44px]"
+          :disabled="cancelDisabled"
+          aria-label="Cancel Deep Analysis"
+          @click="$emit('cancel')"
+        >
+          {{ cancelling ? 'Cancelling…' : 'Cancel' }}
+        </button>
+      </div>
     </div>
 
-    <ol v-if="events.length" class="m-0 grid gap-2 p-0" style="list-style: none;">
-      <li
-        v-for="event in events"
-        :key="event.seq"
-        class="grid min-w-0 grid-cols-1 items-baseline gap-1 rounded-sm border border-border-subtle bg-card p-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-3"
-      >
-        <span class="text-sm font-semibold text-gold">{{ labelFor(event) }}</span>
-        <span class="min-w-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">{{ detailFor(event) }}</span>
-      </li>
-    </ol>
-    <p v-else class="text-body text-text-secondary">Waiting for Deep Analysis to begin…</p>
+    <DeepAnalysisActivityTimeline
+      :events="props.events"
+      :terminal-status="props.terminalStatus"
+      :ended="props.ended"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import DeepAnalysisActivityTimeline from './DeepAnalysisActivityTimeline.vue'
 import type { DeepStreamEvent } from '@/types'
 
 const props = defineProps<{
   events: DeepStreamEvent[]
   connected: boolean
   streaming: boolean
+  /**
+   * True only while an actual reconnect attempt is scheduled or in flight
+   * (T085/B6). Never derived as a fallback default - a badge reading
+   * "Reconnecting…" must only appear when a reconnect is genuinely
+   * happening, otherwise it lies to a user watching a dead stream.
+   */
+  reconnecting?: boolean
   truncated?: boolean
   terminalStatus?: string | null
   cancelling?: boolean
+  /** True once the SSE stream has received `event: end` (contract §2). */
+  ended?: boolean
 }>()
 
-defineEmits<{ (e: 'cancel'): void }>()
+defineEmits<{ (e: 'cancel'): void; (e: 'retry'): void }>()
 
 const showCancel = computed(() => !props.terminalStatus)
 const cancelDisabled = computed(() => Boolean(props.cancelling) || Boolean(props.terminalStatus))
+
+// The Retry control is offered whenever the stream is neither live,
+// actively (re)connecting, nor finished - i.e. genuinely disconnected with
+// no reconnect scheduled, so the user has an explicit recovery action
+// instead of a badge that silently lies about reconnecting forever.
+const showRetry = computed(() =>
+  !props.terminalStatus && !props.connected && !props.streaming && !props.reconnecting,
+)
 
 const connectionClasses = computed(() => {
   if (props.terminalStatus) {
@@ -61,50 +84,16 @@ const connectionClasses = computed(() => {
       : 'border-byzantine text-byzantine'
   }
   if (props.connected) return 'border-gold text-gold'
-  if (props.streaming) return 'border-border-accent text-text-secondary'
+  if (props.reconnecting || props.streaming) return 'border-border-accent text-text-secondary'
   return 'border-byzantine text-byzantine'
 })
 
 const connectionLabel = computed(() => {
   if (props.terminalStatus) return props.terminalStatus
   if (props.connected) return 'Live'
+  if (props.reconnecting) return 'Reconnecting…'
   if (props.streaming) return 'Connecting…'
-  return 'Reconnecting…'
+  return 'Disconnected'
 })
 
-const eventLabels: Record<string, string> = {
-  job_accepted: 'Job accepted',
-  status_changed: 'Status changed',
-  router_selected: 'Providers selected',
-  provider_started: 'Provider started',
-  provider_result: 'Provider result',
-  evaluation: 'Evaluating results',
-  synthesis_started: 'Building report',
-  progress: 'Progress',
-  terminal: 'Finished',
-}
-
-function labelFor(event: DeepStreamEvent): string {
-  return eventLabels[event.type] ?? event.type
-}
-
-function detailFor(event: DeepStreamEvent): string {
-  const payload = event.payload || {}
-  switch (event.type) {
-    case 'provider_started':
-      return typeof payload.provider === 'string' ? String(payload.provider) : ''
-    case 'provider_result':
-      return [payload.provider, payload.status].filter(Boolean).join(': ')
-    case 'router_selected':
-      return Array.isArray(payload.selectedProviders) ? payload.selectedProviders.join(', ') : ''
-    case 'progress':
-      return typeof payload.message === 'string' ? payload.message : ''
-    case 'evaluation':
-      return `${payload.disagreementCount ?? 0} disagreement(s), ${payload.resolvedCount ?? 0} resolved`
-    case 'terminal':
-      return typeof payload.status === 'string' ? String(payload.status) : ''
-    default:
-      return ''
-  }
-}
 </script>

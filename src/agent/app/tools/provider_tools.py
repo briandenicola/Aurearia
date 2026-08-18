@@ -64,10 +64,6 @@ class ProviderToolsClient:
         """POST /api/internal/tools/numista_search — {status, candidates, attribution}."""
         return await self._post("numista_search", {"query": query, "limit": limit})
 
-    async def numista_detail(self, numista_id: int) -> dict:
-        """POST /api/internal/tools/numista_detail — {status, candidate, identifier}."""
-        return await self._post("numista_detail", {"id": numista_id})
-
     async def nomisma_search(self, query: str, limit: int = 5) -> dict:
         """POST /api/internal/tools/nomisma_search — {status, candidates, attribution}."""
         return await self._post("nomisma_search", {"query": query, "limit": limit})

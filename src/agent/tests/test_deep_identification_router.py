@@ -1,202 +1,228 @@
-"""Router tests (T073) — contracts/agent-internal-contract.md §6.
+"""Router tests (T044-T050) — contracts/agent-internal-contract.md §6.
 
-Verifies: selection is always a subset of the supplied catalog,
-`provider_override` is honored without an LLM call, and an
-`automatable: false` catalog entry is never present in `selected`/
-`skipped` (i.e. never subject to router reasoning at all).
+Verifies: `route()` is a pure function with no LLM call, selection is
+always a subset of the supplied catalog, `provider_override` is honored
+outright, an `automatable: false` catalog entry is never present in
+`selected`/`skipped` (i.e. never subject to router reasoning at all),
+selection is inclusion-by-default (RD-7), OCRE is skipped only on a
+*positive* non-Roman-Imperial era signal, every skip carries a reason, and
+identical inputs produce byte-identical decisions (SC-006).
 """
 
-import pytest
-
-from app.models.requests import DeepProviderCatalogEntry
+from app.models.hypothesis import CoinHypothesis, HypothesisField
+from app.models.requests import DeepIdentifyBounds, DeepProviderCatalogEntry, QuickEvidence
 from app.teams.deep_identification.router import route
-
-
-class FakeModel:
-    """Fake chat model — never makes a network call."""
-
-    def __init__(self, content: str | None = None, raise_exc: Exception | None = None):
-        self.content = content
-        self.raise_exc = raise_exc
-        self.calls = 0
-
-    async def ainvoke(self, messages, **kwargs):
-        self.calls += 1
-        if self.raise_exc:
-            raise self.raise_exc
-        return type("Resp", (), {"content": self.content})()
 
 
 def _catalog(*entries: tuple[str, bool]) -> list[DeepProviderCatalogEntry]:
     return [DeepProviderCatalogEntry(provider=name, automatable=automatable) for name, automatable in entries]
 
 
-@pytest.mark.asyncio
-async def test_route_selects_only_from_catalog():
-    catalog = _catalog(("numista", True), ("nomisma", True), ("ngc", False))
-    model = FakeModel(content='{"selected": ["numista", "nomisma", "bogus"], "rationale": "test"}')
+def _bounds(max_providers: int = 5) -> DeepIdentifyBounds:
+    return DeepIdentifyBounds(
+        max_providers=max_providers,
+        max_concurrency=3,
+        provider_timeout_s=30,
+        total_timeout_s=300,
+        recursion_limit=25,
+    )
 
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="")
+
+def _hypothesis(**fields) -> CoinHypothesis:
+    return CoinHypothesis(**{k: HypothesisField(value=v, confidence=0.8) for k, v in fields.items()})
+
+
+def test_route_selects_only_from_catalog():
+    catalog = _catalog(("numista", True), ("nomisma", True), ("ngc", False))
+
+    decision = route(catalog, provider_override=[], bounds=_bounds())
 
     assert set(decision.selected) <= {"numista", "nomisma"}
-    assert "bogus" not in decision.selected
-    assert model.calls == 1
+    assert "ngc" not in decision.selected
 
 
-@pytest.mark.asyncio
-async def test_route_never_selects_non_automatable_provider():
+def test_route_never_selects_non_automatable_provider():
     catalog = _catalog(("numista", True), ("ngc", False), ("ocre", False), ("rpc", False))
-    model = FakeModel(content='{"selected": ["numista", "ngc", "ocre", "rpc"], "rationale": "test"}')
 
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="")
+    decision = route(catalog, provider_override=[], bounds=_bounds())
 
     assert decision.selected == ["numista"]
-    assert all(skip["provider"] != "ngc" for skip in decision.skipped)
     assert all(skip["provider"] not in ("ngc", "ocre", "rpc") for skip in decision.skipped)
 
 
-@pytest.mark.asyncio
-async def test_provider_override_bypasses_llm():
+def test_provider_override_bypasses_selection_reasoning():
     catalog = _catalog(("numista", True), ("nomisma", True))
-    model = FakeModel(content="should never be read")
 
-    decision = await route(model, catalog, provider_override=["nomisma"], max_providers=5, notes="")
+    decision = route(catalog, provider_override=["nomisma"], bounds=_bounds())
 
     assert decision.selected == ["nomisma"]
-    assert model.calls == 0
+    assert decision.rationale == "provider_override supplied by caller"
 
 
-@pytest.mark.asyncio
-async def test_provider_override_cannot_add_provider_outside_catalog():
+def test_provider_override_cannot_add_provider_outside_catalog():
     catalog = _catalog(("numista", True),)
-    model = FakeModel(content="unused")
 
-    decision = await route(model, catalog, provider_override=["nomisma"], max_providers=5, notes="")
+    decision = route(catalog, provider_override=["nomisma"], bounds=_bounds())
 
     assert decision.selected == []
-    assert model.calls == 0
 
 
-@pytest.mark.asyncio
-async def test_route_respects_max_providers_truncation():
+def test_route_respects_max_providers_truncation():
     catalog = _catalog(("numista", True), ("nomisma", True))
-    model = FakeModel(content='{"selected": ["numista", "nomisma"], "rationale": "both"}')
 
-    decision = await route(model, catalog, provider_override=[], max_providers=1, notes="")
+    decision = route(catalog, provider_override=[], bounds=_bounds(max_providers=1))
 
     assert len(decision.selected) == 1
     assert decision.selected[0] == "numista"  # PROVIDER_RANK tie-break
+    assert any(s["provider"] == "nomisma" and "max_providers" in s["reason"] for s in decision.skipped)
 
 
-@pytest.mark.asyncio
-async def test_route_falls_back_to_all_automatable_on_llm_failure():
-    catalog = _catalog(("numista", True), ("nomisma", True))
-    model = FakeModel(raise_exc=RuntimeError("llm down"))
-
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="")
-
-    assert set(decision.selected) == {"numista", "nomisma"}
-
-
-@pytest.mark.asyncio
-async def test_route_falls_back_to_all_automatable_on_malformed_json():
-    catalog = _catalog(("numista", True), ("nomisma", True))
-    model = FakeModel(content="not json at all")
-
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="")
-
-    assert set(decision.selected) == {"numista", "nomisma"}
-
-
-@pytest.mark.asyncio
-async def test_route_empty_catalog_selects_nothing_without_llm_call():
-    model = FakeModel(content="unused")
-
-    decision = await route(model, [], provider_override=[], max_providers=5, notes="")
+def test_route_empty_catalog_selects_nothing():
+    decision = route([], provider_override=[], bounds=_bounds())
 
     assert decision.selected == []
     assert decision.skipped == []
-    assert model.calls == 0
 
 
-@pytest.mark.asyncio
-async def test_route_can_select_ocre_when_flag_on():
-    # Feature 345: with the OCRE flag on, Go supplies an automatable OCRE
-    # catalog entry; the router may select it for Roman-Imperial evidence.
+# --- T046 / RD-7: inclusion by default, OCRE skip rules -------------------
+
+
+def test_empty_evidence_run_selects_all_automatable_providers_including_ocre():
+    """The exact Maximinus trap: no evidence at all (no hypothesis fields,
+    no quick evidence) must still select every automatable provider,
+    including OCRE — absence of a Roman signal is not a non-Roman signal.
+    """
+    catalog = _catalog(("numista", True), ("nomisma", True), ("ocre", True))
+
+    decision = route(catalog, provider_override=[], bounds=_bounds(), quick_evidence=None, hypothesis=None)
+
+    assert set(decision.selected) == {"numista", "nomisma", "ocre"}
+    assert decision.skipped == []
+
+
+def test_positive_roman_signal_still_selects_ocre():
     catalog = _catalog(("numista", True), ("ocre", True))
-    model = FakeModel(content='{"selected": ["numista", "ocre"], "rationale": "roman imperial"}')
+    hypothesis = _hypothesis(era="ancient")
 
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="Roman denarius of Augustus")
+    decision = route(catalog, provider_override=[], bounds=_bounds(), hypothesis=hypothesis)
 
     assert "ocre" in decision.selected
 
 
-@pytest.mark.asyncio
-async def test_route_does_not_force_ocre_without_override():
-    # A non-Roman-Imperial run: the LLM may legitimately omit OCRE and nothing
-    # forces its selection absent an explicit override.
+def test_positive_non_roman_era_signal_skips_ocre_with_reason():
     catalog = _catalog(("numista", True), ("ocre", True))
-    model = FakeModel(content='{"selected": ["numista"], "rationale": "modern coin, ocre not relevant"}')
+    hypothesis = _hypothesis(era="ancient", coin_type="Greek stater")
 
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="modern euro coin")
+    decision = route(catalog, provider_override=[], bounds=_bounds(), hypothesis=hypothesis)
 
-    assert decision.selected == ["numista"]
+    assert "ocre" not in decision.selected
+    ocre_skip = next(s for s in decision.skipped if s["provider"] == "ocre")
+    assert "non-Roman-Imperial era signal" in ocre_skip["reason"]
+    assert "greek" in ocre_skip["reason"]
 
 
-@pytest.mark.asyncio
-async def test_route_never_selects_ocre_when_flag_off():
-    # Flag off → Go marks OCRE automatable=false; it must never appear in
+def test_non_roman_signal_from_quick_evidence_category_skips_ocre():
+    catalog = _catalog(("numista", True), ("ocre", True))
+    quick_evidence = QuickEvidence(coin_fields={"category": "Byzantine"})
+
+    decision = route(catalog, provider_override=[], bounds=_bounds(), quick_evidence=quick_evidence)
+
+    assert "ocre" not in decision.selected
+    ocre_skip = next(s for s in decision.skipped if s["provider"] == "ocre")
+    assert "byzantine" in ocre_skip["reason"]
+
+
+def test_roman_category_signal_does_not_skip_ocre():
+    catalog = _catalog(("numista", True), ("ocre", True))
+    quick_evidence = QuickEvidence(coin_fields={"category": "Roman"})
+
+    decision = route(catalog, provider_override=[], bounds=_bounds(), quick_evidence=quick_evidence)
+
+    assert "ocre" in decision.selected
+
+
+def test_route_never_selects_ocre_when_flag_off():
+    # Flag off -> Go marks OCRE automatable=false; it must never appear in
     # selected or skipped (it takes the trivial not_automated fan-out path).
     catalog = _catalog(("numista", True), ("ocre", False))
-    model = FakeModel(content='{"selected": ["numista", "ocre"], "rationale": "test"}')
 
-    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="")
+    decision = route(catalog, provider_override=[], bounds=_bounds())
 
     assert "ocre" not in decision.selected
     assert all(skip["provider"] != "ocre" for skip in decision.skipped)
 
 
-@pytest.mark.asyncio
-async def test_ocre_override_cannot_bypass_flag_off():
-    # Even an explicit override cannot promote a flag-off (non-automatable)
-    # OCRE into the automated selection.
+def test_ocre_override_cannot_bypass_flag_off():
     catalog = _catalog(("numista", True), ("ocre", False))
-    model = FakeModel(content="unused")
 
-    decision = await route(model, catalog, provider_override=["ocre"], max_providers=5, notes="")
+    decision = route(catalog, provider_override=["ocre"], bounds=_bounds())
 
     assert "ocre" not in decision.selected
-    assert model.calls == 0
 
 
-# --- T046 (US5): provider_override selects/deselects OCRE, bypassing the LLM ---
+def test_every_skip_carries_a_reason():
+    catalog = _catalog(("numista", True), ("nomisma", True), ("ocre", True))
+    hypothesis = _hypothesis(era="modern")
+
+    decision = route(catalog, provider_override=[], bounds=_bounds(max_providers=1), hypothesis=hypothesis)
+
+    assert decision.skipped
+    assert all(isinstance(s["reason"], str) and s["reason"] for s in decision.skipped)
 
 
-@pytest.mark.asyncio
-async def test_provider_override_forces_ocre_even_when_llm_would_skip_it():
-    """override=["ocre"] selects OCRE and never consults the LLM, even for a
-    catalog/context where the router model would not have chosen it."""
+# --- T046 (RD-7): provider_override selects/deselects OCRE -----------------
+
+
+def test_provider_override_forces_ocre_even_with_non_roman_signal():
+    """override=["ocre"] selects OCRE and skips evidence reasoning entirely,
+    even in a context where the evidence-driven rule would have skipped it.
+    """
     catalog = _catalog(("numista", True), ("ocre", True))
-    # A model that would raise if invoked — proves the LLM path is bypassed.
-    model = FakeModel(raise_exc=RuntimeError("router LLM must not be called under override"))
+    hypothesis = _hypothesis(coin_type="Greek stater")
 
-    decision = await route(model, catalog, provider_override=["ocre"], max_providers=5, notes="modern euro coin")
+    decision = route(catalog, provider_override=["ocre"], bounds=_bounds(), hypothesis=hypothesis)
 
     assert decision.selected == ["ocre"]
-    assert model.calls == 0
     assert any(s["provider"] == "numista" for s in decision.skipped)
 
 
-@pytest.mark.asyncio
-async def test_provider_override_omitting_ocre_prevents_it_from_running():
-    """An override that lists other providers but not OCRE keeps OCRE out of
-    the selected set even though it is automatable."""
+def test_provider_override_omitting_ocre_prevents_it_from_running():
     catalog = _catalog(("numista", True), ("ocre", True))
-    model = FakeModel(raise_exc=RuntimeError("router LLM must not be called under override"))
 
-    decision = await route(model, catalog, provider_override=["numista"], max_providers=5, notes="")
+    decision = route(catalog, provider_override=["numista"], bounds=_bounds())
 
     assert decision.selected == ["numista"]
     assert "ocre" not in decision.selected
     assert any(s["provider"] == "ocre" and "provider_override" in s["reason"] for s in decision.skipped)
-    assert model.calls == 0
+
+
+# --- T048: determinism (SC-006) --------------------------------------------
+
+
+def test_route_is_deterministic_across_identical_runs():
+    catalog = _catalog(("numista", True), ("nomisma", True), ("ocre", True))
+    hypothesis = _hypothesis(coin_type="Byzantine follis")
+    quick_evidence = QuickEvidence(coin_fields={"category": "Byzantine"})
+
+    first = route(catalog, provider_override=[], bounds=_bounds(max_providers=2),
+                  quick_evidence=quick_evidence, hypothesis=hypothesis)
+    second = route(catalog, provider_override=[], bounds=_bounds(max_providers=2),
+                   quick_evidence=quick_evidence, hypothesis=hypothesis)
+
+    assert first.selected == second.selected
+    assert first.skipped == second.skipped
+    assert first.rationale == second.rationale
+
+
+# --- T049 (B4): router_selected frame carries a non-empty skipped[] --------
+
+
+def test_router_decision_skipped_is_populated_when_a_provider_is_skipped():
+    catalog = _catalog(("numista", True), ("ocre", True))
+    hypothesis = _hypothesis(coin_type="Islamic dirham")
+
+    decision = route(catalog, provider_override=[], bounds=_bounds(), hypothesis=hypothesis)
+
+    assert decision.skipped != []
+    assert decision.skipped[0]["provider"] == "ocre"
+    assert decision.skipped[0]["reason"]

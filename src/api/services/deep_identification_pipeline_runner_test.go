@@ -4,11 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/briandenicola/ancient-coins-api/models"
+	"gorm.io/gorm"
 )
 
 // T077: each Python frame type translates to the correct persisted event
@@ -208,7 +213,7 @@ func TestBuildDeepProposalDocumentJSONProducesRichAllowlistedShape(t *testing.T)
 		"nomisma": {{Field: "mint", Value: "Rome", Confidence: 0.6, Citation: "http://nomisma.org/id/roma"}},
 	}
 	var coinID uint = 42
-	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims)
+	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims, nil, nil)
 
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
@@ -262,7 +267,7 @@ func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testi
 		"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.8, Citation: "https://evil.example.com/inject"}},
 	}
 	var coinID uint = 42
-	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims)
+	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims, nil, nil)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid JSON, got %v", err)
@@ -273,7 +278,7 @@ func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testi
 }
 
 func TestBuildDeepProposalDocumentJSONCreatesReportOnlyIntakeProposal(t *testing.T) {
-	out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"No structured match was available."}`), nil, nil)
+	out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"No structured match was available."}`), nil, nil, nil, nil)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid proposal JSON, got %v", err)
@@ -281,6 +286,143 @@ func TestBuildDeepProposalDocumentJSONCreatesReportOnlyIntakeProposal(t *testing
 	if got := doc.Fields["notes"]; got == nil || got.Proposed != "No structured match was available." {
 		t.Fatalf("expected report narrative to remain saveable as draft notes, got %#v", got)
 	}
+}
+
+// TestDeepIdentificationBackwardCompatibility_PreAndPostImageHypothesisFixtures
+// is the T071 backward-compatibility regression: Brian has existing
+// deep-identification jobs already persisted from before this feature
+// shipped, so a schema/shape assumption that only holds for new rows must
+// not break his history on deploy. It drives two report shapes through the
+// full Get -> parse -> PATCH accept -> Apply round trip and asserts zero
+// errors at every step:
+//
+//  1. a pre-351 report/proposal with no `image_hypothesis` concept at all
+//     (every evidence_ref points at a real, automatable provider, exactly
+//     the shape every job persisted before Phase 3-8 has), and
+//  2. a post-351 proposal containing an image-only field (evidence_refs:
+//     [{"provider":"image"}], contract §5).
+func TestDeepIdentificationBackwardCompatibility_PreAndPostImageHypothesisFixtures(t *testing.T) {
+	t.Run("pre-351 report without image_hypothesis loads renders and applies", func(t *testing.T) {
+		svc, db := newDeepBackfillProposalHarness(t)
+		userID := seedDeepProposalUser(t, db)
+		coin := models.Coin{UserID: userID, Name: "Pre-351 Coin"}
+		if err := db.Create(&coin).Error; err != nil {
+			t.Fatalf("seed coin: %v", err)
+		}
+
+		// Pre-351 shape: proposed_fields exist, every evidence_ref names a
+		// real provider claim - no image_hypothesis, no "image" provider
+		// anywhere in the document.
+		report := json.RawMessage(`{
+			"narrative": "A silver denarius of Trajan.",
+			"proposed_fields": {
+				"denomination": {"value":"Denarius","confidence":0.85,"evidence_refs":[{"provider":"numista","claim_index":0}]}
+			}
+		}`)
+		providerClaims := map[string][]deepProposalClaim{
+			"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.85, Citation: "https://en.numista.com/catalogue/pieces1.html"}},
+		}
+		proposalJSON := buildDeepProposalDocumentJSON(report, &coin.ID, providerClaims, nil, nil)
+		if proposalJSON == "" {
+			t.Fatal("expected non-empty proposal for pre-351 shape")
+		}
+		jobID := createDeepBackfillJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, report, proposalJSON)
+
+		if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+			"denomination": {Accepted: acceptTrue()},
+		}); err != nil {
+			t.Fatalf("expected zero-error PATCH accept on pre-351 shape, got %v", err)
+		}
+		result, err := svc.Apply(jobID, userID, "coin", nil)
+		if err != nil {
+			t.Fatalf("expected zero-error apply on pre-351 shape, got %v", err)
+		}
+		if result.CoinID == nil || *result.CoinID != coin.ID {
+			t.Fatalf("expected applied coinId %d, got %v", coin.ID, result.CoinID)
+		}
+		var applied models.Coin
+		if err := db.First(&applied, coin.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if applied.Denomination != "Denarius" {
+			t.Fatalf("expected Denarius applied from pre-351 report, got %q", applied.Denomination)
+		}
+	})
+
+	t.Run("post-351 proposal with image-only fields loads renders and applies", func(t *testing.T) {
+		svc, db := newDeepBackfillProposalHarness(t)
+		userID := seedDeepProposalUser(t, db)
+		coin := models.Coin{UserID: userID, Name: "Post-351 Coin"}
+		if err := db.Create(&coin).Error; err != nil {
+			t.Fatalf("seed coin: %v", err)
+		}
+
+		// Post-351 shape: an image-only field (no automatable provider
+		// matched anything - exactly Brian's Maximinus I scenario).
+		report := json.RawMessage(`{
+			"narrative": "A silver denarius identified from the coin's own images.",
+			"proposed_fields": {
+				"ruler": {"value":"Maximinus I","confidence":0.75,"evidence_refs":[{"provider":"image"}]}
+			}
+		}`)
+		proposalJSON := buildDeepProposalDocumentJSON(report, &coin.ID, nil, nil, nil)
+		if proposalJSON == "" {
+			t.Fatal("expected non-empty proposal for image-only post-351 shape")
+		}
+		jobID := createDeepBackfillJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, report, proposalJSON)
+
+		if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+			"ruler": {Accepted: acceptTrue()},
+		}); err != nil {
+			t.Fatalf("expected zero-error PATCH accept on image-only field, got %v", err)
+		}
+		result, err := svc.Apply(jobID, userID, "coin", nil)
+		if err != nil {
+			t.Fatalf("expected zero-error apply on image-only field, got %v", err)
+		}
+		if result.CoinID == nil || *result.CoinID != coin.ID {
+			t.Fatalf("expected applied coinId %d, got %v", coin.ID, result.CoinID)
+		}
+		var applied models.Coin
+		if err := db.First(&applied, coin.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if applied.Ruler != "Maximinus I" {
+			t.Fatalf("expected image-only ruler applied with zero errors, got %q", applied.Ruler)
+		}
+	})
+}
+
+// newDeepBackfillProposalHarness is a thin wrapper over the shared
+// newDeepProposalTestDeps helper (deep_identification_proposal_test.go,
+// same package) that drops the repository handle this file's tests do not
+// need, keeping call sites focused on the service + db.
+func newDeepBackfillProposalHarness(t *testing.T) (*DeepIdentificationProposalService, *gorm.DB) {
+	t.Helper()
+	svc, _, db := newDeepProposalTestDeps(t)
+	return svc, db
+}
+
+// createDeepBackfillJob persists a completed job carrying a caller-supplied
+// report/proposal shape exactly as SettleTerminal would, so the T071
+// fixtures exercise the real Get/PATCH/Apply path rather than a synthetic
+// shortcut.
+func createDeepBackfillJob(t *testing.T, db *gorm.DB, userID uint, source models.DeepJobSource, coinID *uint, report json.RawMessage, proposalJSON string) uint {
+	t.Helper()
+	job := &models.DeepIdentificationJob{
+		UserID:           userID,
+		Source:           source,
+		CoinID:           coinID,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: fmt.Sprintf("fp-backfill-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&deepTestDBCounter, 1)),
+		ExpiresAt:        time.Now().Add(90 * 24 * time.Hour),
+		ReportJSON:       string(report),
+		ProposalJSON:     proposalJSON,
+	}
+	if err := db.Create(job).Error; err != nil {
+		t.Fatalf("seed backfill job: %v", err)
+	}
+	return job.ID
 }
 
 func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing.T) {
@@ -292,7 +434,7 @@ func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing
 			"mint":{"value":"Rome","confidence":0.7}
 		}
 	}`)
-	out := buildDeepProposalDocumentJSON(report, nil, nil)
+	out := buildDeepProposalDocumentJSON(report, nil, nil, nil, nil)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid proposal JSON, got %v", err)
@@ -417,5 +559,69 @@ func TestDeepPipelineBoundsClampToContractLimits(t *testing.T) {
 	}
 	if bounds.RecursionLimit < 1 || bounds.RecursionLimit > 50 {
 		t.Fatalf("expected recursion_limit within [1,50], got %d", bounds.RecursionLimit)
+	}
+}
+
+// T013(a): the quick-lookup context deadline equals the configured setting
+// (351 T011/T013). This is the direct regression for the pre-351 magic
+// literal `15*time.Second` at deep_identification_pipeline_runner.go:112 -
+// it fails immediately if that literal, or any other fixed duration, is
+// reintroduced instead of settings.QuickLookupTimeout.
+func TestDeepQuickLookupContextDeadlineMatchesConfiguredSetting(t *testing.T) {
+	settings := DeepIdentificationSettings{QuickLookupTimeout: 90 * time.Second}
+	before := time.Now()
+	ctx, cancel := deepQuickLookupContext(context.Background(), settings)
+	defer cancel()
+	after := time.Now()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected quick-lookup context to carry a deadline")
+	}
+	minExpected := before.Add(settings.QuickLookupTimeout)
+	maxExpected := after.Add(settings.QuickLookupTimeout)
+	if deadline.Before(minExpected) || deadline.After(maxExpected) {
+		t.Fatalf("quick-lookup deadline = %v, want within [%v, %v] (i.e. exactly QuickLookupTimeout from now)", deadline, minExpected, maxExpected)
+	}
+}
+
+// T013(b): bounds.TotalTimeoutS after the quick-lookup pass is still >=
+// deepPipelineMinTotalTimeoutS for the default settings combination decided
+// in T012 (HardTimeoutSeconds=420, QuickLookupTimeoutSeconds=90). This is
+// the regression for the T012 finding: raising the quick-lookup budget from
+// 15s to 90s without also raising HardTimeout would have shrunk the
+// pipeline's own budget to ~190s; the paired default of 420s keeps it at
+// ~310s, comfortably above both deepPipelineMinTotalTimeoutS and the
+// pre-change ~265s baseline (SC-013).
+func TestDeepPipelineRemainingBudgetAfterQuickLookupMeetsMinimumForDefaults(t *testing.T) {
+	settings := DeepIdentificationSettings{
+		HardTimeout:        420 * time.Second,
+		QuickLookupTimeout: 90 * time.Second,
+		MaxProviders:       4,
+	}
+	bounds := deepPipelineBounds(settings)
+
+	// Simulate the ctx deadline as it stands immediately after quick lookup
+	// has consumed its full budget from the shared job ctx (worst case).
+	jobDeadline := time.Now().Add(settings.HardTimeout - settings.QuickLookupTimeout)
+	ctx, cancel := context.WithDeadline(context.Background(), jobDeadline)
+	defer cancel()
+
+	adjusted, err := deepPipelineApplyRemainingBudget(ctx, bounds)
+	if err != nil {
+		t.Fatalf("deepPipelineApplyRemainingBudget: %v", err)
+	}
+	if adjusted.TotalTimeoutS < deepPipelineMinTotalTimeoutS {
+		t.Fatalf("post-quick-lookup TotalTimeoutS = %d, want >= deepPipelineMinTotalTimeoutS (%d)", adjusted.TotalTimeoutS, deepPipelineMinTotalTimeoutS)
+	}
+	// Cross-check against the ~310s T012 derivation (420-90-20), with a
+	// small tolerance for wall-clock scheduling jitter in the test itself.
+	const wantApprox = 310
+	if adjusted.TotalTimeoutS < wantApprox-2 || adjusted.TotalTimeoutS > wantApprox+2 {
+		t.Fatalf("post-quick-lookup TotalTimeoutS = %d, want ~%d (420-90-20 per T012)", adjusted.TotalTimeoutS, wantApprox)
+	}
+	const preChangeBaseline = 265
+	if adjusted.TotalTimeoutS < preChangeBaseline {
+		t.Fatalf("post-quick-lookup TotalTimeoutS = %d regresses below the pre-change ~265s baseline (SC-013)", adjusted.TotalTimeoutS)
 	}
 }

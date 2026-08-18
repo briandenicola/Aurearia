@@ -44,14 +44,15 @@ type coinResult struct {
 
 // AvailabilityService orchestrates wishlist availability checking.
 type AvailabilityService struct {
-	coinRepo    *repository.CoinRepository
-	availRepo   *repository.AvailabilityRepository
-	agentProxy  *AgentProxy
-	notifSvc    *NotificationService
-	pushoverSvc *PushoverService
-	userRepo    *repository.UserRepository
-	settingsSvc *SettingsService
-	logger      *Logger
+	coinRepo       *repository.CoinRepository
+	availRepo      *repository.AvailabilityRepository
+	availCycleRepo *repository.AvailabilityCycleRepository
+	agentProxy     *AgentProxy
+	notifSvc       *NotificationService
+	pushoverSvc    *PushoverService
+	userRepo       *repository.UserRepository
+	settingsSvc    *SettingsService
+	logger         *Logger
 }
 
 // NewAvailabilityService creates a new AvailabilityService.
@@ -75,6 +76,13 @@ func NewAvailabilityService(
 		settingsSvc: settingsSvc,
 		logger:      logger,
 	}
+}
+
+// WithCycleRepo attaches the AvailabilityCycleRepository so RunAdminCycle can fan out and
+// track parent cycles. Optional: owner-triggered checks (CycleID == nil) work without it.
+func (s *AvailabilityService) WithCycleRepo(availCycleRepo *repository.AvailabilityCycleRepository) *AvailabilityService {
+	s.availCycleRepo = availCycleRepo
+	return s
 }
 
 // CheckURL performs an HTTP GET to check basic connectivity and status.
@@ -188,31 +196,42 @@ func (s *AvailabilityService) CheckURL(url string) (*URLCheckResult, error) {
 	return result, nil
 }
 
-// CheckWishlistForUser runs availability checks for all wishlist items with URLs.
-// Go performs fast HTTP status checks, then escalates all 200 OK responses
-// to the Python agent for AI-powered analysis to avoid false positives from keyword matching.
+// CheckWishlistForUser runs availability checks for a single owner's wishlist items with URLs,
+// always creating and terminating exactly one child AvailabilityRun (UserID > 0) — including
+// when the owner has zero URLs to check. Go performs fast HTTP status checks, then escalates
+// all 200 OK responses to the Python agent for AI-powered analysis to avoid false positives
+// from keyword matching. cycleID is non-nil when this child run belongs to an admin/scheduled
+// AvailabilityCycle (nil for owner-triggered checks).
 func (s *AvailabilityService) CheckWishlistForUser(
-	userID uint, triggerType string, triggerUserID *uint,
+	userID uint, triggerType string, triggerUserID *uint, cycleID *uint,
 ) (*models.AvailabilityRun, error) {
-	coins, err := s.coinRepo.GetWishlistWithURLs(userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch wishlist coins: %w", err)
-	}
-
 	startedAt := time.Now()
 	run := &models.AvailabilityRun{
 		UserID:        userID,
+		CycleID:       cycleID,
 		TriggerType:   triggerType,
 		TriggerUserID: triggerUserID,
+		Status:        models.AvailabilityRunStatusRunning,
 		StartedAt:     startedAt,
 	}
-	if err := s.availRepo.CreateRun(run); err != nil {
-		return nil, fmt.Errorf("failed to create run record: %w", err)
+	if err := s.availRepo.CreateChildRun(run); err != nil {
+		return nil, fmt.Errorf("failed to create child run record: %w", err)
+	}
+
+	coins, err := s.coinRepo.GetWishlistWithURLs(userID)
+	if err != nil {
+		s.logger.Error("availability", "Failed to fetch wishlist coins for user %d: %s", userID, err)
+		if _, failErr := s.availRepo.FailChildRun(run, models.GenericAvailabilityFailureMessage); failErr != nil {
+			s.logger.Error("availability", "Failed to mark run %d as failed: %v", run.ID, failErr)
+		}
+		s.notifyRunTerminal(run, nil)
+		return run, nil
 	}
 
 	s.logger.Info("availability", "Starting check for user %d: %d coins with URLs", userID, len(coins))
 
 	var available, unavailable, unknown, errCount int
+	var newlyUnavailableCoinNames []string
 
 	// Track results and ambiguous items for agent escalation
 	var allResults []coinResult
@@ -280,33 +299,69 @@ func (s *AvailabilityService) CheckWishlistForUser(
 			s.logger.Error("availability", "Failed to update listing status for coin %d: %s", cr.coin.ID, err)
 		}
 
-		// Notify user when a coin newly becomes unavailable
+		// Notify user when a coin newly becomes unavailable. This existing per-coin call is left
+		// completely unmodified — it fires independently of the new terminal outcome notification
+		// below and neither call gates or suppresses the other (D6, FR-014).
 		if cr.dbResult.Status == "unavailable" && cr.coin.ListingStatus != "unavailable" && s.notifSvc != nil {
 			s.notifSvc.NotifyWishlistUnavailable(userID, cr.coin, cr.dbResult.Reason)
+			newlyUnavailableCoinNames = append(newlyUnavailableCoinNames, coinDisplayName(cr.coin))
 		}
 	}
 
 	// Complete the run
-	completedAt := time.Now()
 	run.CoinsChecked = len(coins)
 	run.Available = available
 	run.Unavailable = unavailable
 	run.Unknown = unknown
 	run.Errors = errCount
-	run.DurationMs = completedAt.Sub(startedAt).Milliseconds()
-	run.CompletedAt = &completedAt
 
-	if err := s.availRepo.CompleteRun(run); err != nil {
+	if _, err := s.availRepo.CompleteChildRun(run); err != nil {
 		s.logger.Error("availability", "Failed to complete run %d: %s", run.ID, err)
 	}
 
 	s.logger.Info("availability", "Run %d complete: %d checked, %d available, %d unavailable, %d unknown (%dms)",
 		run.ID, len(coins), available, unavailable, unknown, run.DurationMs)
 
-	// Send Pushover notification if configured
-	s.notifyRunComplete(userID, run)
+	s.notifyRunTerminal(run, newlyUnavailableCoinNames)
 
 	return run, nil
+}
+
+// notifyRunTerminal fires the owner-facing terminal-outcome notification (in-app + best-effort
+// Pushover) for every terminal child run, and — for admin-triggered children that end up
+// failed — an additional notification to the triggering admin. Called only after the terminal
+// transition has already committed (FR-011: Pushover failures can never regress run status).
+func (s *AvailabilityService) notifyRunTerminal(run *models.AvailabilityRun, newlyUnavailableCoinNames []string) {
+	if s.notifSvc == nil {
+		return
+	}
+	s.notifSvc.NotifyAvailabilityRunTerminal(run.UserID, run, newlyUnavailableCoinNames)
+
+	if run.TriggerType != models.AvailabilityRunTriggerAdmin || run.Status != models.AvailabilityRunStatusFailed {
+		return
+	}
+	if run.TriggerUserID == nil {
+		return
+	}
+	ownerUsername := ""
+	if s.userRepo != nil {
+		if owner, err := s.userRepo.FindByID(run.UserID); err == nil && owner != nil {
+			ownerUsername = owner.Username
+		}
+	}
+	cycleID := uint(0)
+	if run.CycleID != nil {
+		cycleID = *run.CycleID
+	}
+	s.notifSvc.NotifyAdminCycleChildFailure(*run.TriggerUserID, ownerUsername, cycleID)
+}
+
+// coinDisplayName returns a human-readable coin name, falling back for unnamed coins.
+func coinDisplayName(coin models.Coin) string {
+	if coin.Name != "" {
+		return coin.Name
+	}
+	return "Unnamed coin"
 }
 
 // escalateToAgent sends ambiguous URLs to the Python agent for LLM analysis
@@ -371,120 +426,29 @@ func (s *AvailabilityService) escalateToAgent(
 	s.logger.Info("availability", "Agent resolved %d/%d ambiguous URLs", len(resolvedURLs), len(ambiguousItems))
 }
 
-// notifyRunComplete sends a Pushover notification with run details.
-func (s *AvailabilityService) notifyRunComplete(userID uint, run *models.AvailabilityRun) {
-	if s.pushoverSvc == nil || s.userRepo == nil {
-		return
-	}
-	user, err := s.userRepo.FindByID(userID)
-	if err != nil || user == nil || !user.PushoverEnabled || user.PushoverUserKey == "" {
-		return
-	}
-
-	duration := time.Duration(run.DurationMs) * time.Millisecond
-	msg := fmt.Sprintf("Checked: %d | Available: %d | Unavailable: %d | Unknown: %d | Duration: %s",
-		run.CoinsChecked, run.Available, run.Unavailable, run.Unknown, duration.Round(time.Second))
-
-	go func() {
-		if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Availability Check Complete", msg, ""); err != nil {
-			s.logger.Error("pushover", "Failed to send availability run notification: %v", err)
-		}
-	}()
-}
-
-// RunManualCycle checks all users' wishlist coins into an existing run record.
-// Used by the async admin-trigger worker so the run is claimed before processing begins.
-func (s *AvailabilityService) RunManualCycle(run *models.AvailabilityRun) error {
-	coins, err := s.coinRepo.GetAllWishlistWithURLs()
+// RunAdminCycle fans out one child AvailabilityRun per wishlist owner for an admin- or
+// scheduler-triggered AvailabilityCycle. Children execute sequentially (respecting the same
+// per-request rate delay as owner-triggered checks); each child's terminal transition already
+// updates the parent cycle's counts and finalizes it via CompleteChildRun/FailChildRun +
+// AggregateChildCounts + FinalizeCycle, so this method does not itself write cycle state.
+func (s *AvailabilityService) RunAdminCycle(cycle *models.AvailabilityCycle) error {
+	userIDs, err := s.coinRepo.GetAllWishlistUserIDs()
 	if err != nil {
-		return fmt.Errorf("fetch all wishlist coins: %w", err)
+		return fmt.Errorf("fetch wishlist owner IDs: %w", err)
 	}
 
-	startedAt := run.StartedAt
+	s.logger.Info("availability", "Cycle %d (%s): checking %d wishlist owner(s)", cycle.ID, cycle.TriggerType, len(userIDs))
 
-	var available, unavailable, unknown, errCount int
-	var allResults []coinResult
-	var ambiguousItems []AvailabilityCheckProxyItem
-	seenAmbiguousURLs := make(map[string]struct{})
-
-	s.logger.Info("availability", "Manual cycle: checking %d coins across all users", len(coins))
-
-	for i, coin := range coins {
-		result, _ := s.CheckURL(coin.ReferenceURL)
-
-		avResult := &models.AvailabilityResult{
-			RunID:      run.ID,
-			CoinID:     coin.ID,
-			CoinName:   coin.Name,
-			URL:        coin.ReferenceURL,
-			Status:     result.Status,
-			Reason:     result.Reason,
-			HttpStatus: result.HttpStatus,
-			AgentUsed:  false,
-			CheckedAt:  time.Now(),
+	cycleID := cycle.ID
+	for _, ownerID := range userIDs {
+		if ownerID == 0 {
+			continue
 		}
-		if err := s.availRepo.CreateResult(avResult); err != nil {
-			s.logger.Error("availability", "Failed to save result for coin %d: %s", coin.ID, err)
-			errCount++
-		}
-
-		allResults = append(allResults, coinResult{coin: coin, result: result, dbResult: avResult})
-
-		if result.Status == "unknown" && result.HttpStatus != nil && *result.HttpStatus == 200 {
-			if _, exists := seenAmbiguousURLs[coin.ReferenceURL]; !exists {
-				ambiguousItems = append(ambiguousItems, AvailabilityCheckProxyItem{
-					URL:      coin.ReferenceURL,
-					CoinName: coin.Name,
-				})
-				seenAmbiguousURLs[coin.ReferenceURL] = struct{}{}
-			}
-		}
-
-		s.logger.Debug("availability", "Coin %d (%s): %s — %s", coin.ID, coin.Name, result.Status, result.Reason)
-
-		if i < len(coins)-1 {
-			time.Sleep(availabilityRateDelay)
+		if _, err := s.CheckWishlistForUser(ownerID, cycle.TriggerType, cycle.TriggerUserID, &cycleID); err != nil {
+			s.logger.Error("availability", "Cycle %d: check failed for owner %d: %s", cycle.ID, ownerID, err)
 		}
 	}
 
-	if len(ambiguousItems) > 0 && s.agentProxy != nil {
-		s.logger.Info("availability", "Escalating %d ambiguous URLs to agent", len(ambiguousItems))
-		s.escalateToAgent(run.ID, allResults, ambiguousItems)
-	}
-
-	for _, cr := range allResults {
-		switch cr.dbResult.Status {
-		case "available":
-			available++
-		case "unavailable":
-			unavailable++
-		default:
-			unknown++
-		}
-
-		if err := s.coinRepo.UpdateListingStatus(cr.coin.ID, cr.dbResult.Status, cr.dbResult.Reason, time.Now()); err != nil {
-			s.logger.Error("availability", "Failed to update listing status for coin %d: %s", cr.coin.ID, err)
-		}
-
-		if cr.dbResult.Status == "unavailable" && cr.coin.ListingStatus != "unavailable" && s.notifSvc != nil {
-			s.notifSvc.NotifyWishlistUnavailable(cr.coin.UserID, cr.coin, cr.dbResult.Reason)
-		}
-	}
-
-	completedAt := time.Now()
-	run.CoinsChecked = len(coins)
-	run.Available = available
-	run.Unavailable = unavailable
-	run.Unknown = unknown
-	run.Errors = errCount
-	run.DurationMs = completedAt.Sub(startedAt).Milliseconds()
-	run.CompletedAt = &completedAt
-
-	if err := s.availRepo.CompleteRun(run); err != nil {
-		return fmt.Errorf("complete run: %w", err)
-	}
-
-	s.logger.Info("availability", "Manual cycle run %d complete: %d checked, %d available, %d unavailable, %d unknown (%dms)",
-		run.ID, len(coins), available, unavailable, unknown, run.DurationMs)
+	s.logger.Info("availability", "Cycle %d (%s) fan-out complete", cycle.ID, cycle.TriggerType)
 	return nil
 }

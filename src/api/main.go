@@ -10,7 +10,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/config"
 	"github.com/briandenicola/ancient-coins-api/database"
-	_ "github.com/briandenicola/ancient-coins-api/docs"
+	"github.com/briandenicola/ancient-coins-api/docs"
 	"github.com/briandenicola/ancient-coins-api/handlers"
 	"github.com/briandenicola/ancient-coins-api/middleware"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -77,8 +77,27 @@ func buildShipmentCarrierClients(settingsSvc *services.SettingsService, logger *
 //	@name						X-API-Key
 //	@description				Enter your API key, e.g. "ak_a1b2c3d4..."
 
+// loadAppVersion resolves the running build's version from the single
+// canonical root VERSION file (F9/T096) so the live Swagger UI, the
+// generated OpenAPI doc, and the Vue UI never drift from one another again.
+// Falls back to the swag-baked literal (kept in sync by `task openapi`) if
+// the file is unreadable, e.g. a `go run .` invocation from an unexpected
+// working directory.
+func loadAppVersion() string {
+	for _, p := range []string{"VERSION", filepath.Join("..", "..", "VERSION")} {
+		if data, err := os.ReadFile(p); err == nil {
+			if v := strings.TrimSpace(string(data)); v != "" {
+				return v
+			}
+		}
+	}
+	return docs.SwaggerInfo.Version
+}
+
 func main() {
 	cfg := config.Load()
+
+	docs.SwaggerInfo.Version = loadAppVersion()
 
 	database.Connect(cfg.DBPath)
 
@@ -191,6 +210,8 @@ func main() {
 	// Protected routes
 	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL, cfg.AgentInternalServiceToken, logger)
 	availRepo := repository.NewAvailabilityRepository(database.DB)
+	availCycleRepo := repository.NewAvailabilityCycleRepository(database.DB)
+	availRepo.WithCycleRepo(availCycleRepo)
 	coinRepo := repository.NewCoinRepository(database.DB)
 	wishlistSearchAlertRepo := repository.NewWishlistSearchAlertRepository(database.DB)
 	socialRepo := repository.NewSocialRepository(database.DB)
@@ -201,7 +222,7 @@ func main() {
 	auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
 	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
-	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger)
+	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger).WithCycleRepo(availCycleRepo)
 	wishlistSearchAlertSvc := services.NewWishlistSearchAlertService(wishlistSearchAlertRepo).WithDiscovery(agentProxy, settingsSvc)
 	wishlistSearchAlertSvc.StartWorkers(1)
 	wishlistSearchAlertScheduler := services.NewWishlistSearchAlertScheduler(wishlistSearchAlertSvc, wishlistSearchAlertRepo, settingsSvc, logger)
@@ -211,9 +232,12 @@ func main() {
 	aiJobSvc.StartWorkers(1)
 	coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger, numistaQueryBuilder)
 	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
+	deepIdentificationCatalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
 	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
+	deepIdentificationSvc.SetProviderBudgetTracker(deepProviderBudgets)
+	deepIdentificationSvc.SetInternalTokenService(internalTokenSvc)
 	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
-		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(),
+		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(), deepIdentificationCatalogRegistryRepo,
 	).WithQuickEvidence(coinLookupSvc))
 	deepIdentificationSvc.StartWorkers(context.Background())
 	deepIdentificationSvc.StartJanitor(context.Background())
@@ -233,7 +257,7 @@ func main() {
 	).WithParcelAppSupport(userRepoForVal, settingsSvc, credentialEncryptionSvc, services.NewHTTPParcelAppClient())
 
 	// Create schedulers before routes so they can be passed to admin handlers
-	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
+	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger).WithCycleRepo(availCycleRepo)
 	availScheduler.StartWorkers(1)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	nbWatchSyncSvc := services.NewNumisBidsService(logger)
@@ -452,7 +476,7 @@ func main() {
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 		protected.GET("/ai-status", analysisHandler.AIStatus)
 
-		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc)
+		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc, coinReferenceSvc).WithLogger(logger)
 		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger).WithProposalSupport(deepIdentificationProposalSvc)
 		protected.GET("/deep-identification/capability", deepIdentificationHandler.Capability)
 		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
@@ -499,9 +523,11 @@ func main() {
 		protected.POST("/auctions/validate-credentials", auctionLotHandler.ValidateNumisBids)
 
 		// Wishlist availability checking
-		availHandler := handlers.NewAvailabilityHandler(availSvc, availScheduler, availRepo, coinRepo)
+		availHandler := handlers.NewAvailabilityHandler(availSvc, availScheduler, availRepo, coinRepo).WithCycleRepo(availCycleRepo)
 		protected.POST("/wishlist/check-availability", availHandler.CheckAvailability)
 		protected.PUT("/coins/:id/listing-status", availHandler.UpdateListingStatus)
+		protected.GET("/wishlist/availability-runs", availHandler.ListOwnerRuns)
+		protected.GET("/wishlist/availability-runs/:id", availHandler.GetOwnerRunDetail)
 		wishlistSearchAlertHandler := handlers.NewWishlistSearchAlertHandler(wishlistSearchAlertSvc)
 		protected.GET("/wishlist/search-alerts", wishlistSearchAlertHandler.List)
 		protected.POST("/wishlist/search-alerts", writeRateLimit, wishlistSearchAlertHandler.Create)
@@ -697,10 +723,12 @@ func main() {
 		admin.DELETE("/mint-locations/:id/nomisma", mintLocationHandler.UnlinkNomisma)
 
 		// Availability check run history and manual trigger (reuse outer scope services)
-		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil)
+		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil).WithCycleRepo(availCycleRepo)
 		admin.GET("/availability-runs", adminAvailHandler.ListRuns)
 		admin.GET("/availability-runs/:id", adminAvailHandler.GetRunDetail)
 		admin.POST("/availability/run", adminAvailHandler.TriggerRun)
+		admin.GET("/availability-cycles", adminAvailHandler.ListCycles)
+		admin.GET("/availability-cycles/:id", adminAvailHandler.GetCycleDetail)
 
 		// Valuation run history and manual trigger
 		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc, logger)

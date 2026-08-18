@@ -42,6 +42,7 @@
           :class="!n.isRead ? 'text-gold' : 'text-text-muted'"
         >
           <AlertTriangle v-if="n.type === 'wishlist_unavailable' || n.type === 'agentic_set_proposal_failed' || n.type === 'agentic_set_creation_failed'" :size="20" />
+          <ShieldCheck v-else-if="n.type === 'wishlist_availability_run'" :size="20" />
           <UserPlus v-else-if="n.type === 'friend_new_coin' || n.type === 'follow_request'" :size="20" />
           <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
           <Key v-else-if="n.type === 'api_key_rotation_required'" :size="20" />
@@ -83,7 +84,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, BellOff, AlertTriangle, UserPlus, Sparkles, Key, X, FolderOpen } from 'lucide-vue-next'
+import { Bell, BellOff, AlertTriangle, UserPlus, Sparkles, Key, X, FolderOpen, ShieldCheck } from 'lucide-vue-next'
 import {
   getNotifications,
   markNotificationRead,
@@ -147,6 +148,8 @@ async function handleClick(n: Notification) {
   }
   if (n.type === 'wishlist_unavailable' && n.referenceId) {
     router.push(`/coin/${n.referenceId}`)
+  } else if (n.type === 'wishlist_availability_run' && n.referenceId) {
+    router.push(`/wishlist/availability-runs/${n.referenceId}`)
   } else if (n.type === 'friend_new_coin' && n.referenceId) {
     router.push(`/coin/${n.referenceId}`)
   } else if (n.type === 'api_key_rotation_required') {

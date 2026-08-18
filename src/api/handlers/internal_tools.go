@@ -488,6 +488,12 @@ func (h *DeepProviderToolsHandler) NomismaSearch(c *gin.Context) {
 		switch kind {
 		case services.NomismaErrorNoMatch:
 			status = "empty"
+		case services.NomismaErrorInvalidRequest:
+			// Task G: an over-length/malformed query is a client-side bug
+			// (Go never issued the upstream HTTP call), not a Nomisma
+			// outage — report it distinctly so the Python node never
+			// misclassifies "our bug" as "upstream failed".
+			status = "invalid_request"
 		default:
 			status = "unavailable"
 		}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ func newDeepProposalTestDeps(t *testing.T) (*DeepIdentificationProposalService, 
 	}
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.AppSetting{},
+		&models.CatalogRegistry{},
 		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
@@ -34,7 +36,8 @@ func newDeepProposalTestDeps(t *testing.T) (*DeepIdentificationProposalService, 
 	notifSvc := NewNotificationService(repository.NewNotificationRepository(db), repository.NewSocialRepository(db), repository.NewUserRepository(db), NewPushoverService(NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(10)), NewLogger(10))
 	coinSvc := NewCoinService(coinRepo, notifSvc)
 	quickCaptureSvc := NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()).WithCoinValidation(coinSvc)
-	proposalSvc := NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc)
+	coinRefSvc := NewCoinReferenceService(repository.NewCoinReferenceRepository(db), repository.NewCatalogRegistryRepository(db))
+	proposalSvc := NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc, coinRefSvc)
 	return proposalSvc, repo, db
 }
 
@@ -215,6 +218,312 @@ func TestDeepIdentificationProposal_ApplyRoutesThroughCoinServiceOnly(t *testing
 	}
 	if snapshotCountAfter <= snapshotCountBefore {
 		t.Fatal("expected CoinService.UpdateCoinWithFields' RecordValueSnapshot side effect to have run, proving the write passed through CoinService and not a direct SQL write")
+	}
+
+	var journal models.CoinJournal
+	if err := db.Where("coin_id = ?", coin.ID).First(&journal).Error; err != nil {
+		t.Fatalf("expected a journal entry recording the deep-analysis apply, got: %v", err)
+	}
+	if journal.UserID != userID {
+		t.Fatalf("expected journal entry owner-scoped to %d, got %d", userID, journal.UserID)
+	}
+	if !strings.Contains(journal.Entry, "Deep Analysis") || !strings.Contains(journal.Entry, "denomination") || !strings.Contains(journal.Entry, "mint") {
+		t.Fatalf("expected journal entry to name the applied fields, got %q", journal.Entry)
+	}
+}
+
+// Proves the journal write is genuinely best-effort (per the Apply() doc
+// comment): if CreateJournalEntry fails, Apply must still succeed end to
+// end - the coin update must land and the job must be marked applied -
+// rather than leaving a half-applied job that a client retry would turn
+// into a duplicate write. The failure is forced by dropping the real
+// coin_journals table so CreateJournalEntry hits a genuine SQL error (no
+// mock/fake repository - the same CoinRepository is used throughout), and
+// is also asserted to have been logged (via the injected *Logger's ring
+// buffer) so the failure stays observable instead of being silently eaten.
+func TestDeepIdentificationProposal_ApplySucceedsWhenJournalWriteFails(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	logger := NewLogger(20)
+	svc.WithLogger(logger)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{UserID: userID, Name: "Test Coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"denomination": "Denarius",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"denomination": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+
+	if err := db.Migrator().DropTable(&models.CoinJournal{}); err != nil {
+		t.Fatalf("drop coin_journals table to force a journal write failure: %v", err)
+	}
+
+	result, err := svc.Apply(jobID, userID, "coin", nil)
+	if err != nil {
+		t.Fatalf("expected apply to succeed despite journal write failure, got: %v", err)
+	}
+	if result.CoinID == nil || *result.CoinID != coin.ID {
+		t.Fatalf("expected coinId %d, got %v", coin.ID, result.CoinID)
+	}
+
+	var updated models.Coin
+	if err := db.First(&updated, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if updated.Denomination != "Denarius" {
+		t.Fatalf("expected coin update to land despite journal failure, got denomination=%q", updated.Denomination)
+	}
+
+	var job models.DeepIdentificationJob
+	if err := db.First(&job, jobID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if job.AppliedAt == nil {
+		t.Fatal("expected job to be marked applied despite journal write failure - otherwise a retry would create a duplicate write")
+	}
+
+	// A second apply must be rejected as already-applied, not retried into
+	// a duplicate update - proving the job genuinely finished, not stalled.
+	if _, err := svc.Apply(jobID, userID, "coin", nil); !errors.Is(err, ErrDeepProposalAlreadyApplied) {
+		t.Fatalf("expected ErrDeepProposalAlreadyApplied on retry, got %v", err)
+	}
+
+	foundLog := false
+	for _, entry := range logger.GetLogs(50) {
+		if strings.Contains(entry.Message, "failed to record deep-analysis journal entry") {
+			foundLog = true
+			break
+		}
+	}
+	if !foundLog {
+		t.Fatal("expected the swallowed journal-write failure to be logged for observability")
+	}
+}
+
+// T075: wishlist apply lands an owner-scoped models.Coin with
+// IsWishlist=true carrying the accepted fields via the same, unwidened
+// deepProposalCoinFieldAllowlist "coin" already uses, and the new
+// destination inherits the existing ApplyJob CAS idempotency (a second
+// apply on the same job is rejected).
+func TestDeepIdentificationProposal_WishlistApplyCreatesWishlistCoin(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, map[string]any{
+		"denomination": "Denarius",
+		"mint":         "Rome",
+		// workingTitle mirrors what buildDeepIntakeProposalFields already
+		// computes from ruler+denomination for every intake proposal doc.
+		"workingTitle": "Trajan Denarius",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"denomination": {Accepted: acceptTrue()},
+		"mint":         {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+
+	result, err := svc.Apply(jobID, userID, "wishlist", nil)
+	if err != nil {
+		t.Fatalf("apply wishlist: %v", err)
+	}
+	if result.CoinID == nil {
+		t.Fatal("expected a coin id for wishlist apply")
+	}
+	if result.DraftID != nil {
+		t.Fatal("expected no draft id for wishlist apply")
+	}
+
+	var coin models.Coin
+	if err := db.First(&coin, *result.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !coin.IsWishlist {
+		t.Fatal("expected IsWishlist=true")
+	}
+	if coin.UserID != userID {
+		t.Fatalf("expected owner-scoped coin, got userID=%d", coin.UserID)
+	}
+	if coin.Denomination != "Denarius" || coin.Mint != "Rome" {
+		t.Fatalf("expected accepted fields applied, got denomination=%q mint=%q", coin.Denomination, coin.Mint)
+	}
+	if coin.Name != "Trajan Denarius" {
+		t.Fatalf("expected derived name from workingTitle, got %q", coin.Name)
+	}
+	if coin.References != nil {
+		t.Fatal("expected wishlist coin to have no references (CoinService nils References for IsWishlist)")
+	}
+
+	var journal models.CoinJournal
+	if err := db.Where("coin_id = ?", coin.ID).First(&journal).Error; err != nil {
+		t.Fatalf("expected a journal entry recording the deep-analysis apply, got: %v", err)
+	}
+	if journal.UserID != userID {
+		t.Fatalf("expected journal entry owner-scoped to %d, got %d", userID, journal.UserID)
+	}
+	if !strings.Contains(journal.Entry, "Deep Analysis") || !strings.Contains(journal.Entry, "denomination") || !strings.Contains(journal.Entry, "mint") {
+		t.Fatalf("expected journal entry to name the applied fields, got %q", journal.Entry)
+	}
+
+	// Idempotency: a second apply against the same job is rejected -
+	// proving the new destination inherits the existing ApplyJob CAS.
+	if _, err := svc.Apply(jobID, userID, "wishlist", nil); !errors.Is(err, ErrDeepProposalAlreadyApplied) {
+		t.Fatalf("expected ErrDeepProposalAlreadyApplied on second apply, got %v", err)
+	}
+}
+
+// T119: models.Coin.Name is `gorm:"not null"` but there is no "name" key in
+// deepProposalCoinFieldAllowlist, so a coin must never be created with a
+// blank name. When the hypothesis yields neither a ruler nor a
+// denomination, buildDeepIntakeProposalFields never emits a "workingTitle"
+// entry either - this proves the honest, human fallback name is used
+// instead of a blank or invented one.
+func TestDeepIdentificationProposal_WishlistApplyFallsBackToHonestNameWhenHypothesisEmpty(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, map[string]any{
+		"notes": "Illegible coin; no ruler or denomination could be determined.",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"notes": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+
+	result, err := svc.Apply(jobID, userID, "wishlist", nil)
+	if err != nil {
+		t.Fatalf("apply wishlist: %v", err)
+	}
+	var coin models.Coin
+	if err := db.First(&coin, *result.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(coin.Name) == "" {
+		t.Fatal("expected a non-empty coin name even with an empty hypothesis")
+	}
+	if coin.Name != deepProposalWishlistFallbackName {
+		t.Fatalf("expected fallback name %q, got %q", deepProposalWishlistFallbackName, coin.Name)
+	}
+}
+
+// T075 (negative test): isWishlist is a destination intent, never a
+// proposed field (FR-028). A proposal document that somehow contains an
+// "isWishlist" key must be rejected by the allowlist, not honored, and no
+// coin is created as a side effect of the rejected apply attempt.
+func TestDeepIdentificationProposal_WishlistApplyRejectsIsWishlistAsProposedField(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, map[string]any{
+		"isWishlist":   false,
+		"denomination": "Denarius",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"isWishlist":   {Accepted: acceptTrue()},
+		"denomination": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+
+	var coinCountBefore int64
+	if err := db.Model(&models.Coin{}).Count(&coinCountBefore).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.Apply(jobID, userID, "wishlist", []string{"isWishlist", "denomination"}); !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
+		t.Fatalf("expected ErrDeepProposalFieldNotAllowed for isWishlist, got %v", err)
+	}
+
+	var coinCountAfter int64
+	if err := db.Model(&models.Coin{}).Count(&coinCountAfter).Error; err != nil {
+		t.Fatal(err)
+	}
+	if coinCountAfter != coinCountBefore {
+		t.Fatal("expected no coin to be created when isWishlist appears among the fields to apply")
+	}
+
+	// The legitimate field alone still applies fine, and IsWishlist is
+	// derived purely from the destination, never from proposed_fields.
+	result, err := svc.Apply(jobID, userID, "wishlist", []string{"denomination"})
+	if err != nil {
+		t.Fatalf("apply legitimate field: %v", err)
+	}
+	var coin models.Coin
+	if err := db.First(&coin, *result.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !coin.IsWishlist {
+		t.Fatal("expected IsWishlist=true derived from the destination, not from proposed_fields")
+	}
+}
+
+// T074: the confirm gate is unchanged - no coin or draft row is created or
+// modified before an explicit Apply call, on either intake destination.
+// Marking fields accepted via UpdateProposal is an owner decision only; it
+// must never itself write a coin or draft row.
+func TestDeepIdentificationProposal_NoWriteBeforeConfirmForEitherIntakeDestination(t *testing.T) {
+	svc, repo, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+
+	for _, target := range []string{"draft", "wishlist"} {
+		t.Run(target, func(t *testing.T) {
+			jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, map[string]any{
+				"denomination": "Denarius",
+				"notes":        "Deep Analysis notes",
+				"workingTitle": "Trajan Denarius",
+			})
+
+			var coinCountBefore, draftCountBefore int64
+			db.Model(&models.Coin{}).Count(&coinCountBefore)
+			db.Model(&models.QuickCaptureDraft{}).Count(&draftCountBefore)
+
+			// "notes" is writable on both the draft and coin/wishlist
+			// allowlists, so the same accept decision works for either target.
+			if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+				"notes": {Accepted: acceptTrue()},
+			}); err != nil {
+				t.Fatalf("update proposal: %v", err)
+			}
+
+			var coinCountAfterEdit, draftCountAfterEdit int64
+			db.Model(&models.Coin{}).Count(&coinCountAfterEdit)
+			db.Model(&models.QuickCaptureDraft{}).Count(&draftCountAfterEdit)
+			if coinCountAfterEdit != coinCountBefore || draftCountAfterEdit != draftCountBefore {
+				t.Fatal("expected no coin/draft row created merely from an owner accept decision")
+			}
+
+			job, err := repo.GetJob(jobID, userID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if job.AppliedAt != nil {
+				t.Fatal("expected AppliedAt to remain nil before an explicit Apply call")
+			}
+
+			if _, err := svc.Apply(jobID, userID, target, nil); err != nil {
+				t.Fatalf("apply %s: %v", target, err)
+			}
+
+			var coinCountAfterApply, draftCountAfterApply int64
+			db.Model(&models.Coin{}).Count(&coinCountAfterApply)
+			db.Model(&models.QuickCaptureDraft{}).Count(&draftCountAfterApply)
+			switch target {
+			case "draft":
+				if draftCountAfterApply != draftCountBefore+1 {
+					t.Fatalf("expected exactly one new draft row after explicit apply, got before=%d after=%d", draftCountBefore, draftCountAfterApply)
+				}
+				if coinCountAfterApply != coinCountBefore {
+					t.Fatal("expected no coin row created by a draft apply")
+				}
+			case "wishlist":
+				if coinCountAfterApply != coinCountBefore+1 {
+					t.Fatalf("expected exactly one new coin row after explicit apply, got before=%d after=%d", coinCountBefore, coinCountAfterApply)
+				}
+			}
+		})
 	}
 }
 

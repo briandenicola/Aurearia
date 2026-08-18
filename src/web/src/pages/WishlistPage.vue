@@ -26,6 +26,14 @@
           <CalendarClock :size="22" />
         </router-link>
         <router-link
+          to="/wishlist/availability-runs"
+          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          title="Run History"
+          aria-label="Run History"
+        >
+          <History :size="22" />
+        </router-link>
+        <router-link
           to="/lookup"
           class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
           title="Identify Coin"
@@ -54,6 +62,13 @@
           title="Search Alerts"
         >
           <CalendarClock :size="16" /> Search Alerts
+        </router-link>
+        <router-link
+          to="/wishlist/availability-runs"
+          class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          title="Run History"
+        >
+          <History :size="16" /> Run History
         </router-link>
         <router-link
           to="/lookup"
@@ -143,7 +158,7 @@ import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus } from '@/api/client'
 import type { Coin, AvailabilityRunSummary } from '@/types'
-import { CirclePlus, Bot, ShieldCheck, CalendarClock } from 'lucide-vue-next'
+import { CirclePlus, Bot, ShieldCheck, CalendarClock, History } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 
 const store = useCoinsStore()

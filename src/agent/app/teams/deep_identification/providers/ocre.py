@@ -15,10 +15,19 @@ Behavioral guarantees:
   * Every transport failure → a typed `failed`/`timed_out` row; the node never
     raises (FR-015).
   * Every claim citation is host-validated (numismatics.org) before emission.
+
+T122 (RD-4/FR-039): `_legend_tokens` is ADR 0010's scoring-only-signal
+source. `src/api/services/ocre_scoring.go` (`ocreLegendMatches`,
+`ocreLegendBonusPer`, `ocreLegendBonusMax`, the base-score weights, the
+`[0,1]` clamp, `sort.SliceStable`) is that ADR's deterministic contract and
+is NOT touched by this module — only the *source* of legend tokens is
+widened here, to also draw from the hypothesis when quick evidence carries
+no `label_text`.
 """
 
 import logging
 
+from app.models.hypothesis import CoinHypothesis
 from app.models.requests import DeepProviderCatalogEntry, QuickEvidence
 from app.models.responses import ProviderClaim, ProviderEvidence
 from app.teams.deep_identification.merge import validate_citations
@@ -51,19 +60,38 @@ def _first(fields: dict[str, str], keys: tuple[str, ...]) -> str:
     return ""
 
 
-def _legend_tokens(quick_evidence: QuickEvidence | None) -> list[str]:
-    """Alphanumeric legend tokens are scoring-only signals (never SPARQL)."""
-    if quick_evidence is None or not quick_evidence.label_text:
-        return []
-    tokens: list[str] = []
-    seen: set[str] = set()
-    for raw in quick_evidence.label_text.split():
+def _tokenize_legend(text: str, tokens: list[str], seen: set[str]) -> None:
+    for raw in text.split():
         token = "".join(ch for ch in raw.lower() if ch.isalnum())
         if token and token not in seen:
             seen.add(token)
             tokens.append(token)
         if len(tokens) >= 12:
-            break
+            return
+
+
+def _legend_tokens(
+    quick_evidence: QuickEvidence | None, hypothesis: CoinHypothesis | None = None
+) -> list[str]:
+    """Alphanumeric legend tokens are scoring-only signals (never SPARQL).
+
+    T122/RD-4: `quick_evidence.label_text` still wins when present (it is
+    already the router's highest-precedence evidence). When it is absent —
+    the entire Maximinus no-quick-evidence scenario — fall back to the
+    hypothesis's obverse inscription, reverse inscription, and coin type
+    (the reverse-type analogue in the hypothesis vocabulary), which is
+    exactly the reverse-legend/type signal RD-4/FR-039 designates for
+    ranking/scoring. Same normalization, dedup, and 12-token cap as before.
+    """
+    tokens: list[str] = []
+    seen: set[str] = set()
+    if quick_evidence is not None and quick_evidence.label_text:
+        _tokenize_legend(quick_evidence.label_text, tokens, seen)
+        return tokens
+    if hypothesis is not None:
+        for field in (hypothesis.obverseInscription, hypothesis.reverseInscription, hypothesis.coin_type):
+            if field is not None and len(tokens) < 12:
+                _tokenize_legend(field.value, tokens, seen)
     return tokens
 
 
@@ -83,6 +111,7 @@ async def run(
     tools: ProviderToolsClient | None,
     quick_evidence: QuickEvidence | None,
     notes: str,
+    hypothesis: CoinHypothesis | None = None,
 ) -> ProviderEvidence:
     # (1) Flag-off short circuit — never a tool call (FR-004/FR-016).
     if not catalog_entry.automatable:
@@ -95,7 +124,7 @@ async def run(
     mint = _first(fields, _MINT_KEYS)
     material = _first(fields, _MATERIAL_KEYS)
     ocre_id = _first(fields, _OCRE_ID_KEYS)
-    legend_tokens = _legend_tokens(quick_evidence)
+    legend_tokens = _legend_tokens(quick_evidence, hypothesis)
 
     # (3) No type-bearing signal decodes → no_match with ZERO tool calls.
     if not (ruler or denomination or mint or ocre_id):

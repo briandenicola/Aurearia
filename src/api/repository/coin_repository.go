@@ -972,6 +972,19 @@ func (r *CoinRepository) GetAllWishlistWithURLs() ([]models.Coin, error) {
 	return coins, err
 }
 
+// GetAllWishlistUserIDs returns the distinct user IDs of every owner with at least one
+// wishlist coin, including owners whose wishlist coins have no reference URL (zero URLs).
+// Used to fan out one child AvailabilityRun per owner for an admin/scheduled cycle, so an
+// owner with zero checkable URLs still gets a terminal (zero-coin) run (FR-006).
+func (r *CoinRepository) GetAllWishlistUserIDs() ([]uint, error) {
+	var userIDs []uint
+	err := r.db.Model(&models.Coin{}).
+		Where("is_wishlist = ?", true).
+		Distinct("user_id").
+		Pluck("user_id", &userIDs).Error
+	return userIDs, err
+}
+
 // UpdateListingStatus updates only the listing-check fields on a coin.
 func (r *CoinRepository) UpdateListingStatus(coinID uint, status, reason string, checkedAt time.Time) error {
 	return r.db.Model(&models.Coin{}).Where("id = ?", coinID).

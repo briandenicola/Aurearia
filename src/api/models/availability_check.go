@@ -9,12 +9,33 @@ const (
 	AvailabilityRunStatusFailed    = "failed"
 )
 
+// Trigger type values written to *new* AvailabilityRun rows (feature 353). Pre-existing
+// rows (including legacy admin rows with UserID = 0 and their historical "manual"/"scheduled"
+// values) are never rewritten to these constants — they keep whatever value they already
+// have and remain readable through the legacy admin endpoints unmodified.
+const (
+	AvailabilityRunTriggerOwner     = "owner"
+	AvailabilityRunTriggerScheduled = "scheduled"
+	AvailabilityRunTriggerAdmin     = "admin"
+)
+
+// GenericAvailabilityFailureMessage is the single generic, safe-for-display failure
+// message used for AvailabilityRun.FailMessage, AvailabilityCycle.FailMessage, and the
+// wishlist_availability_run notification body. It intentionally never includes URLs,
+// query text, or internal error details (FR-015).
+const GenericAvailabilityFailureMessage = "The availability check could not be completed due to an internal error. Please try again later."
+
 // AvailabilityRun records a single execution of the wishlist availability checker.
+// New rows created for the owner/scheduled/admin trigger types are always "child" runs
+// scoped to exactly one user (UserID > 0); CycleID links admin/scheduled children back to
+// their parent AvailabilityCycle. Owner-triggered runs (TriggerType = "owner") never belong
+// to a cycle and always have a nil CycleID.
 type AvailabilityRun struct {
 	ID            uint                 `gorm:"primaryKey" json:"id"`
 	UserID        uint                 `gorm:"not null" json:"userId"`
 	User          User                 `gorm:"foreignKey:UserID" json:"-"`
 	UserName      string               `gorm:"-" json:"userName"`
+	CycleID       *uint                `gorm:"index" json:"cycleId"`
 	TriggerType   string               `gorm:"type:varchar(20);not null" json:"triggerType"`
 	TriggerUserID *uint                `json:"triggerUserId"`
 	Status        string               `gorm:"type:varchar(20);not null;default:completed" json:"status"`

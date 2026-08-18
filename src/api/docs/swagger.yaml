@@ -1571,6 +1571,7 @@ definitions:
         enum:
         - draft
         - coin
+        - wishlist
         type: string
     required:
     - target
@@ -4765,9 +4766,10 @@ paths:
       summary: Get auction watch bid digest scheduler status
       tags:
       - Admin
-  /admin/availability-runs:
+  /admin/availability-cycles:
     get:
-      description: Returns paginated history of wishlist availability check runs.
+      description: Returns paginated history of admin/scheduled availability cycles
+        with roll-up child counts.
       parameters:
       - default: 1
         description: Page number
@@ -4801,12 +4803,88 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: List availability check runs
+      summary: List availability cycles
+      tags:
+      - Admin
+  /admin/availability-cycles/{id}:
+    get:
+      description: Returns a single availability cycle with its per-owner child run
+        summaries (no per-coin results).
+      parameters:
+      - description: Cycle ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get availability cycle detail
+      tags:
+      - Admin
+  /admin/availability-runs:
+    get:
+      description: Returns paginated history of legacy (pre-cycle) wishlist availability
+        check runs, including UserID=0 admin rows.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List legacy availability check runs
       tags:
       - Admin
   /admin/availability-runs/{id}:
     get:
-      description: Returns a single availability check run with all per-coin results.
+      description: Returns a single legacy (pre-cycle) availability check run with
+        all per-coin results.
       parameters:
       - description: Run ID
         in: path
@@ -4835,13 +4913,14 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Get availability run detail
+      summary: Get legacy availability run detail
       tags:
       - Admin
   /admin/availability/run:
     post:
-      description: Enqueues a wishlist availability check for all users and returns
-        immediately. Duplicate requests while a run is queued or running are rejected.
+      description: Enqueues a wishlist availability check cycle (one child run per
+        owner) and returns immediately. Duplicate requests while a cycle is queued
+        or running are rejected.
       produces:
       - application/json
       responses:
@@ -10106,8 +10185,11 @@ paths:
       - multipart/form-data
       description: Accepts obverse/reverse coin images (uploaded or reused from a
         saved coin), optional notes, optional ephemeral hint images, and an optional
-        provider override. Idempotent duplicate submissions return the existing in-flight
-        job with reused=true.
+        provider override. Idempotent duplicate submissions (same owner, coin, image
+        content hashes, notes, provider override) return the existing in-flight job
+        with reused=true. A distinct submission that would exceed the per-user concurrency
+        limit is refused with 409 job_at_capacity rather than being matched to an
+        unrelated in-flight job.
       parameters:
       - description: Saved coin to analyse; omit for new-coin intake
         in: formData
@@ -10158,6 +10240,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
         "413":
@@ -10223,7 +10309,7 @@ paths:
         name: id
         required: true
         type: integer
-      - description: Apply target and optional field subset
+      - description: Apply target (draft, coin, or wishlist) and optional field subset
         in: body
         name: request
         required: true
@@ -15304,6 +15390,77 @@ paths:
       summary: Get value history
       tags:
       - Coins
+  /wishlist/availability-runs:
+    get:
+      description: Returns paginated availability check run history scoped to the
+        authenticated user.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List my wishlist availability runs
+      tags:
+      - Wishlist
+  /wishlist/availability-runs/{id}:
+    get:
+      description: Returns a single availability check run with per-coin results,
+        scoped to the authenticated user.
+      parameters:
+      - description: Run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my wishlist availability run detail
+      tags:
+      - Wishlist
   /wishlist/check-availability:
     post:
       description: Checks all wishlist items with reference URLs to see if they are

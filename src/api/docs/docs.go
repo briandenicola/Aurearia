@@ -547,6 +547,119 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/availability-cycles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated history of admin/scheduled availability cycles with roll-up child counts.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "List availability cycles",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/availability-cycles/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single availability cycle with its per-owner child run summaries (no per-coin results).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get availability cycle detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Cycle ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/availability-runs": {
             "get": {
                 "security": [
@@ -554,14 +667,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns paginated history of wishlist availability check runs.",
+                "description": "Returns paginated history of legacy (pre-cycle) wishlist availability check runs, including UserID=0 admin rows.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Admin"
                 ],
-                "summary": "List availability check runs",
+                "summary": "List legacy availability check runs",
                 "parameters": [
                     {
                         "type": "integer",
@@ -614,14 +727,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a single availability check run with all per-coin results.",
+                "description": "Returns a single legacy (pre-cycle) availability check run with all per-coin results.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Admin"
                 ],
-                "summary": "Get availability run detail",
+                "summary": "Get legacy availability run detail",
                 "parameters": [
                     {
                         "type": "integer",
@@ -667,7 +780,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Enqueues a wishlist availability check for all users and returns immediately. Duplicate requests while a run is queued or running are rejected.",
+                "description": "Enqueues a wishlist availability check cycle (one child run per owner) and returns immediately. Duplicate requests while a cycle is queued or running are rejected.",
                 "produces": [
                     "application/json"
                 ],
@@ -8739,7 +8852,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions return the existing in-flight job with reused=true.",
+                "description": "Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions (same owner, coin, image content hashes, notes, provider override) return the existing in-flight job with reused=true. A distinct submission that would exceed the per-user concurrency limit is refused with 409 job_at_capacity rather than being matched to an unrelated in-flight job.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -8821,6 +8934,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -8929,7 +9048,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Apply target and optional field subset",
+                        "description": "Apply target (draft, coin, or wishlist) and optional field subset",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -16751,6 +16870,113 @@ const docTemplate = `{
                 }
             }
         },
+        "/wishlist/availability-runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated availability check run history scoped to the authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist"
+                ],
+                "summary": "List my wishlist availability runs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/availability-runs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single availability check run with per-coin results, scoped to the authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist"
+                ],
+                "summary": "Get my wishlist availability run detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/wishlist/check-availability": {
             "post": {
                 "security": [
@@ -19869,7 +20095,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "draft",
-                        "coin"
+                        "coin",
+                        "wishlist"
                     ]
                 }
             }

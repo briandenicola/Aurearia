@@ -96,6 +96,12 @@ func (s *CoinReferenceService) NormalizeAndValidateOne(
 }
 
 // ReplaceForCoin validates and then replaces all references for a coin.
+//
+// This is owner-editor replacement semantics: it deletes every existing
+// reference for the coin before inserting the given set. It is intended for
+// the manual "these are my references" editing path only. Agent/enrichment
+// paths that discover additional references must use AppendForCoin, which is
+// additive and never deletes existing references.
 func (s *CoinReferenceService) ReplaceForCoin(
 	coinID uint,
 	userID uint,
@@ -106,6 +112,63 @@ func (s *CoinReferenceService) ReplaceForCoin(
 		return err
 	}
 	return s.repo.ReplaceForCoin(coinID, userID, normalized)
+}
+
+// AppendForCoin validates and inserts additional references for a coin
+// without deleting any existing ones. Proposed references that duplicate an
+// existing reference (or another proposed reference earlier in the list),
+// compared case-insensitively on (Catalog, Volume, Number) via dedupeKey, are
+// silently skipped rather than rejected. It returns only the newly inserted
+// rows (with generated IDs), not the merged set. Empty input, or input that
+// is entirely duplicates, is a successful no-op that returns an empty slice.
+func (s *CoinReferenceService) AppendForCoin(
+	coinID uint,
+	userID uint,
+	refs []models.CoinReference,
+) ([]models.CoinReference, error) {
+	if len(refs) == 0 {
+		return []models.CoinReference{}, nil
+	}
+
+	existing, err := s.repo.ListByCoin(coinID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{}, len(existing)+len(refs))
+	for _, ref := range existing {
+		seen[dedupeKey(ref)] = struct{}{}
+	}
+
+	survivors := make([]models.CoinReference, 0, len(refs))
+	for _, ref := range refs {
+		n, err := s.NormalizeAndValidateOne(ref)
+		if err != nil {
+			return nil, err
+		}
+
+		key := dedupeKey(n)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		// Strip any client-supplied primary key/scope so CreateBatch always
+		// generates a fresh row scoped to this coin.
+		n.ID = 0
+		n.CoinID = coinID
+		survivors = append(survivors, n)
+	}
+
+	if len(survivors) == 0 {
+		return []models.CoinReference{}, nil
+	}
+
+	if err := s.repo.CreateBatch(survivors); err != nil {
+		return nil, err
+	}
+
+	return survivors, nil
 }
 
 func dedupeKey(ref models.CoinReference) string {

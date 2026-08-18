@@ -151,9 +151,6 @@ func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateMintLocation(coin.MintLocationID, coin.UserID); err != nil {
 		return err
 	}
-	if coin.IsWishlist {
-		coin.References = nil
-	}
 	coin.Era = models.Era(strings.TrimSpace(string(coin.Era)))
 	if err := s.validateCoinEra(coin.Era); err != nil {
 		return err
@@ -170,11 +167,6 @@ func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin) err
 		txRepo := s.repo.WithTx(tx)
 		pendingReferences := coin.References
 		coin.References = nil
-		// Wishlist coins must never carry catalog references — enforce the invariant
-		// here regardless of what the caller set upstream (belt-and-suspenders).
-		if coin.IsWishlist {
-			pendingReferences = nil
-		}
 		if err := txRepo.Create(coin); err != nil {
 			return err
 		}

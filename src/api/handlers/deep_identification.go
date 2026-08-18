@@ -189,7 +189,7 @@ func (h *DeepIdentificationHandler) Capability(c *gin.Context) {
 // CreateJob starts a Deep Analysis job from multipart intake.
 //
 //	@Summary		Start a Deep Analysis job
-//	@Description	Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions return the existing in-flight job with reused=true.
+//	@Description	Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions (same owner, coin, image content hashes, notes, provider override) return the existing in-flight job with reused=true. A distinct submission that would exceed the per-user concurrency limit is refused with 409 job_at_capacity rather than being matched to an unrelated in-flight job.
 //	@Tags			Deep Identification
 //	@Accept			multipart/form-data
 //	@Produce		json
@@ -209,6 +209,7 @@ func (h *DeepIdentificationHandler) Capability(c *gin.Context) {
 //	@Failure		415	{object}	ErrorResponse
 //	@Failure		422	{object}	ErrorResponse
 //	@Failure		429	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse
 //	@Failure		503	{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/deep-identification/jobs [post]
@@ -605,6 +606,8 @@ func (h *DeepIdentificationHandler) respondDeepJobError(c *gin.Context, err erro
 		c.JSON(http.StatusConflict, gin.H{"error": "Retry depth limit reached"})
 	case errors.Is(err, services.ErrDeepJobQueueFull):
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Deep Analysis queue is full, try again shortly"})
+	case errors.Is(err, services.ErrDeepJobAtCapacity):
+		c.JSON(http.StatusConflict, gin.H{"error": "An analysis is already running. Wait for it to finish or cancel it.", "code": "job_at_capacity"})
 	case repository.IsRecordNotFound(err):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 	default:
@@ -681,7 +684,7 @@ func (h *DeepIdentificationHandler) UpdateProposal(c *gin.Context) {
 
 // deepApplyRequest is the POST .../apply request body.
 type deepApplyRequest struct {
-	Target string   `json:"target" binding:"required,oneof=draft coin"`
+	Target string   `json:"target" binding:"required,oneof=draft coin wishlist"`
 	Fields []string `json:"fields,omitempty"`
 }
 
@@ -694,18 +697,35 @@ type deepApplyResponse struct {
 	AppliedAt     time.Time `json:"appliedAt"`
 }
 
+// normalizeDeepApplyTarget validates the requested apply destination
+// through a closed switch, rejecting anything not explicitly known (T073).
+// The `binding:"oneof=draft coin wishlist"` tag on deepApplyRequest already
+// rejects unrecognized targets during ShouldBindJSON; this is the second,
+// explicit gate the service's own closed switch in Apply expects its caller
+// to have already normalized through, so a future target added to one
+// switch without the other fails loudly instead of silently.
+func normalizeDeepApplyTarget(target string) (string, bool) {
+	switch target {
+	case "draft", "coin", "wishlist":
+		return target, true
+	default:
+		return "", false
+	}
+}
+
 // ApplyProposal confirms the proposal through an existing Go-owned write
 // path (T111, FR-031/FR-033): "draft" seeds a QuickCaptureDraft (existing
 // promote flow finishes the job); "coin" patches the saved coin via
-// CoinService.UpdateCoinWithFields(source="deep_identification"). This
-// handler performs no write of its own.
+// CoinService.UpdateCoinWithFields(source="deep_identification"); "wishlist"
+// (T072/T073, FR-027) creates a new wishlist models.Coin via
+// CoinService.CreateCoin. This handler performs no write of its own.
 //
 //	@Summary		Confirm a Deep Analysis proposal through the existing write path
 //	@Tags			Deep Identification
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path	int					true	"Job ID"
-//	@Param			request	body	deepApplyRequest	true	"Apply target and optional field subset"
+//	@Param			request	body	deepApplyRequest	true	"Apply target (draft, coin, or wishlist) and optional field subset"
 //	@Success		200	{object}	deepApplyResponse
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		401	{object}	ErrorResponse
@@ -724,7 +744,12 @@ func (h *DeepIdentificationHandler) ApplyProposal(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	result, err := h.proposalSvc.Apply(jobID, userID, req.Target, req.Fields)
+	target, ok := normalizeDeepApplyTarget(req.Target)
+	if !ok {
+		respondError(c, http.StatusBadRequest, "Invalid apply target", nil)
+		return
+	}
+	result, err := h.proposalSvc.Apply(jobID, userID, target, req.Fields)
 	if err != nil {
 		h.respondDeepProposalError(c, err)
 		return
@@ -757,6 +782,8 @@ func (h *DeepIdentificationHandler) respondDeepProposalError(c *gin.Context, err
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, services.ErrDeepProposalNoAcceptedFields):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No accepted fields to apply"})
+	case errors.Is(err, services.ErrDeepProposalInvalidCatalogReferences):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "invalid_catalog_references"})
 	case repository.IsRecordNotFound(err):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 	default:

@@ -52,7 +52,7 @@ async def test_fanout_respects_max_concurrency(monkeypatch):
     max_seen = 0
     lock = asyncio.Lock()
 
-    async def fake_run(entry, tools, quick_evidence, notes):
+    async def fake_run(entry, tools, quick_evidence, notes, hypothesis=None):
         nonlocal concurrent, max_seen
         async with lock:
             concurrent += 1
@@ -86,7 +86,7 @@ async def test_fanout_respects_max_concurrency(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fanout_provider_timeout_yields_timed_out(monkeypatch):
-    async def slow_run(entry, tools, quick_evidence, notes):
+    async def slow_run(entry, tools, quick_evidence, notes, hypothesis=None):
         await asyncio.sleep(10)
         return ProviderEvidence(provider=entry.provider, status="no_match", automatable=True)
 
@@ -112,10 +112,10 @@ async def test_fanout_provider_timeout_yields_timed_out(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fanout_one_failing_provider_does_not_block_others(monkeypatch):
-    async def failing_run(entry, tools, quick_evidence, notes):
+    async def failing_run(entry, tools, quick_evidence, notes, hypothesis=None):
         raise RuntimeError("boom")
 
-    async def ok_run(entry, tools, quick_evidence, notes):
+    async def ok_run(entry, tools, quick_evidence, notes, hypothesis=None):
         return ProviderEvidence(provider=entry.provider, status="contributed", automatable=True, call_count=1)
 
     import app.teams.deep_identification.graph as graph_module
@@ -146,12 +146,12 @@ async def test_fanout_one_failing_provider_does_not_block_others(monkeypatch):
 @pytest.mark.asyncio
 async def test_fanout_runs_ocre_through_automated_timeout_wrapped_path(monkeypatch):
     """Feature 345: a selected OCRE now runs via the automated fan-out path
-    (async, timeout/semaphore-wrapped) — invoked with the 4-arg node
-    signature — not the trivial single-arg dict."""
+    (async, timeout/semaphore-wrapped) — invoked with the 5-arg node
+    signature (Phase 5 added `hypothesis`) — not the trivial single-arg dict."""
     seen_args = {}
 
-    async def spy_ocre(entry, tools, quick_evidence, notes):
-        seen_args["argc"] = 4
+    async def spy_ocre(entry, tools, quick_evidence, notes, hypothesis=None):
+        seen_args["argc"] = 5
         seen_args["provider"] = entry.provider
         return ProviderEvidence(provider="ocre", status="contributed", automatable=True, call_count=1)
 
@@ -173,7 +173,7 @@ async def test_fanout_runs_ocre_through_automated_timeout_wrapped_path(monkeypat
 
     result = await provider_fanout_node(state, tools=object())
 
-    assert seen_args == {"argc": 4, "provider": "ocre"}
+    assert seen_args == {"argc": 5, "provider": "ocre"}
     assert result["evidence"][0].status == "contributed"
 
 
@@ -208,11 +208,11 @@ async def test_fanout_ocre_hung_still_yields_already_completed_evidence(monkeypa
     """T036: OCRE hung past its provider timeout must not strand the evidence
     other providers already produced — the timed-out row is typed and the
     completed provider's contribution survives (incremental on_result)."""
-    async def hung_ocre(entry, tools, quick_evidence, notes):
+    async def hung_ocre(entry, tools, quick_evidence, notes, hypothesis=None):
         await asyncio.sleep(10)
         return ProviderEvidence(provider="ocre", status="contributed", automatable=True)
 
-    async def fast_numista(entry, tools, quick_evidence, notes):
+    async def fast_numista(entry, tools, quick_evidence, notes, hypothesis=None):
         return ProviderEvidence(provider="numista", status="contributed", automatable=True, call_count=1)
 
     import app.teams.deep_identification.graph as graph_module

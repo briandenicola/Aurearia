@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
-import { createDeepIdentificationJob, createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
+import { createDeepIdentificationJob, createQuickCaptureDraft, listDeepIdentificationJobs, lookupCoin, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
 import { normalizeGalleryImage } from '@/utils/galleryImage'
 
@@ -25,6 +25,7 @@ vi.mock('@/api/client', () => ({
   lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
   createDeepIdentificationJob: vi.fn(),
+  listDeepIdentificationJobs: vi.fn().mockResolvedValue({ data: { jobs: [] } }),
   getDeepIdentificationCapability: vi.fn().mockResolvedValue({ data: { enabled: true } }),
   getApiErrorMessage: (error: unknown) => {
     if (typeof error !== 'object' || error === null) return ''
@@ -32,6 +33,12 @@ vi.mock('@/api/client', () => ({
     const apiMessage = typed.response?.data?.error
     if (typeof apiMessage === 'string') return apiMessage
     return typeof typed.message === 'string' ? typed.message : ''
+  },
+  getApiErrorCode: (error: unknown) => {
+    if (typeof error !== 'object' || error === null) return ''
+    const typed = error as { response?: { data?: { code?: unknown } } }
+    const code = typed.response?.data?.code
+    return typeof code === 'string' ? code : ''
   },
   onTokenRefreshed: vi.fn(),
 }))
@@ -63,6 +70,8 @@ describe('CoinLookupPage', () => {
     vi.mocked(createQuickCaptureDraft).mockReset()
     vi.mocked(lookupNumista).mockReset()
     vi.mocked(createDeepIdentificationJob).mockReset()
+    vi.mocked(listDeepIdentificationJobs).mockReset()
+    vi.mocked(listDeepIdentificationJobs).mockResolvedValue({ data: { jobs: [] } } as Awaited<ReturnType<typeof listDeepIdentificationJobs>>)
     vi.mocked(normalizeGalleryImage).mockReset()
     vi.mocked(normalizeGalleryImage).mockImplementation(async file => file)
     routerPush.mockReset()
@@ -454,6 +463,67 @@ describe('CoinLookupPage', () => {
     }))
     expect(lookupCoin).not.toHaveBeenCalled()
     expect(routerPush).toHaveBeenCalledWith('/deep-analysis/42')
+  })
+
+  it('shows an actionable message and a link to the running job on a job_at_capacity conflict, without navigating or leaving a stuck spinner', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+    const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
+    vi.mocked(createDeepIdentificationJob).mockRejectedValue({
+      response: {
+        status: 409,
+        data: { error: 'An analysis is already running. Wait for it to finish or cancel it.', code: 'job_at_capacity' },
+      },
+    })
+    // No active job yet when the page mounts (so the entry point starts
+    // enabled) - only after the 409 does the probe report the job that
+    // was already running underneath the rejected submission.
+    vi.mocked(listDeepIdentificationJobs).mockResolvedValueOnce({ data: { jobs: [] } } as Awaited<ReturnType<typeof listDeepIdentificationJobs>>)
+    vi.mocked(listDeepIdentificationJobs).mockResolvedValue({
+      data: {
+        jobs: [{
+          id: 17,
+          source: 'intake',
+          status: 'running',
+          partialSuccess: false,
+          cancelRequested: false,
+          lastSeq: 0,
+          eventsAvailable: false,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        }],
+      },
+    } as Awaited<ReturnType<typeof listDeepIdentificationJobs>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [obverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    Object.defineProperty(input.element, 'files', { value: [reverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+
+    const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
+    await deepAnalysisButton!.trigger('click')
+    await flushPromises()
+
+    const startButton = wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))
+    await startButton!.trigger('click')
+    await flushPromises()
+
+    // The submission never started: it must not look like success.
+    expect(routerPush).not.toHaveBeenCalledWith(expect.stringContaining('/deep-analysis/'))
+    // The user sees exactly what happened and what to do about it...
+    expect(wrapper.text()).toContain('An analysis is already running. Wait for it to finish or cancel it.')
+    // ...with a concrete way to get to the job that's already running.
+    expect(wrapper.text()).toContain('View running analysis')
+    // The modal is still open and the submit button is no longer stuck loading -
+    // a fresh submit attempt (e.g. after cancelling the other job) remains possible.
+    expect(wrapper.find('[data-testid="reused-capture-summary"]').exists()).toBe(true)
+    expect(wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))!.attributes('disabled')).toBeUndefined()
   })
 
   it('reveals an editable NGC Numista override by keyboard without an eager request', async () => {

@@ -13,7 +13,57 @@ var DB *gorm.DB
 
 func Connect(dbPath string) {
 	var err error
-	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	// Root cause of "database is locked (SQLITE_BUSY)" on job claim: every
+	// GORM db.Transaction() begins a *deferred* SQLite transaction, which
+	// takes no lock until its first statement, and only a *read* lock on
+	// the initial SELECT. When the later UPDATE in the same transaction
+	// tries to upgrade that read lock to a write lock, and a concurrent
+	// writer has taken the write lock (or already committed a change to
+	// the WAL) in the meantime, SQLite has no choice but to fail the
+	// upgrade immediately (SQLITE_BUSY / SQLITE_BUSY_SNAPSHOT) - a
+	// deferred transaction cannot "wait" its way out of a lock upgrade
+	// conflict, because waiting could deadlock two transactions that each
+	// hold the other's needed read lock. This is exactly the
+	// SELECT-then-UPDATE shape of ClaimNextQueuedJob, and is why it
+	// reproduces reliably under concurrent claims (verified with a
+	// standalone probe: 30 goroutines racing 300 claims against a real
+	// on-disk WAL db hit ~29 SQLITE_BUSY/SQLITE_BUSY_SNAPSHOT errors).
+	//
+	// busy_timeout alone (a PRAGMA that only makes an *outright lock
+	// acquisition* wait, not a lock-upgrade conflict) measurably did NOT
+	// fix this in the same probe (still ~29 errors) - it is necessary but
+	// not sufficient here, confirming the deferred-transaction upgrade
+	// race, not a slow writer, is the true cause.
+	//
+	// The fix is `_txlock=immediate`: every transaction acquires SQLite's
+	// write lock (RESERVED) at BEGIN time instead of deferring and later
+	// trying to upgrade, so competing writers simply queue for the lock
+	// instead of racing to upgrade an existing read lock. Combined with
+	// busy_timeout so that queuing waits (default 0ms) rather than
+	// failing immediately, this eliminated all errors in the same probe
+	// (0/300 failures, all claims eventually succeeded).
+	//
+	// Both settings are per-connection SQLite driver options, not
+	// something a one-off PRAGMA exec after Open can guarantee across a
+	// pooled *sql.DB (each pooled connection needs it applied as it is
+	// opened), so they are encoded in the DSN rather than exec'd once.
+	//
+	// This is a global change: every scheduler in this process (deep
+	// identification, valuation, health, auction, coin-of-day, shipments,
+	// wishlist, ...) shares this one *gorm.DB/*sql.DB. Making every write
+	// transaction acquire its lock immediately plus wait up to 5s under
+	// contention is strictly safer for all of them than the previous
+	// fail-fast default - none of those schedulers currently retry a bare
+	// write failure themselves, and none holds a transaction open long
+	// enough for a 5s busy_timeout to introduce a meaningful stall.
+	//
+	// models.SQLiteConcurrencyDSNParams is the single source of truth for
+	// these params - repository/deep_identification_repository_test.go's
+	// concurrency regression test derives its DSN from the same constant
+	// (it cannot import this package; see TestNoDirectDatabaseImports in
+	// architecture_test.go), so the two can never silently drift apart.
+	dsn := dbPath + "?" + models.SQLiteConcurrencyDSNParams
+	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
@@ -33,10 +83,16 @@ func Connect(dbPath string) {
 	// optional columns (343-nomisma-mint-authority-linking). SQLite
 	// AutoMigrate adds them additively with no backfill and no destructive
 	// migration - every existing row simply starts unlinked.
-	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.Shipment{}, &models.ShipmentEvent{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.CoinRecommendation{}, &models.RecommendationFeedback{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}, &models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{}, &models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{})
+	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.Shipment{}, &models.ShipmentEvent{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.CoinRecommendation{}, &models.RecommendationFeedback{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}, &models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{}, &models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{}, &models.AvailabilityCycle{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
+	// 353-wishlist-availability-run-observability: AvailabilityCycle is a brand-new table and
+	// AvailabilityRun.CycleID is a brand-new nullable column. This AutoMigrate call is the
+	// entire "migration" — purely additive DDL, no backfill/reparenting/retagging of any
+	// pre-existing AvailabilityRun row (legacy UserID=0 admin rows keep their historical
+	// TriggerType and are never attached to a synthesized cycle).
+	logLegacyAvailabilityRunCount(DB)
 	// 344-deep-agentic-coin-identification: partial unique index enforcing
 	// at most one obverse and one reverse artifact per job. Hint artifacts
 	// (role='hint') are explicitly excluded - up to 3 are allowed per job,
@@ -79,6 +135,20 @@ func Connect(dbPath string) {
 	}
 
 	log.Println("Database connected and migrated")
+}
+
+// logLegacyAvailabilityRunCount logs an informational (non-fatal) count of pre-existing legacy
+// admin availability_runs rows (UserID = 0) for operator visibility only. This is diagnostic,
+// not an invariant check — legacy UserID=0 rows are expected and valid; the UserID > 0
+// invariant for *new* child runs is enforced at creation time by
+// AvailabilityRepository.CreateChildRun, not by this boot-time scan of historical data.
+func logLegacyAvailabilityRunCount(db *gorm.DB) {
+	var count int64
+	if err := db.Model(&models.AvailabilityRun{}).Where("user_id = ?", 0).Count(&count).Error; err != nil {
+		log.Printf("Unable to count legacy availability runs: %v", err)
+		return
+	}
+	log.Printf("Availability runs: %d legacy admin row(s) (user_id = 0) present", count)
 }
 
 const mintLocationSeedVersionKey = "MintLocationSeedVersion"

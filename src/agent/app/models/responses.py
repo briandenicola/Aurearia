@@ -4,6 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from app.models.hypothesis import CoinHypothesis
+
 
 class StrictResponseModel(BaseModel):
     """Base response model with contract drift detection."""
@@ -251,7 +253,9 @@ ProviderName = Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
 ProviderStatus = Literal[
     "contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"
 ]
-ProviderErrorKind = Literal["timeout", "quota", "unconfigured", "upstream", "invalid_response"]
+ProviderErrorKind = Literal[
+    "timeout", "quota", "unconfigured", "upstream", "invalid_response", "insufficient_query_evidence"
+]
 
 
 class ProviderClaim(StrictResponseModel):
@@ -343,4 +347,13 @@ class DeepSynthesis(StrictResponseModel):
     )
     coverage: list[ProviderCoverageEntry] = Field(default_factory=list, max_length=10)
     attributions: list[ProviderAttribution] = Field(default_factory=list, max_length=10)
+    # Additive, optional (contracts/vision-hypothesis.md §4 / spec FR-008):
+    # present when the vision call produced anything, so the raw hypothesis
+    # is recoverable from the persisted report even where `proposed_fields`
+    # only carries the fields that survived corroboration/disagreement
+    # filtering. Absent in reports persisted before this feature; Go's
+    # report reader unmarshals only `narrative`/`proposed_fields`, so this
+    # key is ignored by existing code (additive-safe).
+    image_hypothesis: CoinHypothesis | None = None
     partial_success: bool = False
+

@@ -3,6 +3,12 @@
 **Feature Branch**: `344-deep-agentic-coin-identification`
 **Created**: 2026-08-15
 **Status**: Implemented (MVP; post-MVP tasks remain deferred)
+**Amended by**: Feature 351 — [Vision-First Deep Identification](../351-vision-first-deep-identification/spec.md),
+authorized by [ADR 0012](../../docs/adr/0012-vision-first-deep-identification.md).
+FR-022 and FR-027 are **superseded**; FR-024, FR-025, FR-028, and FR-029 are
+**amended**; FR-033 is **extended**. The body below is left intact per
+Constitution §18.2 — see the Feature 351 spec section "Amendments to Feature 344"
+for the verbatim superseded text and its disposition.
 **Input**: User description: "Deep Agentic Coin Identification: an explicit optional
 deep-analysis path alongside the existing fast Identify Coin flow, using a
 persisted resumable background job that fans out to multiple numismatic

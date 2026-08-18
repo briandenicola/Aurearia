@@ -20,7 +20,8 @@ This document is the canonical testing strategy for Aurearia. It explains what w
 |---|---|---|---|---|---|
 | Go API | Architecture | `go test` | `src/api/architecture_test.go` | `cd src/api && go test -v -run "TestNoDirectDatabaseImports|TestHandlersDoNotUseRawSQL|TestPackageImportMatrix" .` | 1 file / 3 tests enforcing DI-only database access, no raw SQL in handlers, and the package import matrix. |
 | Go API | Unit + package-level behavior | `go test` | `src/api/{handlers,middleware,repository,services}/*_test.go` | `cd src/api && go test -v ./...` | 14 files / 115 tests: handlers 30, middleware 10, repository 23, services 52. Uses `httptest`, Gin test routers, and in-memory SQLite. |
-| Go API | Dedicated integration / E2E | None today | None today | N/A | No cross-process backend integration suite exists. The closest API coverage is handler HTTP tests and DB-backed repository/service tests. |
+| Go API | Dedicated integration / E2E | `go test` | `src/api/integration/*_test.go` | `cd src/api && go test -v ./integration/...` | Full DB-backed service/handler workflow tests (Numista compatibility/performance/security/workflows). Not a cross-process suite by default. |
+| Go API | Go↔Python seam (cross-process) | `go test -tags=seam` | `src/api/integration/deep_identification_seam_test.go` | See §10 below | T106 (spec 351): boots the real Python agent service and drives the real `DeepIdentificationPipelineRunner` over a real HTTP/SSE round trip. CI-excluded by build tag + env var; see §10. |
 | Vue Web | Type checking | `vue-tsc` | `src/web/package.json`, `src/web/src/**` | `cd src/web && npx vue-tsc --noEmit` | CI gate for compile-time contract safety. Use it, but do not stop there. |
 | Vue Web | Lint | ESLint | `src/web/package.json`, `src/web/eslint.config.*` if present | `cd src/web && npm run lint` | Static linting gate; the script exists even though the current CI workflow does not run it yet. |
 | Vue Web | Unit / component / store / API tests | Vitest + Vue Test Utils | `src/web/src/**/__tests__/*` | `cd src/web && npm run test` | 8 files / 61 tests: API client 24, auth store 17, components 10, pages 3, design-token enforcement 7. Mocks browser APIs and the API client at the boundary. |
@@ -182,7 +183,51 @@ npm.cmd run test:browser
 
 The browser workflow suite uses Playwright with mocked API routes and golden fixtures from `src/web/src/test/fixtures`.
 
-## 9. Cross-references
+## 9. Go↔Python deep-identification seam test (T106)
+
+Every deep-identification test elsewhere in this repo (`src/api/services/deep_identification_pipeline_runner_stream_test.go` and the Python `tests/` suite) drives its own side against hand-written, convention-only fixtures for the *other* side's wire shape. That is exactly the gap behind the 080e598 production outage: both sides were internally consistent and both were wrong about each other. `src/api/integration/deep_identification_seam_test.go` closes that gap by booting the **real** `uvicorn app.main:app` Python process and driving the **real**, exported `DeepIdentificationPipelineRunner.Run` (over the real `AgentProxy.StreamDeepIdentification` HTTP/SSE client) against it — no fixture on either side.
+
+### Why it is excluded from unattended CI
+
+The test needs a real Python interpreter/venv and takes real wall-clock time (worker startup + the LLM retry/backoff ladder), so it is guarded twice:
+
+1. **Build tag**: the file starts with `//go:build seam`. `go build ./...`, `go vet ./...`, and `go test ./...` never see or compile it without `-tags=seam`.
+2. **Env var**: even built with the tag, the test calls `t.Skip` unless `DEEP_SEAM_TEST=1` is set.
+
+Both are required to actually run it — this is deliberate defense in depth.
+
+### How to run it
+
+Prerequisites:
+- `src/agent/.venv` must exist and be able to import `uvicorn`, `langchain_ollama`, and `langchain_anthropic` (run `pip install -e ".[dev]"` from `src/agent` first if not).
+- No live LLM credentials or network access are required — see the LLM tradeoff below.
+
+```powershell
+cd src/api
+$env:DEEP_SEAM_TEST = "1"
+go test -tags=seam -run TestDeepIdentificationSeam -v ./integration/...
+```
+
+On Linux/macOS:
+
+```bash
+cd src/api
+DEEP_SEAM_TEST=1 go test -tags=seam -run TestDeepIdentificationSeam -v ./integration/...
+```
+
+If your Python interpreter is not at `src/agent/.venv/Scripts/python.exe` (Windows) or `src/agent/.venv/bin/python` (POSIX), point `DEEP_SEAM_PYTHON` at it.
+
+**Expected runtime**: roughly 10-20 seconds (Python process startup plus the vision node's LLM retry/backoff ladder against a deliberately unreachable endpoint — see below). If the Python service fails to become healthy within 30 seconds, or the venv/interpreter cannot be found, the test skips or fails with the captured stdout/stderr from the agent process.
+
+### The LLM tradeoff (documented, not hidden)
+
+The test configures the LLM provider as Ollama pointed at a local TCP port nothing is listening on. This is **not** a stub of the seam: FR-006/FR-040 already require every LLM call site in the deep-identification pipeline (vision hypothesis, evaluator disagreement summary, synthesis narrative) to degrade to a deterministic fallback on any LLM failure, never to raise. Pointing at an unreachable endpoint exercises a real call that fails fast and is handled by the pipeline's own documented resilience path — so the test runs unattended with no API key, no external network egress, and no nondeterministic model output, while still genuinely exercising the vision node's real structured-output call path.
+
+Similarly, the provider catalog is left at its real production default, but `tools_base_url` is left empty — the exact same code path production uses when the tools client is unset — so `numista`/`nomisma` settle immediately as `unconfigured` with zero upstream calls, while `ngc`/`rpc` (never automated) and `ocre` (disabled by default) still run their real, always-network-free provider nodes. No `numista.org`/`nomisma.org` network traffic occurs.
+
+Full rationale: `.squad/decisions/inbox/maximus-seam-test.md`.
+
+## 10. Cross-references
 
 - Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle X, §17, and §21)
 - System architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)

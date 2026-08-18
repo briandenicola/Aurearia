@@ -56,6 +56,7 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	}
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.AppSetting{},
+		&models.CatalogRegistry{},
 		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
@@ -86,7 +87,8 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	coinSvc := services.NewCoinService(coinRepo, notifSvc)
 	quickCaptureRepo := repository.NewQuickCaptureRepository(db)
 	quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, uploadDir).WithCoinValidation(coinSvc)
-	proposalSvc := services.NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc)
+	coinRefSvc := services.NewCoinReferenceService(repository.NewCoinReferenceRepository(db), repository.NewCatalogRegistryRepository(db))
+	proposalSvc := services.NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc, coinRefSvc)
 
 	handler := NewDeepIdentificationHandler(svc, settingsSvc, services.NewLogger(10)).WithProposalSupport(proposalSvc)
 	router := gin.New()
@@ -218,6 +220,76 @@ func TestDeepIdentificationHandler_CreateJob_HappyPathReturns202(t *testing.T) {
 	}
 	if env.Reused {
 		t.Fatal("first submission should not be reused")
+	}
+}
+
+// TestDeepIdentificationHandler_CreateJob_AtCapacityWithDifferentFingerprintReturns409
+// is the regression test for the wrong-job-returned defect: with the
+// default MaxActivePerUser=1, a second submission whose image bytes (and
+// therefore InputFingerprint) genuinely differ from the user's first
+// in-flight job must be refused with 409 job_at_capacity, never handed the
+// first job's envelope as if it were an answer for the second submission.
+// This is an approved breaking change to a shipped endpoint (see
+// .squad/decisions/inbox/cassius-job-at-capacity.md): the endpoint used to
+// return 200 reused=true with the unrelated job in this exact scenario.
+func TestDeepIdentificationHandler_CreateJob_AtCapacityWithDifferentFingerprintReturns409(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+
+	firstBody, firstContentType := multipartWithImages(t, nil, true, true, 0)
+	firstReq := httptest.NewRequest(http.MethodPost, "/api/deep-identification/jobs", firstBody)
+	firstReq.Header.Set("Content-Type", firstContentType)
+	firstRec := httptest.NewRecorder()
+	deps.router.ServeHTTP(firstRec, firstReq)
+	if firstRec.Code != http.StatusAccepted {
+		t.Fatalf("expected first submission to be accepted with 202, got %d: %s", firstRec.Code, firstRec.Body.String())
+	}
+
+	// A distinct image (different marker bytes -> different sha256 ->
+	// different InputFingerprint) submitted while the first job is still
+	// queued/running and MaxActivePerUser=1 (the default) is at capacity.
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	obversePart, err := writer.CreateFormFile("obverse", "obverse.png")
+	if err != nil {
+		t.Fatalf("create obverse part: %v", err)
+	}
+	if _, err := obversePart.Write(deepTestPNGVariant(t, 0xAA)); err != nil {
+		t.Fatalf("write obverse bytes: %v", err)
+	}
+	reversePart, err := writer.CreateFormFile("reverse", "reverse.png")
+	if err != nil {
+		t.Fatalf("create reverse part: %v", err)
+	}
+	if _, err := reversePart.Write(deepTestPNGVariant(t, 0xBB)); err != nil {
+		t.Fatalf("write reverse bytes: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/deep-identification/jobs", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for a non-matching submission at capacity, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp["code"] != "job_at_capacity" {
+		t.Fatalf("expected code=job_at_capacity, got %v", resp["code"])
+	}
+	if _, hasJob := resp["job"]; hasJob {
+		t.Fatalf("409 job_at_capacity response must not include an unrelated job envelope, got %+v", resp)
+	}
+
+	var jobCount int64
+	deps.db.Model(&models.DeepIdentificationJob{}).Count(&jobCount)
+	if jobCount != 1 {
+		t.Fatalf("expected the refused submission to create no job row, got %d job rows", jobCount)
 	}
 }
 
@@ -562,5 +634,85 @@ func TestDeepIdentificationHandler_CancelVsCompleteReturnsSettledState(t *testin
 	}
 	if cancelEnv.Job.Status != string(models.DeepJobStatusCompleted) {
 		t.Fatalf("expected settled state 'completed' reported, got %s", cancelEnv.Job.Status)
+	}
+}
+
+// seedDeepHandlerIntakeJobWithProposal seeds a completed intake job (no
+// source coin) with an already-accepted denomination+workingTitle proposal,
+// ready to POST .../apply against, for T072/T073 handler-level tests.
+func seedDeepHandlerIntakeJobWithProposal(t *testing.T, db *gorm.DB, userID uint) uint {
+	t.Helper()
+	proposal := `{"schemaVersion":1,"fields":{
+		"denomination":{"proposed":"Denarius","confidence":0.8,"ownerEdited":false,"ownerValue":null,"accepted":true},
+		"workingTitle":{"proposed":"Trajan Denarius","confidence":0.8,"ownerEdited":false,"ownerValue":null,"accepted":null}
+	}}`
+	job := &models.DeepIdentificationJob{
+		UserID:           userID,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: fmt.Sprintf("fp-handler-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&deepHandlerTestDBCounter, 1)),
+		ExpiresAt:        time.Now().Add(90 * 24 * time.Hour),
+		ReportJSON:       `{"schemaVersion":1,"narrative":"n","coverage":[]}`,
+		ProposalJSON:     proposal,
+	}
+	if err := db.Create(job).Error; err != nil {
+		t.Fatalf("seed intake job: %v", err)
+	}
+	return job.ID
+}
+
+// T072/T073: POST .../apply with target=wishlist plumbs through to
+// DeepIdentificationProposalService.Apply and creates a wishlist coin.
+func TestDeepIdentificationHandler_ApplyProposal_WishlistTargetCreatesCoin(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	jobID := seedDeepHandlerIntakeJobWithProposal(t, deps.db, 1)
+
+	reqBody, _ := json.Marshal(map[string]any{"target": "wishlist"})
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", jobID), bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for wishlist apply, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp deepApplyResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal apply response: %v", err)
+	}
+	if resp.CoinID == nil {
+		t.Fatal("expected coinId in wishlist apply response")
+	}
+	var coin models.Coin
+	if err := deps.db.First(&coin, *resp.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !coin.IsWishlist {
+		t.Fatal("expected the created coin to have IsWishlist=true")
+	}
+	if coin.Name != "Trajan Denarius" {
+		t.Fatalf("expected derived name from workingTitle, got %q", coin.Name)
+	}
+}
+
+// T073: unknown apply targets are rejected exactly as today, through the
+// closed switch (binding:"oneof" plus normalizeDeepApplyTarget).
+func TestDeepIdentificationHandler_ApplyProposal_UnknownTargetReturns400(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	jobID := seedDeepHandlerIntakeJobWithProposal(t, deps.db, 1)
+
+	reqBody, _ := json.Marshal(map[string]any{"target": "not-a-real-target"})
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", jobID), bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown apply target, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var coinCount int64
+	deps.db.Model(&models.Coin{}).Count(&coinCount)
+	if coinCount != 0 {
+		t.Fatal("expected no coin created for a rejected unknown target")
 	}
 }

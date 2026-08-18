@@ -4,6 +4,7 @@ import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdate
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 import type { DeepIdentificationObservabilitySummary, NumistaHealthSummary, OCREHealthSummary } from '@/types'
 import type { NumistaQueryProposal, NumistaQueryProposalRequest } from '@/types'
+import type { AvailabilityCycleDetail, AvailabilityCycleListResponse, AvailabilityCycleTriggerResponse, AvailabilityRunListResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -15,6 +16,7 @@ type ApiErrorPayload = {
   error?: unknown
   message?: unknown
   detail?: unknown
+  code?: unknown
 }
 
 function formatApiErrorCandidate(candidate: unknown): string {
@@ -53,6 +55,21 @@ export function getApiErrorMessage(error: unknown): string {
 
   if (error instanceof Error) return error.message
 
+  return ''
+}
+
+/**
+ * Extracts the backend's machine-readable `code` field (e.g.
+ * `job_at_capacity`, `already_applied`) from a failed API response, when
+ * present. Callers should still fall back to `getApiErrorMessage` for the
+ * user-facing text - `code` is only for branching UI behavior.
+ */
+export function getApiErrorCode(error: unknown): string {
+  if (typeof error === 'object' && error !== null) {
+    const maybeResponse = error as { response?: { data?: ApiErrorPayload } }
+    const data = maybeResponse.response?.data ?? (error as ApiErrorPayload)
+    if (typeof data.code === 'string') return data.code
+  }
   return ''
 }
 
@@ -1067,12 +1084,26 @@ export const checkWishlistAvailability = () =>
   api.post<AvailabilityRunSummary>('/wishlist/check-availability')
 export const updateListingStatus = (coinId: number, status: string) =>
   api.put(`/coins/${coinId}/listing-status`, { status })
+// Legacy admin availability runs (pre-Feature-353 UserID=0 aggregate rows).
+// Retained read-only for the "Legacy" section of the admin schedule history.
 export const getAvailabilityRuns = (page = 1, limit = 20) =>
   api.get<{ runs: AvailabilityRun[]; total: number }>('/admin/availability-runs', { params: { page, limit } })
 export const getAvailabilityRunDetail = (runId: number) =>
   api.get<AvailabilityRun>(`/admin/availability-runs/${runId}`)
 export const triggerAvailabilityCheck = () =>
-  api.post<{ runId: number; status: string; message: string }>('/admin/availability/run')
+  api.post<AvailabilityCycleTriggerResponse>('/admin/availability/run')
+
+// Admin availability cycles (Feature 353) — parent roll-up rows with expandable per-user children.
+export const getAvailabilityCycles = (page = 1, limit = 5) =>
+  api.get<AvailabilityCycleListResponse>('/admin/availability-cycles', { params: { page, limit } })
+export const getAvailabilityCycleDetail = (cycleId: number) =>
+  api.get<AvailabilityCycleDetail>(`/admin/availability-cycles/${cycleId}`)
+
+// Owner wishlist availability run history (Feature 353) — scoped to the caller.
+export const listMyAvailabilityRuns = (page = 1, limit = 20) =>
+  api.get<AvailabilityRunListResponse>('/wishlist/availability-runs', { params: { page, limit } })
+export const getMyAvailabilityRunDetail = (runId: number) =>
+  api.get<AvailabilityRun>(`/wishlist/availability-runs/${runId}`)
 
 // Valuation Runs
 export const getValuationRuns = (page = 1, limit = 20) =>

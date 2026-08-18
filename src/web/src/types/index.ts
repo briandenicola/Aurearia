@@ -1968,7 +1968,12 @@ export interface DeepClaim {
   field: string
   value: string
   confidence?: number
-  citation: string
+  /**
+   * Absent for an image-sourced claim (contract `vision-hypothesis.md` §3:
+   * "an image ref has no citation to validate"). Every provider-cited claim
+   * still carries one — `citation` stays effectively required for those.
+   */
+  citation?: string
   excerpt?: string
 }
 
@@ -1984,6 +1989,46 @@ export interface DeepReportAttribution {
   identifier?: string | null
 }
 
+/**
+ * One typed, bounded-confidence value the vision hypothesis supports for a
+ * single coin field (contract `vision-hypothesis.md` §1). A field the images
+ * do not support is omitted entirely — never guessed at low confidence.
+ */
+export interface HypothesisFieldValue {
+  value: string
+  confidence: number
+}
+
+/**
+ * The vision node's typed output — "what the images alone said" before any
+ * provider/catalogue evidence was combined (FR-008, RD-6). Field names
+ * mirror the coin-field vocabulary shared with `DeepProposal.fields`.
+ */
+export interface CoinHypothesis {
+  ruler?: HypothesisFieldValue
+  denomination?: HypothesisFieldValue
+  material?: HypothesisFieldValue
+  mint?: HypothesisFieldValue
+  dateRange?: HypothesisFieldValue
+  era?: HypothesisFieldValue
+  obverseInscription?: HypothesisFieldValue
+  reverseInscription?: HypothesisFieldValue
+  obverseDescription?: HypothesisFieldValue
+  reverseDescription?: HypothesisFieldValue
+  diameterMm?: HypothesisFieldValue
+  weightGrams?: HypothesisFieldValue
+  notes?: HypothesisFieldValue
+  coin_type?: HypothesisFieldValue
+  /** Short bounded prose for the narrative writer only — never itself a proposed field value. */
+  observations?: string
+  /**
+   * `false` means the images could not be read clearly enough to produce
+   * findings — a distinct, plainly-stated state from "the pipeline dropped
+   * the result" (the original undiagnosable failure this panel exists to fix).
+   */
+  legible: boolean
+}
+
 export interface DeepReport {
   schemaVersion: number
   narrative: string
@@ -1993,6 +2038,23 @@ export interface DeepReport {
   attributions?: DeepReportAttribution[]
   partialSuccess: boolean
   generatedAt: string
+  /**
+   * Typed outcome of the quick-evidence (NGC quick-lookup) pass that runs
+   * before the main Deep Analysis pipeline. Optional — absent on reports
+   * generated before 351 T014/T015/T016 landed. `unavailable` means the
+   * lookup did not complete (timeout/error), distinct from `no_data`
+   * (it completed and genuinely found nothing).
+   */
+  quickLookupOutcome?: 'ok' | 'no_data' | 'unavailable'
+  /**
+   * Additive, optional (contract `vision-hypothesis.md` §4, FR-008). Present
+   * when the vision call produced anything; absent on reports persisted
+   * before Feature 351. The key name is deliberately snake_case — Go passes
+   * the Python synthesis JSON through verbatim for this key, so the wire
+   * shape genuinely is `image_hypothesis`, not `imageHypothesis`, unlike the
+   * rest of this interface.
+   */
+  image_hypothesis?: CoinHypothesis
 }
 
 export interface DeepProposalFieldEntry {
@@ -2145,6 +2207,7 @@ export interface AvailabilityRun {
   userName?: string
   triggerType: string
   triggerUserId: number | null
+  cycleId?: number | null
   status: string
   failMessage?: string
   coinsChecked: number
@@ -2157,6 +2220,50 @@ export interface AvailabilityRun {
   completedAt: string | null
   results?: AvailabilityResult[]
   createdAt: string
+}
+
+// Availability cycle — parent roll-up of per-user AvailabilityRun children for
+// admin/scheduled wishlist availability checks (Feature 353). Coin-level counts live on
+// each child AvailabilityRun; the cycle itself only rolls up child status counts.
+export interface AvailabilityCycle {
+  id: number
+  triggerType: string
+  triggerUserId: number | null
+  status: string
+  totalChildren: number
+  queuedChildren: number
+  runningChildren: number
+  completedChildren: number
+  failedChildren: number
+  failMessage?: string
+  startedAt: string
+  completedAt: string | null
+  createdAt: string
+  children?: AvailabilityRun[]
+}
+
+export interface AvailabilityCycleListResponse {
+  cycles: AvailabilityCycle[]
+  total: number
+  page: number
+  limit: number
+}
+
+// GET /admin/availability-cycles/{id} returns the cycle itself with `children` populated
+// (each child is a full AvailabilityRun with no per-coin `results` preloaded).
+export type AvailabilityCycleDetail = AvailabilityCycle & { children: AvailabilityRun[] }
+
+export interface AvailabilityCycleTriggerResponse {
+  cycleId: number
+  status: string
+  message: string
+}
+
+export interface AvailabilityRunListResponse {
+  runs: AvailabilityRun[]
+  total: number
+  page: number
+  limit: number
 }
 
 export interface ValuationResult {
@@ -2290,7 +2397,7 @@ export interface CoinOfDayRun {
 export interface Notification {
   id: number
   userId: number
-  type: 'wishlist_unavailable' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'agentic_set_proposal_ready' | 'agentic_set_proposal_failed' | 'agentic_set_created' | 'agentic_set_creation_failed' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
+  type: 'wishlist_unavailable' | 'wishlist_availability_run' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'agentic_set_proposal_ready' | 'agentic_set_proposal_failed' | 'agentic_set_created' | 'agentic_set_creation_failed' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
   title: string
   message: string
   referenceId: number

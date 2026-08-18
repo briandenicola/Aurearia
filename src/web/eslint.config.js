@@ -28,6 +28,7 @@ export default [
         HTMLSelectElement: 'readonly',
         HTMLTextAreaElement: 'readonly',
         HTMLCanvasElement: 'readonly',
+        HTMLDetailsElement: 'readonly',
         HTMLImageElement: 'readonly',
         HTMLVideoElement: 'readonly',
         Image: 'readonly',

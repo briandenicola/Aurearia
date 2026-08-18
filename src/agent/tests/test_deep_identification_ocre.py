@@ -219,7 +219,7 @@ def _bounds(provider_timeout_s=5):
 @pytest.mark.asyncio
 async def test_ocre_node_exception_is_absorbed_by_run_one_provider(monkeypatch):
     """A node that raises must surface as a typed failed row, never propagate."""
-    async def boom(entry, tools, quick_evidence, notes):
+    async def boom(entry, tools, quick_evidence, notes, hypothesis=None):
         raise RuntimeError("kaboom")
 
     import app.teams.deep_identification.graph as graph_module
@@ -240,11 +240,11 @@ async def test_ocre_failure_alongside_contributor_still_reaches_synthesis(monkey
     """OCRE timing out / failing leaves every other provider's evidence intact."""
     from app.models.responses import ProviderEvidence
 
-    async def ocre_timeout(entry, tools, quick_evidence, notes):
+    async def ocre_timeout(entry, tools, quick_evidence, notes, hypothesis=None):
         return ProviderEvidence(provider="ocre", status="timed_out", automatable=True,
                                 error_kind="timeout", call_count=1)
 
-    async def numista_ok(entry, tools, quick_evidence, notes):
+    async def numista_ok(entry, tools, quick_evidence, notes, hypothesis=None):
         return ProviderEvidence(provider="numista", status="contributed", automatable=True, call_count=1)
 
     import app.teams.deep_identification.graph as graph_module

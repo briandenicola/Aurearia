@@ -10,6 +10,11 @@ Two pure, LLM-free functions:
   `(field, provider_rank, -confidence, citation)` used before any claim is
   shown to the evaluator/synthesizer LLM, so identical inputs always
   produce the same prompt (and therefore reproducible synthesis runs).
+  `rank_for_source` (T054) is the shared rank function `sort_claims` and
+  `evaluator.detect_disagreements` both use, so a mixed provider+image claim
+  set orders reproducibly across both call sites — citation-host validation
+  (`validate_citations`) still applies only to provider claims; `image` has
+  no citation and is never passed through it.
 """
 
 from urllib.parse import urlparse
@@ -27,6 +32,14 @@ CITATION_HOST_ALLOWLIST: dict[str, set[str]] = {
 
 # Deterministic provider rank used for claim ordering and router truncation.
 PROVIDER_RANK = ["numista", "nomisma", "ngc", "ocre", "rpc"]
+
+# T054/FR-016: `image` (the vision hypothesis, contracts/vision-hypothesis.md)
+# is not a provider and never appears in `PROVIDER_RANK` or `ProviderEvidence`
+# (FR-025), but it IS a claim source the evaluator must order deterministically
+# alongside providers when a field has a mixed provider+image claim set. It
+# gets an explicit, stable rank right after every named provider so ordering
+# never depends on incidental list/dict iteration order.
+IMAGE_SOURCE = "image"
 
 
 def _citation_host(citation: str) -> str:
@@ -52,11 +65,23 @@ def validate_citations(provider: str, claims: list[ProviderClaim]) -> tuple[list
     return valid, dropped
 
 
-def _provider_rank(provider: str) -> int:
-    try:
-        return PROVIDER_RANK.index(provider)
-    except ValueError:
+def rank_for_source(source: str) -> int:
+    """Deterministic sort rank for a claim source (T054). Named providers
+    rank by their position in `PROVIDER_RANK`; `image` ranks immediately
+    after every named provider (not before, and not interleaved) so a
+    mixed provider+image claim set always orders the same way; any other
+    unrecognized source ranks last of all.
+    """
+    if source == IMAGE_SOURCE:
         return len(PROVIDER_RANK)
+    try:
+        return PROVIDER_RANK.index(source)
+    except ValueError:
+        return len(PROVIDER_RANK) + 1
+
+
+def _provider_rank(provider: str) -> int:
+    return rank_for_source(provider)
 
 
 def sort_claims(evidence: list[ProviderEvidence]) -> list[tuple[str, ProviderEvidence, ProviderClaim]]:

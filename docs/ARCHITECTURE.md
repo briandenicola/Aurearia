@@ -200,8 +200,8 @@ Three route groups with distinct auth levels:
 | Group | Prefix | Auth | Example Routes |
 |-------|--------|------|----------------|
 | `api` (public) | `/api` | None (rate-limited) | `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/webauthn/*`, `/showcase/:slug` |
-| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/deep-identification/*`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/showcases/*`, `/api-keys` |
-| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/deep-identification/ocre/health`, `/deep-identification/observability`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
+| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/deep-identification/*`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/showcases/*`, `/api-keys`, `/wishlist/availability-runs`, `/wishlist/availability-runs/:id` |
+| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs` (legacy), `/availability-runs/:id` (legacy), `/availability/run`, `/availability-cycles`, `/availability-cycles/:id`, `/valuation-runs`, `/deep-identification/ocre/health`, `/deep-identification/observability`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
 
 ### Shared GORM Scopes
 
@@ -389,12 +389,23 @@ Each team is a LangGraph `StateGraph` with verification stages:
 | 9 | Photo Guide | Analyze photos → Evaluate → Tips | Photography improvement |
 | 10 | Price Trends | Search auctions → Analyze trends → Format | Market price analysis |
 | 11 | Similar Lots | Search → Rank → Format | Find similar auction lots |
-| 12 | Deep Identification | Observe images → Route providers → Evaluate contradictions → Synthesize | Resumable, cited coin identification |
+| 12 | Deep Identification | Vision hypothesis → deterministic router → provider fact-checking → synthesize | Resumable, cited coin identification |
 
 **Pipeline design rules:**
 - Search agents pass only tool-returned data downstream — never invented details
 - Verification agents confirm every URL is live and every date is in the future
 - All worker outputs conform to defined Pydantic schemas — no free-form text
+- Deep Identification is **vision-first** (ADR 0012, Feature 351): the single
+  vision LLM call already made on every job produces a typed `CoinHypothesis`
+  (per-field confidence, no citation) instead of a discarded prose string.
+  `route()` is then a **deterministic pure function** of the catalog, bounds,
+  quick evidence, and hypothesis — not an LLM call — so provider selection is
+  reproducible for identical inputs and the pipeline makes one fewer LLM call
+  per job than its Feature 344 predecessor. Providers **fact-check** the
+  hypothesis rather than starting from nothing: query terms are composed
+  deterministically from the highest-confidence hypothesis fields (never
+  LLM-authored), and the evaluator treats `image` as a first-class claim
+  source alongside provider claims when detecting disagreements
 - Deep Identification receives provider evidence only through authenticated Go
   internal tools; Python remains stateless and does not persist jobs or artifacts
 - Full provider claims stay on the internal stream; replayable owner-facing
@@ -581,7 +592,8 @@ Auction provider services intentionally have asymmetric capabilities:
 | Model | Table | Key Fields |
 |-------|-------|-----------|
 | `AgentConversation` | `agent_conversations` | UserID, Title, Messages (JSON), CreatedAt |
-| `AvailabilityRun` | `availability_runs` | UserID, TriggerType, CoinsChecked, Available, Unavailable, DurationMs |
+| `AvailabilityCycle` | `availability_cycles` | TriggerType, TriggerUserID (nullable, admin-only), Status (queued/running/completed/failed/partial_failure), aggregated child counts, StartedAt/CompletedAt |
+| `AvailabilityRun` | `availability_runs` | UserID (>0 for per-owner child runs), CycleID (nullable — set on child runs, null on legacy rows), TriggerType (owner/scheduled/admin), CoinsChecked, Available, Unavailable, DurationMs |
 | `AvailabilityResult` | `availability_results` | RunID, CoinID, URL, Status, Reason, AgentUsed |
 | `ValuationRun` | `valuation_runs` | UserID, TriggerType, Status, TotalCoins, CoinsUpdated, DurationMs |
 | `ValuationResult` | `valuation_results` | RunID, CoinID, PreviousValue, EstimatedValue, Confidence, Reasoning |
@@ -666,8 +678,10 @@ Two goroutine-based schedulers run in the Go API:
 
 - **Initial delay:** 30 seconds after startup
 - **Config:** `WishlistCheckEnabled`, `WishlistCheckStartTime` (HH:MM, default `02:00`), `WishlistCheckInterval` (minutes, default `120`)
-- **Behavior:** Loads all wishlist coins with URLs, groups by user, runs `CheckWishlistForUser()` for each
-- **Source:** `services/availability_scheduler.go`
+- **Behavior:** Enqueues an `AvailabilityCycle` (parent) and fans out one child `AvailabilityRun` per wishlist owner (including owners with zero URLs) via `RunAdminCycle()`; a scheduled run processes synchronously so the next-run anchor still derives from `GetLastScheduledRun().CompletedAt`
+- **Observability:** Duplicate cycles (queued/running within 5 minutes) return the existing cycle and `ErrAvailabilityRunInProgress`; stale queued/running cycles and orphaned child runs are recovered as `failed` on worker startup; terminal child/cycle rows are pruned to the most recent 20 per owner/overall after each cycle finalizes
+- **Notifications:** Every child run (including zero-URL owners) ends with a guaranteed terminal notification (`NotifyAvailabilityRunTerminal`); admin-triggered cycles additionally notify admins on child failure (`NotifyAdminCycleChildFailure`) — both are independent of the pre-existing per-coin `NotifyWishlistUnavailable` notification
+- **Source:** `services/availability_scheduler.go`, `services/availability_service.go`, `repository/availability_cycle_repository.go`
 
 ### Collection Valuation Scheduler
 

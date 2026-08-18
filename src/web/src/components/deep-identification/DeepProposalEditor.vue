@@ -12,10 +12,19 @@
       >
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <span class="text-sm font-semibold uppercase tracking-[0.08em] text-text-primary">{{ fieldLabel(name) }}</span>
-          <span v-if="entryOf(name).ownerEdited" class="text-xs font-semibold uppercase tracking-[0.08em] text-byzantine">
-            Edited by you
-          </span>
-          <span v-else class="text-xs font-semibold uppercase tracking-[0.08em] text-gold">AI proposed</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              v-if="isImageDerived(name)"
+              class="chip-sm"
+              title="This value came only from the image analysis — no catalog has corroborated it yet"
+            >
+              Image only
+            </span>
+            <span v-if="entryOf(name).ownerEdited" class="text-xs font-semibold uppercase tracking-[0.08em] text-byzantine">
+              Edited by you
+            </span>
+            <span v-else class="text-xs font-semibold uppercase tracking-[0.08em] text-gold">AI proposed</span>
+          </div>
         </div>
 
         <p class="m-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
@@ -50,8 +59,8 @@
           <button
             type="button"
             class="chip min-h-[44px]"
-            :class="entryOf(name).accepted === true ? 'border-gold bg-gold text-white' : 'border-border-subtle text-text-secondary'"
-            :aria-pressed="entryOf(name).accepted === true"
+            :class="isAccepted(name) ? 'border-gold bg-gold text-white' : 'border-border-subtle text-text-secondary'"
+            :aria-pressed="isAccepted(name)"
             @click="setAccepted(name, true)"
           >
             Accept
@@ -59,8 +68,8 @@
           <button
             type="button"
             class="chip min-h-[44px]"
-            :class="entryOf(name).accepted === false ? 'border-byzantine bg-byzantine text-white' : 'border-border-subtle text-text-secondary'"
-            :aria-pressed="entryOf(name).accepted === false"
+            :class="isRejected(name) ? 'border-byzantine bg-byzantine text-white' : 'border-border-subtle text-text-secondary'"
+            :aria-pressed="isRejected(name)"
             @click="setAccepted(name, false)"
           >
             Reject
@@ -84,6 +93,8 @@
 import { computed } from 'vue'
 import type { DeepProposal, DeepProposalFieldEntry } from '@/types'
 import OCREAttribution from './OCREAttribution.vue'
+import { formatFieldName } from '@/utils/format'
+import { effectiveDeepProposalAcceptance } from '@/utils/deepProposalAcceptance'
 
 const props = defineProps<{
   proposal: DeepProposal
@@ -110,11 +121,34 @@ function entryOf(name: string): DeepProposalFieldEntry {
 
 const confirmDisabled = computed(() => {
   if (props.applying) return true
-  return !fieldNames.value.some((name) => entryOf(name).accepted === true)
+  return !fieldNames.value.some((name) => isAccepted(name))
 })
 
 function fieldLabel(name: string): string {
-  return name.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
+  return formatFieldName(name)
+}
+
+/**
+ * A field whose evidence array is present but empty is supported only by
+ * the vision hypothesis — no provider has corroborated it (data-model.md
+ * §6 / FR-026). Marked visibly distinct from provider-cited fields.
+ */
+function isImageDerived(name: string): boolean {
+  const evidence = entryOf(name).evidence
+  return Array.isArray(evidence) && evidence.length === 0
+}
+
+/**
+ * RD-3: confidence-driven, not source-driven. An explicit owner decision
+ * always wins; otherwise the field defaults to accepted once confidence
+ * crosses DEEP_PROPOSAL_ACCEPTANCE_THRESHOLD, regardless of source.
+ */
+function isAccepted(name: string): boolean {
+  return effectiveDeepProposalAcceptance(entryOf(name)) === true
+}
+
+function isRejected(name: string): boolean {
+  return effectiveDeepProposalAcceptance(entryOf(name)) === false
 }
 
 function displayValue(value: unknown): string {
