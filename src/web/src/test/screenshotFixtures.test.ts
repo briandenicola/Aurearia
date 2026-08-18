@@ -63,6 +63,69 @@ describe('ensureScreenshotFixtures', () => {
     expect(results.map((r) => r.id)).toEqual([...existingByName.values()].map((c) => c.id))
   })
 
+  it('reconciles duplicate fixtures created by a racing concurrent run: keeps the lowest ID, updates it, and deletes only the extras', async () => {
+    const fixtureName = SCREENSHOT_FIXTURE_COINS[0]!.name
+    // Simulates the observed race: two workers both GET-then-POST before
+    // either sees the other's write, producing two coins with the exact
+    // same fixture name. An unrelated coin that merely contains the fixture
+    // name as a substring (but isn't an exact match) must never be touched.
+    const duplicates = [
+      { id: 700, name: fixtureName },
+      { id: 650, name: fixtureName }, // lower id: should become canonical
+    ]
+    const unrelatedCoin = { id: 999, name: `${fixtureName} (someone's personal note)` }
+
+    const get = vi.fn(async (_url: string, options?: { params?: Record<string, string> }) => {
+      const search = options?.params?.search
+      if (search === fixtureName) {
+        return jsonResponse(200, { coins: [...duplicates, unrelatedCoin], total: 3, page: 1, limit: 50 })
+      }
+      return jsonResponse(200, { coins: [], total: 0, page: 1, limit: 50 })
+    })
+    const put = vi.fn(async () => jsonResponse(200, {}))
+    const post = vi.fn(async () => jsonResponse(201, { id: 8888 }))
+    const del = vi.fn(async () => jsonResponse(200, {}))
+
+    const api = { get, post, put, delete: del } as unknown as APIRequestContext
+
+    const results = await ensureScreenshotFixtures(api)
+
+    // Canonical is the lowest ID (650); the other duplicate (700) is deleted;
+    // the unrelated substring-matching coin (999) is never deleted or updated.
+    expect(del).toHaveBeenCalledTimes(1)
+    expect(del).toHaveBeenCalledWith('/api/coins/700')
+    expect(del).not.toHaveBeenCalledWith('/api/coins/999')
+    expect(put).toHaveBeenCalledWith('/api/coins/650', expect.anything())
+    const firstResult = results.find((r) => r.name === fixtureName)
+    expect(firstResult?.id).toBe(650)
+  })
+
+  it('surfaces a clear error and does not proceed silently if deleting a duplicate fails', async () => {
+    const fixtureName = SCREENSHOT_FIXTURE_COINS[0]!.name
+    const duplicates = [
+      { id: 700, name: fixtureName },
+      { id: 650, name: fixtureName },
+    ]
+
+    const get = vi.fn(async (_url: string, options?: { params?: Record<string, string> }) => {
+      const search = options?.params?.search
+      if (search === fixtureName) {
+        return jsonResponse(200, { coins: duplicates, total: 2, page: 1, limit: 50 })
+      }
+      return jsonResponse(200, { coins: [], total: 0, page: 1, limit: 50 })
+    })
+    const put = vi.fn(async () => jsonResponse(200, {}))
+    const post = vi.fn(async () => jsonResponse(201, { id: 8888 }))
+    const del = vi.fn(async () => jsonResponse(500, { error: 'delete failed' }))
+
+    const api = { get, post, put, delete: del } as unknown as APIRequestContext
+
+    await expect(ensureScreenshotFixtures(api)).rejects.toThrow(/Failed to delete duplicate screenshot fixture/)
+    // Must not silently continue past the failed delete and update the record
+    // as if reconciliation had succeeded.
+    expect(put).not.toHaveBeenCalledWith('/api/coins/650', expect.anything())
+  })
+
   it('every fixture name carries the distinctive [Screenshot] prefix and no price/valuation data', async () => {
     for (const fixture of SCREENSHOT_FIXTURE_COINS) {
       expect(fixture.name.startsWith(SCREENSHOT_PREFIX)).toBe(true)

@@ -48,7 +48,7 @@ test('captures a production-like UX tour of the beta site', async ({ page, baseU
   //    search UI so only fixture coins appear in the captured frame.
   await page.goto('/')
   await page.getByPlaceholder('Search coins by name, ruler, inscription...').fill(SCREENSHOT_PREFIX)
-  await expect(page.locator('.coins-grid').getByText(ancientCoin.name)).toBeVisible()
+  await expect(page.locator('.coins-grid').getByText(ancientCoin.name, { exact: true })).toBeVisible()
   await expect(page.locator('.coins-grid')).not.toContainText('$')
   await captureScreenshot(page, shotPath('01-collection-gallery'), page.locator('.coins-grid'))
 

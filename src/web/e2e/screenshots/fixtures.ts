@@ -131,14 +131,44 @@ export interface EnsuredScreenshotCoin {
   isWishlist: boolean
 }
 
-async function findCoinByExactName(api: APIRequestContext, name: string): Promise<{ id: number } | null> {
+/**
+ * Finds every coin whose name is an exact match, ordered lowest-ID-first.
+ * A prior run under concurrent workers (before `workers: 1` was enforced in
+ * playwright.config.ts) could have raced a GET-then-POST check and created
+ * more than one coin with the exact same `[Screenshot]`-prefixed name. This
+ * returns all of them so the caller can reconcile down to one canonical
+ * record instead of only ever seeing the first.
+ */
+async function findCoinsByExactName(api: APIRequestContext, name: string): Promise<Array<{ id: number }>> {
   const res = await api.get('/api/coins', { params: { search: name, limit: '50' } })
   if (!res.ok()) {
     throw new Error(`Failed to search for existing screenshot fixture "${name}": ${res.status()} ${await res.text()}`)
   }
   const body = (await res.json()) as { coins: Array<{ id: number; name: string }> }
-  const match = body.coins.find((coin) => coin.name === name)
-  return match ? { id: match.id } : null
+  return body.coins
+    .filter((coin) => coin.name === name)
+    .map((coin) => ({ id: coin.id }))
+    .sort((a, b) => a.id - b.id)
+}
+
+/**
+ * Removes extra same-name screenshot fixture duplicates, keeping only
+ * `canonicalId`. Only ever called with IDs that were just matched by exact
+ * name against a known `SCREENSHOT_FIXTURE_COINS` entry (which is always
+ * `[Screenshot]`-prefixed), so this never touches unrelated or non-prefixed
+ * records. Surfaces any delete failure immediately rather than silently
+ * leaving duplicate cards in the gallery.
+ */
+async function reconcileDuplicates(api: APIRequestContext, name: string, canonicalId: number, duplicateIds: number[]): Promise<void> {
+  for (const duplicateId of duplicateIds) {
+    const res = await api.delete(`/api/coins/${duplicateId}`)
+    if (!res.ok()) {
+      throw new Error(
+        `Failed to delete duplicate screenshot fixture "${name}" (id ${duplicateId}, keeping canonical id ${canonicalId}): ` +
+          `${res.status()} ${await res.text()}`,
+      )
+    }
+  }
 }
 
 /**
@@ -150,18 +180,41 @@ async function findCoinByExactName(api: APIRequestContext, name: string): Promis
  * instead of creating duplicates on rerun. Never deletes or touches any other
  * coin in the account.
  */
+/**
+ * Creates or updates the `[Screenshot]`-prefixed fixture coins used by the
+ * beta screenshot tour, using the real `/api/coins` contract (same payload
+ * shape as `createCoin`/`updateCoin` in `src/api/client.ts`).
+ *
+ * Idempotent: matches existing coins by exact name and updates them in
+ * place instead of creating duplicates on rerun. If more than one coin
+ * already shares the exact fixture name (e.g. from a prior run that raced
+ * fixture seeding across parallel workers), the lowest-ID record is kept as
+ * canonical and updated, and the extra duplicates are deleted via the real
+ * authenticated DELETE contract. Never deletes or touches any coin that
+ * isn't an exact name match for one of `SCREENSHOT_FIXTURE_COINS` (all of
+ * which carry the `[Screenshot]` prefix).
+ */
 export async function ensureScreenshotFixtures(api: APIRequestContext): Promise<EnsuredScreenshotCoin[]> {
   const results: EnsuredScreenshotCoin[] = []
   for (const fixture of SCREENSHOT_FIXTURE_COINS) {
     const payload = toMutationPayload(fixture)
-    const existing = await findCoinByExactName(api, fixture.name)
+    const matches = await findCoinsByExactName(api, fixture.name)
 
-    if (existing) {
-      const res = await api.put(`/api/coins/${existing.id}`, { data: payload })
+    if (matches.length > 0) {
+      const [canonical, ...duplicates] = matches
+      if (duplicates.length > 0) {
+        await reconcileDuplicates(
+          api,
+          fixture.name,
+          canonical!.id,
+          duplicates.map((d) => d.id),
+        )
+      }
+      const res = await api.put(`/api/coins/${canonical!.id}`, { data: payload })
       if (!res.ok()) {
         throw new Error(`Failed to update screenshot fixture "${fixture.name}": ${res.status()} ${await res.text()}`)
       }
-      results.push({ id: existing.id, name: fixture.name, isWishlist: fixture.isWishlist })
+      results.push({ id: canonical!.id, name: fixture.name, isWishlist: fixture.isWishlist })
       continue
     }
 

@@ -10,6 +10,15 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL || LOCAL_BASE_URL
 export default defineConfig({
   testDir: '.',
   fullyParallel: false,
+  // Force a single worker: `fullyParallel: false` only serializes tests
+  // within a file, but the desktop/mobile projects below still ran as
+  // separate parallel workers by default. Both projects call
+  // ensureScreenshotFixtures() independently, and each worker's
+  // GET-then-POST fixture lookup is not atomic — with 2 workers, both can
+  // GET (find nothing) before either POST, creating duplicate
+  // `[Screenshot]`-prefixed coins with the exact same name. Capping workers
+  // at 1 makes fixture seeding fully sequential across projects.
+  workers: 1,
   timeout: 120_000,
   reporter: [['list']],
   outputDir: '../../test-results/screenshots',
