@@ -1,5 +1,108 @@
 # Squad Decisions
 
+---
+
+### Decision: Feature 353 production startup blocker — AutoMigrate parent/child ordering + latent `constraint:-` FK gap
+
+**Date:** 2026-08-18
+**Feature:** 353-wishlist-availability-run-observability (production hotfix)
+**Agent:** Cassius (Backend Developer)
+**Status:** IMPLEMENTED — PR #629 opened, hotfix validated by Brutus & Maximus
+
+## Root Cause (two distinct, compounding bugs — ordering alone was insufficient)
+
+1. **AutoMigrate registration order.** `database.go`'s single `DB.AutoMigrate(...)` call
+   registered `&models.AvailabilityRun{}` (the child, gaining a new nullable `CycleID *uint`
+   column) far earlier in the slice than `&models.AvailabilityCycle{}` (the new parent table),
+   which was the very last argument. On any pre-existing on-disk `availability_runs` table
+   (every real production DB), adding `cycle_id` is a SQLite full table-rebuild (GORM/glebarez
+   `recreateTable`: `CREATE availability_runs__temp` with the new FK → `INSERT INTO
+   __temp SELECT ... FROM availability_runs` → `DROP` → `RENAME`). GORM's own `ReorderModels`
+   dependency sort does **not** catch this: the FK is only discoverable from
+   `AvailabilityCycle.Children []AvailabilityRun gorm:"foreignKey:CycleID"` (a `HasMany` on the
+   *parent* struct), and `AvailabilityRun` itself declares no reverse `Cycle` field, so GORM
+   can't infer "Run depends on Cycle" from Run's own schema. With `PRAGMA foreign_keys=ON`
+   (set by `Connect()` before `AutoMigrate`), the temp-table copy validates the new FK against
+   `availability_cycles`, which doesn't exist yet at that point in the call → exact production
+   error `SQL logic error: no such table: main.availability_cycles (1)`, `Connect()`'s
+   `log.Fatalf` kills the process.
+   - **Fix:** moved `&models.AvailabilityCycle{}` immediately before `&models.AvailabilityRun{}`
+     in the `AutoMigrate` slice (parent-before-child), matching the same convention already
+     followed for every other parent/child pair in that list (e.g. `DeepIdentificationJob`
+     before its child event/run/artifact models).
+
+2. **Pre-existing (pre-Feature-353) `AvailabilityRun.User` belongs-to FK is incompatible with
+   the legacy `UserID = 0` admin-run sentinel.** `User User gorm:"foreignKey:UserID"` has
+   existed since the original wishlist-availability feature (commit `8d52d27`) and generates a
+   `FOREIGN KEY (user_id) REFERENCES users(id)` constraint in the table's DDL. Legacy
+   admin-triggered `AvailabilityRun` rows intentionally use `UserID = 0` (a non-owner sentinel,
+   never a real user id — see the type doc comment on `AvailabilityRun`). That FK was never
+   actually validated against existing data until *now*, because SQLite only re-validates a
+   table's full constraint set during a rebuild — and Feature 353 is the first change ever to
+   force one on `availability_runs`. Confirmed empirically: reordering alone (fix #1) still
+   fails with `FOREIGN KEY constraint failed` on any DB containing legacy `UserID = 0` rows;
+   the identical reorder succeeds immediately when no such legacy rows are present.
+   - **Fix:** added `;constraint:-` to `AvailabilityRun.User`'s gorm tag
+     (`src/api/models/availability_check.go`), which tells GORM to skip generating any
+     DDL-level FK constraint for this specific belongs-to association (Preload/joins via
+     `foreignKey:UserID` are unaffected — only physical constraint creation is skipped).
+     This is the same established pattern already used for `Coin.StorageLocationID` per
+     Cassius's history notes ("nullable lookup FKs added post-launch should use `constraint:-`
+     ... to avoid destructive table rebuilds; enforce ownership/referential correctness in
+     services/repositories instead"), extended here to an FK that predates the feature that
+     exposed it. Referential correctness for `UserID` is already enforced at the
+     service/handler layer (ownership checks on every read/write path) and was never actually
+     relying on the DB-level constraint in practice, since it silently went unvalidated for the
+     entire lifetime of legacy admin rows.
+
+## Recovery Behavior For Already-Broken Databases
+
+SQLite's `recreateTable` runs the `CREATE __temp` / `INSERT ... SELECT` / `DROP` / `RENAME`
+sequence inside a single `db.Transaction(...)` (glebarez `migrator.go:400-410`). Every failed
+production restart therefore rolled back atomically: the original `availability_runs` table
+and all legacy rows/results are left completely untouched, and no `availability_runs__temp`
+table is ever left behind. No manual recovery/cleanup is required for any environment that hit
+this crash — the very next successful startup with this fix applied completes the migration
+normally against the still-intact original table.
+
+## Validation
+
+- New repro test (disk-based, not `:memory:` — the failure does not reproduce on `:memory:`
+  because a same-process `:memory:` DB is fully populated by the time GORM inspects it in one
+  continuous session; disabled/removed after confirming both root causes and the fix) proved:
+  (a) buggy order + legacy `UserID=0` row → `no such table: main.availability_cycles`
+      (exact production error)
+  (b) reordered (cycle-before-run) + legacy `UserID=0` row → `FOREIGN KEY constraint failed`
+      (second, previously-latent bug)
+  (c) reordered + `constraint:-` on `AvailabilityRun.User` + legacy `UserID=0` row → succeeds
+- `gofmt -l` clean on both changed files
+- `go build ./...` and `go vet ./...` clean
+- `go test ./database/... -v` — all pass, including
+  `TestAvailabilityCycleMigration_AdditiveAndPreservesLegacyRows` (idempotency + byte-equivalent
+  legacy row preservation)
+- `go test ./...` (full suite) — all packages pass (root, capture, database, handlers,
+  integration, middleware, models, repository, services, testutil)
+
+## Files Changed
+
+- `src/api/database/database.go` — moved `&models.AvailabilityCycle{}` to immediately precede
+  `&models.AvailabilityRun{}`/`&models.AvailabilityResult{}` in the `AutoMigrate` call
+  (parent-before-child).
+- `src/api/models/availability_check.go` — added `constraint:-` to `AvailabilityRun.User`'s
+  gorm tag to stop GORM from generating a DDL FK constraint incompatible with the
+  legacy `UserID = 0` admin-run sentinel.
+
+## Approvals
+
+- **Brutus (QC):** Reproduced exact production error; validated both root causes; confirmed fix succeeds with legacy rows; idempotency tests pass. Approved.
+- **Maximus (Architect):** Reviewed parent-before-child pattern precedent, `constraint:-` semantics, recovery atomicity, and ownership enforcement layer. Architecture and §17 gates preserved. Approved.
+
+## Release Status
+
+PR #629 opened; normal merge process in progress (auto-merge unavailable; awaiting beta sync).
+
+---
+
 ## Baseline Note: Pre-existing flaky test in `src/api/services` (unrelated to Feature 344)
 
 **Date:** 2026-08-15
