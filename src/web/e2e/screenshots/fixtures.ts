@@ -1,4 +1,5 @@
 import type { APIRequestContext } from '@playwright/test'
+import { COIN_ERAS } from '../../src/types'
 
 /**
  * Distinctive prefix for every screenshot fixture coin. Used both to name the
@@ -36,7 +37,7 @@ export const SCREENSHOT_FIXTURE_COINS: ScreenshotFixtureCoin[] = [
     category: 'Roman',
     denomination: 'Denarius',
     ruler: 'Trajan',
-    era: 'Roman Imperial',
+    era: COIN_ERAS[0], // 'ancient' — the only server-accepted built-in era value for this coin (see models.EraAncient in src/api/models/coin.go)
     mint: 'Rome',
     material: 'Silver',
     weightGrams: 3.4,
@@ -55,7 +56,7 @@ export const SCREENSHOT_FIXTURE_COINS: ScreenshotFixtureCoin[] = [
     category: 'Modern',
     denomination: 'Dollar',
     ruler: 'United States',
-    era: 'Modern',
+    era: COIN_ERAS[2], // 'modern' — built-in era value (models.EraModern)
     mint: 'West Point',
     material: 'Silver',
     weightGrams: 31.1,
@@ -74,7 +75,7 @@ export const SCREENSHOT_FIXTURE_COINS: ScreenshotFixtureCoin[] = [
     category: 'Roman',
     denomination: 'Aureus',
     ruler: 'Augustus',
-    era: 'Roman Imperial',
+    era: COIN_ERAS[0], // 'ancient' — built-in era value (models.EraAncient)
     mint: 'Lugdunum',
     material: 'Gold',
     weightGrams: 7.9,

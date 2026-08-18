@@ -135,12 +135,18 @@ test:browser` suite (F013) and is excluded from it via `testIgnore` in
 ### Required environment variables (PowerShell)
 
 ```powershell
+npx playwright install chromium
 $env:PLAYWRIGHT_BASE_URL = "https://coins-beta.denicolafamily.com"
 $env:AUREARIA_SCREENSHOT_USERNAME = "<existing beta account username>"
 $env:AUREARIA_SCREENSHOT_PASSWORD = "<existing beta account password>"
 npm run screenshots:beta
 ```
 
+- `npx playwright install chromium` — first-run only. Both the `desktop` and `mobile`
+  projects in `e2e/screenshots/playwright.config.ts` use the Chromium engine (the
+  `mobile` project emulates an iPhone 13 viewport/UA/touch input via Chromium's mobile
+  emulation rather than launching WebKit), so installing only the `chromium` browser
+  is sufficient — no WebKit download is required.
 - `PLAYWRIGHT_BASE_URL` — target site. Defaults to `http://127.0.0.1:4173` (local Vite
   preview) if unset; the local `test:browser` `webServer` is only skipped when this is
   set to an external URL.

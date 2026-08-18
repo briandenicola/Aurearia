@@ -25,9 +25,18 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } },
     },
     {
-      // Mobile / PWA-like viewport (iPhone 13 dimensions).
+      // Mobile / PWA-like viewport (iPhone 13 dimensions), rendered with
+      // Chromium instead of the default WebKit engine so the screenshot
+      // tour only needs `npx playwright install chromium` (no WebKit
+      // download required). We keep the iPhone 13 device's viewport,
+      // touch/mobile emulation flags, and UA string, but override
+      // `defaultBrowserType` back to chromium.
       name: 'mobile',
-      use: { ...devices['iPhone 13'], viewport: { width: 390, height: 844 } },
+      use: {
+        ...devices['iPhone 13'],
+        defaultBrowserType: 'chromium',
+        viewport: { width: 390, height: 844 },
+      },
     },
   ],
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { APIRequestContext } from '@playwright/test'
 import { ensureScreenshotFixtures, SCREENSHOT_FIXTURE_COINS, SCREENSHOT_PREFIX } from '../../e2e/screenshots/fixtures'
+import { COIN_ERAS } from '../../src/types'
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -65,6 +66,19 @@ describe('ensureScreenshotFixtures', () => {
   it('every fixture name carries the distinctive [Screenshot] prefix and no price/valuation data', async () => {
     for (const fixture of SCREENSHOT_FIXTURE_COINS) {
       expect(fixture.name.startsWith(SCREENSHOT_PREFIX)).toBe(true)
+    }
+  })
+
+  it('every fixture era is one of the authoritative COIN_ERAS values accepted by the real /api/coins contract', () => {
+    // Regression test for the beta run failure: POST /api/coins 400
+    // `{"error":"era is not supported"}`. The backend's built-in era
+    // whitelist (models.EraAncient/EraMedieval/EraModern in
+    // src/api/models/coin.go) matches COIN_ERAS exactly, so fixtures must
+    // use one of these lowercase values rather than display-style strings
+    // like "Roman Imperial".
+    expect(COIN_ERAS).toEqual(['ancient', 'medieval', 'modern'])
+    for (const fixture of SCREENSHOT_FIXTURE_COINS) {
+      expect(COIN_ERAS).toContain(fixture.era)
     }
   })
 })
