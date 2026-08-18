@@ -33,7 +33,7 @@ const GenericAvailabilityFailureMessage = "The availability check could not be c
 type AvailabilityRun struct {
 	ID            uint                 `gorm:"primaryKey" json:"id"`
 	UserID        uint                 `gorm:"not null" json:"userId"`
-	User          User                 `gorm:"foreignKey:UserID" json:"-"`
+	User          User                 `gorm:"foreignKey:UserID;constraint:-" json:"-"`
 	UserName      string               `gorm:"-" json:"userName"`
 	CycleID       *uint                `gorm:"index" json:"cycleId"`
 	TriggerType   string               `gorm:"type:varchar(20);not null" json:"triggerType"`
