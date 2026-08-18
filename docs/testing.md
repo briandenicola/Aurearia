@@ -33,8 +33,13 @@ This document is the canonical testing strategy for Aurearia. It explains what w
 
 Notes:
 - `grep -rln "httptest\|testserver\|integration" src/api --include="*_test.go"` finds handler and middleware HTTP tests, but no dedicated integration package.
-- Browser workflow tests live in `src/web/e2e/` and run with Playwright.
+- Browser workflow tests live in `src/web/e2e/workflows/` and run with Playwright.
 - `pytest tests/ --collect-only -q` currently collects 35 agent tests across 6 files.
+- `src/web/e2e/screenshots/` is a separate, deliberately-real-network screenshot tool
+  (`npm run screenshots:beta`, documented in `src/web/README.md`) for capturing
+  production-like tour screenshots against a real deployment. It requires beta
+  credentials via environment variables, is excluded from `npm run test:browser` via
+  `testIgnore`, and is not part of the F013 deterministic suite.
 
 ## 3. What we DON'T test
 

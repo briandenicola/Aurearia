@@ -13,6 +13,7 @@
     "lint": "eslint . --ext .vue,.ts,.tsx",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "screenshots:beta": "playwright test --config=e2e/screenshots/playwright.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
