@@ -31,5 +31,5 @@ type AvailabilityCycle struct {
 	StartedAt         time.Time         `gorm:"not null" json:"startedAt"`
 	CompletedAt       *time.Time        `json:"completedAt"`
 	CreatedAt         time.Time         `json:"createdAt"`
-	Children          []AvailabilityRun `gorm:"foreignKey:CycleID" json:"children,omitempty"`
+	Children          []AvailabilityRun `gorm:"foreignKey:CycleID;constraint:-" json:"children,omitempty"`
 }
