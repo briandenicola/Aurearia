@@ -83,10 +83,16 @@ func Connect(dbPath string) {
 	// optional columns (343-nomisma-mint-authority-linking). SQLite
 	// AutoMigrate adds them additively with no backfill and no destructive
 	// migration - every existing row simply starts unlinked.
-	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.Shipment{}, &models.ShipmentEvent{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.CoinRecommendation{}, &models.RecommendationFeedback{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}, &models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{}, &models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{})
+	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.Shipment{}, &models.ShipmentEvent{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.CoinRecommendation{}, &models.RecommendationFeedback{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}, &models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{}, &models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{}, &models.AvailabilityCycle{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
+	// 353-wishlist-availability-run-observability: AvailabilityCycle is a brand-new table and
+	// AvailabilityRun.CycleID is a brand-new nullable column. This AutoMigrate call is the
+	// entire "migration" — purely additive DDL, no backfill/reparenting/retagging of any
+	// pre-existing AvailabilityRun row (legacy UserID=0 admin rows keep their historical
+	// TriggerType and are never attached to a synthesized cycle).
+	logLegacyAvailabilityRunCount(DB)
 	// 344-deep-agentic-coin-identification: partial unique index enforcing
 	// at most one obverse and one reverse artifact per job. Hint artifacts
 	// (role='hint') are explicitly excluded - up to 3 are allowed per job,
@@ -129,6 +135,20 @@ func Connect(dbPath string) {
 	}
 
 	log.Println("Database connected and migrated")
+}
+
+// logLegacyAvailabilityRunCount logs an informational (non-fatal) count of pre-existing legacy
+// admin availability_runs rows (UserID = 0) for operator visibility only. This is diagnostic,
+// not an invariant check — legacy UserID=0 rows are expected and valid; the UserID > 0
+// invariant for *new* child runs is enforced at creation time by
+// AvailabilityRepository.CreateChildRun, not by this boot-time scan of historical data.
+func logLegacyAvailabilityRunCount(db *gorm.DB) {
+	var count int64
+	if err := db.Model(&models.AvailabilityRun{}).Where("user_id = ?", 0).Count(&count).Error; err != nil {
+		log.Printf("Unable to count legacy availability runs: %v", err)
+		return
+	}
+	log.Printf("Availability runs: %d legacy admin row(s) (user_id = 0) present", count)
 }
 
 const mintLocationSeedVersionKey = "MintLocationSeedVersion"

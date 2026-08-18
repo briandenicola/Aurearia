@@ -21,16 +21,17 @@ var ErrAvailabilityRunInProgress = errors.New("a manual availability run is alre
 
 // AvailabilityScheduler runs periodic wishlist availability checks.
 type AvailabilityScheduler struct {
-	svc         *AvailabilityService
-	coinRepo    *repository.CoinRepository
-	availRepo   *repository.AvailabilityRepository
-	settingsSvc *SettingsService
-	logger      *Logger
-	stopCh      chan struct{}
-	once        sync.Once
-	statusMu    sync.RWMutex
-	isRunning   bool
-	queue       chan uint
+	svc            *AvailabilityService
+	coinRepo       *repository.CoinRepository
+	availRepo      *repository.AvailabilityRepository
+	availCycleRepo *repository.AvailabilityCycleRepository
+	settingsSvc    *SettingsService
+	logger         *Logger
+	stopCh         chan struct{}
+	once           sync.Once
+	statusMu       sync.RWMutex
+	isRunning      bool
+	queue          chan uint
 }
 
 // NewAvailabilityScheduler creates a new scheduler.
@@ -52,15 +53,27 @@ func NewAvailabilityScheduler(
 	}
 }
 
-// StartWorkers recovers any stale runs from a previous process and starts background
-// worker goroutines that process queued manual availability runs.
+// WithCycleRepo attaches the AvailabilityCycleRepository the scheduler needs to enqueue,
+// claim, and recover AvailabilityCycle parents.
+func (s *AvailabilityScheduler) WithCycleRepo(availCycleRepo *repository.AvailabilityCycleRepository) *AvailabilityScheduler {
+	s.availCycleRepo = availCycleRepo
+	return s
+}
+
+// StartWorkers recovers any stale cycles/children from a previous process and starts
+// background worker goroutines that process queued availability cycles.
 func (s *AvailabilityScheduler) StartWorkers(workerCount int) {
 	if workerCount < 1 {
 		workerCount = 1
 	}
-	if ids, err := s.availRepo.RecoverStaleRuns(availabilityStaleRunTimeout); err == nil {
-		for _, id := range ids {
-			s.enqueueRunID(id)
+	// Fail any child run orphaned by a crash mid-execution — this may finalize its parent
+	// cycle as a side effect via CompleteChildRun's aggregation.
+	s.availRepo.RecoverStaleChildRuns(availabilityStaleRunTimeout)
+	if s.availCycleRepo != nil {
+		if ids, err := s.availCycleRepo.RecoverStaleCycles(availabilityStaleRunTimeout); err == nil {
+			for _, id := range ids {
+				s.enqueueCycleID(id)
+			}
 		}
 	}
 	for i := 0; i < workerCount; i++ {
@@ -68,42 +81,45 @@ func (s *AvailabilityScheduler) StartWorkers(workerCount int) {
 	}
 }
 
-func (s *AvailabilityScheduler) enqueueRunID(runID uint) {
+func (s *AvailabilityScheduler) enqueueCycleID(cycleID uint) {
 	select {
-	case s.queue <- runID:
+	case s.queue <- cycleID:
 	default:
-		go func() { s.queue <- runID }()
+		go func() { s.queue <- cycleID }()
 	}
 }
 
 func (s *AvailabilityScheduler) worker() {
-	for runID := range s.queue {
-		_ = s.processRun(runID)
+	for cycleID := range s.queue {
+		_ = s.processCycle(cycleID)
 	}
 }
 
-// processRun claims a queued run and executes the manual availability cycle.
-func (s *AvailabilityScheduler) processRun(runID uint) error {
-	return s.ProcessRun(runID)
+// processCycle claims a queued cycle and executes its per-owner fan-out.
+func (s *AvailabilityScheduler) processCycle(cycleID uint) error {
+	return s.ProcessCycle(cycleID)
 }
 
-// ProcessRun claims a queued run and executes the manual availability cycle.
+// ProcessCycle claims a queued availability cycle and executes the per-owner fan-out.
 // Exported for use in tests.
-func (s *AvailabilityScheduler) ProcessRun(runID uint) error {
-	run, claimed, err := s.availRepo.ClaimQueuedRun(runID)
+func (s *AvailabilityScheduler) ProcessCycle(cycleID uint) error {
+	if s.availCycleRepo == nil {
+		return fmt.Errorf("availability cycle repository not configured")
+	}
+	cycle, claimed, err := s.availCycleRepo.ClaimCycle(cycleID)
 	if err != nil {
-		s.logger.Error("scheduler", "Failed to claim availability run %d: %v", runID, err)
+		s.logger.Error("scheduler", "Failed to claim availability cycle %d: %v", cycleID, err)
 		return err
 	}
 	if !claimed {
 		return nil
 	}
 
-	s.logger.Info("scheduler", "Processing manual availability run %d", runID)
-	if err := s.svc.RunManualCycle(run); err != nil {
-		s.logger.Error("scheduler", "Manual availability run %d failed: %v", runID, err)
-		if failErr := s.availRepo.FailRun(run, err.Error()); failErr != nil {
-			s.logger.Error("scheduler", "Failed to mark run %d as failed: %v", runID, failErr)
+	s.logger.Info("scheduler", "Processing availability cycle %d (%s)", cycleID, cycle.TriggerType)
+	if err := s.svc.RunAdminCycle(cycle); err != nil {
+		s.logger.Error("scheduler", "Availability cycle %d failed: %v", cycleID, err)
+		if failErr := s.availCycleRepo.FinalizeCycle(cycleID, models.AvailabilityCycleStatusFailed, models.GenericAvailabilityFailureMessage); failErr != nil {
+			s.logger.Error("scheduler", "Failed to finalize failed cycle %d: %v", cycleID, failErr)
 		}
 		return err
 	}
@@ -148,34 +164,33 @@ func (s *AvailabilityScheduler) RunNow() error {
 	return err
 }
 
-// RunNowWithTrigger enqueues an immediate availability run and returns the queued run record.
-// Returns ErrAvailabilityRunInProgress if a queued or running manual run already exists.
-func (s *AvailabilityScheduler) RunNowWithTrigger(triggerUserID *uint) (*models.AvailabilityRun, error) {
-	userID := uint(0)
-	if triggerUserID != nil {
-		userID = *triggerUserID
+// RunNowWithTrigger enqueues an immediate admin AvailabilityCycle and returns the queued
+// cycle record. Returns ErrAvailabilityRunInProgress if a queued or running cycle already
+// exists within the duplicate-protection window.
+func (s *AvailabilityScheduler) RunNowWithTrigger(triggerUserID *uint) (*models.AvailabilityCycle, error) {
+	if s.availCycleRepo == nil {
+		return nil, fmt.Errorf("availability cycle repository not configured")
 	}
 
-	run := &models.AvailabilityRun{
-		UserID:        userID,
-		TriggerType:   "manual",
+	cycle := &models.AvailabilityCycle{
+		TriggerType:   models.AvailabilityRunTriggerAdmin,
 		TriggerUserID: triggerUserID,
-		Status:        models.AvailabilityRunStatusQueued,
+		Status:        models.AvailabilityCycleStatusQueued,
 		StartedAt:     time.Now(),
 	}
 
 	since := time.Now().Add(-availabilityManualRunWindow)
-	acquired, err := s.availRepo.EnqueueManualRun(run, since)
+	acquired, err := s.availCycleRepo.EnqueueCycle(cycle, since)
 	if err != nil {
-		return nil, fmt.Errorf("enqueue manual availability run: %w", err)
+		return nil, fmt.Errorf("enqueue availability cycle: %w", err)
 	}
 	if !acquired {
 		return nil, ErrAvailabilityRunInProgress
 	}
 
-	s.enqueueRunID(run.ID)
-	s.logger.Info("scheduler", "Manual availability run %d queued", run.ID)
-	return run, nil
+	s.enqueueCycleID(cycle.ID)
+	s.logger.Info("scheduler", "Availability cycle %d queued (admin trigger)", cycle.ID)
+	return cycle, nil
 }
 
 // GetStatus returns the scheduler runtime status.
@@ -258,10 +273,19 @@ func (s *AvailabilityScheduler) runCycle() {
 		return
 	}
 
-	s.runCycleWithTrigger("scheduled", nil)
+	s.runScheduledCycle()
 }
 
-func (s *AvailabilityScheduler) runCycleWithTrigger(triggerType string, triggerUserID *uint) {
+// runScheduledCycle enqueues a scheduled AvailabilityCycle (subject to the same duplicate
+// guard as admin-triggered cycles) and processes it synchronously so timeUntilNextRun's
+// "last completed" anchor reflects this cycle once it fully finishes — preserving the
+// previous scheduled-run-blocking behavior of the Start() loop.
+func (s *AvailabilityScheduler) runScheduledCycle() {
+	if s.availCycleRepo == nil {
+		s.logger.Error("scheduler", "Cannot run scheduled availability cycle: cycle repository not configured")
+		return
+	}
+
 	s.statusMu.Lock()
 	s.isRunning = true
 	s.statusMu.Unlock()
@@ -271,33 +295,29 @@ func (s *AvailabilityScheduler) runCycleWithTrigger(triggerType string, triggerU
 		s.statusMu.Unlock()
 	}()
 
-	s.logger.Info("scheduler", "Starting %s availability check cycle", triggerType)
+	s.logger.Info("scheduler", "Starting scheduled availability check cycle")
 
-	coins, err := s.coinRepo.GetAllWishlistWithURLs()
+	cycle := &models.AvailabilityCycle{
+		TriggerType: models.AvailabilityRunTriggerScheduled,
+		Status:      models.AvailabilityCycleStatusQueued,
+		StartedAt:   time.Now(),
+	}
+
+	since := time.Now().Add(-availabilityManualRunWindow)
+	acquired, err := s.availCycleRepo.EnqueueCycle(cycle, since)
 	if err != nil {
-		s.logger.Error("scheduler", "Failed to fetch all wishlist coins: %s", err)
+		s.logger.Error("scheduler", "Failed to enqueue scheduled availability cycle: %v", err)
+		return
+	}
+	if !acquired {
+		s.logger.Info("scheduler", "Scheduled availability cycle skipped: a cycle is already queued or running")
 		return
 	}
 
-	if len(coins) == 0 {
-		s.logger.Info("scheduler", "No wishlist coins with URLs found")
-		return
+	s.logger.Info("scheduler", "Scheduled availability cycle %d queued", cycle.ID)
+	if err := s.ProcessCycle(cycle.ID); err != nil {
+		s.logger.Error("scheduler", "Scheduled availability cycle %d failed: %v", cycle.ID, err)
 	}
 
-	// Group coins by user
-	userCoins := make(map[uint]bool)
-	for _, coin := range coins {
-		userCoins[coin.UserID] = true
-	}
-
-	s.logger.Info("scheduler", "Found %d coins across %d users", len(coins), len(userCoins))
-
-	for userID := range userCoins {
-		_, err := s.svc.CheckWishlistForUser(userID, triggerType, triggerUserID)
-		if err != nil {
-			s.logger.Error("scheduler", "%s check failed for user %d: %s", triggerType, userID, err)
-		}
-	}
-
-	s.logger.Info("scheduler", "%s availability check cycle complete", triggerType)
+	s.logger.Info("scheduler", "Scheduled availability check cycle complete")
 }

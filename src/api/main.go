@@ -210,6 +210,8 @@ func main() {
 	// Protected routes
 	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL, cfg.AgentInternalServiceToken, logger)
 	availRepo := repository.NewAvailabilityRepository(database.DB)
+	availCycleRepo := repository.NewAvailabilityCycleRepository(database.DB)
+	availRepo.WithCycleRepo(availCycleRepo)
 	coinRepo := repository.NewCoinRepository(database.DB)
 	wishlistSearchAlertRepo := repository.NewWishlistSearchAlertRepository(database.DB)
 	socialRepo := repository.NewSocialRepository(database.DB)
@@ -220,7 +222,7 @@ func main() {
 	auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
 	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
-	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger)
+	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger).WithCycleRepo(availCycleRepo)
 	wishlistSearchAlertSvc := services.NewWishlistSearchAlertService(wishlistSearchAlertRepo).WithDiscovery(agentProxy, settingsSvc)
 	wishlistSearchAlertSvc.StartWorkers(1)
 	wishlistSearchAlertScheduler := services.NewWishlistSearchAlertScheduler(wishlistSearchAlertSvc, wishlistSearchAlertRepo, settingsSvc, logger)
@@ -255,7 +257,7 @@ func main() {
 	).WithParcelAppSupport(userRepoForVal, settingsSvc, credentialEncryptionSvc, services.NewHTTPParcelAppClient())
 
 	// Create schedulers before routes so they can be passed to admin handlers
-	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
+	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger).WithCycleRepo(availCycleRepo)
 	availScheduler.StartWorkers(1)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	nbWatchSyncSvc := services.NewNumisBidsService(logger)
@@ -521,9 +523,11 @@ func main() {
 		protected.POST("/auctions/validate-credentials", auctionLotHandler.ValidateNumisBids)
 
 		// Wishlist availability checking
-		availHandler := handlers.NewAvailabilityHandler(availSvc, availScheduler, availRepo, coinRepo)
+		availHandler := handlers.NewAvailabilityHandler(availSvc, availScheduler, availRepo, coinRepo).WithCycleRepo(availCycleRepo)
 		protected.POST("/wishlist/check-availability", availHandler.CheckAvailability)
 		protected.PUT("/coins/:id/listing-status", availHandler.UpdateListingStatus)
+		protected.GET("/wishlist/availability-runs", availHandler.ListOwnerRuns)
+		protected.GET("/wishlist/availability-runs/:id", availHandler.GetOwnerRunDetail)
 		wishlistSearchAlertHandler := handlers.NewWishlistSearchAlertHandler(wishlistSearchAlertSvc)
 		protected.GET("/wishlist/search-alerts", wishlistSearchAlertHandler.List)
 		protected.POST("/wishlist/search-alerts", writeRateLimit, wishlistSearchAlertHandler.Create)
@@ -719,10 +723,12 @@ func main() {
 		admin.DELETE("/mint-locations/:id/nomisma", mintLocationHandler.UnlinkNomisma)
 
 		// Availability check run history and manual trigger (reuse outer scope services)
-		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil)
+		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil).WithCycleRepo(availCycleRepo)
 		admin.GET("/availability-runs", adminAvailHandler.ListRuns)
 		admin.GET("/availability-runs/:id", adminAvailHandler.GetRunDetail)
 		admin.POST("/availability/run", adminAvailHandler.TriggerRun)
+		admin.GET("/availability-cycles", adminAvailHandler.ListCycles)
+		admin.GET("/availability-cycles/:id", adminAvailHandler.GetCycleDetail)
 
 		// Valuation run history and manual trigger
 		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc, logger)

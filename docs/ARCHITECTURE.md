@@ -200,8 +200,8 @@ Three route groups with distinct auth levels:
 | Group | Prefix | Auth | Example Routes |
 |-------|--------|------|----------------|
 | `api` (public) | `/api` | None (rate-limited) | `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/webauthn/*`, `/showcase/:slug` |
-| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/deep-identification/*`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/showcases/*`, `/api-keys` |
-| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/deep-identification/ocre/health`, `/deep-identification/observability`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
+| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/deep-identification/*`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/showcases/*`, `/api-keys`, `/wishlist/availability-runs`, `/wishlist/availability-runs/:id` |
+| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs` (legacy), `/availability-runs/:id` (legacy), `/availability/run`, `/availability-cycles`, `/availability-cycles/:id`, `/valuation-runs`, `/deep-identification/ocre/health`, `/deep-identification/observability`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
 
 ### Shared GORM Scopes
 
@@ -592,7 +592,8 @@ Auction provider services intentionally have asymmetric capabilities:
 | Model | Table | Key Fields |
 |-------|-------|-----------|
 | `AgentConversation` | `agent_conversations` | UserID, Title, Messages (JSON), CreatedAt |
-| `AvailabilityRun` | `availability_runs` | UserID, TriggerType, CoinsChecked, Available, Unavailable, DurationMs |
+| `AvailabilityCycle` | `availability_cycles` | TriggerType, TriggerUserID (nullable, admin-only), Status (queued/running/completed/failed/partial_failure), aggregated child counts, StartedAt/CompletedAt |
+| `AvailabilityRun` | `availability_runs` | UserID (>0 for per-owner child runs), CycleID (nullable — set on child runs, null on legacy rows), TriggerType (owner/scheduled/admin), CoinsChecked, Available, Unavailable, DurationMs |
 | `AvailabilityResult` | `availability_results` | RunID, CoinID, URL, Status, Reason, AgentUsed |
 | `ValuationRun` | `valuation_runs` | UserID, TriggerType, Status, TotalCoins, CoinsUpdated, DurationMs |
 | `ValuationResult` | `valuation_results` | RunID, CoinID, PreviousValue, EstimatedValue, Confidence, Reasoning |
@@ -677,8 +678,10 @@ Two goroutine-based schedulers run in the Go API:
 
 - **Initial delay:** 30 seconds after startup
 - **Config:** `WishlistCheckEnabled`, `WishlistCheckStartTime` (HH:MM, default `02:00`), `WishlistCheckInterval` (minutes, default `120`)
-- **Behavior:** Loads all wishlist coins with URLs, groups by user, runs `CheckWishlistForUser()` for each
-- **Source:** `services/availability_scheduler.go`
+- **Behavior:** Enqueues an `AvailabilityCycle` (parent) and fans out one child `AvailabilityRun` per wishlist owner (including owners with zero URLs) via `RunAdminCycle()`; a scheduled run processes synchronously so the next-run anchor still derives from `GetLastScheduledRun().CompletedAt`
+- **Observability:** Duplicate cycles (queued/running within 5 minutes) return the existing cycle and `ErrAvailabilityRunInProgress`; stale queued/running cycles and orphaned child runs are recovered as `failed` on worker startup; terminal child/cycle rows are pruned to the most recent 20 per owner/overall after each cycle finalizes
+- **Notifications:** Every child run (including zero-URL owners) ends with a guaranteed terminal notification (`NotifyAvailabilityRunTerminal`); admin-triggered cycles additionally notify admins on child failure (`NotifyAdminCycleChildFailure`) — both are independent of the pre-existing per-coin `NotifyWishlistUnavailable` notification
+- **Source:** `services/availability_scheduler.go`, `services/availability_service.go`, `repository/availability_cycle_repository.go`
 
 ### Collection Valuation Scheduler
 
