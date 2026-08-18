@@ -37,6 +37,17 @@ export async function createAuthenticatedApiContext(baseURL: string, username: s
  * sign-in flow.
  */
 export async function loginThroughUi(page: Page, username: string, password: string): Promise<void> {
+  // The mobile (iPhone 13) project's UA/touch emulation makes App.vue's
+  // PwaInstallPrompt treat the session as a real mobile device, so the
+  // "Add to Home Screen" banner renders on top of every subsequent capture.
+  // Pre-set its own dismissal flag (same key/mechanism a real user's tap on
+  // the banner's dismiss button would set) before any page loads so the
+  // capture reflects the steady-state UI a returning user sees, not a
+  // one-time first-visit prompt. This does not alter app behavior — it only
+  // seeds the same localStorage flag the app already respects.
+  await page.addInitScript(() => {
+    window.localStorage.setItem('pwa-install-dismissed', 'true')
+  })
   await page.goto('/login')
   await page.locator('input[autocomplete="username"]').fill(username)
   await page.locator('input[type="password"]').fill(password)
