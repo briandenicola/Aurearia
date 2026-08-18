@@ -4748,3 +4748,57 @@ Existing regression test `TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNo
 ## Minor Footgun Documented (Not a Bug)
 
 Test-authoring hazard: bare `:memory:` DSN + `SetMaxOpenConns(1)` + `CoinService` with reference support will deadlock on wishlist reference writes because `NormalizeAndValidate*` calls `CatalogRegistryRepository.FindByCatalog` through an unwrapped connection. Previously invisible because wishlist coins never reached that code path. Recorded in `.squad/agents/cassius/history.md` as a footgun, not filed as bug.
+
+---
+
+### Cross-Agent Learning: Authorization Header Pattern & Strict Lockout Workflow (2026-08-18)
+
+**Participants:** Aurelia (Frontend QA), Brutus (Backend Reviewer), Cassius (Architect)  
+**Context:** Beta UX screenshot workflow implementation with Playwright fixtures  
+**Subject:** Security-critical auth code review discipline and repair workflow under strict lockout
+
+## Problem Pattern
+
+Playwright test fixture setup (`src/web/src/api/auth.ts`) contained a malformed HTTP Authorization header construction that broke JWT authentication. Error pattern: string concatenation/template literal bug in Bearer token prefix syntax.
+
+## Solution Pattern: Correct Bearer Token Construction
+
+Use explicit, type-safe array join:
+
+```typescript
+// CORRECT
+Authorization: ['Bearer', token].join(' ')
+
+// NOT
+Authorization: `Bearer ${token}`  // Without explicit space or join — prone to typos
+```
+
+**Why this pattern:**
+- Array join is explicit and unambiguous — space is a literal element
+- No string interpolation errors or whitespace typos
+- Type checker validates element count and separator
+- Intent is clear to future readers
+
+## Strict Lockout Workflow (Principle V + §18.2)
+
+When a reviewer (Brutus) detects a defect in security-critical code (auth headers):
+
+1. **Enforce block:** §18.2 Strict Lockout — no bypass, no workarounds
+2. **Clear authority:** Only explicit reviewer clearance lifts the block
+3. **Independent repair:** Don't ask the blocker to fix; allow another agent (Cassius) to diagnose and repair independently
+4. **Re-review:** Original reviewer (Brutus) re-examines the fix and issues explicit approval
+5. **Document discipline:** Record the block, repair, and re-review in orchestration logs for future visibility
+
+## Outcome
+
+This workflow ensures:
+- Principle V (Security by Default) is enforced, not aspirational
+- Auth defects don't propagate to test or production workflows
+- Team learns through transparent review cycles
+- Code quality and security culture improve across team
+
+## Reusable Guidance
+
+- Playwright and other test frameworks using HTTP auth: always validate Bearer header syntax in fixtures before review
+- Use the array-join pattern as the canonical Bearer token construction in new auth test fixtures
+- When strict blocks occur on security code: expect and support independent repair + re-review rather than direct fix requests
