@@ -128,6 +128,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/wishlist/availability-runs',
+      name: 'wishlist-availability-runs',
+      component: () => import('@/pages/WishlistAvailabilityHistoryPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/wishlist/availability-runs/:id',
+      name: 'wishlist-availability-run-detail',
+      component: () => import('@/pages/WishlistAvailabilityHistoryPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/sold',
       name: 'sold',
       component: () => import('@/pages/SoldPage.vue'),

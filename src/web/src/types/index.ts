@@ -2207,6 +2207,7 @@ export interface AvailabilityRun {
   userName?: string
   triggerType: string
   triggerUserId: number | null
+  cycleId?: number | null
   status: string
   failMessage?: string
   coinsChecked: number
@@ -2219,6 +2220,50 @@ export interface AvailabilityRun {
   completedAt: string | null
   results?: AvailabilityResult[]
   createdAt: string
+}
+
+// Availability cycle — parent roll-up of per-user AvailabilityRun children for
+// admin/scheduled wishlist availability checks (Feature 353). Coin-level counts live on
+// each child AvailabilityRun; the cycle itself only rolls up child status counts.
+export interface AvailabilityCycle {
+  id: number
+  triggerType: string
+  triggerUserId: number | null
+  status: string
+  totalChildren: number
+  queuedChildren: number
+  runningChildren: number
+  completedChildren: number
+  failedChildren: number
+  failMessage?: string
+  startedAt: string
+  completedAt: string | null
+  createdAt: string
+  children?: AvailabilityRun[]
+}
+
+export interface AvailabilityCycleListResponse {
+  cycles: AvailabilityCycle[]
+  total: number
+  page: number
+  limit: number
+}
+
+// GET /admin/availability-cycles/{id} returns the cycle itself with `children` populated
+// (each child is a full AvailabilityRun with no per-coin `results` preloaded).
+export type AvailabilityCycleDetail = AvailabilityCycle & { children: AvailabilityRun[] }
+
+export interface AvailabilityCycleTriggerResponse {
+  cycleId: number
+  status: string
+  message: string
+}
+
+export interface AvailabilityRunListResponse {
+  runs: AvailabilityRun[]
+  total: number
+  page: number
+  limit: number
 }
 
 export interface ValuationResult {
@@ -2352,7 +2397,7 @@ export interface CoinOfDayRun {
 export interface Notification {
   id: number
   userId: number
-  type: 'wishlist_unavailable' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'agentic_set_proposal_ready' | 'agentic_set_proposal_failed' | 'agentic_set_created' | 'agentic_set_creation_failed' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
+  type: 'wishlist_unavailable' | 'wishlist_availability_run' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'agentic_set_proposal_ready' | 'agentic_set_proposal_failed' | 'agentic_set_created' | 'agentic_set_creation_failed' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
   title: string
   message: string
   referenceId: number
