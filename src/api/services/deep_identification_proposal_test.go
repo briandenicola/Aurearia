@@ -287,10 +287,13 @@ func TestDeepIdentificationProposal_ApplySucceedsWhenJournalWriteFails(t *testin
 		t.Fatal("expected job to be marked applied despite journal write failure - otherwise a retry would create a duplicate write")
 	}
 
-	// A second apply must be rejected as already-applied, not retried into
-	// a duplicate update - proving the job genuinely finished, not stalled.
-	if _, err := svc.Apply(jobID, userID, "coin", nil); !errors.Is(err, ErrDeepProposalAlreadyApplied) {
-		t.Fatalf("expected ErrDeepProposalAlreadyApplied on retry, got %v", err)
+	// A second apply is idempotent and must return the same coin linkage.
+	retry, err := svc.Apply(jobID, userID, "coin", nil)
+	if err != nil {
+		t.Fatalf("expected idempotent retry success, got %v", err)
+	}
+	if retry.CoinID == nil || *retry.CoinID != coin.ID {
+		t.Fatalf("expected idempotent retry coinId %d, got %v", coin.ID, retry.CoinID)
 	}
 
 	foundLog := false
@@ -369,10 +372,13 @@ func TestDeepIdentificationProposal_WishlistApplyCreatesWishlistCoin(t *testing.
 		t.Fatalf("expected journal entry to name the applied fields, got %q", journal.Entry)
 	}
 
-	// Idempotency: a second apply against the same job is rejected -
-	// proving the new destination inherits the existing ApplyJob CAS.
-	if _, err := svc.Apply(jobID, userID, "wishlist", nil); !errors.Is(err, ErrDeepProposalAlreadyApplied) {
-		t.Fatalf("expected ErrDeepProposalAlreadyApplied on second apply, got %v", err)
+	// Idempotency: a second apply returns the already-linked wishlist coin.
+	retry, err := svc.Apply(jobID, userID, "wishlist", nil)
+	if err != nil {
+		t.Fatalf("expected idempotent wishlist retry success, got %v", err)
+	}
+	if retry.CoinID == nil || *retry.CoinID != coin.ID {
+		t.Fatalf("expected same wishlist coinId on second apply, got %v", retry.CoinID)
 	}
 }
 
@@ -562,9 +568,9 @@ func TestDeepIdentificationProposal_ApplyOnDeletedCoinReturnsSourceCoinMissing(t
 	}
 }
 
-// T116: a second apply attempt returns 409 already_applied unless a fresh
-// report cycle exists.
-func TestDeepIdentificationProposal_SecondApplyReturnsAlreadyApplied(t *testing.T) {
+// T116: a second apply attempt is idempotent and returns the existing linkage
+// unless the link no longer exists.
+func TestDeepIdentificationProposal_SecondApplyIsIdempotent(t *testing.T) {
 	svc, _, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)
 	coin := models.Coin{UserID: userID, Name: "Test Coin"}
@@ -583,9 +589,12 @@ func TestDeepIdentificationProposal_SecondApplyReturnsAlreadyApplied(t *testing.
 		t.Fatalf("first apply: %v", err)
 	}
 
-	_, err := svc.Apply(jobID, userID, "coin", nil)
-	if !errors.Is(err, ErrDeepProposalAlreadyApplied) {
-		t.Fatalf("expected ErrDeepProposalAlreadyApplied, got %v", err)
+	retry, err := svc.Apply(jobID, userID, "coin", nil)
+	if err != nil {
+		t.Fatalf("expected idempotent second apply success, got %v", err)
+	}
+	if retry.CoinID == nil || *retry.CoinID != coin.ID {
+		t.Fatalf("expected same coinId on second apply, got %v", retry.CoinID)
 	}
 
 	// Editing the already-applied proposal is likewise rejected.

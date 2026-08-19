@@ -100,6 +100,7 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	router.POST("/api/deep-identification/jobs", handler.CreateJob)
 	router.GET("/api/deep-identification/jobs", handler.ListJobs)
 	router.GET("/api/deep-identification/jobs/:id", handler.GetJob)
+	router.DELETE("/api/deep-identification/jobs/:id", handler.DeleteJob)
 	router.GET("/api/deep-identification/jobs/:id/events", handler.StreamEvents)
 	router.POST("/api/deep-identification/jobs/:id/cancel", handler.Cancel)
 	router.POST("/api/deep-identification/jobs/:id/retry", handler.Retry)
@@ -634,6 +635,81 @@ func TestDeepIdentificationHandler_CancelVsCompleteReturnsSettledState(t *testin
 	}
 	if cancelEnv.Job.Status != string(models.DeepJobStatusCompleted) {
 		t.Fatalf("expected settled state 'completed' reported, got %s", cancelEnv.Job.Status)
+	}
+}
+
+func TestDeepIdentificationHandler_DeleteJob_Returns204ForOwnerTerminalJob(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	job := &models.DeepIdentificationJob{
+		UserID:           1,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: fmt.Sprintf("fp-delete-%d", time.Now().UnixNano()),
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+	}
+	if err := deps.db.Create(job).Error; err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+	if err := deps.db.Create(&models.DeepIdentificationEvent{JobID: job.ID, UserID: 1, Seq: 1, Type: models.DeepEventProgress, PayloadJSON: "{}"}).Error; err != nil {
+		t.Fatalf("seed event: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/deep-identification/jobs/%d", job.ID), nil)
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var count int64
+	if err := deps.db.Model(&models.DeepIdentificationJob{}).Where("id = ?", job.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count jobs: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected deleted job row, found count=%d", count)
+	}
+}
+
+func TestDeepIdentificationHandler_DeleteJob_Returns409ForNonTerminal(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	job := &models.DeepIdentificationJob{
+		UserID:           1,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusRunning,
+		InputFingerprint: fmt.Sprintf("fp-delete-nonterminal-%d", time.Now().UnixNano()),
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+	}
+	if err := deps.db.Create(job).Error; err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/deep-identification/jobs/%d", job.ID), nil)
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeepIdentificationHandler_DeleteJob_Returns404ForNonOwner(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	other := models.User{ID: 2, Username: "other", Email: "other@example.com", PasswordHash: "x"}
+	if err := deps.db.Create(&other).Error; err != nil {
+		t.Fatalf("seed other user: %v", err)
+	}
+	job := &models.DeepIdentificationJob{
+		UserID:           2,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: fmt.Sprintf("fp-delete-other-%d", time.Now().UnixNano()),
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+	}
+	if err := deps.db.Create(job).Error; err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/deep-identification/jobs/%d", job.ID), nil)
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

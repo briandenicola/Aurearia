@@ -76,8 +76,8 @@ func (r *FeaturedCoinRepository) HasBeenFeaturedToday(userID uint, today time.Ti
 // a cycle: prefer coins never featured; otherwise pick the coin whose most
 // recent feature is oldest. Returns 0 if user has no eligible coins.
 //
-// Eligible pool: owned coins that are NOT wishlist and NOT sold.
-func (r *FeaturedCoinRepository) PickNextCoinID(userID uint) (uint, error) {
+// Eligible pool: owned + (optionally) wishlist coins that are not sold.
+func (r *FeaturedCoinRepository) PickNextCoinID(userID uint, includeWishlist bool) (uint, error) {
 	type row struct {
 		ID uint
 	}
@@ -92,12 +92,12 @@ func (r *FeaturedCoinRepository) PickNextCoinID(userID uint) (uint, error) {
 		LEFT JOIN featured_coins fc
 			ON fc.coin_id = c.id AND fc.user_id = c.user_id
 		WHERE c.user_id = ?
-			AND c.is_wishlist = 0
+			AND (c.is_wishlist = 0 OR ? = 1)
 			AND c.is_sold = 0
 		GROUP BY c.id
 		ORDER BY (last_shown IS NULL) DESC, last_shown ASC, c.id ASC
 		LIMIT 1
-	`, userID).Scan(&rows).Error
+	`, userID, includeWishlist).Scan(&rows).Error
 	if err != nil {
 		return 0, err
 	}

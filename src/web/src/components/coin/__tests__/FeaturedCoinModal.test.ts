@@ -6,6 +6,8 @@ import type { FeaturedCoin } from '@/types'
 
 const mocks = vi.hoisted(() => ({
   getFeaturedCoin: vi.fn(),
+  updateCoin: vi.fn(),
+  getApiErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
   shareCoinCard: vi.fn(),
   sharing: {
     __v_isRef: true,
@@ -15,6 +17,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/api/client', () => ({
   getFeaturedCoin: mocks.getFeaturedCoin,
+  updateCoin: mocks.updateCoin,
+  getApiErrorMessage: mocks.getApiErrorMessage,
 }))
 
 vi.mock('@/composables/useCoinShareCard', () => ({
@@ -32,6 +36,8 @@ const routerLinkStub = {
 describe('FeaturedCoinModal', () => {
   beforeEach(() => {
     mocks.getFeaturedCoin.mockReset()
+    mocks.updateCoin.mockReset()
+    mocks.updateCoin.mockResolvedValue({ data: {} })
     mocks.shareCoinCard.mockReset()
     mocks.shareCoinCard.mockResolvedValue({ mode: 'downloaded' })
     mocks.sharing.value = false
@@ -82,6 +88,42 @@ describe('FeaturedCoinModal', () => {
     expect(shareButton?.text()).toContain('Sharing...')
     expect(shareButton?.attributes('disabled')).toBeDefined()
   })
+
+  it('renders a Wishlist badge and Move to Collection action for a wishlist-sourced pick', async () => {
+    const featured = buildFeaturedCoin({ sourceType: 'wishlist' })
+    mocks.getFeaturedCoin.mockResolvedValue({ data: featured })
+
+    const wrapper = mountFeaturedCoinModal()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Wishlist')
+    expect(findMoveButton(wrapper)?.text()).toContain('Move to Collection')
+  })
+
+  it('dispatches the existing coin-update endpoint with isWishlist:false on Move to Collection', async () => {
+    const featured = buildFeaturedCoin({ sourceType: 'wishlist' })
+    mocks.getFeaturedCoin.mockResolvedValue({ data: featured })
+
+    const wrapper = mountFeaturedCoinModal()
+    await flushPromises()
+    await findMoveButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.updateCoin).toHaveBeenCalledWith(featured.coin!.id, { isWishlist: false })
+    expect(wrapper.text()).toContain('Moved to your collection')
+    expect(findMoveButton(wrapper)).toBeUndefined()
+  })
+
+  it('renders exactly as today for an owned-sourced pick (no Wishlist badge or Move action)', async () => {
+    const featured = buildFeaturedCoin({ sourceType: 'owned' })
+    mocks.getFeaturedCoin.mockResolvedValue({ data: featured })
+
+    const wrapper = mountFeaturedCoinModal()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Wishlist')
+    expect(findMoveButton(wrapper)).toBeUndefined()
+  })
 })
 
 function mountFeaturedCoinModal() {
@@ -106,10 +148,15 @@ function findShareButton(wrapper: ReturnType<typeof mountFeaturedCoinModal>) {
   return wrapper.findAll('button').find((button) => button.text().includes('Shar'))
 }
 
+function findMoveButton(wrapper: ReturnType<typeof mountFeaturedCoinModal>) {
+  return wrapper.findAll('button').find((button) => button.text().includes('Move to Collection'))
+}
+
 function buildFeaturedCoin(overrides: Partial<FeaturedCoin> = {}): FeaturedCoin {
   const coin = buildRomanDenariusCore({
     id: 42,
     name: 'Trajan Denarius Core',
+    isWishlist: overrides.sourceType === 'wishlist',
   })
 
   return {
@@ -118,6 +165,7 @@ function buildFeaturedCoin(overrides: Partial<FeaturedCoin> = {}): FeaturedCoin 
     coinId: coin.id,
     coin,
     summary: 'Trajan denarius summary with obverse and reverse details.',
+    sourceType: 'owned',
     featuredAt: '2026-06-20T12:00:00Z',
     createdAt: '2026-06-20T12:00:00Z',
     ...overrides,

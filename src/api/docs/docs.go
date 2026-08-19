@@ -9020,6 +9020,49 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Delete a Deep Analysis job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
             }
         },
         "/deep-identification/jobs/{id}/apply": {
@@ -9241,10 +9284,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "integer"
-                            }
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -20144,6 +20185,9 @@ const docTemplate = `{
                 "appliedAt": {
                     "type": "string"
                 },
+                "appliedCoinExists": {
+                    "type": "boolean"
+                },
                 "appliedCoinId": {
                     "type": "integer"
                 },
@@ -20219,16 +20263,10 @@ const docTemplate = `{
                     "$ref": "#/definitions/handlers.deepJobDTO"
                 },
                 "proposal": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "report": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "reused": {
                     "type": "boolean"
@@ -20261,10 +20299,7 @@ const docTemplate = `{
                                 "type": "boolean"
                             },
                             "ownerValue": {
-                                "type": "array",
-                                "items": {
-                                    "type": "integer"
-                                }
+                                "type": "object"
                             }
                         }
                     }
@@ -21916,6 +21951,9 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "sourceType": {
+                    "$ref": "#/definitions/models.FeaturedCoinSourceType"
+                },
                 "summary": {
                     "type": "string"
                 },
@@ -21923,6 +21961,17 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "models.FeaturedCoinSourceType": {
+            "type": "string",
+            "enum": [
+                "owned",
+                "wishlist"
+            ],
+            "x-enum-varnames": [
+                "FeaturedCoinSourceOwned",
+                "FeaturedCoinSourceWishlist"
+            ]
         },
         "models.ImageType": {
             "type": "string",

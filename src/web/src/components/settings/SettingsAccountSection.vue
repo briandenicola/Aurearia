@@ -188,6 +188,18 @@
         ></span>
       </label>
     </div>
+    <div v-if="coinOfDayEnabled" class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-sm font-medium">Include wishlist items</span>
+        <span class="text-xs text-text-muted">Coin of the Day may also feature coins from your wishlist, not just owned coins</span>
+      </div>
+      <label class="relative inline-block h-6 w-[44px] shrink-0">
+        <input v-model="coinOfDayIncludeWishlist" type="checkbox" class="peer sr-only" />
+        <span
+          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
+        ></span>
+      </label>
+    </div>
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-base font-medium">Emperor Tracker</span>
@@ -429,6 +441,7 @@ const {
   handleTestPushover, profilePublic, profileMsg, profileError, profileSaving,
   showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile, coinOfDayEnabled,
+  coinOfDayIncludeWishlist,
   emperorTrackerEnabled, emperorTrackerShowUsurpers, emperorTrackerShowEmpresses, emperorTrackerShowOtherFigures,
   currentPassword, newPassword, confirmPassword,
   passwordMsg, passwordError, passwordLoading, handleChangePassword,

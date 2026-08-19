@@ -66,6 +66,7 @@ type DeepIdentificationJob struct {
 	FailureCode        string        `gorm:"type:varchar(40)" json:"failureCode,omitempty"`
 	FailureMessage     string        `gorm:"type:varchar(300)" json:"failureMessage,omitempty"`
 	AppliedCoinID      *uint         `json:"appliedCoinId,omitempty"`
+	AppliedCoinExists  bool          `gorm:"->;column:applied_coin_exists;-:migration" json:"-"`
 	AppliedDraftID     *uint         `json:"appliedDraftId,omitempty"`
 	AppliedAt          *time.Time    `json:"appliedAt,omitempty"`
 	StartedAt          *time.Time    `json:"startedAt,omitempty"`
@@ -85,3 +86,8 @@ type DeepIdentificationJob struct {
 	// job id used as the terminal-state marker.
 	ActiveKey string `gorm:"type:varchar(20);not null;default:'active';index:uix_deep_jobs_active_fingerprint,priority:3,unique" json:"-"`
 }
+
+// DeepIdentificationNoExpirySentinel is the far-future retention marker for
+// terminal completed/partial deep-identification jobs. It is used instead of
+// nullable expires_at to keep SQLite migrations additive and non-destructive.
+var DeepIdentificationNoExpirySentinel = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)

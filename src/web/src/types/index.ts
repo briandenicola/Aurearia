@@ -989,6 +989,7 @@ export interface User {
   parcelAppConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  coinOfDayIncludeWishlist?: boolean
   emperorTrackerEnabled?: boolean
   emperorTrackerShowUsurpers?: boolean
   emperorTrackerShowEmpresses?: boolean
@@ -1436,6 +1437,8 @@ export interface UserInfo {
   parcelAppConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  /** Spec 354 D11: per-user opt-out; default-on. When false, Coin of the Day falls back to owned-only eligibility. */
+  coinOfDayIncludeWishlist?: boolean
   emperorTrackerEnabled?: boolean
   emperorTrackerShowUsurpers?: boolean
   emperorTrackerShowEmpresses?: boolean
@@ -1951,6 +1954,13 @@ export interface DeepJob {
   appliedCoinId?: number | null
   appliedDraftId?: number | null
   appliedAt?: string | null
+  /**
+   * Server-computed (spec 354 T024/T026): true when `appliedCoinId` still
+   * resolves to an existing, non-deleted owned coin. False when the linked
+   * coin was deleted, or when nothing has been applied yet. Drives whether
+   * the history/detail UI treats an "applied" job as re-appliable.
+   */
+  appliedCoinExists?: boolean
   startedAt?: string | null
   completedAt?: string | null
   expiresAt: string
@@ -2413,12 +2423,16 @@ export interface NotificationListResponse {
   limit: number
 }
 
+export type FeaturedCoinSourceType = 'owned' | 'wishlist'
+
 export interface FeaturedCoin {
   id: number
   userId: number
   coinId: number
   coin?: Coin
   summary: string
+  /** Spec 354 D5: 'owned' preserves today's behavior; 'wishlist' surfaces the "Move to Collection" CTA. */
+  sourceType: FeaturedCoinSourceType
   featuredAt: string
   createdAt: string
 }

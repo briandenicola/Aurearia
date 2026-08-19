@@ -55,6 +55,7 @@ export function useSettingsProfile() {
   const pushoverTestError = ref(false)
   const profilePublic = ref(auth.user?.isPublic || false)
   const coinOfDayEnabled = ref(auth.user?.coinOfDayEnabled ?? true)
+  const coinOfDayIncludeWishlist = ref(auth.user?.coinOfDayIncludeWishlist ?? true)
   const emperorTrackerEnabled = ref(auth.user?.emperorTrackerEnabled ?? false)
   const emperorTrackerShowUsurpers = ref(auth.user?.emperorTrackerShowUsurpers ?? false)
   const emperorTrackerShowEmpresses = ref(auth.user?.emperorTrackerShowEmpresses ?? false)
@@ -143,6 +144,7 @@ export function useSettingsProfile() {
         numisBidsUsername: nbUsername.value,
         cngUsername: cngUsername.value,
         coinOfDayEnabled: coinOfDayEnabled.value,
+        coinOfDayIncludeWishlist: coinOfDayIncludeWishlist.value,
         emperorTrackerEnabled: emperorTrackerEnabled.value,
         emperorTrackerShowUsurpers: emperorTrackerShowUsurpers.value,
         emperorTrackerShowEmpresses: emperorTrackerShowEmpresses.value,
@@ -173,6 +175,7 @@ export function useSettingsProfile() {
         auth.user.parcelAppConfigured = res.data.parcelAppConfigured
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
+        auth.user.coinOfDayIncludeWishlist = res.data.coinOfDayIncludeWishlist
         auth.user.emperorTrackerEnabled = res.data.emperorTrackerEnabled
         auth.user.emperorTrackerShowUsurpers = res.data.emperorTrackerShowUsurpers
         auth.user.emperorTrackerShowEmpresses = res.data.emperorTrackerShowEmpresses
@@ -274,6 +277,7 @@ export function useSettingsProfile() {
     cngValidationError,
     handleSaveProfile,
     coinOfDayEnabled,
+    coinOfDayIncludeWishlist,
     emperorTrackerEnabled,
     emperorTrackerShowUsurpers,
     emperorTrackerShowEmpresses,

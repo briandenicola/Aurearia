@@ -1604,6 +1604,8 @@ definitions:
     properties:
       appliedAt:
         type: string
+      appliedCoinExists:
+        type: boolean
       appliedCoinId:
         type: integer
       appliedDraftId:
@@ -1654,13 +1656,9 @@ definitions:
       job:
         $ref: '#/definitions/handlers.deepJobDTO'
       proposal:
-        items:
-          type: integer
-        type: array
+        type: object
       report:
-        items:
-          type: integer
-        type: array
+        type: object
       reused:
         type: boolean
     type: object
@@ -1681,9 +1679,7 @@ definitions:
             accepted:
               type: boolean
             ownerValue:
-              items:
-                type: integer
-              type: array
+              type: object
           type: object
         type: object
     type: object
@@ -2813,11 +2809,21 @@ definitions:
         type: string
       id:
         type: integer
+      sourceType:
+        $ref: '#/definitions/models.FeaturedCoinSourceType'
       summary:
         type: string
       userId:
         type: integer
     type: object
+  models.FeaturedCoinSourceType:
+    enum:
+    - owned
+    - wishlist
+    type: string
+    x-enum-varnames:
+    - FeaturedCoinSourceOwned
+    - FeaturedCoinSourceWishlist
   models.ImageType:
     enum:
     - obverse
@@ -10272,6 +10278,33 @@ paths:
       tags:
       - Deep Identification
   /deep-identification/jobs/{id}:
+    delete:
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a Deep Analysis job
+      tags:
+      - Deep Identification
     get:
       parameters:
       - description: Job ID
@@ -10435,9 +10468,8 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              type: integer
-            type: array
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:

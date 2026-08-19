@@ -104,6 +104,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/deep-analysis/history',
+      name: 'deep-analysis-history',
+      component: () => import('@/pages/DeepAnalysisHistoryPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/deep-analysis/:jobId?',
       name: 'deep-analysis',
       component: () => import('@/pages/DeepAnalysisPage.vue'),

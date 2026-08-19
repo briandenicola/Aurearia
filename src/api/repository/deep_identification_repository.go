@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"math"
 	"sort"
 	"strings"
@@ -21,6 +22,8 @@ type DeepIdentificationRepository struct {
 func NewDeepIdentificationRepository(db *gorm.DB) *DeepIdentificationRepository {
 	return &DeepIdentificationRepository{db: db}
 }
+
+var ErrDeepJobNotTerminal = errors.New("deep identification job is not terminal")
 
 var deepJobActiveStatuses = []models.DeepJobStatus{models.DeepJobStatusQueued, models.DeepJobStatusRunning}
 
@@ -230,6 +233,9 @@ func (r *DeepIdentificationRepository) SettleTerminal(jobID uint, expectedStatus
 			"failure_message": failureMessage,
 			"partial_success": newStatus == models.DeepJobStatusPartial,
 		}
+		if newStatus == models.DeepJobStatusCompleted || newStatus == models.DeepJobStatusPartial {
+			updates["expires_at"] = models.DeepIdentificationNoExpirySentinel
+		}
 		result := tx.Model(&models.DeepIdentificationJob{}).
 			Where("id = ? AND status IN ?", jobID, expectedStatuses).
 			Updates(updates)
@@ -280,14 +286,12 @@ func (r *DeepIdentificationRepository) UpdateProposalJSON(jobID, userID uint, pr
 	return result.RowsAffected > 0, nil
 }
 
-// ApplyJob performs the single conditional apply UPDATE (T111): WHERE
-// applied_at IS NULL, mirroring SettleTerminal's conditional-UPDATE race
-// guarantee (FR-019) for the sibling apply-once guarantee (FR-033). Only
-// one concurrent Apply call for a given job can ever win; the loser gets
-// RowsAffected == 0 and must report 409 already_applied.
+// ApplyJob updates the current job linkage for an owner-scoped apply action.
+// It intentionally does not guard on applied_at so callers can re-apply after
+// deleting or changing a previously linked target.
 func (r *DeepIdentificationRepository) ApplyJob(jobID, userID uint, appliedCoinID, appliedDraftID *uint, appliedAt time.Time) (bool, error) {
 	result := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("id = ? AND user_id = ? AND applied_at IS NULL", jobID, userID).
+		Where("id = ? AND user_id = ?", jobID, userID).
 		Updates(map[string]interface{}{
 			"applied_coin_id":  appliedCoinID,
 			"applied_draft_id": appliedDraftID,
@@ -348,26 +352,64 @@ type DeepJobListFilters struct {
 // Ordering by id rather than created_at avoids ambiguity when multiple jobs
 // are created within the same timestamp tick.
 func (r *DeepIdentificationRepository) ListJobs(userID uint, filters DeepJobListFilters) ([]models.DeepIdentificationJob, error) {
-	q := r.db.Where("user_id = ?", userID)
+	q := r.db.Model(&models.DeepIdentificationJob{}).
+		Select(`deep_identification_jobs.*, EXISTS (
+			SELECT 1
+			FROM coins
+			WHERE coins.id = deep_identification_jobs.applied_coin_id
+				AND coins.user_id = deep_identification_jobs.user_id
+		) AS applied_coin_exists`).
+		Where("deep_identification_jobs.user_id = ?", userID)
 	if filters.CoinID != nil {
-		q = q.Where("coin_id = ?", *filters.CoinID)
+		q = q.Where("deep_identification_jobs.coin_id = ?", *filters.CoinID)
 	}
 	if filters.Status != "" {
-		q = q.Where("status = ?", filters.Status)
+		q = q.Where("deep_identification_jobs.status = ?", filters.Status)
 	}
 	if filters.ActiveOnly {
-		q = q.Where("status IN ?", []models.DeepJobStatus{models.DeepJobStatusQueued, models.DeepJobStatusRunning})
+		q = q.Where("deep_identification_jobs.status IN ?", []models.DeepJobStatus{models.DeepJobStatusQueued, models.DeepJobStatusRunning})
 	}
 	if filters.BeforeID != nil {
-		q = q.Where("id < ?", *filters.BeforeID)
+		q = q.Where("deep_identification_jobs.id < ?", *filters.BeforeID)
 	}
-	q = q.Order("id DESC")
+	q = q.Order("deep_identification_jobs.id DESC")
 	if filters.Limit > 0 {
 		q = q.Limit(filters.Limit)
 	}
 	var jobs []models.DeepIdentificationJob
 	err := q.Find(&jobs).Error
 	return jobs, err
+}
+
+// DeleteJob hard-deletes one owner-scoped terminal job and all of its
+// provider/event/artifact rows in a single transaction.
+func (r *DeepIdentificationRepository) DeleteJob(userID, jobID uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var job models.DeepIdentificationJob
+		if err := tx.Where("id = ? AND user_id = ?", jobID, userID).First(&job).Error; err != nil {
+			return err
+		}
+		if !models.IsDeepJobTerminal(job.Status) {
+			return ErrDeepJobNotTerminal
+		}
+		if err := tx.Where("job_id = ?", jobID).Delete(&models.DeepIdentificationProviderRun{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("job_id = ?", jobID).Delete(&models.DeepIdentificationEvent{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("job_id = ?", jobID).Delete(&models.DeepIdentificationArtifact{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("id = ? AND user_id = ?", jobID, userID).Delete(&models.DeepIdentificationJob{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 // RequestCancel records a cancel request against an owner-scoped job. It
@@ -689,7 +731,8 @@ func latencyPercentiles(values []int64) models.DeepIdentificationLatencySummary 
 func (r *DeepIdentificationRepository) ListExpiredJobIDs(now time.Time) ([]uint, error) {
 	var jobIDs []uint
 	err := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("status IN ? AND expires_at IS NOT NULL AND expires_at < ?", deepJobTerminalStatuses(), now).
+		Where("status IN ? AND expires_at IS NOT NULL AND expires_at < ?",
+			[]models.DeepJobStatus{models.DeepJobStatusFailed, models.DeepJobStatusCancelled}, now).
 		Pluck("id", &jobIDs).Error
 	return jobIDs, err
 }

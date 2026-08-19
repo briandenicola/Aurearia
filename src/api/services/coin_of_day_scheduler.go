@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -13,24 +14,30 @@ import (
 // CoinOfDayScheduler runs a daily job that selects one coin per opted-in user
 // and sends them a "Coin of the Day" notification + Pushover alert.
 type CoinOfDayScheduler struct {
-	featuredRepo *repository.FeaturedCoinRepository
-	runRepo      *repository.CoinOfDayRunRepository
-	userRepo     *repository.UserRepository
-	coinRepo     *repository.CoinRepository
-	notifSvc     *NotificationService
-	settingsSvc  *SettingsService
-	logger       *Logger
-	stopCh       chan struct{}
-	once         sync.Once
-	workersOnce  sync.Once
-	queue        chan uint
-	lastPicked   map[uint]string // userID -> "YYYY-MM-DD" idempotency cache
-	mu           sync.RWMutex
+	featuredRepo          *repository.FeaturedCoinRepository
+	runRepo               *repository.CoinOfDayRunRepository
+	userRepo              *repository.UserRepository
+	coinRepo              *repository.CoinRepository
+	notifSvc              *NotificationService
+	settingsSvc           *SettingsService
+	wishlistSummaryClient wishlistFeaturedSummaryClient
+	logger                *Logger
+	stopCh                chan struct{}
+	once                  sync.Once
+	workersOnce           sync.Once
+	queue                 chan uint
+	lastPicked            map[uint]string // userID -> "YYYY-MM-DD" idempotency cache
+	mu                    sync.RWMutex
+}
+
+type wishlistFeaturedSummaryClient interface {
+	WishlistFeaturedSummary(ctx context.Context, req WishlistFeaturedSummaryProxyRequest) (string, error)
 }
 
 const (
-	coinOfDayRunQueueSize = 100
-	coinOfDayRunTimeout   = 30 * time.Minute
+	coinOfDayRunQueueSize  = 100
+	coinOfDayRunTimeout    = 30 * time.Minute
+	wishlistSummaryTimeout = 10 * time.Second
 )
 
 // NewCoinOfDayScheduler creates a new scheduler.
@@ -55,6 +62,10 @@ func NewCoinOfDayScheduler(
 		queue:        make(chan uint, coinOfDayRunQueueSize),
 		lastPicked:   make(map[uint]string),
 	}
+}
+
+func (s *CoinOfDayScheduler) SetWishlistSummaryClient(client wishlistFeaturedSummaryClient) {
+	s.wishlistSummaryClient = client
 }
 
 func (s *CoinOfDayScheduler) StartWorkers(workerCount int) {
@@ -259,7 +270,7 @@ func (s *CoinOfDayScheduler) runCycleWithTrigger(triggerType string) (int, int, 
 			continue
 		}
 
-		coinID, err := s.featuredRepo.PickNextCoinID(user.ID)
+		coinID, err := s.featuredRepo.PickNextCoinID(user.ID, user.CoinOfDayIncludeWishlist)
 		if err != nil {
 			s.logger.Error("scheduler", "Failed to pick coin for user %d: %v", user.ID, err)
 			errs++
@@ -278,11 +289,17 @@ func (s *CoinOfDayScheduler) runCycleWithTrigger(triggerType string) (int, int, 
 			continue
 		}
 
+		sourceType := models.FeaturedCoinSourceOwned
 		summary := buildCoinSummary(coin)
+		if coin.IsWishlist {
+			sourceType = models.FeaturedCoinSourceWishlist
+			summary = s.buildWishlistSummary(user, coin)
+		}
 
 		fc := &models.FeaturedCoin{
 			UserID:     user.ID,
 			CoinID:     coinID,
+			SourceType: sourceType,
 			Summary:    summary,
 			FeaturedAt: time.Now(),
 		}
@@ -346,4 +363,47 @@ func buildCoinSummary(coin *models.Coin) string {
 		return coin.Name
 	}
 	return strings.Join(bits, " ")
+}
+
+func (s *CoinOfDayScheduler) buildWishlistSummary(user models.User, coin *models.Coin) string {
+	fallback := buildWishlistFallbackSummary(coin)
+	if s.wishlistSummaryClient == nil {
+		return fallback
+	}
+	llm, err := s.settingsSvc.ResolveLLMConfig()
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("scheduler", "Wishlist featured summary fallback for user %d: llm config unavailable: %v", user.ID, err)
+		}
+		return fallback
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), wishlistSummaryTimeout)
+	defer cancel()
+	summary, err := s.wishlistSummaryClient.WishlistFeaturedSummary(ctx, WishlistFeaturedSummaryProxyRequest{
+		LLM: llm,
+		Coin: WishlistFeaturedSummaryCoinProxy{
+			Name:            coin.Name,
+			Era:             string(coin.Era),
+			Category:        string(coin.Category),
+			Denomination:    coin.Denomination,
+			Ruler:           coin.Ruler,
+			Mint:            coin.Mint,
+			ObverseAnalysis: coin.ObverseAnalysis,
+			ReverseAnalysis: coin.ReverseAnalysis,
+			AIAnalysis:      coin.AIAnalysis,
+		},
+		UserDisplayName: user.Username,
+	})
+	if err != nil || strings.TrimSpace(summary) == "" {
+		if s.logger != nil {
+			s.logger.Warn("scheduler", "Wishlist featured summary fallback for user %d coin %d: %v", user.ID, coin.ID, err)
+		}
+		return fallback
+	}
+	return summary
+}
+
+func buildWishlistFallbackSummary(coin *models.Coin) string {
+	return "From your wishlist — " + buildCoinSummary(coin)
 }

@@ -25,6 +25,7 @@ MAX_PORTFOLIO_LIST_ITEMS = 200
 MAX_TOP_COINS = 100
 MAX_AVAILABILITY_ITEMS = 10
 MAX_ALERT_CANDIDATES = 50
+MAX_WISHLIST_FEATURED_SUMMARY_LENGTH = 500
 MAX_SET_BUILDER_PROMPT_LENGTH = 500
 MAX_SET_BUILDER_FEEDBACK_LENGTH = 1000
 MAX_SET_BUILDER_MAX_TURNS = 8
@@ -50,6 +51,9 @@ BoundedSetBuilderPrompt = Annotated[
     str, StringConstraints(min_length=1, max_length=MAX_SET_BUILDER_PROMPT_LENGTH)
 ]
 BoundedSetBuilderFeedback = Annotated[str, StringConstraints(max_length=MAX_SET_BUILDER_FEEDBACK_LENGTH)]
+BoundedWishlistFeaturedSummary = Annotated[
+    str, StringConstraints(max_length=MAX_WISHLIST_FEATURED_SUMMARY_LENGTH)
+]
 
 
 class StrictRequestModel(BaseModel):
@@ -231,6 +235,28 @@ class BidMarketSignalRequest(StrictRequestModel):
 
     llm: LLMConfig
     coin: CoinData
+
+
+class WishlistFeaturedSummaryCoin(StrictRequestModel):
+    """Wishlist coin context passed from Go for featured-summary drafting."""
+
+    name: BoundedName
+    era: BoundedName = ""
+    category: BoundedName = ""
+    denomination: BoundedName = ""
+    ruler: BoundedName = ""
+    mint: BoundedName = ""
+    obverse_analysis: BoundedNotes = ""
+    reverse_analysis: BoundedNotes = ""
+    ai_analysis: BoundedNotes = ""
+
+
+class WishlistFeaturedSummaryRequest(StrictRequestModel):
+    """Request to produce a concise, factual wishlist featured-coin rationale."""
+
+    llm: LLMConfig
+    coin: WishlistFeaturedSummaryCoin
+    user_display_name: BoundedName = ""
 
 
 class IntakeDraftRequest(StrictRequestModel):

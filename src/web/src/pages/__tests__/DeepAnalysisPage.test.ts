@@ -4,12 +4,14 @@ import DeepAnalysisPage from '../DeepAnalysisPage.vue'
 import {
   applyDeepIdentificationProposal,
   cancelDeepIdentificationJob,
+  deleteDeepIdentificationJob,
   getDeepIdentificationJob,
   patchDeepIdentificationProposal,
   retryDeepIdentificationJob,
 } from '@/api/client'
 
 const routerPush = vi.hoisted(() => vi.fn())
+const showConfirmMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/client', () => ({
   getDeepIdentificationJob: vi.fn(),
@@ -18,8 +20,16 @@ vi.mock('@/api/client', () => ({
   retryDeepIdentificationJob: vi.fn(),
   patchDeepIdentificationProposal: vi.fn(),
   applyDeepIdentificationProposal: vi.fn(),
+  deleteDeepIdentificationJob: vi.fn(),
   refreshAccessToken: vi.fn(),
   getApiErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
+}))
+
+vi.mock('@/composables/useDialog', () => ({
+  useDialog: () => ({
+    showConfirm: showConfirmMock,
+    showAlert: vi.fn(),
+  }),
 }))
 
 vi.mock('vue-router', () => ({
@@ -50,6 +60,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   sessionStorage.clear()
   vi.clearAllMocks()
+  showConfirmMock.mockReset()
 })
 
 describe('DeepAnalysisPage', () => {
@@ -351,5 +362,143 @@ describe('DeepAnalysisPage', () => {
 
     expect(wrapper.text()).not.toContain('private-hint.jpg')
     expect(wrapper.find('img[src*="private-hint"]').exists()).toBe(false)
+  })
+
+  it('shows the Delete button only for terminal-state jobs', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: { job: runningJob() },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    expect(wrapper.find('button[aria-label="Delete this Deep Analysis run"]').exists()).toBe(false)
+  })
+
+  it('deletes the job after confirmation and navigates to history', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: { job: terminalJob('completed') },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.mocked(deleteDeepIdentificationJob).mockResolvedValue({ data: undefined } as Awaited<ReturnType<typeof deleteDeepIdentificationJob>>)
+    showConfirmMock.mockResolvedValue(true)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    const deleteButton = wrapper.find('button[aria-label="Delete this Deep Analysis run"]')
+    expect(deleteButton.exists()).toBe(true)
+    await deleteButton.trigger('click')
+    await flushPromises()
+
+    expect(showConfirmMock).toHaveBeenCalled()
+    expect(deleteDeepIdentificationJob).toHaveBeenCalledWith(9)
+    expect(routerPush).toHaveBeenCalledWith('/deep-analysis/history')
+  })
+
+  it('does not delete when the confirm dialog is dismissed', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: { job: terminalJob('completed') },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    showConfirmMock.mockResolvedValue(false)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    await wrapper.find('button[aria-label="Delete this Deep Analysis run"]').trigger('click')
+    await flushPromises()
+
+    expect(deleteDeepIdentificationJob).not.toHaveBeenCalled()
+    expect(routerPush).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an accessible error when delete fails', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: { job: terminalJob('completed') },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.mocked(deleteDeepIdentificationJob).mockRejectedValue(new Error('delete boom'))
+    showConfirmMock.mockResolvedValue(true)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    await wrapper.find('button[aria-label="Delete this Deep Analysis run"]').trigger('click')
+    await flushPromises()
+
+    expect(routerPush).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('delete boom')
+  })
+
+  it('re-shows the proposal editor when the applied coin no longer exists (deleted-coin re-apply)', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: {
+        job: { ...terminalJob('completed'), source: 'saved_coin' as const, appliedAt: '2030-01-02T00:00:00Z', appliedCoinId: 55, appliedCoinExists: false },
+        report: {
+          schemaVersion: 1,
+          narrative: 'Identification completed.',
+          coverage: [],
+          partialSuccess: false,
+          generatedAt: '2030-01-01T00:00:00Z',
+        },
+        proposal: {
+          schemaVersion: 1,
+          fields: {
+            notes: { proposed: 'note', ownerEdited: false, ownerValue: null, accepted: true },
+          },
+        },
+      },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('linked coin was removed')
+    const applyButton = wrapper.findAll('button').find((button) => button.text().includes('Apply to Coin'))
+    expect(applyButton).toBeDefined()
+  })
+
+  it('applies a repeated click idempotently, showing the resolved linkage without treating it as an error', async () => {
+    const jobBeforeApply = {
+      data: {
+        job: { ...terminalJob('completed'), source: 'saved_coin' as const },
+        report: {
+          schemaVersion: 1,
+          narrative: 'Identification completed.',
+          coverage: [],
+          partialSuccess: false,
+          generatedAt: '2030-01-01T00:00:00Z',
+        },
+        proposal: {
+          schemaVersion: 1,
+          fields: {
+            notes: { proposed: 'note', ownerEdited: false, ownerValue: null, accepted: true },
+          },
+        },
+      },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>
+    const jobAfterApply = {
+      data: { job: { ...terminalJob('completed'), source: 'saved_coin' as const, appliedAt: '2030-01-02T00:00:00Z', appliedCoinId: 42, appliedCoinExists: true } },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>
+    vi.mocked(getDeepIdentificationJob).mockResolvedValueOnce(jobBeforeApply).mockResolvedValueOnce(jobAfterApply)
+    vi.mocked(applyDeepIdentificationProposal).mockResolvedValue({
+      data: { jobId: 9, coinId: 42, appliedFields: ['notes'], appliedAt: '2030-01-02T00:00:00Z' },
+    } as Awaited<ReturnType<typeof applyDeepIdentificationProposal>>)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    const applyButton = wrapper.findAll('button').find((button) => button.text().includes('Apply to Coin'))
+    expect(applyButton).toBeDefined()
+    await applyButton!.trigger('click')
+    await flushPromises()
+
+    expect(applyDeepIdentificationProposal).toHaveBeenCalledWith(9, { target: 'coin' })
+    expect(wrapper.text()).toContain('Applied to coin')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 })

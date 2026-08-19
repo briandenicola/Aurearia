@@ -14,6 +14,7 @@ class StrictResponseModel(BaseModel):
 
 
 MAX_SET_BUILDER_SLOTS_RESPONSE = 300
+MAX_WISHLIST_FEATURED_SUMMARY_LENGTH = 500
 
 
 class CandidateReference(BaseModel):
@@ -113,6 +114,12 @@ class MarketSignalResponse(StrictResponseModel):
     rationale: Annotated[str, StringConstraints(max_length=1000)] = ""
     sources: list[Annotated[str, StringConstraints(max_length=2048)]] = Field(default_factory=list, max_length=5)
     degraded: bool = False
+
+
+class WishlistFeaturedSummaryResponse(StrictResponseModel):
+    """Concise wishlist featured-coin rationale."""
+
+    summary: Annotated[str, StringConstraints(min_length=1, max_length=MAX_WISHLIST_FEATURED_SUMMARY_LENGTH)]
 
 
 # Wishlist search alert discovery DTOs.
@@ -356,4 +363,3 @@ class DeepSynthesis(StrictResponseModel):
     # key is ignored by existing code (additive-safe).
     image_hypothesis: CoinHypothesis | None = None
     partial_success: bool = False
-

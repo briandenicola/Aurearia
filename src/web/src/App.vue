@@ -74,12 +74,12 @@
                 :size="16"
                 class="ml-auto shrink-0 text-text-muted transition-transform"
                 :class="{
-                  'rotate-180': (item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded) || (item.id === 'sets' && setsExpanded)
+                  'rotate-180': (item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded) || (item.id === 'sets' && setsExpanded) || (item.id === 'lookup' && lookupExpanded)
                 }"
               />
             </component>
             <div
-              v-if="item.children?.length && !editMode && ((item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded) || (item.id === 'sets' && setsExpanded))"
+              v-if="item.children?.length && !editMode && ((item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded) || (item.id === 'sets' && setsExpanded) || (item.id === 'lookup' && lookupExpanded))"
               class="flex flex-col pt-[0.15rem] pb-[0.35rem]"
               :aria-label="`${item.label} views`"
             >
@@ -228,6 +228,7 @@ const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
 const setsExpanded = ref(false)
+const lookupExpanded = ref(false)
 const agentFabPosition = ref<{ x: number; y: number } | null>(null)
 const isDraggingAgentFab = ref(false)
 const agentFabSuppressClick = ref(false)
@@ -260,7 +261,17 @@ const defaultNavItems: NavItem[] = [
     ],
   },
   { id: 'add-coin', label: 'Add Coin', icon: markRaw(CirclePlus), to: '/add', visible: isPwa },
-  { id: 'lookup', label: 'Identify Coin', icon: markRaw(Search), to: '/lookup', visible: true },
+  {
+    id: 'lookup',
+    label: 'Identify Coin',
+    icon: markRaw(Search),
+    to: '/lookup',
+    visible: true,
+    children: [
+      { id: 'lookup-identify', label: 'Identify Coin', to: '/lookup' },
+      { id: 'lookup-history', label: 'Analysis History', to: '/deep-analysis/history' },
+    ],
+  },
   { id: 'wishlist', label: 'Wishlist', icon: markRaw(Bookmark), to: '/wishlist', visible: true },
   { id: 'sold', label: 'Sold', icon: markRaw(BadgeDollarSign), to: '/sold', visible: true },
   { id: 'auctions', label: 'Auctions', icon: markRaw(Gavel), to: '/auctions', visible: true },
@@ -372,6 +383,12 @@ function handleNavClick(item: NavItem) {
   } else if (item.id === 'sets' && item.children?.length) {
     setsExpanded.value = !setsExpanded.value
     if (!setsExpanded.value && item.to) {
+      router.push(item.to)
+      sidebarOpen.value = false
+    }
+  } else if (item.id === 'lookup' && item.children?.length) {
+    lookupExpanded.value = !lookupExpanded.value
+    if (!lookupExpanded.value && item.to) {
       router.push(item.to)
       sidebarOpen.value = false
     }

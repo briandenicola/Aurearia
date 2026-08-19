@@ -4,6 +4,9 @@
       <div class="page-header">
         <h1>Deep Analysis</h1>
         <div class="pwa-actions">
+          <RouterLink class="pwa-icon-btn" to="/deep-analysis/history" title="Analysis History" aria-label="Analysis History">
+            <History :size="22" />
+          </RouterLink>
           <RouterLink class="pwa-icon-btn" to="/lookup" title="Identify Coin" aria-label="Identify Coin">
             <Search :size="22" />
           </RouterLink>
@@ -21,7 +24,22 @@
         <section v-else-if="job" class="card grid min-w-0 gap-4 overflow-hidden">
           <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <h2 class="m-0 text-lg text-heading">Job #{{ job.id }}</h2>
-            <BaseBadge>{{ job.status }}</BaseBadge>
+            <div class="flex items-center gap-2">
+              <BaseBadge>{{ job.status }}</BaseBadge>
+              <BaseButton
+                v-if="canDelete"
+                variant="danger"
+                size="sm"
+                class="min-h-[44px]"
+                :loading="deep.deleting.value"
+                :disabled="deep.deleting.value"
+                aria-label="Delete this Deep Analysis run"
+                @click="onDelete"
+              >
+                <Trash2 v-if="!deep.deleting.value" :size="16" aria-hidden="true" />
+                Delete
+              </BaseButton>
+            </div>
           </div>
           <p class="m-0 text-body text-text-secondary">
             Deep Analysis routes eligible reference providers for this coin. NGC remains link-out only and
@@ -79,7 +97,10 @@
             <DeepReportPanel :report="deep.report.value" />
           </template>
 
-          <template v-if="isTerminal && deep.proposal.value && !job.appliedAt">
+          <template v-if="isTerminal && deep.proposal.value && showProposalEditor">
+            <p v-if="needsReapply" role="status" class="m-0 text-body text-gold">
+              The linked coin was removed from your collection. Apply again to relink these results.
+            </p>
             <DeepProposalEditor
               :proposal="deep.proposal.value"
               :applying="deep.applying.value"
@@ -102,9 +123,10 @@
             <RouterLink class="btn btn-secondary justify-self-start" to="/lookup">Identify Coin</RouterLink>
           </div>
 
-          <p v-else-if="job.appliedAt" class="text-body text-text-secondary" role="status">
+          <p v-else-if="job.appliedAt && !needsReapply" class="text-body text-text-secondary" role="status">
             {{ appliedStatusText }}
           </p>
+          <p v-if="deleteError" role="alert" class="text-body text-byzantine">{{ deleteError }}</p>
         </section>
       </template>
     </div>
@@ -114,7 +136,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Search, RefreshCw } from 'lucide-vue-next'
+import { Search, RefreshCw, History, Trash2 } from 'lucide-vue-next'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import DeepAnalysisProgressTimeline from '@/components/deep-identification/DeepAnalysisProgressTimeline.vue'
@@ -123,6 +145,7 @@ import DeepProposalEditor from '@/components/deep-identification/DeepProposalEdi
 import DeepProviderCoverageList from '@/components/deep-identification/DeepProviderCoverageList.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
 import { useDeepIdentificationStream } from '@/composables/useDeepIdentificationStream'
+import { useDialog } from '@/composables/useDialog'
 import { isDeepProposalConfidenceAccepted } from '@/utils/deepProposalAcceptance'
 import type {
   DeepApplyTarget,
@@ -145,6 +168,7 @@ const deep = useDeepIdentification()
 const { job, loading, error: loadError, refresh } = deep
 const stream = useDeepIdentificationStream()
 const streamError = stream.error
+const { showConfirm } = useDialog()
 
 // The synthesized `terminal` frame's payload.status is the authoritative
 // terminal state (contract §2); fall back to the last-known job snapshot
@@ -309,6 +333,37 @@ const appliedStatusText = computed(() => {
   const action = job.value.source === 'saved_coin' ? 'Applied to coin' : 'Saved as draft'
   return `${action} on ${new Date(job.value.appliedAt).toLocaleString()}.`
 })
+
+// Spec 354 FR-007..011: a "coin" target job that was applied but whose
+// linked coin was subsequently deleted is treated as re-appliable rather
+// than permanently "done" — `appliedCoinExists` is the server-computed
+// signal (T024/T026) that distinguishes that case from a still-linked
+// draft/coin, which stays hidden behind the applied-status message.
+const needsReapply = computed(() =>
+  Boolean(job.value?.appliedAt) && job.value?.source === 'saved_coin' && job.value?.appliedCoinExists === false,
+)
+const showProposalEditor = computed(() => !job.value?.appliedAt || needsReapply.value)
+
+const deleteError = ref('')
+const canDelete = computed(() => ['completed', 'partial', 'failed', 'cancelled'].includes(terminalStatus.value ?? ''))
+
+async function onDelete() {
+  if (jobId.value === null) return
+  const confirmed = await showConfirm(
+    'Delete this Deep Analysis run? The report, images, and history for this run will be permanently removed. Any coin already saved from it is not affected.',
+    { title: 'Delete Deep Analysis Run', variant: 'danger' },
+  )
+  if (!confirmed) return
+  deleteError.value = ''
+  const ok = await deep.deleteJob(jobId.value)
+  if (!ok) {
+    deleteError.value = deep.error.value || 'Unable to delete this Deep Analysis run.'
+    return
+  }
+  stopStreamIntentionally()
+  sessionStorage.removeItem(storageKey(jobId.value))
+  await router.push('/deep-analysis/history')
+}
 
 async function onUpdateProposalField(name: string, edit: DeepProposalFieldEdit) {
   if (jobId.value === null) return

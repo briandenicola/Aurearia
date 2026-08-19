@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -614,5 +615,181 @@ func TestDeepIdentificationRepository_EventPruningPreservesReport(t *testing.T) 
 	}
 	if eventCount != 0 {
 		t.Fatalf("expected all pre-cutoff events pruned, got %d remaining", eventCount)
+	}
+}
+
+func TestDeepIdentificationRepository_SettleTerminalUsesSentinelForCompletedAndPartial(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "settle-sentinel")
+
+	makeJob := func(fp string) uint {
+		job := &models.DeepIdentificationJob{
+			UserID:           owner.ID,
+			Source:           models.DeepJobSourceIntake,
+			Status:           models.DeepJobStatusQueued,
+			InputFingerprint: fp,
+			ExpiresAt:        time.Now().Add(48 * time.Hour),
+		}
+		created, _, err := repo.CreateJob(job)
+		if err != nil {
+			t.Fatalf("CreateJob failed: %v", err)
+		}
+		return created.ID
+	}
+
+	completedID := makeJob("fp-sentinel-completed")
+	if _, err := repo.SettleTerminal(completedID, deepJobActiveStatuses, models.DeepJobStatusCompleted, "{}", "{}", "", ""); err != nil {
+		t.Fatalf("SettleTerminal completed failed: %v", err)
+	}
+	partialID := makeJob("fp-sentinel-partial")
+	if _, err := repo.SettleTerminal(partialID, deepJobActiveStatuses, models.DeepJobStatusPartial, "{}", "{}", "", ""); err != nil {
+		t.Fatalf("SettleTerminal partial failed: %v", err)
+	}
+
+	var completed models.DeepIdentificationJob
+	if err := db.First(&completed, completedID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !completed.ExpiresAt.Equal(models.DeepIdentificationNoExpirySentinel) {
+		t.Fatalf("expected completed expires_at sentinel, got %s", completed.ExpiresAt.UTC())
+	}
+	var partial models.DeepIdentificationJob
+	if err := db.First(&partial, partialID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !partial.ExpiresAt.Equal(models.DeepIdentificationNoExpirySentinel) {
+		t.Fatalf("expected partial expires_at sentinel, got %s", partial.ExpiresAt.UTC())
+	}
+}
+
+func TestDeepIdentificationRepository_SettleTerminalPreservesExpiryForFailed(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "settle-failed")
+
+	initialExpiry := time.Now().Add(36 * time.Hour).UTC().Truncate(time.Second)
+	job := &models.DeepIdentificationJob{
+		UserID:           owner.ID,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusQueued,
+		InputFingerprint: "fp-sentinel-failed",
+		ExpiresAt:        initialExpiry,
+	}
+	created, _, err := repo.CreateJob(job)
+	if err != nil {
+		t.Fatalf("CreateJob failed: %v", err)
+	}
+	if _, err := repo.SettleTerminal(created.ID, deepJobActiveStatuses, models.DeepJobStatusFailed, "", "", "x", "err"); err != nil {
+		t.Fatalf("SettleTerminal failed failed: %v", err)
+	}
+
+	var reloaded models.DeepIdentificationJob
+	if err := db.First(&reloaded, created.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.ExpiresAt.UTC().Truncate(time.Second).Equal(initialExpiry) {
+		t.Fatalf("expected failed expiry to be preserved (%s), got %s", initialExpiry, reloaded.ExpiresAt.UTC())
+	}
+}
+
+func TestDeepIdentificationRepository_ListJobsIncludesAppliedCoinExistsProjection(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "projection-owner")
+
+	coin := models.Coin{
+		UserID:       owner.ID,
+		Name:         "Projection Coin",
+		Category:     "Roman",
+		Material:     "Silver",
+		IsWishlist:   true,
+		IsPrivate:    true,
+		Denomination: "Denarius",
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("seed coin: %v", err)
+	}
+	job := &models.DeepIdentificationJob{
+		UserID:           owner.ID,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: "fp-projection",
+		ExpiresAt:        models.DeepIdentificationNoExpirySentinel,
+		AppliedCoinID:    &coin.ID,
+		AppliedAt:        ptrTime(time.Now()),
+	}
+	if err := db.Create(job).Error; err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+
+	list, err := repo.ListJobs(owner.ID, DeepJobListFilters{})
+	if err != nil {
+		t.Fatalf("ListJobs failed: %v", err)
+	}
+	if len(list) != 1 || !list[0].AppliedCoinExists {
+		t.Fatalf("expected appliedCoinExists=true for existing linked coin, got %+v", list)
+	}
+
+	if err := db.Delete(&coin).Error; err != nil {
+		t.Fatalf("delete coin: %v", err)
+	}
+	list, err = repo.ListJobs(owner.ID, DeepJobListFilters{})
+	if err != nil {
+		t.Fatalf("ListJobs after delete failed: %v", err)
+	}
+	if len(list) != 1 || list[0].AppliedCoinExists {
+		t.Fatalf("expected appliedCoinExists=false after coin deletion, got %+v", list)
+	}
+}
+
+func TestDeepIdentificationRepository_DeleteJobOwnerTerminalOnly(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "delete-owner")
+
+	job := &models.DeepIdentificationJob{
+		UserID:           owner.ID,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusCompleted,
+		InputFingerprint: "fp-delete-terminal",
+		ExpiresAt:        models.DeepIdentificationNoExpirySentinel,
+	}
+	if _, _, err := repo.CreateJob(job); err != nil {
+		t.Fatalf("CreateJob failed: %v", err)
+	}
+	if err := db.Create(&models.DeepIdentificationProviderRun{JobID: job.ID, UserID: owner.ID, Provider: "numista", Status: models.DeepProviderRunContributed}).Error; err != nil {
+		t.Fatalf("seed provider run: %v", err)
+	}
+	if err := db.Create(&models.DeepIdentificationEvent{JobID: job.ID, UserID: owner.ID, Seq: 1, Type: models.DeepEventProgress, PayloadJSON: "{}"}).Error; err != nil {
+		t.Fatalf("seed event: %v", err)
+	}
+	if err := db.Create(&models.DeepIdentificationArtifact{JobID: job.ID, UserID: owner.ID, Role: models.DeepArtifactRoleHint, Origin: models.DeepArtifactOriginUploaded, FilePath: "tmp", ContentHash: "hash"}).Error; err != nil {
+		t.Fatalf("seed artifact: %v", err)
+	}
+
+	if err := repo.DeleteJob(owner.ID, job.ID); err != nil {
+		t.Fatalf("DeleteJob failed: %v", err)
+	}
+	var jobs int64
+	if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", job.ID).Count(&jobs).Error; err != nil {
+		t.Fatalf("count jobs: %v", err)
+	}
+	if jobs != 0 {
+		t.Fatalf("expected hard-deleted job, got count=%d", jobs)
+	}
+
+	running := &models.DeepIdentificationJob{
+		UserID:           owner.ID,
+		Source:           models.DeepJobSourceIntake,
+		Status:           models.DeepJobStatusRunning,
+		InputFingerprint: "fp-delete-running",
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+	}
+	if _, _, err := repo.CreateJob(running); err != nil {
+		t.Fatalf("CreateJob running failed: %v", err)
+	}
+	if err := repo.DeleteJob(owner.ID, running.ID); !errors.Is(err, ErrDeepJobNotTerminal) {
+		t.Fatalf("expected ErrDeepJobNotTerminal, got %v", err)
 	}
 }

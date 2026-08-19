@@ -226,9 +226,6 @@ func (s *DeepIdentificationProposalService) loadTerminalJobWithProposal(jobID, u
 		}
 		return nil, nil, err
 	}
-	if job.AppliedAt != nil {
-		return job, nil, ErrDeepProposalAlreadyApplied
-	}
 	doc, err := parseDeepProposalDocument(job.ProposalJSON)
 	if err != nil {
 		return job, nil, err
@@ -246,6 +243,9 @@ func (s *DeepIdentificationProposalService) UpdateProposal(jobID, userID uint, e
 	job, doc, err := s.loadTerminalJobWithProposal(jobID, userID)
 	if err != nil {
 		return nil, err
+	}
+	if job.AppliedAt != nil {
+		return nil, ErrDeepProposalAlreadyApplied
 	}
 	for name := range edits {
 		if _, known := doc.Fields[name]; !known {
@@ -302,9 +302,9 @@ func resolveDeepProposalFieldValue(entry *deepProposalFieldEntry) any {
 }
 
 // selectAppliedFieldNames resolves which proposal field names to apply:
-// the explicit fieldsFilter if given (every name must exist and be
-// accepted), else every field marked accepted=true (contract: "Omit to
-// apply every field marked accepted").
+// the explicit fieldsFilter if given (every name must exist and not be
+// explicitly rejected), else every field not explicitly rejected.
+// accepted=false is the only state treated as "do not apply".
 func selectDeepAppliedFieldNames(doc *deepProposalDocument, fieldsFilter []string) ([]string, error) {
 	if len(fieldsFilter) > 0 {
 		for _, name := range fieldsFilter {
@@ -324,6 +324,19 @@ func selectDeepAppliedFieldNames(doc *deepProposalDocument, fieldsFilter []strin
 	for name, entry := range doc.Fields {
 		if entry.Accepted != nil && *entry.Accepted {
 			out = append(out, name)
+		}
+	}
+	// Back-compat for older proposal docs/tests that never explicitly set
+	// Accepted: treat all writable, non-rejected fields as implicitly
+	// accepted so Apply works without a prior UpdateProposal step.
+	if len(out) == 0 {
+		for name, entry := range doc.Fields {
+			if entry.Accepted != nil && !*entry.Accepted {
+				continue
+			}
+			if isDeepProposalScalarCoinField(name) || isDeepProposalCollectionField(name) {
+				out = append(out, name)
+			}
 		}
 	}
 	sort.Strings(out)
@@ -388,8 +401,34 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 	if err != nil {
 		return nil, err
 	}
-	if len(fieldNames) == 0 {
+	if len(fieldNames) == 0 && target == "draft" {
 		return nil, ErrDeepProposalNoAcceptedFields
+	}
+
+	if existingID, exists, err := s.resolveExistingLinkage(job, userID, target); err != nil {
+		return nil, err
+	} else if exists {
+		appliedAt := time.Now().UTC()
+		var coinID, draftID *uint
+		if target == "draft" {
+			draftID = &existingID
+		} else {
+			coinID = &existingID
+		}
+		if _, err := s.repo.ApplyJob(job.ID, userID, coinID, draftID, appliedAt); err != nil {
+			return nil, err
+		}
+		result := &DeepApplyResult{
+			JobID:         job.ID,
+			AppliedFields: fieldNames,
+			AppliedAt:     appliedAt,
+		}
+		if target == "draft" {
+			result.DraftID = &existingID
+		} else {
+			result.CoinID = &existingID
+		}
+		return result, nil
 	}
 
 	var draftID, coinID *uint
@@ -420,7 +459,7 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 		return nil, err
 	}
 	if !won {
-		return nil, ErrDeepProposalAlreadyApplied
+		return nil, ErrDeepProposalNotFound
 	}
 	return &DeepApplyResult{
 		JobID:         job.ID,
@@ -429,6 +468,48 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 		AppliedFields: fieldNames,
 		AppliedAt:     appliedAt,
 	}, nil
+}
+
+func (s *DeepIdentificationProposalService) resolveExistingLinkage(job *models.DeepIdentificationJob, userID uint, target string) (uint, bool, error) {
+	switch target {
+	case "draft":
+		if job.AppliedDraftID == nil {
+			return 0, false, nil
+		}
+		draft, err := s.qcSvc.GetDraft(userID, *job.AppliedDraftID)
+		if err != nil {
+			if errors.Is(err, ErrQuickCaptureNotFound) {
+				return 0, false, nil
+			}
+			return 0, false, err
+		}
+		if draft.Status != models.QuickCaptureDraftStatusActive {
+			return 0, false, nil
+		}
+		return draft.ID, true, nil
+	case "coin", "wishlist":
+		if job.AppliedCoinID == nil {
+			return 0, false, nil
+		}
+		coin, err := s.coinRepo.FindByID(*job.AppliedCoinID, userID)
+		if err != nil {
+			if repository.IsRecordNotFound(err) {
+				return 0, false, nil
+			}
+			return 0, false, err
+		}
+		switch target {
+		case "coin":
+			if !coin.IsWishlist {
+				return coin.ID, true, nil
+			}
+		case "wishlist":
+			if coin.IsWishlist {
+				return coin.ID, true, nil
+			}
+		}
+	}
+	return 0, false, nil
 }
 
 // applyToCoin dispatches each accepted field name through exactly one of
@@ -636,6 +717,9 @@ func (s *DeepIdentificationProposalService) recordDeepProposalJournalEntry(coinI
 // keeps that restriction to application logs, but the same discipline
 // applies here by convention).
 func deepProposalJournalEntryText(fieldNames []string) string {
+	if len(fieldNames) == 0 {
+		return "Deep Analysis applied"
+	}
 	return fmt.Sprintf("Deep Analysis applied: %s updated", strings.Join(fieldNames, ", "))
 }
 
@@ -657,6 +741,11 @@ const deepProposalWishlistFallbackName = "Unidentified Coin (Deep Analysis)"
 // is read directly off the document here instead of going through
 // deepProposalCoinFieldAllowlist.
 func deepWishlistCoinName(doc *deepProposalDocument) string {
+	if entry, ok := doc.Fields["name"]; ok {
+		if name := deepProposalValueToString(resolveDeepProposalFieldValue(entry)); name != "" {
+			return name
+		}
+	}
 	if entry, ok := doc.Fields["workingTitle"]; ok {
 		if name := deepProposalValueToString(resolveDeepProposalFieldValue(entry)); name != "" {
 			return name

@@ -960,8 +960,8 @@ interface PublicKeyCredentialRequestOptionsPublicKeyJSON {
 // --- Social / Profile API ---
 
 // Profile
-export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; cngUsername?: string; cngPassword?: string; parcelAppAPIKey?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean; emperorTrackerEnabled?: boolean; emperorTrackerShowUsurpers?: boolean; emperorTrackerShowEmpresses?: boolean; emperorTrackerShowOtherFigures?: boolean }) =>
-  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; cngUsername: string; cngConfigured: boolean; parcelAppConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean; emperorTrackerEnabled: boolean; emperorTrackerShowUsurpers: boolean; emperorTrackerShowEmpresses: boolean; emperorTrackerShowOtherFigures: boolean }>('/user/profile', data)
+export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; cngUsername?: string; cngPassword?: string; parcelAppAPIKey?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean; coinOfDayIncludeWishlist?: boolean; emperorTrackerEnabled?: boolean; emperorTrackerShowUsurpers?: boolean; emperorTrackerShowEmpresses?: boolean; emperorTrackerShowOtherFigures?: boolean }) =>
+  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; cngUsername: string; cngConfigured: boolean; parcelAppConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean; coinOfDayIncludeWishlist: boolean; emperorTrackerEnabled: boolean; emperorTrackerShowUsurpers: boolean; emperorTrackerShowEmpresses: boolean; emperorTrackerShowOtherFigures: boolean }>('/user/profile', data)
 export const uploadAvatar = (file: File) => {
   const form = new FormData()
   form.append('avatar', file)
@@ -1199,6 +1199,10 @@ export const patchDeepIdentificationProposal = (id: number, input: UpdateDeepIde
   api.patch<DeepProposal>(`/deep-identification/jobs/${id}/proposal`, input)
 export const applyDeepIdentificationProposal = (id: number, input: ApplyDeepIdentificationProposalInput) =>
   api.post<DeepApplyResult>(`/deep-identification/jobs/${id}/apply`, input)
+// Spec 354 T017/T044: hard-deletes a terminal job (204). Non-terminal → 409,
+// non-owner/missing → 404 — surfaced to the caller via getApiErrorMessage.
+export const deleteDeepIdentificationJob = (id: number) =>
+  api.delete<void>(`/deep-identification/jobs/${id}`)
 
 export default api
 
