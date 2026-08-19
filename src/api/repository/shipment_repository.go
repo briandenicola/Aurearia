@@ -109,6 +109,7 @@ func (r *ShipmentRepository) ListSyncCandidates(carrier *models.ShipmentCarrier,
 	}
 	query := r.db.Model(&models.Shipment{}).
 		Where("manual_override_enabled = ?", false).
+		Where("current_status <> ?", models.ShipmentStatusDelivered).
 		Where("tracking_number <> ''")
 	if carrier != nil {
 		query = query.Where("carrier = ?", *carrier)
