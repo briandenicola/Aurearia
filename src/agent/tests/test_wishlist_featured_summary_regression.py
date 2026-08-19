@@ -186,4 +186,7 @@ def test_route_module_has_no_database_imports():
     source = inspect.getsource(wishlist_summary_module)
     lowered = source.lower()
     for forbidden in ("sqlalchemy", "sqlite3", "import psycopg", "from app.database", "import database"):
-        assert forbidden not in lowered, f"found forbidden DB-access token {forbidden!r} in wishlist_featured_summary module"
+        assert forbidden not in lowered, (
+            f"found forbidden DB-access token {forbidden!r} "
+            "in wishlist_featured_summary module"
+        )
