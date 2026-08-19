@@ -44,7 +44,12 @@
         </div>
 
         <div class="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
-          <button class="btn btn-secondary btn-sm" :disabled="syncing || shipment.carrier !== 'parcel'" @click="syncShipment">{{ syncing ? 'Checking...' : 'Check ParcelApp Now' }}</button>
+          <button
+            class="btn btn-secondary btn-sm"
+            :disabled="syncing || shipment.carrier !== 'parcel' || isDelivered"
+            :title="isDelivered ? 'Tracking is complete — this shipment was delivered' : undefined"
+            @click="syncShipment"
+          >{{ isDelivered ? 'Tracking Complete' : (syncing ? 'Checking...' : 'Check ParcelApp Now') }}</button>
           <button class="btn btn-danger btn-sm" :disabled="deleting" @click="removeShipment">{{ deleting ? 'Removing...' : 'Remove Shipment' }}</button>
         </div>
       </template>
@@ -67,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { deleteCoinShipment, getCoinShipment, setCoinShipmentManualOverride, syncCoinShipment, upsertCoinShipment } from '@/api/client'
 import type { Shipment, ShipmentCarrier, ShipmentStatus, ShipmentUpsertInput } from '@/types'
 
@@ -92,6 +97,12 @@ const form = reactive<ShipmentUpsertInput>({
 })
 
 const statusOptions: ShipmentStatus[] = ['pending', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'unknown']
+
+// Manual ParcelApp checks are pointless once a shipment is delivered — the terminal
+// status won't change on the carrier side (spec 340 delivered-terminal-state). This is
+// reactive off shipment.currentStatus, so switching status away from delivered (e.g. via
+// the manual override above) immediately re-enables the action.
+const isDelivered = computed(() => shipment.value?.currentStatus === 'delivered')
 
 function setMessage(next: string, isError = false) {
   message.value = next

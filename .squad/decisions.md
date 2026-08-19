@@ -4915,3 +4915,75 @@ All 37 new regression tests (11 Python, 16 Go, 10 Vue) + pre-existing suites pas
 **Author:** Brian DeNicola (via Copilot)
 **What:** Provide concise milestone updates while background agents work
 **Why:** User request — captured for team memory
+
+---
+
+### Decision: Feature 340 — Shipment Delivered Terminal-State Sync Exclusion
+
+**Date:** 2026-08-19
+**Author:** Cassius (Backend Developer)
+**Requested by:** Brian DeNicola
+**Feature:** Spec 340 coin-shipment-tracking (follow-up)
+**Status:** IMPLEMENTED — dual-guard (repository + service) in place, all tests passing, beta push pending
+
+## Directive
+
+Stop all shipment update checks once a shipment reaches `delivered`, regardless of whether `delivered` came from manual override or carrier sync. Non-delivered statuses (including `exception`, `returned`, `in_transit`) must remain sync-eligible.
+
+## Decision
+
+Implement a dual guard:
+
+1. **Repository candidate filter** — `.Where("current_status <> ?", models.ShipmentStatusDelivered)` in `ListSyncCandidates` excludes delivered shipments from automatic scheduler polling
+2. **Service-level direct-sync guard** — `syncSingleShipment` pre-checks and short-circuits before any carrier/ParcelApp call when `shipment.CurrentStatus == models.ShipmentStatusDelivered`
+
+Both guards are status-based only (not sticky flags), so if a user later changes status away from `delivered`, normal sync eligibility resumes automatically.
+
+## Why This Shape
+
+- Preserves layered architecture: repository controls polling; service protects direct/manual sync
+- Keeps API contract simple/idempotent: manual sync on delivered returns current shipment (204 no-op) without carrier interaction
+- Avoids broad semantic changes: only `delivered` is terminal; all other statuses preserve existing behavior
+
+## Implementation
+
+- **Files modified:** `src/api/repository/shipment_repository.go`, `src/api/services/shipment_service.go`
+- **Test coverage:** 8 new regression tests (repository + services) covering delivered exclusion, non-delivered eligibility, reversion behavior, and manual sync guard across all carrier types including Parcel
+
+---
+
+### Decision: Brutus QA Verdict — Shipment Delivered Terminal-State (Spec 340 follow-up)
+
+**Date:** 2026-08-19
+**Author:** Brutus (Tester/QA)
+**Scope:** Independent regression coverage + final assembled-diff validation for Spec 340
+**Status:** APPROVE — no BLOCK — ready for beta push
+
+## Contract Verified
+
+1. ✓ Delivered shipments excluded from `ListSyncCandidates` regardless of manual-override source
+2. ✓ Non-delivered statuses remain sync-eligible
+3. ✓ Reverting status away from `delivered` resumes automatic-sync eligibility
+4. ✓ `SyncShipment` (manual sync) never calls carrier/ParcelApp for delivered, all carriers including Parcel
+5. ✓ `SyncCandidates` (automatic sync) skips delivered shipments unchanged
+
+## Coverage Added
+
+- **Go:** 8 new tests in dedicated files (repository + services)
+  - Repository: delivered excluded regardless of manual flag, all 7 non-delivered eligible, reversion resumes (3 tests)
+  - Services: manual sync guards all carriers including Parcel, automatic sync skips delivered (5 tests)
+- **Vue:** 5 tests for UI disable/relabel "Tracking Complete" when delivered, reactive re-enable on status change
+- **Assembled diff:** Cassius backend (2 production changes: repo filter + service guard), Aurelia frontend (1 component: computed + conditional button), proportional and scope-correct
+
+## Validation
+
+- `go build ./...` — clean
+- `go vet ./...` — clean
+- `go test ./... -count=1` — all 11 packages pass, 8 new Feature340 tests pass
+- `npx vitest run src/components/coin/__tests__/CoinShipmentSection.test.ts` — 5/5 pass
+- `npx vue-tsc --noEmit` — clean
+- No unrelated files touched; all pre-existing tests passing
+
+## Verdict
+
+APPROVE, no BLOCK. Ready for beta push.

@@ -321,6 +321,9 @@ func (s *ShipmentService) syncSingleShipment(ctx context.Context, shipment *mode
 	if shipment.ManualOverrideEnabled {
 		return shipment, nil
 	}
+	if shipment.CurrentStatus == models.ShipmentStatusDelivered {
+		return shipment, nil
+	}
 	if shipment.Carrier == models.ShipmentCarrierParcel {
 		return s.syncParcelShipment(ctx, shipment, "", allowParcelCreate)
 	}

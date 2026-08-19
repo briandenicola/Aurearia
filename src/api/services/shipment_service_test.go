@@ -21,11 +21,13 @@ type stubShipmentCarrierClient struct {
 	carrier   models.ShipmentCarrier
 	snapshots map[string]ShipmentTrackingSnapshot
 	err       error
+	calls     int
 }
 
 func (c *stubShipmentCarrierClient) Carrier() models.ShipmentCarrier { return c.carrier }
 
 func (c *stubShipmentCarrierClient) GetTracking(_ context.Context, trackingNumber string) (ShipmentTrackingSnapshot, error) {
+	c.calls++
 	if c.err != nil {
 		return ShipmentTrackingSnapshot{}, c.err
 	}
@@ -394,5 +396,112 @@ func TestShipmentService_SetManualOverride_DisablesSyncUpdates(t *testing.T) {
 	}
 	if !strings.Contains(journalEntries[0].Entry, "Shipment status updated to Exception") {
 		t.Fatalf("journal entry = %q, expected shipment status update", journalEntries[0].Entry)
+	}
+}
+
+func TestShipmentService_SyncShipment_DeliveredNoOpsAndSkipsCarrierCall(t *testing.T) {
+	now := time.Now().UTC()
+	stub := &stubShipmentCarrierClient{
+		carrier: models.ShipmentCarrierUSPS,
+		snapshots: map[string]ShipmentTrackingSnapshot{
+			"94001000": {
+				Carrier:             models.ShipmentCarrierUSPS,
+				TrackingNumber:      "94001000",
+				CurrentStatus:       models.ShipmentStatusOutForDelivery,
+				CurrentStatusSource: models.ShipmentStatusSourceAPI,
+				Events: []ShipmentTrackingEvent{{
+					EventKey:     "evt-1",
+					Status:       models.ShipmentStatusOutForDelivery,
+					StatusSource: models.ShipmentStatusSourceAPI,
+					OccurredAt:   now,
+				}},
+			},
+		},
+	}
+	h := setupShipmentServiceHarness(t, stub)
+	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierUSPS, "94001000", "", "")
+	if err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := h.service.SetManualOverride(h.user.ID, shipment.ID, false, models.ShipmentStatusPending, ""); err != nil {
+		t.Fatalf("disable manual override: %v", err)
+	}
+	if err := h.shipmentRepo.MarkSyncSuccess(
+		shipment.ID,
+		shipment.UserID,
+		models.ShipmentStatusDelivered,
+		models.ShipmentStatusSourceManual,
+		nil,
+		&now,
+	); err != nil {
+		t.Fatalf("mark delivered: %v", err)
+	}
+
+	updated, err := h.service.SyncShipment(context.Background(), shipment.ID, h.user.ID)
+	if err != nil {
+		t.Fatalf("sync delivered shipment: %v", err)
+	}
+	if updated.CurrentStatus != models.ShipmentStatusDelivered {
+		t.Fatalf("status = %s, want delivered", updated.CurrentStatus)
+	}
+	if stub.calls != 0 {
+		t.Fatalf("carrier calls = %d, want 0 for delivered shipment", stub.calls)
+	}
+}
+
+func TestShipmentService_SyncShipment_ResumesAfterStatusMovesOffDelivered(t *testing.T) {
+	now := time.Now().UTC()
+	stub := &stubShipmentCarrierClient{
+		carrier: models.ShipmentCarrierUSPS,
+		snapshots: map[string]ShipmentTrackingSnapshot{
+			"94001000": {
+				Carrier:             models.ShipmentCarrierUSPS,
+				TrackingNumber:      "94001000",
+				CurrentStatus:       models.ShipmentStatusOutForDelivery,
+				CurrentStatusSource: models.ShipmentStatusSourceAPI,
+				Events: []ShipmentTrackingEvent{{
+					EventKey:     "evt-1",
+					Status:       models.ShipmentStatusOutForDelivery,
+					StatusSource: models.ShipmentStatusSourceAPI,
+					OccurredAt:   now,
+				}},
+			},
+		},
+	}
+	h := setupShipmentServiceHarness(t, stub)
+	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierUSPS, "94001000", "", "")
+	if err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := h.service.SetManualOverride(h.user.ID, shipment.ID, false, models.ShipmentStatusPending, ""); err != nil {
+		t.Fatalf("disable manual override: %v", err)
+	}
+	if err := h.shipmentRepo.MarkSyncSuccess(
+		shipment.ID,
+		shipment.UserID,
+		models.ShipmentStatusDelivered,
+		models.ShipmentStatusSourceManual,
+		nil,
+		&now,
+	); err != nil {
+		t.Fatalf("mark delivered: %v", err)
+	}
+
+	if _, err := h.service.SetManualOverride(h.user.ID, shipment.ID, true, models.ShipmentStatusInTransit, "reopened"); err != nil {
+		t.Fatalf("set manual in_transit: %v", err)
+	}
+	if _, err := h.service.SetManualOverride(h.user.ID, shipment.ID, false, models.ShipmentStatusPending, ""); err != nil {
+		t.Fatalf("disable manual override again: %v", err)
+	}
+
+	updated, err := h.service.SyncShipment(context.Background(), shipment.ID, h.user.ID)
+	if err != nil {
+		t.Fatalf("sync reopened shipment: %v", err)
+	}
+	if stub.calls != 1 {
+		t.Fatalf("carrier calls = %d, want 1 after leaving delivered", stub.calls)
+	}
+	if updated.CurrentStatus != models.ShipmentStatusOutForDelivery {
+		t.Fatalf("status = %s, want %s", updated.CurrentStatus, models.ShipmentStatusOutForDelivery)
 	}
 }

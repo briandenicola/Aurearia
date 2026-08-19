@@ -139,6 +139,13 @@ func TestShipmentRepository_ListSyncCandidates_FiltersManualOverride(t *testing.
 			CurrentStatus:  models.ShipmentStatusInTransit,
 			LastSyncedAt:   &oldSync,
 		},
+		{
+			UserID:         2,
+			CoinID:         203,
+			Carrier:        models.ShipmentCarrierUSPS,
+			TrackingNumber: "9400-2003",
+			CurrentStatus:  models.ShipmentStatusDelivered,
+		},
 	}
 	for _, shipment := range shipments {
 		if err := repo.Create(shipment); err != nil {
