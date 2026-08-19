@@ -22,3 +22,24 @@
 - .squad/orchestration-log/2026-08-18T053121Z-maximus-feature353-hotfix.md (this review)
 
 **Status:** Hotfix approved. PR #629 ready for merge.
+
+
+## 2026-08-19 — Feature 354 Design Review (Deep-Identification Run History & Wishlist-Eligible Coin of the Day)
+
+- Authored complete SpecKit artifact set at `specs/354-run-history-and-wishlist-featured-coin/` covering two joined capabilities:
+  - **Persistent deep-id run history:** retain terminal-`completed`/`partial` `DeepIdentificationJob` rows and their obverse/reverse artifacts indefinitely; add owner-invoked `DELETE /deep-identification/jobs/{id}` (204/404/409); loosen `ApplyJob` to per-(job,target,linked-coin-existence) idempotency so users can save an identified item after having changed their mind; add `DeepAnalysisHistoryPage.vue`.
+  - **Wishlist-eligible Coin of the Day:** `FeaturedCoin.SourceType` enum (`owned`|`wishlist`); widen `PickNextCoinID` to include wishlist coins governed by new `User.CoinOfDayIncludeWishlist` flag (default true); Python-side stateless `/collection/wishlist-featured-summary` route; deterministic fallback preserves every pick on agent failure; modal gains "Wishlist" badge + "Move to Collection" CTA that reuses existing coin-update endpoint.
+- **Retention pattern (D1):** nullable `expires_at` cleared by `SettleTerminal` for completed/partial; janitor treats `NULL` as never-expires; failed/cancelled keep 90-day expiry unchanged. Fallback: sentinel `9999-12-31` if SQLite AutoMigrate can't relax NOT NULL in place (add regression test parallel to `feature353_migration_order_regression_test.go`).
+- **Re-apply idempotency (D2):** drop `WHERE applied_at IS NULL` guard; `Apply` first calls `resolveExistingLinkage(job, target)` → if linked coin/draft exists and target matches, return existing linkage as a fast-path 200; otherwise fresh apply and overwrite `AppliedCoinID`/`AppliedAt`. Existing `ErrDeepProposalTargetMismatch` source/target coupling preserved. Removes `ErrDeepProposalAlreadyApplied` from the surfaced error set.
+- **Delete guarantee (D3):** DB tx over provider-runs + events + artifacts + job; file unlink via existing `artifactStore.DeleteJobArtifacts` best-effort (log-only). Applied coin never touched. Non-terminal → 409; non-owner → 404 to match existing `GetJob`.
+- **List badge (D4):** cheap correlated `EXISTS` computes `appliedCoinExists` server-side so the history page needs no N+1.
+- **Notification schema (D10):** `type=coin_of_day` and `referenceId=FeaturedCoin.ID` **unchanged** — backward-compatible; `sourceType` travels only on the `FeaturedCoin` payload the modal already fetches.
+- **AI boundary (D7):** wishlist rationale generated on Python agent via new stateless route; Go proxies through `agent_proxy.go`; bounded 500 chars, no invented facts, provider-selectable (Anthropic/Ollama), 10s hard timeout, sequential per-user, one call per pick.
+- **Product boundary (D8/D11/D12/D13):** hint artifacts stay ephemeral; failed/cancelled retention unchanged at 90d; deleted run does not delete already-saved coin; per-user wishlist opt-out with default-on to match Brian's binding request.
+- **Parallel work boundaries:** Cassius owns `src/api/` (phases 2–6 disjoint files), Brutus owns `src/agent/` (phase 7 stateless route), Aurelia owns `src/web/` (phases 8–9, can start against typed mocks), Maximus reviews architecture + owns PRD update.
+- Decision file: `.squad/decisions/inbox/maximus-analysis-history-wishlist-featured.md` (D1–D13).
+- **No blockers surfaced.** All product semantics resolved with behavior-safe defaults; deferred UX questions (Q1 wishlist-frequency hint, Q2 auto re-feature after move-to-collection) do not block implementation.
+- **Learning — additive-only migration discipline:** every schema change in this feature is additive (two new columns + one nullability relaxation with sentinel fallback). Precedent: hotfix on 353 (`1df5a99`/`d625b08`) — nullability changes on SQLite via GORM are risky. Ship the regression test **first** and keep the sentinel fallback as documented, not a footnote.
+- **Learning — re-apply idempotency shape:** the natural user model is "save this thing." Idempotency keyed on (job, target, linked-coin-existence) beats proposal-hash heuristics because it survives coin deletion cleanly and produces exactly the button-state the frontend needs. Recording it here so we don't relitigate in future re-apply features.
+- **Learning — AI feature graceful degradation:** the "pick is never dropped for AI failure" rule (D8) is the same shape as the Coin of the Day fallback chain in `buildCoinSummary`. Whenever we add AI-derived content to a scheduled or notification-triggering path, the deterministic fallback goes into the plan **before** the AI call, not after.
+- **2026-08-19 — Feature 354 implementation complete:** All team deliverables landed and approved. Orchestration/session logs: 2026-08-19T125040Z-*.md

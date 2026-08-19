@@ -4802,3 +4802,116 @@ This workflow ensures:
 - Playwright and other test frameworks using HTTP auth: always validate Bearer header syntax in fixtures before review
 - Use the array-join pattern as the canonical Bearer token construction in new auth test fixtures
 - When strict blocks occur on security code: expect and support independent repair + re-review rather than direct fix requests
+
+---
+
+### Decision: Feature 354 — Deep-Identification Run History & Wishlist-Eligible Coin of the Day
+
+**Date:** 2026-08-19
+**Author:** Maximus (Lead / Architect)
+**Requested by:** Brian DeNicola
+**Feature:** \specs/354-run-history-and-wishlist-featured-coin/\
+**Status:** IMPLEMENTATION COMPLETE — Cassius (Go backend), Brutus (Python agent), Aurelia (Vue frontend) all approved; beta push pending.
+
+## Scope
+
+Two joined capabilities delivered as one feature:
+
+1. **Persistent deep-identification run history** — retain terminal-completed / terminal-partial \DeepIdentificationJob\ rows and their obverse/reverse artifacts indefinitely; add owner-invoked \DELETE\; loosen apply to per-(job,target,linked-coin-existence) idempotency; add a Vue history route.
+2. **Wishlist-eligible Coin of the Day** — extend \FeaturedCoin\ with \SourceType\; widen \PickNextCoinID\ to include wishlist coins; generate/cache "why this belongs in your collection" summary via the Python agent (Go proxied); reflect origin in modal with a "Move to Collection" CTA. Owned-coin behavior byte-identical.
+
+## Material Decisions (D1–D13)
+
+| # | Decision | Rationale |
+|---|---|---|
+| D1 | Nullable \xpires_at\; sentinel \9999-12-31\ fallback; janitor skips \NULL\ | Reuses existing column, index, and plumbing. Principle IV. |
+| D2 | Re-apply idempotency per (job, target, linked-coin-existence) | Matches user mental model; avoids duplicates; unblocks "changed my mind" workflow. |
+| D3 | \DELETE /deep-identification/jobs/{id}\ cascades job/runs/events/artifacts; never deletes Coin | Collection sacrosanct; DB is source of truth. |
+| D4 | \GET /deep-identification/jobs\ computes \ppliedCoinExists\ via correlated EXISTS | Cheap; avoids N+1 in history page. |
+| D5 | \FeaturedCoin.SourceType VARCHAR(16) NOT NULL DEFAULT 'owned'\ (values: owned\|wishlist) | Additive DDL; backward-compatible. |
+| D6 | \PickNextCoinID\ includes wishlist when \coinOfDayIncludeWishlist\ true; existing sort preserved | Combined-pool interleave; byte-identical owned-only when opted out. |
+| D7 | Stateless Python \/collection/wishlist-featured-summary\ route, bounded ≤500 chars, no invented facts | Enforces canonical AI boundary. |
+| D8 | On agent failure, fallback to \uildCoinSummary()\ with "From your wishlist — " preamble; pick never dropped | User-visible reliability > prose freshness. |
+| D9 | "Move to Collection" reuses existing coin-update endpoint; no new backend | Principle IV. |
+| D10 | Notification schema unchanged; \sourceType\ travels on \FeaturedCoin\ payload | Backward-compatible; zero regression. |
+| D11 | \User.CoinOfDayIncludeWishlist bool DEFAULT true\; Settings toggle for opt-out | Respects preferences; defaults-on per Brian approval. |
+| D12 | Hints remain ephemeral; only obverse/reverse retained as revisitable evidence | Privacy: hints are user-provided references, not evidence. |
+| D13 | Failed/cancelled keep 90-day expiry; only completed/partial gain indefinite retention | Matches request wording; keeps DB pressure low. |
+
+## Implementation Status
+
+**COMPLETE — all team deliverables approved:**
+- Cassius Go backend: Phases 2–6, \go test ./... -count=1\ (10/10 packages) ✓
+- Brutus Python agent: Phase 7 route, \pytest tests/ -q\ (366 passing) ✓
+- Aurelia Vue frontend: Phases 8–9, \
+px vitest run\ (140 files / 906 tests) ✓
+- Brutus QA: 37 regression tests + full suite green, APPROVE (no BLOCK) ✓
+
+---
+
+### Decision: Cassius — Feature 354 Implementation Details
+
+**Date:** 2026-08-19
+**Author:** Cassius (Backend Developer)
+**Feature:** Feature 354 Backend Implementation (Phases 2–6)
+**Status:** COMPLETE — all phases landed, tests passing
+
+## Key Decisions
+
+- Nullable \xpires_at\ with sentinel \9999-12-31\ fallback for indefinite retention (completed/partial only)
+- \DELETE /deep-identification/jobs/:id\ returns 204/409/404; cascades job/runs/events/artifacts; never deletes linked Coin
+- Re-apply idempotency per (job, target, linked-coin-existence)
+- Server-computed \ppliedCoinExists\ via correlated EXISTS
+- \PickNextCoinID\ includes wishlist when \coinOfDayIncludeWishlist\ true
+- Stateless Python proxy with 10s timeout and deterministic fallback
+
+---
+
+### Decision: Brutus — Spec 354 Quality Report
+
+**Date:** 2026-08-19
+**Author:** Brutus (Tester/QA)
+**Scope:** Independent regression coverage for finalized Feature 354 implementation
+**Status:** APPROVE — no BLOCK
+
+## Verdict
+
+All 37 new regression tests (11 Python, 16 Go, 10 Vue) + pre-existing suites passing. No implementation defects.
+
+## Coverage Added
+
+- Go: 18 tests (retention, re-apply, delete cascade, wishlist fairness, fallback)
+- Python: 11 tests (route, parity, truncation, schema, statelessness)
+- Vue: 8 tests (settings toggle, Move-to-Collection edge cases)
+
+---
+
+### Decision: Aurelia — Feature 354 Frontend & Auction Grouping Implementation
+
+**Date:** 2026-08-19
+**Author:** Aurelia (Frontend Developer)
+**Feature:** Feature 354 Vue UI (Phases 8–9) + Auction Watching/Bidding default grouping
+**Status:** COMPLETE — all surfaces implemented, 906 tests green
+
+## Feature 354 Frontend
+
+- \DeepAnalysisHistoryPage.vue\ — reverse-chrono list with cursor pagination
+- Sidebar navigation — "Identify Coin" expandable parent
+- \DeepAnalysisPage.vue\ — Delete action, re-apply UI
+- \FeaturedCoinModal.vue\ — sourceType badge, Move-to-Collection CTA
+- Settings Account — \CoinOfDayIncludeWishlist\ toggle (default-on)
+
+## Auction Grouping (AuctionsPage.vue)
+
+- Client-side \groupedLots\ by auctionHouse then saleName
+- Toggle chip (session-only)
+- Defaults **on** for watching/bidding; other statuses unchanged
+
+---
+
+### Decision: User Directive — Progress Updates During Background Work
+
+**Date:** 2026-08-19T07:11:17-05:00
+**Author:** Brian DeNicola (via Copilot)
+**What:** Provide concise milestone updates while background agents work
+**Why:** User request — captured for team memory
