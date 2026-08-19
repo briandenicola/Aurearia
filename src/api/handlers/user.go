@@ -127,6 +127,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
+		"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,
 		"emperorTrackerEnabled":          user.EmperorTrackerEnabled,
 		"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
 		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
@@ -259,6 +260,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		ParcelAppAPIKey                *string `json:"parcelAppAPIKey"`
 		PushoverUserKey                *string `json:"pushoverUserKey"`
 		CoinOfDayEnabled               *bool   `json:"coinOfDayEnabled"`
+		CoinOfDayIncludeWishlist       *bool   `json:"coinOfDayIncludeWishlist"`
 		EmperorTrackerEnabled          *bool   `json:"emperorTrackerEnabled"`
 		EmperorTrackerShowUsurpers     *bool   `json:"emperorTrackerShowUsurpers"`
 		EmperorTrackerShowEmpresses    *bool   `json:"emperorTrackerShowEmpresses"`
@@ -338,6 +340,9 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if req.CoinOfDayEnabled != nil {
 		updates["coin_of_day_enabled"] = *req.CoinOfDayEnabled
 	}
+	if req.CoinOfDayIncludeWishlist != nil {
+		updates["coin_of_day_include_wishlist"] = *req.CoinOfDayIncludeWishlist
+	}
 	if req.EmperorTrackerEnabled != nil {
 		updates["emperor_tracker_enabled"] = *req.EmperorTrackerEnabled
 	}
@@ -392,6 +397,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
+		"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,
 		"emperorTrackerEnabled":          user.EmperorTrackerEnabled,
 		"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
 		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,

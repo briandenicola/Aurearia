@@ -273,6 +273,7 @@ func main() {
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayRunRepo := repository.NewCoinOfDayRunRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, coinOfDayRunRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
+	coinOfDayScheduler.SetWishlistSummaryClient(agentProxy)
 	coinOfDayScheduler.StartWorkers(1)
 	schedulerRegistry := &SchedulerRegistry{}
 	schedulerRegistry.Register(availScheduler)
@@ -482,6 +483,7 @@ func main() {
 		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
 		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
 		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)
+		protected.DELETE("/deep-identification/jobs/:id", writeRateLimit, deepIdentificationHandler.DeleteJob)
 		protected.GET("/deep-identification/jobs/:id/events", deepIdentificationHandler.StreamEvents)
 		protected.POST("/deep-identification/jobs/:id/cancel", writeRateLimit, deepIdentificationHandler.Cancel)
 		protected.POST("/deep-identification/jobs/:id/retry", writeRateLimit, deepIdentificationHandler.Retry)

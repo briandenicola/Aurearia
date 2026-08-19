@@ -1,7 +1,10 @@
 package services
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +13,22 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+type fakeWishlistSummaryClient struct {
+	calls    int
+	resp     string
+	err      error
+	lastName string
+}
+
+func (f *fakeWishlistSummaryClient) WishlistFeaturedSummary(_ context.Context, req WishlistFeaturedSummaryProxyRequest) (string, error) {
+	f.calls++
+	f.lastName = req.Coin.Name
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.resp, nil
+}
 
 func setupCoinOfDaySchedulerDB(t *testing.T, migrateUsers bool) *gorm.DB {
 	t.Helper()
@@ -267,6 +286,124 @@ func TestCoinOfDaySchedulerInMemoryIdempotencySkipsSecondRunSameDay(t *testing.T
 	}
 	if count != 1 {
 		t.Fatalf("expected exactly 1 featured record after two same-day runs, got %d", count)
+	}
+}
+
+func TestCoinOfDaySchedulerWishlistPickUsesAgentSummaryAndSourceType(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, true)
+	scheduler := newCoinOfDaySchedulerForTest(db)
+	user := models.User{
+		Username:                 "wish-user",
+		Email:                    "wish@example.com",
+		PasswordHash:             "hash",
+		CoinOfDayEnabled:         true,
+		CoinOfDayIncludeWishlist: true,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	coin := models.Coin{
+		UserID:     user.ID,
+		Name:       "Wishlist Coin",
+		Category:   models.CategoryRoman,
+		Material:   models.MaterialSilver,
+		Era:        models.EraAncient,
+		IsWishlist: true,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	_ = scheduler.settingsSvc.SetSetting(SettingAIProvider, "anthropic")
+	_ = scheduler.settingsSvc.SetSetting(SettingAnthropicAPIKey, "k")
+	_ = scheduler.settingsSvc.SetSetting(SettingAnthropicModel, "m")
+
+	fake := &fakeWishlistSummaryClient{resp: "From your wishlist: focused rationale"}
+	scheduler.SetWishlistSummaryClient(fake)
+	run, err := scheduler.RunNowWithTrigger(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := scheduler.ProcessRun(run.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	var fc models.FeaturedCoin
+	if err := db.Where("user_id = ?", user.ID).First(&fc).Error; err != nil {
+		t.Fatal(err)
+	}
+	if fc.SourceType != models.FeaturedCoinSourceWishlist {
+		t.Fatalf("expected sourceType=wishlist, got %s", fc.SourceType)
+	}
+	if fc.Summary != "From your wishlist: focused rationale" {
+		t.Fatalf("expected agent summary, got %q", fc.Summary)
+	}
+	if fake.calls != 1 || fake.lastName != coin.Name {
+		t.Fatalf("expected one wishlist summary call for %q, calls=%d last=%q", coin.Name, fake.calls, fake.lastName)
+	}
+}
+
+func TestCoinOfDaySchedulerWishlistSummaryFallbackAndOptOut(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, true)
+	scheduler := newCoinOfDaySchedulerForTest(db)
+	user := models.User{
+		Username:                 "wish-optout",
+		Email:                    "wish-optout@example.com",
+		PasswordHash:             "hash",
+		CoinOfDayEnabled:         true,
+		CoinOfDayIncludeWishlist: true,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	coin := models.Coin{
+		UserID:     user.ID,
+		Name:       "Fallback Wishlist Coin",
+		Category:   models.CategoryRoman,
+		Material:   models.MaterialSilver,
+		Era:        models.EraAncient,
+		IsWishlist: true,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	_ = scheduler.settingsSvc.SetSetting(SettingAIProvider, "anthropic")
+	_ = scheduler.settingsSvc.SetSetting(SettingAnthropicAPIKey, "k")
+	_ = scheduler.settingsSvc.SetSetting(SettingAnthropicModel, "m")
+	fake := &fakeWishlistSummaryClient{err: errors.New("boom")}
+	scheduler.SetWishlistSummaryClient(fake)
+
+	run, err := scheduler.RunNowWithTrigger(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := scheduler.ProcessRun(run.ID); err != nil {
+		t.Fatal(err)
+	}
+	var fc models.FeaturedCoin
+	if err := db.Where("user_id = ?", user.ID).Order("id DESC").First(&fc).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(fc.Summary, "From your wishlist — ") {
+		t.Fatalf("expected fallback summary prefix, got %q", fc.Summary)
+	}
+
+	if err := db.Model(&models.User{}).Where("id = ?", user.ID).Update("coin_of_day_include_wishlist", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	run2, err := scheduler.RunNowWithTrigger(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := scheduler.ProcessRun(run2.ID); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := scheduler.GetRun(run2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Picked != 0 || outcome.Skipped != 1 {
+		t.Fatalf("expected opt-out run to skip wishlist-only pool, got picked=%d skipped=%d", outcome.Picked, outcome.Skipped)
 	}
 }
 

@@ -19,6 +19,7 @@ from app.models.requests import (
     IntakeDraftRequest,
     PortfolioReviewRequest,
     SetBuilderRequest,
+    WishlistFeaturedSummaryRequest,
 )
 from app.models.responses import (
     AgentResponse,
@@ -29,6 +30,7 @@ from app.models.responses import (
     IntakeDraftResponse,
     MarketSignalResponse,
     SetBuilderResponse,
+    WishlistFeaturedSummaryResponse,
 )
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
@@ -48,6 +50,7 @@ from app.teams.coin_intake import generate_intake_draft
 from app.teams.coin_search import discover_alert_candidates
 from app.teams.deep_identification.graph import run_deep_identification_stream
 from app.teams.set_builder import run_set_builder_workflow
+from app.teams.wishlist_featured_summary import generate_wishlist_featured_summary
 
 logger = logging.getLogger(__name__)
 
@@ -340,6 +343,25 @@ async def bid_market_signal(request: BidMarketSignalRequest):
     except MarketSignalParseError:
         logger.error("Bid market signal parse failure. Raw snippet=%r", raw[:300])
         return MarketSignalResponse(degraded=True, rationale="Market search returned data in an unexpected format.")
+
+
+@router.post("/collection/wishlist-featured-summary", response_model=WishlistFeaturedSummaryResponse)
+async def wishlist_featured_summary(request: WishlistFeaturedSummaryRequest):
+    """Generate a concise wishlist featured-coin rationale. Stateless."""
+    logger.info(
+        "POST /collection/wishlist-featured-summary — provider=%s, model=%s, coin=%.80s",
+        request.llm.provider,
+        request.llm.model,
+        request.coin.name,
+    )
+    try:
+        summary = await generate_wishlist_featured_summary(request)
+    except Exception as exc:
+        logger.exception("Wishlist featured summary generation failed")
+        raise HTTPException(status_code=502, detail="Wishlist featured summary failed") from exc
+    if not summary or not summary.strip():
+        raise HTTPException(status_code=502, detail="Wishlist featured summary returned no text")
+    return WishlistFeaturedSummaryResponse(summary=summary)
 
 
 # Dynamic Set Builder workflow route anchor:

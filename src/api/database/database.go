@@ -120,6 +120,9 @@ func Connect(dbPath string) {
 	DB.Exec("UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''")
 	DB.Exec("UPDATE auction_lots SET source='numisbids' WHERE source IS NULL OR source=''")
 	DB.Exec("UPDATE auction_lots SET source_url=numis_bids_url WHERE (source_url IS NULL OR source_url='') AND numis_bids_url IS NOT NULL AND numis_bids_url<>''")
+	DB.Exec("UPDATE featured_coins SET source_type='owned' WHERE source_type IS NULL OR source_type=''")
+	DB.Exec("UPDATE users SET coin_of_day_include_wishlist=1 WHERE coin_of_day_include_wishlist IS NULL")
+	DB.Exec("UPDATE deep_identification_jobs SET expires_at=? WHERE status IN (?, ?)", models.DeepIdentificationNoExpirySentinel, models.DeepJobStatusCompleted, models.DeepJobStatusPartial)
 
 	if err := seedCatalogRegistry(DB); err != nil {
 		log.Fatalf("Failed to seed catalog registry: %v", err)

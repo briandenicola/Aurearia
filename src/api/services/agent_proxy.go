@@ -499,6 +499,28 @@ type AlertDiscoveryProxyResponse struct {
 	Partial    bool                  `json:"partial"`
 }
 
+type WishlistFeaturedSummaryCoinProxy struct {
+	Name            string `json:"name"`
+	Era             string `json:"era,omitempty"`
+	Category        string `json:"category,omitempty"`
+	Denomination    string `json:"denomination,omitempty"`
+	Ruler           string `json:"ruler,omitempty"`
+	Mint            string `json:"mint,omitempty"`
+	ObverseAnalysis string `json:"obverse_analysis,omitempty"`
+	ReverseAnalysis string `json:"reverse_analysis,omitempty"`
+	AIAnalysis      string `json:"ai_analysis,omitempty"`
+}
+
+type WishlistFeaturedSummaryProxyRequest struct {
+	LLM             LLMConfig                        `json:"llm"`
+	Coin            WishlistFeaturedSummaryCoinProxy `json:"coin"`
+	UserDisplayName string                           `json:"user_display_name,omitempty"`
+}
+
+type WishlistFeaturedSummaryProxyResponse struct {
+	Summary string `json:"summary"`
+}
+
 // StreamChat POSTs to the Python agent's /api/search/coins endpoint and
 // transparently proxies the SSE stream back to the caller.
 func (p *AgentProxy) StreamChat(ctx context.Context, w http.ResponseWriter, req AgentChatProxyRequest) error {
@@ -822,6 +844,44 @@ func (p *AgentProxy) DiscoverAlertCandidates(ctx context.Context, req AlertDisco
 		return nil, fmt.Errorf("parse alert discovery response: %w", err)
 	}
 	return &result, nil
+}
+
+// WishlistFeaturedSummary POSTs to the Python agent's stateless wishlist
+// featured-coin rationale endpoint and returns a one-paragraph summary.
+func (p *AgentProxy) WishlistFeaturedSummary(ctx context.Context, req WishlistFeaturedSummaryProxyRequest) (string, error) {
+	logger := p.logger
+	body, err := json.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("marshal wishlist featured summary request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/collection/wishlist-featured-summary", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("create wishlist featured summary request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		if logger != nil {
+			logger.Error("agent-proxy", "Wishlist featured summary request failed: %v", err)
+		}
+		return "", fmt.Errorf("agent service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		if logger != nil {
+			logger.Error("agent-proxy", "Wishlist featured summary returned %d: %s", resp.StatusCode, sanitizeAgentErrorBodyForLog(respBody, 200))
+		}
+		return "", agentServiceHTTPError(resp.StatusCode, respBody)
+	}
+	var result WishlistFeaturedSummaryProxyResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("parse wishlist featured summary response: %w", err)
+	}
+	return strings.TrimSpace(result.Summary), nil
 }
 
 // FetchLogsretrieves log entries from the Python agent's /logs endpoint

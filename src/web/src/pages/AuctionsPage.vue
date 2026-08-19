@@ -58,6 +58,17 @@
         <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
       </div>
 
+      <div v-if="groupingAvailable" class="mb-4 flex flex-wrap gap-[0.35rem]" aria-label="Auction grouping">
+        <button
+          class="chip"
+          :class="{ active: groupingEnabled }"
+          :aria-pressed="groupingEnabled"
+          @click="groupingEnabled = !groupingEnabled"
+        >
+          Group by Auction House &amp; Sale
+        </button>
+      </div>
+
       <div v-if="selectMode" class="mb-4 flex flex-wrap items-center gap-[0.6rem]">
         <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
         <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
@@ -66,6 +77,28 @@
 
       <div v-if="loading" class="loading-overlay">
         <div class="spinner"></div>
+      </div>
+
+      <div v-else-if="visibleLots.length && groupingAvailable && groupingEnabled">
+        <div v-for="house in groupedLots" :key="house.auctionHouse" class="mb-5">
+          <h3 class="mb-1 mt-4 text-text-heading">{{ house.auctionHouse }}</h3>
+          <div v-for="sale in house.sales" :key="sale.saleName" class="mb-4">
+            <p class="section-label mb-2">{{ sale.saleName }}</p>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
+              <AuctionLotCard
+                v-for="lot in sale.lots"
+                :key="lot.id"
+                :lot="lot"
+                :selectable="selectMode"
+                :selected="selectedLotIds.has(lot.id)"
+                :price-alerts="alertsByLot[lot.id] ?? []"
+                :bid-reminders="remindersByLot[lot.id] ?? []"
+                @select="openLot"
+                @toggle-select="toggleLotSelect"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="visibleLots.length" class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
@@ -124,6 +157,7 @@
 import { computed, ref, watch } from 'vue'
 import { getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent, listAlerts, listReminders } from '@/api/client'
 import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
+
 import AuctionLotCard from '@/components/AuctionLotCard.vue'
 import ImportLotModal from '@/components/ImportLotModal.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
@@ -328,6 +362,43 @@ const emptyStateSuffix = computed(() => {
 
 const attentionOnly = ref(false)
 const visibleLots = computed(() => attentionOnly.value ? lots.value.filter(auctionLotNeedsAttention) : lots.value)
+
+// Watching and Bidding are the two statuses most useful to browse by Auction House -> Sale,
+// since those lots are still active and users track them per-sale. Defaults on for those two
+// views; the toggle below lets a visitor turn it off, and that choice is preserved for the
+// rest of the visit even if they switch between statuses/sources.
+const groupingAvailable = computed(() => activeStatus.value === 'watching' || activeStatus.value === 'bidding')
+const groupingEnabled = ref(true)
+
+interface AuctionLotSaleGroup {
+  saleName: string
+  lots: AuctionLot[]
+}
+
+interface AuctionLotHouseGroup {
+  auctionHouse: string
+  sales: AuctionLotSaleGroup[]
+}
+
+const groupedLots = computed<AuctionLotHouseGroup[]>(() => {
+  const byHouse = new Map<string, Map<string, AuctionLot[]>>()
+  for (const lot of visibleLots.value) {
+    const house = lot.auctionHouse || 'Unknown Auction House'
+    const sale = lot.saleName || 'Unknown Sale'
+    if (!byHouse.has(house)) byHouse.set(house, new Map())
+    const sales = byHouse.get(house)!
+    if (!sales.has(sale)) sales.set(sale, [])
+    sales.get(sale)!.push(lot)
+  }
+  return [...byHouse.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([auctionHouse, sales]) => ({
+      auctionHouse,
+      sales: [...sales.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([saleName, saleLots]) => ({ saleName, lots: saleLots })),
+    }))
+})
 
 fetchLots()
 fetchAllCounts()

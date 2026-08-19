@@ -6,6 +6,7 @@ import {
   retryDeepIdentificationJob,
   patchDeepIdentificationProposal,
   applyDeepIdentificationProposal,
+  deleteDeepIdentificationJob,
   getApiErrorMessage,
   getApiErrorCode,
 } from '@/api/client'
@@ -35,6 +36,7 @@ export function useDeepIdentification() {
   const cancelling = ref(false)
   const retrying = ref(false)
   const applying = ref(false)
+  const deleting = ref(false)
   const error = ref('')
   // Machine-readable code for the most recent `start()` failure, e.g.
   // `job_at_capacity` (HTTP 409: a genuinely different in-flight job is
@@ -221,6 +223,30 @@ export function useDeepIdentification() {
     }
   }
 
+  /**
+   * Hard-deletes a terminal, owned job (spec 354 T017/T042/T044). Only
+   * ever called after an explicit owner confirm — the job/report/proposal
+   * are cleared locally on success so the caller can navigate away.
+   */
+  async function deleteJob(jobId: number): Promise<boolean> {
+    deleting.value = true
+    error.value = ''
+    try {
+      await deleteDeepIdentificationJob(jobId)
+      if (job.value?.id === jobId) {
+        job.value = null
+        report.value = null
+        proposal.value = null
+      }
+      return true
+    } catch (err) {
+      error.value = getApiErrorMessage(err) || 'Unable to delete this Deep Analysis run.'
+      return false
+    } finally {
+      deleting.value = false
+    }
+  }
+
   return {
     job,
     report,
@@ -230,6 +256,7 @@ export function useDeepIdentification() {
     cancelling,
     retrying,
     applying,
+    deleting,
     error,
     errorCode,
     start,
@@ -239,6 +266,7 @@ export function useDeepIdentification() {
     updateProposalField,
     updateProposalFields,
     applyProposal,
+    deleteJob,
   }
 }
 

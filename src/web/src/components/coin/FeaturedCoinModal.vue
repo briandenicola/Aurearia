@@ -21,7 +21,10 @@
         </div>
 
         <div v-else class="overflow-y-auto p-5">
-          <h3 class="mb-1 font-display text-lg text-heading">{{ featured.coin?.name }}</h3>
+          <div class="mb-1 flex flex-wrap items-center gap-2">
+            <h3 class="m-0 font-display text-lg text-heading">{{ featured.coin?.name }}</h3>
+            <span v-if="featured.sourceType === 'wishlist'" class="chip-sm !border-gold !text-gold">Wishlist</span>
+          </div>
           <div v-if="featured.coin?.ruler || featured.coin?.era" class="mb-4 text-body text-text-secondary">
             <span v-if="featured.coin?.ruler">{{ featured.coin?.ruler }}</span>
             <span v-if="featured.coin?.ruler && featured.coin?.era"> &middot; </span>
@@ -41,6 +44,9 @@
             v-html="renderedSummary"
           ></div>
 
+          <p v-if="moveError" role="alert" class="mt-3 text-body text-byzantine">{{ moveError }}</p>
+          <p v-else-if="moved" role="status" class="mt-3 text-body text-gold">Moved to your collection.</p>
+
           <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-border-subtle pt-4">
             <router-link
               v-if="featured.coin?.id"
@@ -59,6 +65,14 @@
               <Share2 :size="14" />
               {{ sharing ? 'Sharing...' : 'Share' }}
             </button>
+            <button
+              v-if="showMoveToCollection"
+              class="btn btn-primary btn-sm"
+              :disabled="moving"
+              @click="handleMoveToCollection"
+            >
+              {{ moving ? 'Moving...' : 'Move to Collection' }}
+            </button>
             <button class="btn btn-primary btn-sm" @click="close">Close</button>
           </div>
         </div>
@@ -70,7 +84,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { Share2, Sparkles, X } from 'lucide-vue-next'
-import { getFeaturedCoin } from '@/api/client'
+import { getFeaturedCoin, updateCoin, getApiErrorMessage } from '@/api/client'
 import type { FeaturedCoin } from '@/types'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
@@ -86,6 +100,17 @@ const featured = ref<FeaturedCoin | null>(null)
 const loading = ref(false)
 const error = ref('')
 const { sharing, shareCoinCard } = useCoinShareCard()
+const moving = ref(false)
+const moved = ref(false)
+const moveError = ref('')
+
+// Spec 354 D9: reuses the existing coin-update contract — no new backend
+// endpoint. Only offered while the pick is still wishlist-sourced AND the
+// underlying coin is still on the wishlist (a coin already moved by some
+// other path, e.g. Edit Coin, is byte-identical to the owned-source case).
+const showMoveToCollection = computed(() =>
+  featured.value?.sourceType === 'wishlist' && featured.value?.coin?.isWishlist === true && !moved.value,
+)
 
 const images = computed(() => {
   const all = featured.value?.coin?.images || []
@@ -115,6 +140,8 @@ function formatImageLabel(type: string) {
 async function load() {
   loading.value = true
   error.value = ''
+  moved.value = false
+  moveError.value = ''
   try {
     const res = await getFeaturedCoin(props.featuredCoinId)
     featured.value = res.data
@@ -135,6 +162,24 @@ async function handleShare() {
       summary: featured.value?.summary ?? '',
     },
   })
+}
+
+async function handleMoveToCollection() {
+  const coin = featured.value?.coin
+  if (!coin || moving.value) return
+  moving.value = true
+  moveError.value = ''
+  try {
+    await updateCoin(coin.id, { isWishlist: false })
+    if (featured.value?.coin) {
+      featured.value.coin.isWishlist = false
+    }
+    moved.value = true
+  } catch (err) {
+    moveError.value = getApiErrorMessage(err) || 'Unable to move this coin to your collection.'
+  } finally {
+    moving.value = false
+  }
 }
 
 function close() {

@@ -444,8 +444,8 @@ func TestDeepIdentificationService_AllTerminalStatesDeleteHints(t *testing.T) {
 // entries are left untouched (T079).
 func TestDeepIdentificationService_ProviderBudgetTracker_ResetOnEveryTerminalState(t *testing.T) {
 	tests := []struct {
-		name string
-		run  func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error)
+		name   string
+		run    func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error)
 		cancel bool
 	}{
 		{
@@ -527,7 +527,7 @@ func TestDeepIdentificationService_ProviderBudgetTracker_ResetOnEveryTerminalSta
 	}
 }
 
-func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.T) {
+func TestDeepIdentificationService_RetentionSweepDeletesArtifactsForFailedJobs(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "expired-artifacts", Email: "expired-artifacts@example.com", PasswordHash: "x"}
 	if err := db.Create(&user).Error; err != nil {
@@ -544,7 +544,7 @@ func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.
 	}
 	if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", jobID).
 		Updates(map[string]any{
-			"status":       models.DeepJobStatusCompleted,
+			"status":       models.DeepJobStatusFailed,
 			"completed_at": time.Now().Add(-48 * time.Hour),
 			"expires_at":   time.Now().Add(-time.Hour),
 		}).Error; err != nil {

@@ -76,7 +76,7 @@ func TestPickNextCoinIDPrefersNeverFeaturedCoin(t *testing.T) {
 
 	createFeaturedCoinRecord(t, db, user.ID, shown.ID, time.Now().Add(-24*time.Hour))
 
-	got, err := repo.PickNextCoinID(user.ID)
+	got, err := repo.PickNextCoinID(user.ID, false)
 	if err != nil {
 		t.Fatalf("PickNextCoinID returned error: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestPickNextCoinIDChoosesOldestFeaturedCoinWhenCycleRestarts(t *testing.T) 
 	createFeaturedCoinRecord(t, db, user.ID, oldestShown.ID, time.Now().Add(-48*time.Hour))
 	createFeaturedCoinRecord(t, db, user.ID, recentlyShown.ID, time.Now().Add(-24*time.Hour))
 
-	got, err := repo.PickNextCoinID(user.ID)
+	got, err := repo.PickNextCoinID(user.ID, false)
 	if err != nil {
 		t.Fatalf("PickNextCoinID returned error: %v", err)
 	}
@@ -104,18 +104,34 @@ func TestPickNextCoinIDChoosesOldestFeaturedCoinWhenCycleRestarts(t *testing.T) 
 	}
 }
 
-func TestPickNextCoinIDExcludesWishlistAndSoldCoins(t *testing.T) {
+func TestPickNextCoinIDExcludesWishlistAndSoldCoinsWhenWishlistDisabled(t *testing.T) {
 	db := setupFeaturedCoinTestDB(t)
 	repo := NewFeaturedCoinRepository(db)
 	user := createFeaturedCoinTestUser(t, db, "eligible")
 	createFeaturedCoinTestCoin(t, db, user.ID, "Wishlist", true, false)
 	createFeaturedCoinTestCoin(t, db, user.ID, "Sold", false, true)
 
-	got, err := repo.PickNextCoinID(user.ID)
+	got, err := repo.PickNextCoinID(user.ID, false)
 	if err != nil {
 		t.Fatalf("PickNextCoinID returned error: %v", err)
 	}
 	if got != 0 {
 		t.Fatalf("PickNextCoinID = %d, want 0 when no eligible coins exist", got)
+	}
+}
+
+func TestPickNextCoinIDIncludesWishlistWhenEnabled(t *testing.T) {
+	db := setupFeaturedCoinTestDB(t)
+	repo := NewFeaturedCoinRepository(db)
+	user := createFeaturedCoinTestUser(t, db, "wishlist-enabled")
+	wishlistCoin := createFeaturedCoinTestCoin(t, db, user.ID, "Wishlist", true, false)
+	createFeaturedCoinTestCoin(t, db, user.ID, "Sold", false, true)
+
+	got, err := repo.PickNextCoinID(user.ID, true)
+	if err != nil {
+		t.Fatalf("PickNextCoinID returned error: %v", err)
+	}
+	if got != wishlistCoin.ID {
+		t.Fatalf("PickNextCoinID = %d, want wishlist coin %d", got, wishlistCoin.ID)
 	}
 }

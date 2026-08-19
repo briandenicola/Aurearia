@@ -175,6 +175,7 @@ func writeAuthResponse(c *gin.Context, statusCode int, result services.AuthResul
 			"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 			"pushoverEnabled":                user.PushoverEnabled,
 			"coinOfDayEnabled":               user.CoinOfDayEnabled,
+			"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,
 			"emperorTrackerEnabled":          user.EmperorTrackerEnabled,
 			"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
 			"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,

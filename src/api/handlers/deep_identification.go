@@ -82,6 +82,7 @@ type deepJobDTO struct {
 	FailureCode        string     `json:"failureCode,omitempty"`
 	FailureMessage     string     `json:"failureMessage,omitempty"`
 	AppliedCoinID      *uint      `json:"appliedCoinId,omitempty"`
+	AppliedCoinExists  bool       `json:"appliedCoinExists"`
 	AppliedDraftID     *uint      `json:"appliedDraftId,omitempty"`
 	AppliedAt          *time.Time `json:"appliedAt,omitempty"`
 	StartedAt          *time.Time `json:"startedAt,omitempty"`
@@ -94,8 +95,8 @@ type deepJobDTO struct {
 type deepJobEnvelope struct {
 	Job      deepJobDTO      `json:"job"`
 	Reused   bool            `json:"reused,omitempty"`
-	Report   json.RawMessage `json:"report,omitempty"`
-	Proposal json.RawMessage `json:"proposal,omitempty"`
+	Report   json.RawMessage `json:"report,omitempty" swaggertype:"object"`
+	Proposal json.RawMessage `json:"proposal,omitempty" swaggertype:"object"`
 }
 
 func splitCSV(s string) []string {
@@ -129,6 +130,7 @@ func toDeepJobDTO(job *models.DeepIdentificationJob) deepJobDTO {
 		FailureCode:        job.FailureCode,
 		FailureMessage:     job.FailureMessage,
 		AppliedCoinID:      job.AppliedCoinID,
+		AppliedCoinExists:  job.AppliedCoinExists,
 		AppliedDraftID:     job.AppliedDraftID,
 		AppliedAt:          job.AppliedAt,
 		StartedAt:          job.StartedAt,
@@ -484,6 +486,37 @@ func (h *DeepIdentificationHandler) GetJob(c *gin.Context) {
 	c.JSON(http.StatusOK, toDeepJobEnvelope(job, false))
 }
 
+// DeleteJob removes one owner-scoped terminal Deep Analysis job.
+//
+//	@Summary		Delete a Deep Analysis job
+//	@Tags			Deep Identification
+//	@Param			id	path	int	true	"Job ID"
+//	@Success		204
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/deep-identification/jobs/{id} [delete]
+func (h *DeepIdentificationHandler) DeleteJob(c *gin.Context) {
+	userID := c.GetUint("userId")
+	jobID, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.service.DeleteJob(userID, jobID); err != nil {
+		switch {
+		case errors.Is(err, services.ErrDeepJobNotFound):
+			respondError(c, http.StatusNotFound, "Deep Analysis job not found", nil)
+		case errors.Is(err, services.ErrDeepJobNotTerminal):
+			respondError(c, http.StatusConflict, "Only terminal Deep Analysis jobs can be deleted", nil)
+		default:
+			respondError(c, http.StatusInternalServerError, "Failed to delete Deep Analysis job", err)
+		}
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // Cancel requests cancellation of a running (or still-queued) job.
 //
 //	@Summary		Cancel a Deep Analysis job
@@ -619,7 +652,7 @@ func (h *DeepIdentificationHandler) respondDeepJobError(c *gin.Context, err erro
 // deepProposalPatchRequest is the PATCH .../proposal request body.
 type deepProposalPatchRequest struct {
 	Fields map[string]struct {
-		OwnerValue json.RawMessage `json:"ownerValue"`
+		OwnerValue json.RawMessage `json:"ownerValue" swaggertype:"object"`
 		Accepted   *bool           `json:"accepted"`
 	} `json:"fields"`
 }
@@ -634,7 +667,7 @@ type deepProposalPatchRequest struct {
 //	@Produce		json
 //	@Param			id		path	int							true	"Job ID"
 //	@Param			request	body	deepProposalPatchRequest	true	"Field edits"
-//	@Success		200	{object}	json.RawMessage
+//	@Success		200	{object}	map[string]interface{}
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		401	{object}	ErrorResponse
 //	@Failure		404	{object}	ErrorResponse

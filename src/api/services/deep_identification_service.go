@@ -250,6 +250,46 @@ func (s *DeepIdentificationService) DeleteJobArtifacts(jobID uint) error {
 	return s.artifacts.DeleteJobArtifacts(jobID)
 }
 
+// DeleteJob removes an owner-scoped terminal job and all persisted job-side
+// records. Any linked coin/draft remains untouched.
+func (s *DeepIdentificationService) DeleteJob(userID, jobID uint) error {
+	job, err := s.repo.GetJob(jobID, userID)
+	if err != nil {
+		return ErrDeepJobNotFound
+	}
+	if !models.IsDeepJobTerminal(job.Status) {
+		return ErrDeepJobNotTerminal
+	}
+
+	artifacts, err := s.repo.ListArtifacts(jobID)
+	if err != nil {
+		return err
+	}
+	filePaths := make([]string, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		if artifact.FilePath != "" {
+			filePaths = append(filePaths, artifact.FilePath)
+		}
+	}
+
+	if err := s.repo.DeleteJob(userID, jobID); err != nil {
+		if errors.Is(err, repository.ErrDeepJobNotTerminal) {
+			return ErrDeepJobNotTerminal
+		}
+		if repository.IsRecordNotFound(err) {
+			return ErrDeepJobNotFound
+		}
+		return err
+	}
+
+	for _, filePath := range filePaths {
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) && s.logger != nil {
+			s.logger.Warn("deep-identification", "failed to delete deep-identification artifact file path=%s: %v", filePath, err)
+		}
+	}
+	return nil
+}
+
 // --- Phase 4: job orchestration (worker pool, cancel, timeout, janitor) ---
 
 // StartJob enqueues a new job or, per FR-007, returns the existing

@@ -27,6 +27,7 @@ type User struct {
 	PushoverUserKey                string     `gorm:"type:varchar(100)" json:"-"`
 	PushoverEnabled                bool       `gorm:"default:false" json:"pushoverEnabled"`
 	CoinOfDayEnabled               bool       `gorm:"default:true" json:"coinOfDayEnabled"`
+	CoinOfDayIncludeWishlist       bool       `gorm:"not null;default:true" json:"coinOfDayIncludeWishlist"`
 	EmperorTrackerEnabled          bool       `gorm:"default:false" json:"emperorTrackerEnabled"`
 	EmperorTrackerShowUsurpers     bool       `gorm:"default:false" json:"emperorTrackerShowUsurpers"`
 	EmperorTrackerShowEmpresses    bool       `gorm:"default:false" json:"emperorTrackerShowEmpresses"`
