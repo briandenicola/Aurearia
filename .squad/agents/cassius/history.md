@@ -1,3 +1,38 @@
+## 2026-08-20 — Feature 355 Timezone Portability Hotfix: Production Defect Resolution
+
+**Context**: Alpine production container lacks `/usr/share/zoneinfo`; `time.LoadLocation` fails for valid IANA zones, returning HTTP 400 for legitimate user inputs.
+
+**Solution**: Added `_ "time/tzdata"` blank import to `src/api/main.go` (stdlib package, zero supply-chain risk).
+
+**Rationale**:
+- Standard library package `time/tzdata` self-registers IANA database at init via `time.RegisterLoadFromEmbeddedTZData`
+- `time.LoadLocation` consults embedded DB when system zoneinfo absent (Alpine production scenario)
+- Placement in `main.go` (infrastructure) correct per Principle I; service layer remains deployment-agnostic
+- Alternatives rejected: OS dependency (fragile), service-level import (coupling), weak validation (incorrect), manual zoneinfo copy (sync risk)
+
+**Files Changed**:
+- `src/api/main.go`: +1 line (blank import + explanatory comment)
+- `src/api/timezone_embed_test.go`: new regression test (package main)
+  - 8 representative IANA zones tested
+  - 3 invalid-zone rejections verified (validation unchanged)
+
+**Regression Test Design**:
+- Package `main` test; does NOT import `time/tzdata` itself
+- Removal of import from `main.go` will cause test failure on stripped hosts (Alpine, scratch)
+- Standard CI hosts (Ubuntu, macOS) have system zoneinfo fallback → test passes even without import (inherent Go limitation)
+- Risk: LOW (single-line, well-commented, most-reviewed file)
+
+**Impact**:
+- Binary size: +450 KB (negligible)
+- Validation semantics: unchanged (invalid zones still rejected)
+- Scheduler runtime: now succeeds for valid zones (previously failed)
+- Docker: no changes (embedded DB replaces missing `/usr/share/zoneinfo`)
+- Supply chain: zero risk (stdlib only)
+
+**Verdict**: Release-ready. Approved by Maximus. Non-blocking post-merge hardening: add CI container test.
+
+**Orchestration Log**: `.squad/orchestration-log/${timestamp}-cassius-feature355-timezone-hotfix.md`
+
 ## 2026-08-20 — Wishlist Purchase Reminder: Backend Pattern Review
 
 ---
@@ -119,4 +154,52 @@ Yes. Implementation patterns complete; unresolved decisions are config-phase, no
 - Shipment polling eligibility now treats only `ShipmentStatusDelivered` as terminal: repository sync-candidate queries exclude delivered rows.
 - `ShipmentService.SyncShipment` now short-circuits delivered shipments before any carrier/ParcelApp HTTP call, keeping manual/direct sync idempotent no-op.
 - Eligibility resumes automatically if a user later changes status away from delivered, because guards are status-based (no sticky terminal flag).
+
+
+
+---
+
+## 2026-08-20 — Feature 355 Timezone Portability Hotfix (time/tzdata embed)
+
+**Role:** Cassius, Backend Developer
+**Feature:** 355-wishlist-purchase-reminders (runtime-portability fix)
+
+### Root Cause
+`purchase_reminder_service.go` calls `time.LoadLocation(timezone)` to validate
+user-supplied IANA timezone strings. Developer and CI hosts carry
+`/usr/share/zoneinfo`, so the call succeeds locally. The final Alpine production
+image (`Dockerfile`) installs only `ca-certificates` — no zoneinfo package — and
+the Go binary did not embed the IANA database via `time/tzdata`. Result:
+`time.LoadLocation` returned an error for valid IANA zones (e.g., `America/Chicago`)
+in production, yielding HTTP 400 `ErrInvalidTimezone` for legitimate inputs.
+
+### Fix
+Added `_ "time/tzdata"` blank import to `src/api/main.go` (production binary's
+main package). The standard library's `time/tzdata` self-registers the full IANA
+database at init time; `time.LoadLocation` consults it when the system zoneinfo
+directory is absent. No Docker dependency changes required.
+
+**Key decision**: import lives only in `main.go`, not in the service. Placing it
+in the service would work but would couple a runtime concern to business logic and
+make it harder to reason about what embeds the data.
+
+### Regression Test
+Added `src/api/timezone_embed_test.go` (package main). The test calls
+`time.LoadLocation` for 8 representative non-UTC IANA zones and also asserts
+invalid zones are still rejected. The test does NOT import `time/tzdata` itself —
+if the blank import is removed from `main.go`, the tests fail on any zoneinfo-less
+host, providing an exact regression signal.
+
+### Validation
+- `go build ./...` — clean
+- `go vet ./...` — clean
+- `go test ./... -count=1` — all 12 packages pass (including new embed tests)
+- `git diff --check` — exit 0 (CRLF advisory only, Windows checkout)
+
+### Learning
+- When a Go binary targets Alpine, always include `_ "time/tzdata"` in `main.go`
+  if any code path calls `time.LoadLocation` with non-UTC zones. The embed adds
+  ~450 KB to the binary, which is negligible.
+- Regression test must live in `package main` and must NOT import `time/tzdata`
+  itself, otherwise the test silently re-embeds the data and masks removal.
 
