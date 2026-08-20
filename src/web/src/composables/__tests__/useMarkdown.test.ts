@@ -19,10 +19,18 @@ const SAFE_URL_SCHEMES = ['http:', 'https:', 'mailto:']
 const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
 
 function hasSafeScheme(rawValue: string): boolean {
-  // Browsers ignore whitespace and control characters inside a scheme, so a
-  // value like "java\tscript:alert(1)" still executes. Strip those the way a
-  // browser would before testing, or this check is trivially bypassed.
-  const value = rawValue.replace(/[\s\u0000-\u001F]/g, '').toLowerCase()
+  // Browsers ignore ASCII whitespace and C0 control characters inside a
+  // scheme, so a value like "java\tscript:alert(1)" still executes. Strip
+  // them the way a browser would, or this check is trivially bypassed.
+  //
+  // Done by code point rather than a regex: a character class covering the
+  // C0 range trips ESLint's no-control-regex, and suppressing that rule to
+  // keep a terser regex would be the wrong trade in a security test.
+  const value = Array.from(rawValue)
+    .filter((char) => char.charCodeAt(0) > 0x20)
+    .join('')
+    .toLowerCase()
+
   const match = SCHEME_PATTERN.exec(value)
   // No scheme at all: a relative path, anchor, or protocol-relative URL.
   if (!match) return true
