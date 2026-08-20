@@ -32,7 +32,7 @@ import type { MintGroup } from '@/utils/mintMap'
 
 const PREVIEW_MAX = 2
 
-const props = defineProps<{
+defineProps<{
   groups: MintGroup[]
   selectedMintId?: number | null
 }>()

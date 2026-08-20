@@ -49,7 +49,9 @@
             :disabled="syncing || shipment.carrier !== 'parcel' || isDelivered"
             :title="isDelivered ? 'Tracking is complete — this shipment was delivered' : undefined"
             @click="syncShipment"
-          >{{ isDelivered ? 'Tracking Complete' : (syncing ? 'Checking...' : 'Check ParcelApp Now') }}</button>
+          >
+            {{ isDelivered ? 'Tracking Complete' : (syncing ? 'Checking...' : 'Check ParcelApp Now') }}
+          </button>
           <button class="btn btn-danger btn-sm" :disabled="deleting" @click="removeShipment">{{ deleting ? 'Removing...' : 'Remove Shipment' }}</button>
         </div>
       </template>

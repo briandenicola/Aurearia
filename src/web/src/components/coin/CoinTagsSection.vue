@@ -33,7 +33,9 @@
         class="rounded-full border border-dashed border-border-subtle px-[0.85rem] py-[0.35rem] text-chip text-text-secondary transition-colors hover:border-text-primary hover:text-text-primary"
         type="button"
         @click="showTagPicker = true"
-      >+ Tag or Set</button>
+      >
+        + Tag or Set
+      </button>
     </div>
     <div v-if="showTagPicker" class="mt-3 flex items-center gap-2 max-sm:flex-col max-sm:items-stretch">
       <select v-model="itemToAdd" class="form-select min-w-0 flex-1" @change="handleAddItem">
