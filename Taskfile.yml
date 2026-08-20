@@ -93,6 +93,14 @@ tasks:
     cmds:
       - go test -v ./...
 
+  test-race:
+    desc: Run Go tests under the race detector (requires a C toolchain)
+    dir: src/api
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      - go test -race ./...
+
   test-critical-workflows:
     desc: Run F013 critical browser workflow tests
     dir: src/web

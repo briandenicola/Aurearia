@@ -56,6 +56,7 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 - **[Coin Sets](coin-sets.md)** — Organize coins into standard, goal, smart, and human-reviewed Agentic sets with trend tracking and tray presentation
 - **[Custom Tags](custom-tags.md)** — Create flexible custom categories for organizing your collection
 - **[Collection Statistics](statistics.md)** — View analytics including portfolio value, distributions, trends, health, maps, investment breakdown, and emperor tracking
+- **[Collection Time Machine](time-machine.md)** — Replay the collection as it stood on any past date, reconstructed from purchase dates and recorded valuation history
 - **[Collection Showcase](collection-showcase.md)** — Create and share curated public coin subsets with shareable URLs
 
 ## Social & Community

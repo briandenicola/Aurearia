@@ -31,7 +31,7 @@ task up          # starts both API and web dev servers
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before making API changes. The key rules:
 
-1. **Only `main.go` imports the `database` package** -- everything else uses dependency injection
+1. **Only the composition root (`main.go` + `deps.go`) imports the `database` package** -- everything else uses dependency injection
 2. **Handlers are thin** -- parse request, call service/repo, return response
 3. **Services hold business logic** -- HTTP-agnostic, orchestrate repos
 4. **Repositories own all DB access** -- every GORM query lives here
