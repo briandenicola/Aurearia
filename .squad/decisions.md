@@ -858,95 +858,6 @@ Align frontend payload contract to backend by emitting `creationMode` in `Create
 
 ---
 
-### Decision: Coin Grading as AI Analysis Sub-Action
-
-**Date:** 2026-07-02
-**Agent:** Aurelia
-**Status:** IMPLEMENTED
-
-## Context
-Coin grading is an AI-assisted per-coin workflow that returns an estimate report without mutating the saved coin grade.
-
-## Decision
-The user-facing grading entry point lives inside `CoinAIAnalysis.vue` beside obverse/reverse analysis instead of chat or a new store. It uses the existing async AI job polling pattern, requires both obverse and reverse images before start, displays `gradingReport` in-place, and includes permanent limitation copy that the estimate is not professional certification and does not update `Coin.grade` automatically.
-
-## Alignment
-- Principle III: typed API contract and frontend type-check passed.
-- Principle IV: reused existing AI job polling surface without a new store.
-- Principle VI: token-based in-panel UI with no emoji and existing button hierarchy.
-
----
-
-### Decision: Coin Grading ships as a dedicated coin-detail AI job
-
-**Date:** 2026-07-01
-**Agent:** Maximus
-**Status:** IMPLEMENTED
-**Issue:** #374
-
-## Context
-
-Coin grading exists in `src/agent/app/teams/coin_grading.py` and the supervisor router advertises a `grading` intent, but the streaming chat path does not carry images. Routing grading requests through chat currently lands on a passthrough/dead-end unless a caller injects a grading node.
-
-## Decision
-
-Implement Coin Grading as a dedicated authenticated coin-detail action backed by the existing AI job system, not as image-capable chat attachments for this slice.
-
-Recommended surface:
-- Add a `Grade Coin` action on the coin detail AI Analysis page, using existing stored obverse/reverse/detail images.
-- Queue `AIJobTypeCoinGrading` through Go, pass owner-scoped coin context and image bytes to Python `/api/grade`, then store the report in the job result.
-- Do not write the estimated grade into `Coin.Grade` automatically. Offer an explicit `Apply to Grade` follow-up only after the user reviews the confidence/limitations.
-- Remove supervisor grading advertising/dead-end behavior unless/until chat supports image attachments.
-
-## Rationale
-
-This keeps the feature aligned with Constitution Principle I/II: Vue calls Go, Go owns auth/image access/job persistence, Python remains stateless and receives only bounded per-request context. Reusing AI jobs matches the existing analysis/value UX, avoids introducing image-capable chat contracts prematurely, and provides clear regression points for no-image, success, and model-failure paths.
-
-## Validation expected
-
-- Agent: request model and `/api/grade` route tests for no-image, success, and graph failure.
-- Go: service/job tests for no images, successful grading result persistence, and agent failure status.
-- Frontend: component tests for disabled/no-image state, queued/success polling, failure display, and confidence/limitations copy.
-- Contract: regenerate OpenAPI and run route drift test for any new Go route.
-
----
-
-### Decision: Coin Grading Revision
-
-**Date:** 2026-07-02
-**Agent:** Maximus
-**Status:** IMPLEMENTED
-
-Coin grading remains exposed through the dedicated `/api/grade` agent endpoint and Go `POST /coins/:id/grade` AI job workflow only. Collection chat no longer advertises or routes to a `grading` supervisor capability until that path has a real wired implementation instead of a passthrough dead-end.
-
----
-
-### Decision: Coin Grading Backend Contract
-
-**Date:** 2026-07-01
-**Agent:** Cassius
-**Status:** IMPLEMENTED
-**Issue:** #374
-
-## Decision
-
-Issue #374 uses a dedicated async AI job endpoint, `POST /api/coins/:id/grade`, backed by Python `POST /api/grade`.
-
-## Contract
-
-- Go endpoint returns `202` with the normal `services.AIJobSubmissionResponse`.
-- New job type is `coin_grading`.
-- Python grading response is `{ "report": string }`.
-- Completed Go job result is JSON `{ "gradingReport": string }`.
-- The workflow requires at least one owner-scoped coin image; image-less coins return `400 {"error":"No image available for grading"}`.
-- The saved `Coin.Grade` field is not updated automatically.
-
-## Rationale
-
-This preserves the existing AI job polling/notification contract, avoids chat attachment coupling, and keeps grade updates explicitly user-controlled.
-
----
-
 ### Decision: Python Agent Dynamic Set Builder Workflow (Phase 2)
 
 **Date:** 2026-07-26
@@ -1379,87 +1290,6 @@ Items 1 and 3 covered; items 2, 4-10 and all frontend/integration open.
 
 - Principle IX / §17: regression coverage without modifying implementation files
 - Constitution §18.2 Strict Lockout: no BLOCK; Phase 3 behavior matches documented acceptance criterion
-
----
-
-### Decision: Auction Sync Auto-Creates In-App Calendar Events
-
-**Date:** 2026-07-01
-**Agent:** Cassius
-**Status:** IMPLEMENTED
-
-## Context
-
-`/auctions/sync` upserts NumisBids and CNG watchlist lots, but newly tracked active lots were not linked to in-app calendar entries despite `AuctionLot.EventID` and `AuctionEvent` already existing.
-
-## Decision
-
-Add repository-level `UpsertWithCalendarEvent` for sync paths only. It creates an `AuctionEvent` and links `AuctionLot.EventID` in the same transaction only when the source-aware upsert inserts a new lot with status `watching` or `bidding`. Existing lots update without new events, and `passed`/`won`/`lost` lots do not auto-create events.
-
-## Validation
-
-- `go test -v .\repository -run "TestAuctionLotRepository_Upsert"`
-- `go test -v .\handlers -run "TestAuctionLotHandlerUpdateStatus"`
-- `go test ./...`
-
-## Alignment
-
-- Principle I: GORM and multi-step create/link live in repository transaction.
-- Principle IV: Small, source-aware extension of existing upsert/sync workflow.
-- §17: Targeted regression coverage plus full Go API tests pass.
-
----
-
-### Decision: Cassius Scraper Transport Helper
-
-**Date:** 2026-07-01
-**Agent:** Cassius
-**Status:** IMPLEMENTED
-
-## Context
-
-Issue #373 starts with auditing shared scraper behavior across NumisBids and CNG. Both providers need authenticated HTTP session mechanics, but their login payloads, auth verification rules, URL safety, pagination, parsing, and provider-specific sentinel errors must remain provider-owned.
-
-## Decision
-
-Added a package-private shared helper in `src/api/services/scraper_transport.go` for cookie-jar client creation, request/header construction, form POST construction, request execution, status checks, response body read/close behavior, and request error wrapping. The first segment intentionally does not refactor `NumisBidsService` or `CNGAuctionService` to use it yet.
-
-## Validation
-
-- `go test -v ./services -run "Test(NewScraper|DoScraper|ReadScraper|CNGAuctionService|CanonicalCNG|ParseWatchlist|WatchlistDiagnostics|FetchWatchlist|Login|VerifyAuthentication)"`
-
-## Alignment
-
-- Principle I: helper stays in service layer and remains HTTP-provider agnostic.
-- Principle IV: simple, focused extraction without broad provider refactor.
-- §21: new helper methods have focused regression coverage.
-
----
-
-### Decision: User-Initiated Camera Start
-
-**Date:** 2026-06-30
-**Agent:** Aurelia
-**Status:** IMPLEMENTED
-
-## Context
-
-iOS/PWA users should not see a camera permission prompt just by opening Add Coin agentic mode or Identify Coin. The app still needs to preserve the guided live camera experience once the user intentionally starts capture.
-
-## Decision
-
-`src/web/src/pages/AddCoinPage.vue` and `src/web/src/pages/CoinLookupPage.vue` no longer start camera streams from page mount, agentic mode entry, or Identify Coin retake. Both pages show a clear "Start Camera" placeholder action that calls `startCamera()` only from a user tap. Existing upload-library actions remain available, shutter buttons stay disabled until `cameraReady`, and Add Coin continues stopping active streams when leaving agentic mode.
-
-## Validation
-
-- `npm.cmd run test -- src/pages/__tests__/CoinLookupPage.test.ts src/__tests__/ui-patterns.test.ts`
-- `npm.cmd run type-check`
-
-## Alignment
-
-- Principle III: Vue strict type-check passed.
-- Principle IV: Simple complete change across both affected camera entry points.
-- Principle VI: Preserves existing dark, token-based camera UI and upload fallback.
 
 ---
 
@@ -4987,3 +4817,105 @@ Both guards are status-based only (not sticky flags), so if a user later changes
 ## Verdict
 
 APPROVE, no BLOCK. Ready for beta push.
+
+---
+
+## 2026-08-20 — Wishlist Purchase Reminders: Design Proposal & Acceptance Criteria
+
+**Proposed by:** Maximus (Lead/Architect), Brutus (Tester/QA)  
+**Ceremony:** Focused Design Review  
+**Status:** APPROVED by team consensus
+
+### Key Decisions
+
+**D1:** Separate `purchase_reminders` table (not a column on `Coin`). Cleaner lifecycle, audit trail, supports future recurrence.
+
+**D2:** Daily cadence scheduler (reuses Coin of the Day / Auction Ending pattern). No sub-day precision for MVP.
+
+**D3:** One active reminder per coin per user. Update-in-place semantics on re-POST. Unique constraint: `(coin_id, user_id)` where `cancelled_at IS NULL`.
+
+**D4:** Auto-cancel on any `IsWishlist -> false` transition, not only on explicit purchase.
+
+**D5:** Notification type `purchase_reminder`; clicking opens coin detail (not a dedicated reminder view).
+
+**D6:** `ReminderCheckEnabled` defaults to `"true"` since it's user-initiated (unlike availability which is admin-gated).
+
+### Data Model
+
+```go
+type PurchaseReminder struct {
+    ID         uint       `gorm:"primaryKey" json:"id"`
+    CoinID     uint       `gorm:"not null;index" json:"coinId"`
+    Coin       Coin       `gorm:"foreignKey:CoinID" json:"-"`
+    UserID     uint       `gorm:"not null;index" json:"userId"`
+    User       User       `gorm:"foreignKey:UserID" json:"-"`
+    RemindDate time.Time  `gorm:"type:date;not null;index" json:"remindDate"`
+    Note       string     `gorm:"type:varchar(200)" json:"note"`
+    IsNotified bool       `gorm:"default:false" json:"isNotified"`
+    NotifiedAt *time.Time `json:"notifiedAt"`
+    IsCancelled bool      `gorm:"default:false" json:"isCancelled"`
+    CreatedAt  time.Time  `json:"createdAt"`
+    UpdatedAt  time.Time  `json:"updatedAt"`
+}
+```
+
+### API Contract
+
+All endpoints under the `protected` group (JWT required, user-scoped).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/coins/:id/reminder` | Create or update reminder for a wishlist coin |
+| GET | `/coins/:id/reminder` | Get active reminder for a coin (if any) |
+| DELETE | `/coins/:id/reminder` | Cancel the active reminder |
+| GET | `/reminders` | List all active reminders for the current user |
+
+### Scheduler & Notifications
+
+- **Schedule:** Daily job at configurable time (default `08:00`); settings keys `ReminderCheckEnabled`, `ReminderCheckStartTime`.
+- **Idempotency:** `IsNotified` flag prevents double-send on re-run or restart.
+- **Notification Type:** `purchase_reminder`; ReferenceID = reminder.id; ReferenceURL = `/coins/:coinId`.
+- **Timezone:** Server-local (MVP); per-user TZ backlog.
+- **Cascading:** Auto-cancel on `IsWishlist -> false` or coin deletion.
+
+### Frontend
+
+- **UX Pattern:** Modal-based MVP (no new route); integrated into wishlist detail page + coin cards.
+- **Modal:** Native date picker; optional 200-char note; edit/delete actions.
+- **Card Badge:** Shows reminder status ("Due Today", "Due Tomorrow", "Due in N days") with `--accent-gold`.
+- **Notification Deep Link:** Click → opens coin detail or wishlist with reminder highlighted.
+- **Accessibility:** Full keyboard nav, ARIA labels, focus trap; mobile 44px+ tap targets.
+
+### Test Coverage (23 acceptance tests)
+
+- Handler: 4 tests (auth ownership, validation)
+- Service: 6 tests (logic, date boundaries, auto-cancel)
+- Repository: 4 tests (CRUD, FK, uniqueness)
+- Scheduler: 3 tests (idempotency, restart, notification)
+- Frontend: 6 tests (Playwright: modal, accessibility, mobile)
+
+### Unresolved (Spec-Phase Clarifications)
+
+1. Timezone storage semantics (UTC vs. user's local)
+2. Optional run history persistence for audit
+3. Deep link behavior for grouped due reminders (multiple same day)
+
+### Risk Summary
+
+- **Highest:** Scheduler idempotency + restarts → mitigated by `IsNotified` + durable state
+- **Second:** Transactional integrity (coin removal + auto-cancel) → tested atomicity
+- **Lowest:** Frontend UX → modal reuses existing patterns
+
+### Implementation Ready?
+
+Yes. Unresolved items are configuration-phase clarifications, not blockers. Spec/plan/tasks ready for generation.
+
+**Orchestration Logs:**
+- `.squad/orchestration-log/2026-08-20T20-32-55Z-maximus-wishlist-purchase-reminder.md`
+- `.squad/orchestration-log/2026-08-20T20-32-55Z-cassius-wishlist-purchase-reminder.md`
+- `.squad/orchestration-log/2026-08-20T20-32-55Z-aurelia-wishlist-purchase-reminder.md`
+- `.squad/orchestration-log/2026-08-20T20-32-55Z-brutus-wishlist-purchase-reminder.md`
+
+**Session Log:**
+- `.squad/log/2026-08-20T20-32-55Z-scribe-wishlist-purchase-reminder.md`
+

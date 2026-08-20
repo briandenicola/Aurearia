@@ -1,3 +1,70 @@
+## 2026-08-20 — Wishlist Purchase Reminder: QA & Acceptance Criteria
+
+**Role:** Tester/QA  
+**Session:** Design coordination with Maximus, Cassius, Aurelia
+
+### Acceptance Criteria by Risk Category
+
+#### Critical (Auth & Ownership)
+
+- **AC-1.1:** User can only view/modify own reminders (403 on cross-user access)
+  - Test: TestReminderOwnership_UnauthorizedAccess
+- **AC-1.2:** Reminder table enforces user_id FK; all queries scoped to authenticated user
+  - Test: SQL schema validation
+
+#### High (Uniqueness & Idempotency)
+
+- **AC-2.1:** Exactly one active reminder per coin/user (409 Conflict on duplicate create)
+  - Test: TestReminderUniqueness_DuplicateRejected
+- **AC-2.2:** Scheduler is idempotent; multiple daily runs produce exactly one notification
+  - Test: TestScheduler_IdempotentNotification — verify last_notified_at gates subsequent sends
+- **AC-2.3:** Scheduler survives process restarts; pending queue durable
+  - Test: TestScheduler_RestartRecovery — simulate kill, verify queue rebuilt
+
+#### High (Date Boundaries & Cancellation)
+
+- **AC-3.1:** Reminder date can be any future date (no hardcoded limits)
+  - Test: TestReminder_DateBoundaries — 1 day, 30 days, 365 days forward
+- **AC-3.2:** Auto-cancel: coin removal from wishlist nullifies reminder atomically
+  - Test: TestReminder_AutoCancelOnWishlistRemoval — verify cancelled_at set
+- **AC-3.3:** Explicit cancellation via DELETE endpoint
+  - Test: TestReminder_ExplicitCancellation — 200 OK, status reflects cancelled
+
+#### Medium (Frontend Accessibility)
+
+- **AC-4.1:** Modal form accessible (labels, ARIA, keyboard nav)
+  - Test: Playwright — tab order, screen reader text
+- **AC-4.2:** Native date picker on mobile (no custom control)
+  - Test: Mobile viewport 375px
+
+#### Medium (Migration)
+
+- **AC-5.1:** Schema migration zero-downtime (add column, no data loss)
+  - Test: TestMigration_Rollback
+- **AC-5.2:** Existing wishlist data unmodified
+  - Test: Count check post-migration
+
+### Test Coverage Summary
+
+| Layer | Count | Type |
+|---|---|---|
+| Handler | 4 | Unit (auth, validation) |
+| Service | 6 | Unit (logic, boundaries) |
+| Repository | 4 | Integration (SQL, FK) |
+| Scheduler | 3 | Integration (idempotency, restart) |
+| Frontend | 6 | Playwright (modal, a11y, mobile) |
+| **Total** | **23** | **—** |
+
+### Risk Summary
+
+- **Highest:** Scheduler idempotency under load + restarts → last_notified_at + queue persistence
+- **Second:** Txn isolation on coin removal + auto-cancel → test atomic pairing
+- **Lowest:** Frontend UX → modal reuse, low change risk
+
+### Ready for Spec?
+
+Yes. All AC criteria written; no blockers identified. Ready to expand into formal task breakdown once spec finalized.
+
 # Project Context- **Owner:** Brian- **Project:** Ancient Coins QA/testing across Go API, Vue frontend, and Python agent- **Architecture:** Tests enforce constitution-backed layer boundaries, auth/ownership guarantees, and feature acceptance criteria.## Core Context- Brutus owns testing and review. Durable test patterns: in-memory SQLite + httptest/Gin for Go handlers/repos/services, Vitest with axios/localStorage mocks for frontend, Ruff/pytest for Python, and architecture tests for import boundaries.- Testing baseline expanded from minimal coverage to auth/security, API client, auth store, settings, parser, and component tests. `docs/testing.md` is canonical test strategy; known gaps include browser E2E, Go cross-process integration, and Python static type checking.- Strict Lockout applies: when a reviewer marks BLOCK, the blocked implementer does not revise until the block is cleared by reviewer or delegated agent.- Durable QA rules: verify actual code and data paths, not just claims; classify pre-existing failures separately; document non-blocking nits without blocking otherwise passing features.## Recent Updates
 - **2026-08-19 (final assembled-diff validation) — Spec 340 shipment-delivered terminal-state, complete backend+frontend scope validation:** Reviewed full working-tree diff for scope/correctness after Cassius/Aurelia implementation complete. Backend: 1-line repository filter + 1 guard in `syncSingleShipment` (both minimal, exact match to contract). Frontend: `CoinShipmentSection.vue` adds `computed isDelivered` that disables/relabels manual "Check ParcelApp Now" button to "Tracking Complete" with accessible title; pre-existing non-Parcel disable logic unchanged. Ran 8 dedicated Feature340 Go tests (8/8 pass), full `go test ./... -count=1` (11/11 packages, no regressions), targeted Vue component tests (5/5 pass — non-delivered enabled, delivered disabled+relabeled+tooltip, reactive re-enable on status change, non-Parcel unchanged, enabled click syncs), `vue-tsc --noEmit` clean. `git status --porcelain` confirmed no unrelated files touched anywhere in working tree. **Final verdict: APPROVE for beta push, no BLOCK.** No commit/push performed.
 - **2026-08-19 (re-validation) — Spec 340 shipment-delivered terminal-state re-run against Cassius's completed implementation:** Full re-run confirms all 8 dedicated Feature340 tests pass plus every existing shipment suite (`-run Shipment` across `repository`/`services`, including Cassius's own new tests). Full `go test ./... -count=1` (11/11 packages) clean, no regressions. `git status` confirms only the 2 new untracked test files plus Cassius's modified files — no production or existing-test-file changes by me. Cassius's state-based assertions and my call-counting stub-client assertions independently corroborate the same contract from different angles. **Final verdict: APPROVE, no BLOCK.**
@@ -62,3 +129,4 @@ Runtime defect found+fixed in screenshot infra only: mobile (iPhone 13 UA) proje
 Visual/privacy inspection of all 10 PNGs: no prices/purchase data/dealer info/admin content, notification badge hidden, wishlist capture correctly scoped to only the fixture card, no AI invocation triggered. Stats page intentionally reflects whole-account aggregate counts (documented in tour.spec.ts comment) — not a fixture leak, by design.
 
 - **2026-08-19 — Feature 354 implementation complete:** All team deliverables landed and approved. Orchestration/session logs: 2026-08-19T125040Z-*.md
+
