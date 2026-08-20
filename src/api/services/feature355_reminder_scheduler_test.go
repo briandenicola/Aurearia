@@ -34,10 +34,25 @@ import (
 
 func setupReminderSchedulerDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Use a unique named shared-memory DSN so each test gets its own isolated
+	// schema. Plain ":memory:" opens a per-connection database; under -race the
+	// sql.DB pool or the Pushover goroutine spawned by NotificationService can
+	// land on a second connection that sees an empty schema, causing
+	// "no such table: purchase_reminders" failures. Named shared-memory + a
+	// single open connection is the canonical repo fix (see auction_alert_service_test.go,
+	// notification_service_test.go).
+	dsn := fmt.Sprintf("file:remsch_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql.DB: %v", err)
+	}
+	// Pin pool to one connection: prevents a race-triggered second connection from
+	// opening a fresh empty database while AutoMigrate runs on the first.
+	sqlDB.SetMaxOpenConns(1)
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Coin{},
@@ -47,6 +62,7 @@ func setupReminderSchedulerDB(t *testing.T) *gorm.DB {
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	t.Cleanup(func() { sqlDB.Close() })
 	return db
 }
 
