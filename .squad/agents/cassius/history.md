@@ -1,6 +1,50 @@
 ## 2026-08-20 — Wishlist Purchase Reminder: Backend Pattern Review
 
-**Role:** Backend Developer  
+---
+
+## 2026-08-20 — Feature 355 Backend Implementation (Complete)
+
+**Role:** Cassius, Backend Developer
+**Feature:** 355-wishlist-purchase-reminders
+
+### Completed
+
+All Cassius-owned tasks (T001-T022, T033) implemented, tested, and validated.
+
+**New files created:**
+- `src/api/models/purchase_reminder.go` — PurchaseReminder model; CoinName is gorm:"-" computed; RemindDate varchar(10) YYYY-MM-DD; Status enum: pending/notified/cancelled.
+- `src/api/repository/purchase_reminder_repository.go` — Full CRUD + MarkNotified returning (bool, error) for idempotency guard; CancelActiveForCoin scoped to (coinID, userID); WithTx pattern.
+- `src/api/services/purchase_reminder_service.go` — Sentinel errors: ErrCoinNotWishlist, ErrRemindDatePast, ErrInvalidTimezone, ErrReminderNotFound; CreateOrUpdate upserts active reminders in-place.
+- `src/api/services/reminder_scheduler.go` — Implements Scheduler interface in services package (required: timeUntilNextRun is unexported); isDue uses YYYY-MM-DD string comparison; MarkNotified is the durable idempotency gate.
+- `src/api/handlers/purchase_reminder_handler.go` — 4 endpoints with full Swagger annotations.
+
+**Modified files:**
+- `src/api/database/database.go` — Added &models.PurchaseReminder{} to AutoMigrate.
+- `src/api/database/feature353_migration_order_regression_test.go` — Added "PurchaseReminder" to productionModelConstructors.
+- `src/api/services/settings_service.go` — SettingReminderCheckEnabled (default "true"), SettingReminderCheckStartTime (default "08:00").
+- `src/api/services/notification_service.go` — NotificationTypePurchaseReminder constant; NotifyPurchaseReminder method.
+- `src/api/services/coin_service.go` — WithReminderSupport; auto-cancel in updateCoin, PurchaseCoin, DeleteCoin; nil guard on reminderRepo for backward compatibility.
+- `src/api/deps.go` — purchaseReminderRepo, purchaseReminderSvc, reminderScheduler wired and registered.
+- `src/api/routes_protected.go` — WithReminderSupport wired; 4 routes registered.
+- Brutus test files: wired WithReminderSupport in newF355CoinService; added missing fmt/strings imports to scheduler test; fixed typed-nil *bytes.Reader panic in handler test.
+
+### Key Design Decisions
+
+- MarkNotified returns (bool, error): the bool is the concurrency-safe idempotency gate (WHERE status='pending' guard). If another scheduler instance already flipped the row, marked=false skips the notification.
+- Auto-cancel nil guard on s.reminderRepo allows CoinService to be constructed in existing tests without a reminder repo — zero behavior change for all pre-existing test code.
+- ReminderCheckEnabled defaults to "true" unlike other schedulers (default "false") — user-initiated reminders have no external API cost.
+- No SQLite partial unique index — uniqueness for (coin_id, user_id) active reminders enforced in service layer via FindActiveByCoinAndUser upsert check.
+- Scheduler must be in services package because timeUntilNextRun in the Scheduler interface is unexported.
+- apply_patch inserts + lines AFTER context lines; the @@ separator inside a patch body is emitted as a literal string. For multi-line replacements use PowerShell .Replace() instead.
+
+### Quality Gate
+
+`go build ./... && go vet ./... && go test ./...` — all 11 packages pass (default tags).
+`go test -tags feature355 ./...` — all 11 packages pass (Brutus tagged tests included).
+Swagger regenerated via `swag init`.
+
+
+**Role:** Backend Developer
 **Session:** Design coordination with Maximus, Aurelia, Brutus
 
 ### Implementation Patterns

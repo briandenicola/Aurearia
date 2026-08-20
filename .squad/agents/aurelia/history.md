@@ -1,6 +1,91 @@
+## 2026-08-20 — Feature 355: NB1 Badge Wiring Resolution & T037-T038 Admin Schedule UI
+
+**Assignment**: Strict Lockout §18.2 reassignment from Cassius
+**Tasks**: NB1 (badge wiring) + T037-T038 (admin schedule UI)
+**Outcome**: Both complete; 5 badge tests + 12 schedule tests all passing
+
+### NB1 Resolution — Wishlist Badge (US5 AC1)
+
+**Issue**: Badge render code in CoinCard.vue:93-97 present but unused
+- WishlistPage.vue imported listPurchaseReminders but never called it
+- No activeReminder data passed to CoinCard
+- US5 AC1 ("coin card shows compact badge with remind date") was dead code
+
+**Fix Implementation**:
+
+1. **Import API method**: import { listPurchaseReminders } from '@/api/...'
+2. **Fetch on page load**: Inside loadCoins() on every page refresh
+3. **Build reminder map**: Map<number, PurchaseReminder> keyed by coinId
+4. **Pass to cards**: Iterate coins, look up reminder in Map, pass activeReminder ?? null to each CoinCard
+5. **Render badge**: CoinCard shows badge when activeReminder present and status !== 'cancelled'
+6. **Error handling**: Network errors caught silently (best-effort badge, non-critical feature)
+
+**Test Coverage** (5 targeted cases):
+
+| Test | Scenario | Result |
+|------|----------|--------|
+| Single match | One coin with reminder | ✓ |
+| No match | All coins without reminders | ✓ |
+| Multi-coin | Coin1→reminder, Coin2→none, Coin3→reminder | ✓ |
+| Re-fetch | Badge updates on loadCoins() call | ✓ |
+| Network error | Fetch fails; badge silently absent | ✓ |
+
+**Verdict**: US5 AC1 SATISFIED. NB1 CLEARED.
+
+### T037-T038 — Admin Schedule UI (FR-015a)
+
+**Component**: AdminPurchaseReminderSchedule.vue (new, pattern: AdminCoinOfDaySchedule.vue)
+
+**Functionality**:
+
+| Control | Binding | Type | Notes |
+|---------|---------|------|-------|
+| Toggle | ReminderCheckEnabled | 'true' / 'false' | No boolean; settings use string values |
+| Time input | ReminderCheckStartTime | HH:MM format | HTML5 type="time" |
+| Save button | Emits save event | Parent-driven | Consistent with other schedules |
+
+**Integration**: Mounted in AdminSchedulesSection.vue:140-144 with props/emits:
+- :settings :settings-saving @save
+
+**Scope Boundaries** (verified):
+- ✗ No "Run Now" button (out of scope)
+- ✗ No run-history table (out of scope)
+- ✗ No new route (admin settings only)
+- ✓ Disables delivery only; CRUD always allowed
+- ✓ Reads both settings in scheduler
+
+**Accessibility**:
+
+| Requirement | Implementation | Status |
+|-------------|-----------------|--------|
+| Toggle label linked | label for="reminder-check-enabled" → input id="reminder-check-enabled" | ✓ |
+| Time input label linked | label for="reminder-check-start-time" → input id="reminder-check-start-time" | ✓ |
+| Time input hint | aria-describedby="reminder-check-start-time-hint" → hint span | ✓ |
+| Keyboard focus ring | peer-focus-visible:outline-2 on input wrappers | ✓ |
+| Pattern consistency | Structure, CSS classes identical to AdminCoinOfDaySchedule.vue | ✓ |
+
+**Test Coverage** (12 test cases in AdminPurchaseReminderSchedule.test.ts):
+
+| Category | Cases | Result |
+|----------|-------|--------|
+| Render | heading, description, toggle, time input, save button | ✓ |
+| Accessibility | for/id linkage, aria-describedby, focus ring | ✓ |
+| Binding | toggle reflects true/false, time reflects value | ✓ |
+| Interaction | toggle check/uncheck updates settings | ✓ |
+| Time update | setValue propagates via v-model | ✓ |
+| Save | emits save, disabled during saving, label changes | ✓ |
+
+**Integration Test**: AdminSchedulesSection.test.ts asserts "Purchase Reminder Delivery" heading appears alongside all other schedule headings ✓
+
+**Verdict**: T037-T038 COMPLETE. Admin schedule UI ready for production.
+
+### Session Logs
+
+- `.squad/orchestration-log/${timestamp}-aurelia-feature355-nb1-t037-t038.md`
+
 ## 2026-08-20 — Wishlist Purchase Reminder: Frontend UX Review
 
-**Role:** Frontend Developer  
+**Role:** Frontend Developer
 **Session:** Design coordination with Maximus, Cassius, Brutus
 
 ### Frontend Design Summary
@@ -8,7 +93,7 @@
 - **UX Pattern:** Modal-based MVP integrated into wishlist (no new route)
   - Wishlist detail page: reminder card with edit/delete actions
   - Wishlist list page: reminder status badge on each coin card
-- **Modal Behavior:** 
+- **Modal Behavior:**
   - Create: Coin card → "Add Reminder" button → modal opens
   - Edit: Card badge → click opens modal with current date pre-filled
   - Delete: Card quick-action button → confirm → close
@@ -50,4 +135,93 @@ Yes. UX pattern is low-risk (modal reuse); unresolved decisions (deep link group
 - **2026-08-19 (Auction Watching/Bidding default grouping, minor UI task):** No existing spec governs `AuctionsPage.vue` (predates spec numbering) and no prior grouping mechanism existed in the frontend at all — confirmed via grep before building anything new, per Principle IV. Added a purely client-side `groupedLots` computed (bucket by `auctionHouse` then `saleName`, alphabetical) applied only to the `watching`/`bidding` status views (same single page/component, not separate routes); all other statuses keep the untouched flat grid. Added one toggle chip reusing the existing `.chip` convention so a visitor can turn grouping off, with the choice held in a plain ref that survives status/source filter changes and refetches for the rest of the visit (no new persisted setting). Reused `.section-label` (already used by `MintListPanel.vue` for a single-level group heading) for the Sale sub-heading and the existing h3/text-heading convention for the Auction House heading — no new CSS or card layout, `AuctionLotCard` unchanged. Backend auction_lot_repository.go's `allowedSortFields` has no auction_house/sale_name option, confirming this had to stay a frontend-only display transform (Cassius's backend untouched). Added 3 focused tests directly to the existing `AuctionsPage.test.ts` (unrelated to Feature 354/Brutus, so no concurrent-edit risk) covering default-on grouping, toggle persistence across a status change, and toggle absence outside watching/bidding — all pass; `vue-tsc --noEmit` clean.
 - **2026-08-19 (Feature 354 — post-merge reconciliation against Cassius's final contracts):** Verified every frontend assumption against the landed backend: `DELETE /deep-identification/jobs/:id` returns 204/404/409 exactly as typed (`api.delete<void>`), the 409 "Only terminal Deep Analysis jobs can be deleted" case needed zero code changes since `deleteJob()`'s existing catch-all already surfaces any error via `getApiErrorMessage`; `appliedCoinExists` confirmed populated by the same shared `toDeepJobDTO` used by both List and Get (not just detail); `FeaturedCoin.sourceType`/`.summary` (Python-backed cached rationale with fallback chain) match `FeaturedCoinModal.vue` exactly; `User.CoinOfDayIncludeWishlist` Go default (`true`) matches the frontend's `?? true` fallback. Zero corrective edits were required. Ran the stricter Docker-parity `npm run build` (not just local `vue-tsc --noEmit`) as final confidence check — clean. Full suite: 140 files / 906 tests passing post-merge.
 - **2026-08-19 — Feature 354 implementation complete:** All team deliverables landed and approved. Orchestration/session logs: 2026-08-19T125040Z-*.md
+
+
+
+## 2026-08-20 — Feature 355: Wishlist Purchase Reminders — Frontend Implementation
+
+**Role:** Frontend Developer
+**Session:** T023–T032 implementation complete
+
+### What Was Built
+
+- **`src/web/src/api/endpoints/reminders.ts`** — New endpoint module with `createOrUpdatePurchaseReminder`, `getPurchaseReminder`, `deletePurchaseReminder`, `listPurchaseReminders`. Prefixed with "Purchase" to avoid collision with the existing `auctions.ts` bid-reminder exports (`listReminders`, `deleteReminder`, `createReminder`).
+- **`src/web/src/types/coin.ts`** — Added `PurchaseReminder` interface and `PurchaseReminderListResponse`.
+- **`src/web/src/types/notifications.ts`** — Added `purchase_reminder` to the `Notification.type` union.
+- **`src/web/src/api/client.ts`** — Added `export * from '@/api/endpoints/reminders'` barrel export.
+- **`src/web/src/composables/usePurchaseReminder.ts`** — New composable exposing `reminder`, `loading`, `saving`, `error`, `fetchReminder`, `saveReminder`, `cancelReminder`. Also exports `formatReminderBadge()` (Due Today / Due Tomorrow / Due {Mon DD}) and `todayDateString()` (YYYY-MM-DD local time) as shared utilities. Timezone auto-detected via `Intl.DateTimeFormat().resolvedOptions().timeZone` on save.
+- **`src/web/src/components/coin/PurchaseReminderModal.vue`** — Inline modal: date input with `min=today`, pre-fills existing reminder date, Escape-to-close, ARIA `role="dialog"` + `aria-labelledby`, 44px+ tap targets, `Remove Reminder` button in edit mode, client-side date validation, saves disabled when no date selected.
+- **`src/web/src/components/coin/CoinDetailHeaderActions.vue`** — Added optional `showReminderAction` + `reminderActive` props and `reminder` emit; renders `BellRing` icon button for wishlist coins.
+- **`src/web/src/components/CoinCard.vue`** — Added optional `activeReminder` prop; renders `.chip-sm` badge with gold accent color when `wishlist=true` and reminder exists and status is not cancelled.
+- **`src/web/src/pages/CoinDetailPage.vue`** — Wired `usePurchaseReminder` composable, `BellRing` icon, `showReminderModal` ref, `PurchaseReminderModal`, and reminder strip below category badges. `fetchReminder()` called on mount when coin is wishlist.
+- **`src/web/src/pages/WishlistPage.vue`** — Added `listPurchaseReminders()` call on `loadCoins()`, builds `remindersByCoinId` Map, passes `activeReminder` prop to each CoinCard.
+- **`src/web/src/pages/NotificationsPage.vue`** — Added `BellRing` icon for `purchase_reminder` type; routing already handled by existing `referenceUrl` fallback path.
+
+### Tests Written
+
+- `src/web/src/components/coin/__tests__/PurchaseReminderModal.test.ts` — 17 tests covering render, create/edit mode, date pre-fill, min attribute, submit/validation, cancel, close, Escape key, saveError, saving state, ARIA.
+- `src/web/src/components/__tests__/CoinCard.reminder.test.ts` — 5 tests covering badge render (pending/notified), "Due Today" for past dates, no badge when null, no badge when cancelled, no badge on non-wishlist.
+- `src/web/src/pages/__tests__/WishlistPage.test.ts` — Added `listPurchaseReminders` to mock to prevent failure; all 7 existing tests continue to pass.
+
+### Outcome
+
+`npx vue-tsc --noEmit` ✅ | `npm run build` ✅ | 59/59 targeted tests pass, 0 failures.
+
+### Key Learnings
+
+- **Naming collision guard:** When adding endpoint functions to a barrel-exported API client, grep all other endpoint files for conflicting export names before shipping. The auctions module already exported `listReminders`, `deleteReminder`, `createReminder` for bid reminders — new purchase reminder exports required a "Purchase" prefix.
+- **Disabled-button test pattern:** When a submit button is `:disabled="!selectedDate"`, the click event never fires — testing for a validation message after clicking is wrong. The correct assertion is that the button has `disabled` attribute.
+- **PowerShell multi-replace safety:** When using PowerShell string `Replace()` for multi-hunk patches, each substitution must be verified before assuming the whole update applied. Prefer writing the complete file if more than 3 hunks need applying.
+
+
+## 2026-08-20 — NB1 Fix: WishlistPage reminder wiring (US5 AC1)
+
+**Root cause:** PowerShell multi-hunk string replacements from the initial session silently no-oped on CRLF vs LF mismatch. `listPurchaseReminders` was imported but `fetchReminderMap()` was never defined, `remindersByCoinId` state never created, and `:active-reminder` binding never added to `<CoinCard>` — so CoinCard always received `null` and the badge was dead.
+
+**Fix:**
+- Added `remindersByCoinId = ref(new Map<number, PurchaseReminder>())` state.
+- Added `async fetchReminderMap()` that calls `listPurchaseReminders()`, builds a `coinId → PurchaseReminder` map, and catches errors silently (best-effort badge).
+- Updated `loadCoins()` to call `fetchReminderMap()` on every load (initial mount, page change, post-purchase).
+- Added `:active-reminder="remindersByCoinId.get(coin.id) ?? null"` binding on every `<CoinCard>` in the wishlist grid.
+
+**Tests added to WishlistPage.test.ts (US5 AC1 suite):**
+- Matching reminder is propagated to the correct CoinCard after promise resolution.
+- No reminder → `activeReminder` prop is `null`.
+- Multi-coin: correct reminder matched per coinId, others null.
+- `listPurchaseReminders` called on every `loadCoins`.
+- Network failure → page still renders, CoinCard prop is null (best-effort tolerance).
+
+**Outcome:** `npx vue-tsc --noEmit` ✅ | 12/12 WishlistPage tests pass (7 existing + 5 new).
+
+**Lesson:** When applying multi-hunk replacements via PowerShell `.Replace()`, always verify each substitution succeeded before writing the file — a silent no-op on one hunk leaves a dangling import that only surfaces at runtime.
+
+
+## 2026-08-20 — Feature 355 T037–T038: Admin Schedule Card for Purchase Reminder Delivery
+
+**Role:** Frontend Developer — Aurelia
+**Feature:** 355 Wishlist Purchase Reminders (T037, T038)
+
+### Work Completed
+
+- Created AdminPurchaseReminderSchedule.vue following the AdminCoinOfDaySchedule.vue pattern (toggle + time-input + save, no Run Now, no run history) with ReminderCheckEnabled and ReminderCheckStartTime bound to settings props
+- Added ReminderCheckEnabled?: string and ReminderCheckStartTime?: string to AppSettings in 	ypes/admin.ts; index signature [key: string]: string | undefined was already present so no breaking change
+- Mounted AdminPurchaseReminderSchedule in AdminSchedulesSection.vue after AdminCoinOfDaySchedule; no new props/emits needed on section (same minimal interface as CoinOfDay)
+- Wrote 17 focused tests in schedules/__tests__/AdminPurchaseReminderSchedule.test.ts covering: render, accessible or/id label pairing, ria-describedby hint, initial toggle/time binding, toggle interaction (checked/unchecked mutates settings), v-model time update, save emit, saving-state disabled/text
+- Updated existing AdminSchedulesSection.test.ts to assert 'Purchase Reminder Delivery' heading in the integration render test
+
+### Validation
+
+-
+px vue-tsc --noEmit ✅
+- 17/17 AdminPurchaseReminderSchedule.test.ts tests pass
+- 4/4 AdminSchedulesSection.test.ts tests pass
+-
+pm run build ✅ (strict ue-tsc --build + vite)
+- T037 and T038 marked [x] in tasks.md
+
+### Learnings
+
+- **Simplest schedule card pattern:** When a schedule has no Run Now and no run history, use the AdminCoinOfDaySchedule.vue interface (props: settings, settingsSaving; emit: save). The section parent does not need new props/emits for the new card.
+- **Accessible toggle pattern:** Pair the visible <label for=...> with the checkbox id for both the text label AND the switch wrapper; the id on the <input> is what or must match.
+- **ria-describedby on time inputs:** Link the hint <span> with a unique id and set ria-describedby on the input. Tests verify both the attribute presence and that the hint element exists — prevents silent regressions if the hint is removed.
 

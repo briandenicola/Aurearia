@@ -101,6 +101,10 @@ const (
 	SettingDeepIdentificationOCREEnabled               = "DeepIdentificationOCREEnabled"
 	SettingDeepIdentificationOCRECallBudget            = "DeepIdentificationOCRECallBudget"
 	SettingDeepIdentificationRPCEnabled                = "DeepIdentificationRPCEnabled"
+
+	// 355-wishlist-purchase-reminders: daily scheduler settings (FR-015).
+	SettingReminderCheckEnabled   = "ReminderCheckEnabled"
+	SettingReminderCheckStartTime = "ReminderCheckStartTime"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -220,6 +224,10 @@ var settingDefaults = map[string]string{
 	SettingDeepIdentificationOCREEnabled:               "false",
 	SettingDeepIdentificationOCRECallBudget:            "3",
 	SettingDeepIdentificationRPCEnabled:                "false",
+
+	// 355-wishlist-purchase-reminders defaults (FR-015).
+	SettingReminderCheckEnabled:   "true",
+	SettingReminderCheckStartTime: "08:00",
 }
 
 type NumistaSettings struct {

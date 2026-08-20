@@ -6,6 +6,15 @@
     </button>
     <div class="flex min-w-0 items-center justify-end gap-[0.45rem]">
       <AppIconButton
+        v-if="showReminderAction"
+        :title="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
+        :aria-label="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
+        :active="reminderActive"
+        @click="emit('reminder')"
+      >
+        <BellRing :size="24" />
+      </AppIconButton>
+      <AppIconButton
         :disabled="sharing"
         :title="sharing ? 'Sharing...' : 'Share'"
         :aria-label="sharing ? 'Sharing...' : 'Share'"
@@ -34,7 +43,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { ArrowLeft, Pencil, Share2, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, BellRing, Pencil, Share2, Trash2 } from 'lucide-vue-next'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
 
@@ -44,9 +53,13 @@ const props = withDefaults(defineProps<{
   coinId: number
   sharing?: boolean
   duplicating?: boolean
+  showReminderAction?: boolean
+  reminderActive?: boolean
 }>(), {
   sharing: false,
   duplicating: false,
+  showReminderAction: false,
+  reminderActive: false,
 })
 
 const emit = defineEmits<{
@@ -55,6 +68,7 @@ const emit = defineEmits<{
   duplicate: []
   edit: []
   delete: []
+  reminder: []
 }>()
 
 const router = useRouter()

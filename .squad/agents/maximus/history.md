@@ -1,6 +1,55 @@
+## 2026-08-20 — Feature 355 Final Architecture Review: Three-Session Cycle BLOCK → APPROVE
+
+**Verdict**: APPROVE (architecturally complete; ready for operational gates T034/T035 then beta→main merge)
+
+### Review Sessions Summary
+
+**Session 1 — Initial Review: BLOCK**
+- **P0 Defect (B1):** Route collision `GET /reminders` (lines 76 + 384) causes Gin server panic
+- **Non-blocking (NB1):** Wishlist badge code present but `WishlistPage.vue` never fetches reminders
+- **Acceptable (NB2):** Mark-then-notify non-atomic; idempotent ordering defensible for MVP
+
+**Session 2 — BLOCK Clearance: APPROVE**
+- B1 resolved (Brutus): Moved purchase reminders to `/purchase-reminders`; verified 8 surfaces (routing, Swagger, frontend, tests); smoke test guards regression
+- NB1 resolved (Aurelia): Badge wired complete (fetch, Map, pass-through); 5 test cases pass
+- Prior BLOCK cleared; feature ready for expanded-scope review
+
+**Session 3 — Expanded Scope Clearance: APPROVE**
+- User directives: Admin Schedule UI (FR-015a, T037-T038) + Pushover verification required
+- Checklist (6 items): Route fix confirmed, Admin UI complete with accessibility, scheduler disables delivery-only, settings honored, notification ordering correct, tasks tracked
+- Verdict: All checks pass; architecture approved for production
+
+### Architecture Compliance
+
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| Principle I (Layered) | ✓ | Handler → Service → Repository → DB |
+| Principle V (Owner-scoped) | ✓ | All endpoints JWT + user-scoped WHERE |
+| Swagger | ✓ | Generated; path annotations verified |
+| TypeScript strict/nullable | ✓ | Optional chaining, nullish coalescing correct |
+| Accessibility (ARIA, focus, 44px) | ✓ | role="dialog", aria-labelledby, tap targets |
+| Migration safety | ✓ | Additive AutoMigrate append only |
+| 86 independent tests | ✓ | All passing; no blockers |
+
+### User Directives Fulfilled
+
+1. Push Feature 355 to beta; merge beta→main only after all gates green ✓
+2. Admin Schedule controls + Pushover required ✓
+
+### Remaining Gates (before merge)
+
+- **T034:** Full frontend build validation (operational, not architectural)
+- **T035:** Scheduler regression test (operational, not architectural)
+
+### Orchestration Logs
+
+- `.squad/orchestration-log/${timestamp}-maximus-feature355-review-cycle.md`
+- `.squad/orchestration-log/${timestamp}-brutus-feature355-b1-resolution.md`
+- `.squad/orchestration-log/${timestamp}-aurelia-feature355-nb1-t037-t038.md`
+
 ## 2026-08-20 — Wishlist Purchase Reminder Planning & Design Coordination
 
-**Agents:** Maximus (lead), Cassius (backend), Aurelia (frontend), Brutus (QA)  
+**Agents:** Maximus (lead), Cassius (backend), Aurelia (frontend), Brutus (QA)
 **Outcome:** Design review for future-date purchase reminders on wishlist items.
 
 ### Design Decisions
@@ -88,4 +137,43 @@ Yes. Unresolved decisions are design-phase clarifications, not blockers. Spec/pl
 - **Learning — re-apply idempotency shape:** the natural user model is "save this thing." Idempotency keyed on (job, target, linked-coin-existence) beats proposal-hash heuristics because it survives coin deletion cleanly and produces exactly the button-state the frontend needs. Recording it here so we don't relitigate in future re-apply features.
 - **Learning — AI feature graceful degradation:** the "pick is never dropped for AI failure" rule (D8) is the same shape as the Coin of the Day fallback chain in `buildCoinSummary`. Whenever we add AI-derived content to a scheduled or notification-triggering path, the deterministic fallback goes into the plan **before** the AI call, not after.
 - **2026-08-19 — Feature 354 implementation complete:** All team deliverables landed and approved. Orchestration/session logs: 2026-08-19T125040Z-*.md
+
+
+
+## 2026-08-20 — Feature 355 SpecKit Planning Pipeline Execution
+
+**Agent:** Maximus (Lead/Architect)
+**Outcome:** Spec, plan, and tasks generated for Wishlist Purchase Reminders (Feature 355).
+
+### Artifacts Created
+
+- `specs/355-wishlist-purchase-reminders/spec.md` — 5 user stories, 17 FRs, full API contract
+- `specs/355-wishlist-purchase-reminders/plan.md` — 11 design decisions, data model, project structure
+- `specs/355-wishlist-purchase-reminders/tasks.md` — 36 tasks across 7 phases, 4 owners
+- `.squad/decisions/inbox/maximus-wishlist-reminder-contract.md` — locked contract
+- `.squad/identity/now.md` — updated to Feature 355 focus
+
+### Learnings
+
+- **Status enum > boolean flags**: Replacing `IsNotified` + `IsCancelled` with a `status` column (`pending/notified/cancelled`) makes state machine transitions explicit and queries simpler. Applied this refinement when translating the design-review model into spec.
+- **SQLite partial unique index limitation**: SQLite does not support `WHERE` clauses on unique indexes. Upsert uniqueness for `(coin_id, user_id)` among active reminders must be enforced at the service layer, not DDL.
+- **IANA timezone on the reminder, not the user**: Storing timezone per-reminder (not per-user-profile) avoids the problem of users traveling or changing timezone between create and fire. The browser snapshot is the most reliable source.
+- **Scheduler interface compliance**: The `Scheduler` interface in `scheduler_contract.go` requires `Start`, `Stop`, `RunNow`, `timeUntilNextRun`, `GetStatus`. New schedulers must implement all five + register via `SchedulerRegistry` in `deps.go`. The `adding-scheduled-job` skill documents the pattern but predates the interface — always check the contract.
+- **Auto-cancel injection pattern**: Injecting `PurchaseReminderRepository` into `CoinService` is the cleanest way to hook auto-cancel inside the existing `updateCoin` transaction without violating Principle I (services may import repositories).
+
+
+## 2026-08-20 — Feature 355 Final Integration Review (BLOCK)
+
+**Verdict**: BLOCK — one P0 defect, two non-blocking gaps.
+
+**B1 (P0)**: Duplicate `GET /reminders` route in `routes_protected.go` (line 76 purchase reminders, line 384 bid reminders). Gin v1.12.0 panics on duplicate registration — server will not start. Assigned to Cassius.
+
+**NB1**: Wishlist badge (T029/US5 AC1) not wired — `WishlistPage.vue` imports `listPurchaseReminders` but never calls it or passes data to `CoinCard`. Assigned to Aurelia.
+
+**NB2**: Scheduler `MarkNotified` and `NotifyPurchaseReminder` not in a single transaction (plan D8 deviation). Acceptable for MVP; note for hardening.
+
+### Learnings
+
+- **Route conflict detection gap**: Per-test Gin routers don't exercise the full production route set. A dedicated startup/smoke test or route-registration test would catch this class of bug. Consider adding a `TestNoPanicOnFullRouteRegistration` to the architecture tests.
+- **Import-but-unused is a wiring smell**: When frontend code imports an API function and type but never calls them, it signals incomplete wiring. `vue-tsc` won't catch unused imports by default — need `noUnusedLocals` or a lint rule.
 

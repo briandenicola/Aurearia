@@ -60,6 +60,7 @@ type CoinService struct {
 	mintLocationRepo    *repository.MintLocationRepository
 	catalogRegistryRepo *repository.CatalogRegistryRepository
 	settingsSvc         *SettingsService
+	reminderRepo        *repository.PurchaseReminderRepository
 }
 
 type preparedCoinCreator struct {
@@ -110,6 +111,13 @@ func (s *CoinService) WithCatalogRegistrySupport(catalogRegistryRepo *repository
 // WithSettingsSupport enables validation against admin-configured coin properties.
 func (s *CoinService) WithSettingsSupport(settingsSvc *SettingsService) *CoinService {
 	s.settingsSvc = settingsSvc
+	return s
+}
+
+// WithReminderSupport attaches a PurchaseReminderRepository so that wishlist→false
+// transitions automatically cancel any active purchase reminder (FR-011, FR-012).
+func (s *CoinService) WithReminderSupport(reminderRepo *repository.PurchaseReminderRepository) *CoinService {
+	s.reminderRepo = reminderRepo
 	return s
 }
 
@@ -214,6 +222,7 @@ func (s *CoinService) UpdateCoinWithFields(existing *models.Coin, updates *model
 
 func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, updateStorageLocation bool) error {
 	oldValue := existing.CurrentValue
+	wasWishlist := existing.IsWishlist
 	if updateStorageLocation {
 		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
 			return err
@@ -255,6 +264,16 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 		}
 		if updateStorageLocation {
 			if err := txRepo.UpdateStorageLocationID(existing, updates.StorageLocationID); err != nil {
+				return err
+			}
+		}
+
+		// FR-011: auto-cancel any active purchase reminder when IsWishlist transitions
+		// true → false within this transaction.
+		wishlistExiting := wasWishlist && !updates.IsWishlist &&
+			(updateFields == nil || containsString(updateFields, "IsWishlist"))
+		if wishlistExiting && s.reminderRepo != nil {
+			if err := s.reminderRepo.WithTx(tx).CancelActiveForCoin(existing.ID, userID); err != nil {
 				return err
 			}
 		}
@@ -325,6 +344,13 @@ func containsString(values []string, needle string) bool {
 func (s *CoinService) DeleteCoin(id, userID uint) (int64, error) {
 	var rows int64
 	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		// FR-012: cancel active reminders before deleting the coin so no orphan
+		// reminder can fire a notification after the coin is gone.
+		if s.reminderRepo != nil {
+			if err := s.reminderRepo.WithTx(tx).CancelActiveForCoin(id, userID); err != nil {
+				return err
+			}
+		}
 		txRepo := s.repo.WithTx(tx)
 		var err error
 		rows, err = txRepo.Delete(id, userID)
@@ -371,6 +397,12 @@ func (s *CoinService) PurchaseCoin(coin *models.Coin, userID uint) error {
 		}
 		if err := txRepo.UpdateFields(coin, updates); err != nil {
 			return err
+		}
+		// FR-011: auto-cancel active purchase reminder when coin is purchased (wishlist → false).
+		if s.reminderRepo != nil {
+			if err := s.reminderRepo.WithTx(tx).CancelActiveForCoin(coin.ID, userID); err != nil {
+				return err
+			}
 		}
 		return txRepo.RecordValueSnapshot(userID)
 	})

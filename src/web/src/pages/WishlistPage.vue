@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="container">
     <div class="page-header">
       <h1>Wishlist</h1>
@@ -111,6 +111,7 @@
         :key="coin.id"
         :coin="coin"
         wishlist
+        :active-reminder="remindersByCoinId.get(coin.id) ?? null"
         @purchase="openPurchaseModal"
         @dismiss-status="handleDismissStatus"
       />
@@ -156,8 +157,8 @@ import { useCoinsStore } from '@/stores/coins'
 import CoinCard from '@/components/CoinCard.vue'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
-import { purchaseCoin, checkWishlistAvailability, updateListingStatus } from '@/api/client'
-import type { Coin, AvailabilityRunSummary } from '@/types'
+import { purchaseCoin, checkWishlistAvailability, updateListingStatus, listPurchaseReminders } from '@/api/client'
+import type { Coin, AvailabilityRunSummary, PurchaseReminder } from '@/types'
 import { CirclePlus, Bot, ShieldCheck, CalendarClock, History } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 
@@ -171,8 +172,24 @@ let dismissTimer: ReturnType<typeof setTimeout> | null = null
 const page = ref(1)
 const pageSize = 50
 
+const remindersByCoinId = ref(new Map<number, PurchaseReminder>())
+
+async function fetchReminderMap() {
+  try {
+    const res = await listPurchaseReminders()
+    const map = new Map<number, PurchaseReminder>()
+    for (const r of res.data.reminders ?? []) {
+      map.set(r.coinId, r)
+    }
+    remindersByCoinId.value = map
+  } catch {
+    // non-critical: badge is best-effort
+  }
+}
+
 function loadCoins() {
   store.fetchCoins({ wishlist: 'true', sort: 'updated_at', order: 'desc', page: page.value })
+  fetchReminderMap()
 }
 
 watch(page, loadCoins)

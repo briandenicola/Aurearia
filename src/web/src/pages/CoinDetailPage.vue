@@ -12,11 +12,14 @@
           :coin-id="coin.id"
           :sharing="sharing"
           :duplicating="duplicating"
+          :show-reminder-action="coin.isWishlist"
+          :reminder-active="!!reminder"
           @share="handleShare"
           @sell="showSellModal = true"
           @duplicate="handleDuplicate"
           @edit="handleEdit"
           @delete="handleDelete"
+          @reminder="showReminderModal = true"
         />
       </div>
 
@@ -75,6 +78,19 @@
               >{{ coin.category }}</span>
               <span v-if="coin.isWishlist" class="chip-sm">Wishlist</span>
               <span v-if="coin.isSold" class="chip-sm">Sold</span>
+            </div>
+            <!-- Feature 355: reminder info strip for wishlist coins -->
+            <div v-if="coin.isWishlist && !reminderLoading" class="mt-3 flex items-center gap-2">
+              <template v-if="reminder">
+                <span class="chip-sm !border-gold !text-gold" style="background: var(--accent-gold-dim);">
+                  {{ formatReminderBadge(reminder.remindDate) }}
+                </span>
+                <button class="btn btn-ghost btn-xs" @click="showReminderModal = true">Edit</button>
+              </template>
+              <button v-else class="btn btn-ghost btn-xs inline-flex items-center gap-1" @click="showReminderModal = true">
+                <BellRing :size="13" />
+                Set reminder
+              </button>
             </div>
           </div>
 
@@ -142,6 +158,17 @@
 
     <SellModal v-if="showSellModal && coin" :coin="coin" @close="showSellModal = false" @confirm="confirmSell" />
     <PurchaseModal v-if="showPurchaseModal && coin" :coin="coin" @close="showPurchaseModal = false" @confirm="confirmPurchase" />
+    <PurchaseReminderModal
+      v-if="showReminderModal && coin"
+      :coin-id="coin.id"
+      :coin-name="coin.name"
+      :existing-reminder="reminder"
+      :saving="reminderSaving"
+      :save-error="reminderError || undefined"
+      @save="handleReminderSave"
+      @cancel="handleReminderCancel"
+      @close="showReminderModal = false"
+    />
     <ImageLightbox
       v-if="lightboxImage && coin"
       :coin-id="coin.id"
@@ -157,9 +184,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { BellRing } from 'lucide-vue-next'
 import { useCoinsStore } from '@/stores/coins'
 import SellModal from '@/components/SellModal.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
+import PurchaseReminderModal from '@/components/coin/PurchaseReminderModal.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
@@ -172,6 +201,7 @@ import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
+import { usePurchaseReminder, formatReminderBadge } from '@/composables/usePurchaseReminder'
 import type { CoinImage, ShipmentUpsertInput } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
@@ -181,11 +211,24 @@ const store = useCoinsStore()
 
 const showSellModal = ref(false)
 const showPurchaseModal = ref(false)
+const showReminderModal = ref(false)
 const lightboxImage = ref<CoinImage | null>(null)
 const { sharing, shareCoinCard } = useCoinShareCard()
 const duplicating = ref(false)
 
 const coin = computed(() => store.currentCoin)
+
+// Feature 355: per-coin reminder state, coinId derived reactively from the loaded coin
+const coinIdRef = computed(() => coin.value?.id ?? 0)
+const {
+  reminder,
+  loading: reminderLoading,
+  saving: reminderSaving,
+  error: reminderError,
+  fetchReminder,
+  saveReminder,
+  cancelReminder,
+} = usePurchaseReminder(coinIdRef)
 
 // T010: Deterministic media slot logic
 const obverseImage = computed(() => coin.value?.images?.find(i => i.imageType === 'obverse') ?? null)
@@ -197,15 +240,30 @@ const metadataRows = computed(() => {
   return useCoinDetailMetadataRows(coin.value).rows.value
 })
 
-onMounted(() => {
+onMounted(async () => {
   const id = Number(route.params.id)
-  store.fetchCoin(id)
+  await store.fetchCoin(id)
+  if (coin.value?.isWishlist) {
+    fetchReminder()
+  }
 })
 
 function refreshCoin() {
   if (coin.value) {
     store.fetchCoin(coin.value.id)
   }
+}
+
+async function handleReminderSave(date: string) {
+  const saved = await saveReminder(date)
+  if (saved) {
+    showReminderModal.value = false
+  }
+}
+
+async function handleReminderCancel() {
+  await cancelReminder()
+  showReminderModal.value = false
 }
 
 function openLightbox(image: CoinImage) {

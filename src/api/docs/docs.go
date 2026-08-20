@@ -8225,6 +8225,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/{id}/reminder": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the active (pending or notified) reminder for the given coin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Purchase Reminders"
+                ],
+                "summary": "Get purchase reminder",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PurchaseReminder"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets a date-based purchase reminder on a wishlist coin. If an active reminder already exists it is updated in-place (status reset to pending). Returns 201 on create, 200 on update.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Purchase Reminders"
+                ],
+                "summary": "Create or update a purchase reminder",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reminder payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createOrUpdateReminderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PurchaseReminder"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.PurchaseReminder"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancels the active reminder for the given coin. Returns 204 on success, 404 if none exists.",
+                "tags": [
+                    "Purchase Reminders"
+                ],
+                "summary": "Cancel purchase reminder",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/sell": {
             "post": {
                 "security": [
@@ -11147,6 +11287,32 @@ const docTemplate = `{
                         "description": "Bad Gateway",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-reminders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all active (pending + notified) purchase reminders for the current user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Purchase Reminders"
+                ],
+                "summary": "List purchase reminders",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -20201,6 +20367,21 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.createOrUpdateReminderRequest": {
+            "type": "object",
+            "required": [
+                "remindDate",
+                "timezone"
+            ],
+            "properties": {
+                "remindDate": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.createSetBuilderRunRequest": {
             "type": "object",
             "properties": {
@@ -22696,6 +22877,45 @@ const docTemplate = `{
                 "ProposalSlotVerificationVerified",
                 "ProposalSlotVerificationUnverified"
             ]
+        },
+        "models.PurchaseReminder": {
+            "type": "object",
+            "properties": {
+                "cancelledAt": {
+                    "type": "string"
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "coinName": {
+                    "description": "CoinName is a computed field populated by service/repository joins; not stored in DB.",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "notifiedAt": {
+                    "type": "string"
+                },
+                "remindDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
         },
         "models.QuickCaptureDraft": {
             "type": "object",

@@ -1556,6 +1556,16 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.createOrUpdateReminderRequest:
+    properties:
+      remindDate:
+        type: string
+      timezone:
+        type: string
+    required:
+    - remindDate
+    - timezone
+    type: object
   handlers.createSetBuilderRunRequest:
     properties:
       prompt:
@@ -3282,6 +3292,33 @@ definitions:
     x-enum-varnames:
     - ProposalSlotVerificationVerified
     - ProposalSlotVerificationUnverified
+  models.PurchaseReminder:
+    properties:
+      cancelledAt:
+        type: string
+      coinId:
+        type: integer
+      coinName:
+        description: CoinName is a computed field populated by service/repository
+          joins; not stored in DB.
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      notifiedAt:
+        type: string
+      remindDate:
+        type: string
+      status:
+        type: string
+      timezone:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
   models.QuickCaptureDraft:
     properties:
       acquisitionSource:
@@ -9620,6 +9657,99 @@ paths:
       summary: Update coin reference
       tags:
       - Coin References
+  /coins/{id}/reminder:
+    delete:
+      description: Cancels the active reminder for the given coin. Returns 204 on
+        success, 404 if none exists.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel purchase reminder
+      tags:
+      - Purchase Reminders
+    get:
+      description: Returns the active (pending or notified) reminder for the given
+        coin.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PurchaseReminder'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get purchase reminder
+      tags:
+      - Purchase Reminders
+    post:
+      consumes:
+      - application/json
+      description: Sets a date-based purchase reminder on a wishlist coin. If an active
+        reminder already exists it is updated in-place (status reset to pending).
+        Returns 201 on create, 200 on update.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Reminder payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createOrUpdateReminderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PurchaseReminder'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.PurchaseReminder'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create or update a purchase reminder
+      tags:
+      - Purchase Reminders
   /coins/{id}/sell:
     post:
       consumes:
@@ -11779,6 +11909,23 @@ paths:
       summary: Proxy an external image
       tags:
       - Images
+  /purchase-reminders:
+    get:
+      description: Returns all active (pending + notified) purchase reminders for
+        the current user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List purchase reminders
+      tags:
+      - Purchase Reminders
   /quick-capture/drafts:
     get:
       description: Lists owner-scoped Quick Capture drafts, defaulting to active drafts.

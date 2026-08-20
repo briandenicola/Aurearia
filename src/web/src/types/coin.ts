@@ -382,3 +382,21 @@ export interface CoinDetailMetadataRow {
   fullWidth?: boolean
   url?: string | null
 }
+
+// Feature 355 — Wishlist Purchase Reminders
+export interface PurchaseReminder {
+  id: number
+  coinId: number
+  coinName?: string
+  remindDate: string
+  timezone: string
+  status: 'pending' | 'notified' | 'cancelled'
+  notifiedAt?: string | null
+  cancelledAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PurchaseReminderListResponse {
+  reminders: PurchaseReminder[]
+}

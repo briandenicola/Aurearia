@@ -80,6 +80,8 @@ type appDeps struct {
 	featuredCoinRepo               *repository.FeaturedCoinRepository
 	coinOfDayScheduler             *services.CoinOfDayScheduler
 	schedulerRegistry              *SchedulerRegistry
+	purchaseReminderRepo           *repository.PurchaseReminderRepository
+	purchaseReminderSvc            *services.PurchaseReminderService
 	timeMachineSvc                 *services.TimeMachineService
 	externalToolsRateLimit         gin.HandlerFunc
 	numistaClient                  *services.HTTPNumistaClient
@@ -245,6 +247,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	coinOfDayScheduler.SetWishlistSummaryClient(agentProxy)
 	coinOfDayScheduler.StartWorkers(1)
 	schedulerRegistry := &SchedulerRegistry{}
+	purchaseReminderRepo := repository.NewPurchaseReminderRepository(database.DB)
+	purchaseReminderSvc := services.NewPurchaseReminderService(purchaseReminderRepo, coinRepo, logger)
+	reminderScheduler := services.NewReminderScheduler(purchaseReminderRepo, notifSvc, settingsSvc, logger)
 	schedulerRegistry.Register(availScheduler)
 	schedulerRegistry.Register(valScheduler)
 	schedulerRegistry.Register(auctionEndingScheduler)
@@ -253,6 +258,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	schedulerRegistry.Register(shipmentScheduler)
 	schedulerRegistry.Register(healthScheduler)
 	schedulerRegistry.Register(wishlistSearchAlertScheduler)
+	schedulerRegistry.Register(reminderScheduler)
 
 	// Create shared repositories for cross-group access
 	journalRepo := repository.NewJournalRepository(database.DB)
@@ -318,6 +324,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		featuredCoinRepo:               featuredCoinRepo,
 		coinOfDayScheduler:             coinOfDayScheduler,
 		schedulerRegistry:              schedulerRegistry,
+		purchaseReminderRepo:           purchaseReminderRepo,
+		purchaseReminderSvc:            purchaseReminderSvc,
 		timeMachineSvc:                 timeMachineSvc,
 		externalToolsRateLimit:         externalToolsRateLimit,
 		numistaClient:                  numistaClient,
