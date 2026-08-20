@@ -307,12 +307,16 @@ func TestNumistaEnrichmentHandlerReturnsSafePartialAndAllFailureOutcomes(t *test
 }
 
 func TestNumistaEnrichmentRouteAndOpenAPIDocumented(t *testing.T) {
-	mainSource, err := os.ReadFile("../main.go")
+	// The protected route table moved out of main.go into routes_protected.go
+	// when the composition root was split up; the assertion is on the route
+	// still being registered under the authenticated group, not on which file
+	// happens to hold it.
+	routeSource, err := os.ReadFile("../routes_protected.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(mainSource, []byte(`protected.POST("/numista/enrich", numistaHandler.Enrich)`)) {
-		t.Fatal("authenticated POST /api/numista/enrich is not registered in main.go")
+	if !bytes.Contains(routeSource, []byte(`protected.POST("/numista/enrich", numistaHandler.Enrich)`)) {
+		t.Fatal("authenticated POST /api/numista/enrich is not registered in routes_protected.go")
 	}
 	handlerSource, err := os.ReadFile("numista.go")
 	if err != nil {

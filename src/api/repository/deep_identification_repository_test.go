@@ -502,6 +502,25 @@ func newDeepIdentificationFileTestDB(t *testing.T, dsnParams string) *gorm.DB {
 // lock waits instead of failing under load) produces zero claim errors and
 // claims every queued job exactly once.
 func TestDeepIdentificationRepository_ConcurrentClaimNoLockContention(t *testing.T) {
+	// Skipped under -race, and only under -race. This test asserts a timing
+	// property of the production DSN: that busy_timeout(5000) is always long
+	// enough for a worker to acquire the IMMEDIATE write lock under
+	// contention. Race instrumentation slows every transaction by roughly an
+	// order of magnitude, so 20 workers queued on one write lock can exceed
+	// that 5s budget and return SQLITE_BUSY -- which is the timeout doing its
+	// job, not the lock-upgrade defect this test guards against. Observed on a
+	// 2-core CI runner: 12 of 20 workers timed out and the test took 13.3s,
+	// while the same commit passed a concurrent non-race run.
+	//
+	// The guard is not weakened: the ordinary `go test ./...` job runs this
+	// test in full on every push and PR, which is where the regression it
+	// protects would surface. Loosening the assertion or raising the timeout
+	// instead would blunt it everywhere, and raising busy_timeout would mean
+	// changing production behaviour to satisfy a test harness.
+	if raceDetectorEnabled {
+		t.Skip("timing-sensitive lock-contention test; race instrumentation exceeds the 5s busy_timeout")
+	}
+
 	const jobCount = 150
 	const workerCount = 20
 

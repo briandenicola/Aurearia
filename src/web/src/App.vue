@@ -289,6 +289,7 @@ const defaultNavItems: NavItem[] = [
       { id: 'stats-health', label: 'Health', to: '/stats/health' },
       { id: 'stats-value-trends', label: 'Value Details', to: '/stats/value-trends' },
       { id: 'stats-investment-breakdown', label: 'Investment Breakdown', to: '/stats/investment-breakdown' },
+      { id: 'stats-time-machine', label: 'Time Machine', to: '/stats/time-machine' },
     ],
   },
   {

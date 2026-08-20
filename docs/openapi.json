@@ -15374,6 +15374,95 @@
                 }
             }
         },
+        "/stats/time-machine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reconstructs the collection as it stood on the requested date from purchase/sold dates and recorded valuation history. Coins without a purchase date cannot be placed on the timeline and are reported separately in undatedCoinCount.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Stats"
+                ],
+                "summary": "Get the collection as of a past date",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target date (YYYY-MM-DD)",
+                        "name": "date",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.TimeMachineSnapshot"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats/time-machine/bounds": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the earliest acquisition on record and today, defining the range the timeline scrubber can span. hasData is false when no coin has a purchase date.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Stats"
+                ],
+                "summary": "Get the time machine's date range",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.TimeMachineBounds"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/storage-locations": {
             "get": {
                 "security": [
@@ -23535,6 +23624,20 @@
                 }
             }
         },
+        "services.BreakdownEntry": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        },
         "services.CancelCollectionProposalResult": {
             "type": "object",
             "properties": {
@@ -24271,6 +24374,105 @@
                 "nextRunIn": {
                     "type": "string",
                     "example": "1h30m0s"
+                }
+            }
+        },
+        "services.TimeMachineBounds": {
+            "type": "object",
+            "properties": {
+                "earliestDate": {
+                    "type": "string"
+                },
+                "hasData": {
+                    "type": "boolean"
+                },
+                "latestDate": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.TimeMachineSnapshot": {
+            "type": "object",
+            "properties": {
+                "acquiredInYear": {
+                    "type": "integer"
+                },
+                "asOfDate": {
+                    "type": "string"
+                },
+                "byCategory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.BreakdownEntry"
+                    }
+                },
+                "byEra": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.BreakdownEntry"
+                    }
+                },
+                "byMaterial": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.BreakdownEntry"
+                    }
+                },
+                "coinCount": {
+                    "type": "integer"
+                },
+                "healthScore": {
+                    "type": "integer"
+                },
+                "topCoins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TopCoin"
+                    }
+                },
+                "totalInvested": {
+                    "type": "number"
+                },
+                "totalValue": {
+                    "type": "number"
+                },
+                "undatedCoinCount": {
+                    "description": "UndatedCoinCount is how many owned coins have no purchase date and so\nappear at no point on the timeline. Surfaced rather than hidden: a\nnon-zero value means the numbers below understate the collection.",
+                    "type": "integer"
+                },
+                "unrealizedGain": {
+                    "type": "number"
+                },
+                "valueBasis": {
+                    "$ref": "#/definitions/services.ValueBasis"
+                }
+            }
+        },
+        "services.TopCoin": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "number"
+                },
+                "valueFromHistory": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "services.ValueBasis": {
+            "type": "object",
+            "properties": {
+                "fromPurchasePrice": {
+                    "type": "integer"
+                },
+                "fromValuationHistory": {
+                    "type": "integer"
                 }
             }
         }
