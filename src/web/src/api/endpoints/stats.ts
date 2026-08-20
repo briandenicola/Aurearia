@@ -2,6 +2,8 @@
 // re-exported from '@/api/client' so existing imports keep working.
 import { api } from '@/api/http'
 import type {
+  TimeMachineBounds,
+  TimeMachineSnapshot,
   CollectionHealthSummary,
   EmperorTrackerResult,
   FeaturedCoin,
@@ -32,3 +34,10 @@ export const getLatestFeaturedCoin = () =>
 
 export const getFeaturedCoin = (id: number) =>
   api.get<FeaturedCoin>(`/featured-coins/${id}`)
+
+// Collection Time Machine
+export const getTimeMachineSnapshot = (date: string) =>
+  api.get<TimeMachineSnapshot>('/stats/time-machine', { params: { date } })
+
+export const getTimeMachineBounds = () =>
+  api.get<TimeMachineBounds>('/stats/time-machine/bounds')

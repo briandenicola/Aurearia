@@ -27,6 +27,7 @@ The Stats sidebar expands into focused pages:
 | Health | `/stats/health` | Collection health score, missing metadata/images/AI analysis, stale valuations, and cleanup suggestions |
 | Value Details | `/stats/value-trends` | Portfolio value snapshots and detailed value-over-time analysis |
 | Investment Breakdown | `/stats/investment-breakdown` | Allocation, acquisition-year performance, top increases/drops, and stale valuation rows |
+| Time Machine | `/stats/time-machine` | The collection replayed as it stood on any past date |
 
 ## Category Breakdown
 

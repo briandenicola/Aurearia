@@ -150,3 +150,49 @@ export interface PortfolioSummary {
   topCoins: { name: string; category: string; currentValue: number | null; ruler: string; era: string }[]
   missingFields?: Record<string, number>
 }
+
+// Collection Time Machine — the collection reconstructed as it stood on a past
+// date. Mirrors services.TimeMachineSnapshot / services.TimeMachineBounds in
+// the Go API.
+
+export interface TimeMachineBreakdownEntry {
+  label: string
+  count: number
+  value: number
+}
+
+export interface TimeMachineTopCoin {
+  id: number
+  name: string
+  value: number
+  /** false means the figure is the purchase price, not a recorded valuation. */
+  valueFromHistory: boolean
+}
+
+export interface TimeMachineValueBasis {
+  fromValuationHistory: number
+  fromPurchasePrice: number
+}
+
+export interface TimeMachineSnapshot {
+  asOfDate: string
+  coinCount: number
+  totalValue: number
+  totalInvested: number
+  unrealizedGain: number
+  byCategory: TimeMachineBreakdownEntry[]
+  byMaterial: TimeMachineBreakdownEntry[]
+  byEra: TimeMachineBreakdownEntry[]
+  topCoins: TimeMachineTopCoin[]
+  acquiredInYear: number
+  healthScore: number | null
+  valueBasis: TimeMachineValueBasis
+  /** Owned coins with no purchase date, which appear at no point on the timeline. */
+  undatedCoinCount: number
+}
+
+export interface TimeMachineBounds {
+  earliestDate: string
+  latestDate: string
+  hasData: boolean
+}
