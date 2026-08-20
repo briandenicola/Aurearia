@@ -1,6 +1,6 @@
-﻿---
-updated_at: 2026-08-20T22:52:31Z
-focus_area: Feature 355 — Wishlist Purchase Reminders (timezone hotfix merged; beta release pending all gates)
+---
+updated_at: 2026-08-20T23:33:39Z
+focus_area: Feature 355 — Wishlist Purchase Reminders (timezone hotfix merged; UX polish complete; beta release pending all gates)
 active_issues: []
 handoff_commit: pending
 ---
@@ -11,7 +11,7 @@ handoff_commit: pending
 
 ## Status Summary
 
-Feature 355 implementation COMPLETE. Core backend + frontend DONE. Route BLOCK (B1) cleared; wishlist badge (NB1) resolved. Admin schedule UI (T037-T038) DONE. **Production Timezone Defect Fixed** (2026-08-20): Alpine container lacking zoneinfo caused `time.LoadLocation` to fail for valid IANA zones. Hotfix: embedded IANA database via stdlib `time/tzdata` blank import. Approved by Maximus. **Beta release pending** final operational gates (T034 frontend validation, T035 scheduler regression test).
+Feature 355 implementation COMPLETE. Core backend + frontend DONE. Route BLOCK (B1) cleared; wishlist badge (NB1) resolved. Admin schedule UI (T037-T038) DONE. **Production Timezone Defect Fixed** (2026-08-20): Alpine container lacking zoneinfo caused `time.LoadLocation` to fail for valid IANA zones. Hotfix: embedded IANA database via stdlib `time/tzdata` blank import. Approved by Maximus. **UX Polish: Reminder Detail-Row** (2026-08-20): Migrated reminder display from inline pill to metadata detail row with edit capability. Approved by Maximus. **Beta release pending** final operational gates (T034 frontend validation, T035 scheduler regression test).
 
 ## Critical Hotfix: Timezone Portability (2026-08-20)
 
@@ -35,6 +35,27 @@ Added `_ "time/tzdata"` blank import to `src/api/main.go`. Standard library pack
 
 ### Next: Non-Blocking Post-Merge Hardening
 Add CI container test to verify regression on Alpine (recommended but not gating).
+## UX Polish: Reminder Detail-Row Display (2026-08-20)
+
+### Change
+Migrated reminder display from inline pill/strip to standard metadata detail row in coin detail page, immediately after Purchase Price.
+
+### Implementation
+- Row includes Edit button that opens reminder modal for date updates
+- Backward-compatible: optional editLabel prop; existing metadata table callers unaffected
+- Date formatting avoids UTC shift (local-date construction)
+- All 7 tests pass (row presence, placement, edit, empty state, regression)
+
+### Files Changed
+- CoinDetailPage.vue: Modal trigger; removed old strip template
+- CoinDetailMetadataTable.vue: Optional editLabel prop; row injection
+- usePurchaseReminder.ts: formatReminderDateValue helper
+- types/coin.ts: purchaseReminder metadata field
+- CoinDetailPage.test.ts: 7 comprehensive tests
+
+### UX Benefits
+Standard detail row improves discoverability and consistency with established coin-detail pattern. Users can edit reminders inline from detail page. Minor dead BellRing import cleanup recommended follow-up (non-blocking).
+
 
 ## Implementation Deliverables (Complete)
 

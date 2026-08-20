@@ -1,3 +1,41 @@
+## 2026-08-20 — Feature 355 Reminder Detail-Row UX Revision: Architecture Review APPROVE
+
+**Change**: Migrate reminder display from inline pill to metadata detail row
+**Scope**: Frontend-only (5 files)
+**Verdict**: APPROVE — Production-ready
+
+## Review Checkpoints (11/11 PASS)
+
+1. Row placement correct (splice at purchasePriceIdx + 1) [pass]
+2. No old pill/strip remains [pass]
+3. Edit opens reminder modal [pass]
+4. Backward-compatible (optional prop) [pass]
+5. Accessible (visible button text) [pass]
+6. Date formatting avoids UTC shift [pass]
+7. Mobile responsive [pass]
+8. Empty state discoverable [pass]
+9. Wishlist badge untouched [pass]
+10. Scope discipline (5 related files) [pass]
+11. Tests comprehensive (7 tests) [pass]
+
+## Minor Non-Blocking Issue
+
+Dead BellRing import in CoinDetailPage.vue (not used after strip removal). Tree-shaken by Vite. Cleanup recommended follow-up (not blocking).
+
+## UX Compliance
+
+- Principle I (Layered Arch): Frontend-only
+- Principle IV (Simple Complete): Minimal, proportional
+- Principle VI (Consistent UX): Follows metadata-table pattern
+- §17 Quality Gate: Type-check, tests, build pass
+- §21 Definition of Done: Tests assert behavior; no blast-radius
+
+## Summary
+
+Standard metadata detail row improves discoverability and consistency. Users can edit reminders inline from detail page. Minor dead-import cleanup recommended post-merge.
+
+**Orchestration Log**: .squad/orchestration-log/${timestamp}-maximus-feature355-reminder-detail-row-review.md
+
 ## 2026-08-20 — Feature 355 Timezone Portability Hotfix: Review & Approval
 
 **Defect**: Alpine production lacks zoneinfo; `time.LoadLocation` fails for valid IANA zones → HTTP 400 for users.
@@ -223,4 +261,3 @@ Yes. Unresolved decisions are design-phase clarifications, not blockers. Spec/pl
 - **Caveat:** Regression test cannot catch removal on CI hosts with system zoneinfo (inherent `LoadLocation` fallback). Risk is LOW — import is well-commented and in the most-reviewed file. Recommended post-merge: add a CI step running the test inside `golang:1.26.6-alpine` for true regression signal.
 
 Full review: `.squad/decisions/inbox/maximus-timezone-hotfix-review.md`
-

@@ -1,4 +1,4 @@
-// coin types. Split out of the former single-file src/types/index.ts;
+﻿// coin types. Split out of the former single-file src/types/index.ts;
 // re-exported from '@/types' so existing imports keep working.
 import type { MintLocation, StorageLocation, Tag } from '@/types/collection'
 import type { NumistaEvidence, NumistaLookupOutcome, SelectedNumistaReference } from '@/types/numista'
@@ -381,6 +381,8 @@ export interface CoinDetailMetadataRow {
   valueClass?: string
   fullWidth?: boolean
   url?: string | null
+  /** When set, renders a compact action button in the label column and the table emits 'edit' with the row key. */
+  editLabel?: string
 }
 
 // Feature 355 — Wishlist Purchase Reminders
