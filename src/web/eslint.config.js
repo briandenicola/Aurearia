@@ -97,7 +97,13 @@ export default [
     rules: {
       // Align with project conventions
       'no-console': ['warn', { allow: ['warn', 'error'] }],
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // caughtErrorsIgnorePattern matters: the rule's `caughtErrors` default is
+      // 'all', so `catch (_error)` was reported despite following the same
+      // underscore convention the other two patterns already allow.
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
 
       // Vue conventions (script setup, Composition API)
@@ -110,6 +116,31 @@ export default [
       'vue/attributes-order': 'off',
       'vue/no-mutating-props': 'off',
       'vue/no-parsing-error': 'off',
+    },
+  },
+
+  {
+    // scripts/ are Node programs, not browser code: they use process/console
+    // deliberately and never ship to the client.
+    files: ['scripts/**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
+  {
+    // Test files legitimately define small throwaway components inline to
+    // exercise a composable, which vue/one-component-per-file forbids.
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.{test,spec}.{ts,tsx}'],
+    rules: {
+      'vue/one-component-per-file': 'off',
     },
   },
 ]
