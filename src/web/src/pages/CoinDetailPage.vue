@@ -208,7 +208,6 @@ const coin = computed(() => store.currentCoin)
 const coinIdRef = computed(() => coin.value?.id ?? 0)
 const {
   reminder,
-  loading: reminderLoading,
   saving: reminderSaving,
   error: reminderError,
   fetchReminder,
