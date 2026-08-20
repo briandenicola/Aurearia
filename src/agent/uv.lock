@@ -786,16 +786,16 @@ wheels = [
 
 [[package]]
 name = "langchain-anthropic"
-version = "1.5.5"
+version = "1.5.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anthropic" },
     { name = "langchain-core" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/ce/5fdff0c55c4711da9d87a4a0a066d0b14b633402dc9d441214cc64889be9/langchain_anthropic-1.5.5.tar.gz", hash = "sha256:e8697f13b93fe95b7c7c17679f5d0143c239a8fcf45c0f498349c54482322dc9", size = 720572, upload-time = "2026-08-11T19:16:38.842Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/c6/97c439282c13225beb56ba96ed2a5b1cb2c32eacb84c518fe475ce43711d/langchain_anthropic-1.5.6.tar.gz", hash = "sha256:648fdab25573fc9d29543c4b4af1d682b7b6e548d452bb46e67ebc586e195629", size = 720743, upload-time = "2026-08-13T02:30:48.262Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/15/15/5346c52296834684a57aa0df8bb050f0c7d369d642c608724f2b878a7dde/langchain_anthropic-1.5.5-py3-none-any.whl", hash = "sha256:7d3eee3b01db33640bf086064a72ee038bcc27a62f3d6f0ea0de0319bbbf48bc", size = 56486, upload-time = "2026-08-11T19:16:37.459Z" },
+    { url = "https://files.pythonhosted.org/packages/de/5e/61b288074742179041cb5390430e52429a0fc41f4a94efec20042bda009f/langchain_anthropic-1.5.6-py3-none-any.whl", hash = "sha256:c358ed2ca90ef75254bb73a96b0a8a8ef0efc1deabe529ea06db6ff403001a27", size = 56547, upload-time = "2026-08-13T02:30:47.118Z" },
 ]
 
 [[package]]
