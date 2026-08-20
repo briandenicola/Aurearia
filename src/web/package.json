@@ -34,7 +34,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@testing-library/vue": "^8.1.0",
-    "@tsconfig/node24": "^24.0.4",
+    "@tsconfig/node24": "^24.0.5",
     "@types/dompurify": "^3.2.0",
     "@types/leaflet": "1.9.22",
     "@types/markdown-it": "^14.1.2",
