@@ -59,6 +59,8 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ### 📊 Portfolio Intelligence
 **Collection Statistics** — Dashboard and subviews for portfolio value trends, category/material/grade distributions, top coins by value, mint maps, timeline, investment breakdown, Emperor Tracker, and health scorecards. **[Learn more →](docs/features/statistics.md)**
 
+**Collection Time Machine** — Scrub a timeline to see the collection exactly as it stood on any past date: what you owned, what it was worth then, and how it was distributed. Reconstructed from purchase/sold dates and recorded valuation history, and explicit about which figures rest on a real valuation versus a purchase-price fallback. **[Learn more →](docs/features/time-machine.md)**
+
 **Coin Sets** — Organize coins into standard, goal, smart, or human-reviewed Agentic sets with tray presentation, completion tracking, snapshots, and comparison tools. **[Learn more →](docs/features/coin-sets.md)**
 
 ### 🤝 Social & Community
@@ -220,6 +222,7 @@ Run `task --list` to see all targets.
 | Feature: AI Analysis | [`docs/features/ai-analysis.md`](docs/features/ai-analysis.md) |
 | Feature: AI Search Agent | [`docs/features/ai-search-agent.md`](docs/features/ai-search-agent.md) |
 | Feature: Statistics | [`docs/features/statistics.md`](docs/features/statistics.md) |
+| Feature: Time Machine | [`docs/features/time-machine.md`](docs/features/time-machine.md) |
 | Feature: Notifications | [`docs/features/notifications.md`](docs/features/notifications.md) |
 | Feature: Image Operations | [`docs/features/image-operations.md`](docs/features/image-operations.md) |
 | Feature: Admin Settings | [`docs/features/admin-settings.md`](docs/features/admin-settings.md) |

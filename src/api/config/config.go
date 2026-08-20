@@ -102,12 +102,18 @@ func (c *Config) AllowedOrigins() []string {
 		}
 		return origins
 	}
-	// Fall back to WebAuthn origins + common dev origins
+	// Fall back to the WebAuthn origins. The Vite dev-server origins are
+	// appended only outside release mode: corsMiddleware pairs a matched
+	// origin with Access-Control-Allow-Credentials, so shipping a localhost
+	// allowance to production would let any page the user happens to be
+	// serving locally make credentialed calls against their collection.
 	origins := strings.Split(c.WebAuthnOrigin, ",")
 	for i := range origins {
 		origins[i] = strings.TrimSpace(origins[i])
 	}
-	origins = append(origins, "http://localhost:5173", "http://localhost:8080")
+	if os.Getenv("GIN_MODE") != "release" {
+		origins = append(origins, "http://localhost:5173", "http://localhost:8080")
+	}
 	return origins
 }
 
