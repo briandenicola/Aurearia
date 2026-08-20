@@ -3,6 +3,34 @@ import { renderSafeMarkdown, renderSafeChatMarkdown } from '@/composables/useMar
 
 
 /**
+ * Safe URL schemes for a rendered link or image.
+ *
+ * This is an allowlist on purpose. An earlier version denylisted `javascript:`
+ * and `data:text/html`, which CodeQL correctly flagged as incomplete
+ * (js/incomplete-url-scheme-check): it silently accepted `vbscript:`, other
+ * `data:` payloads, and anything else novel. Since this helper is the oracle
+ * that proves sanitized output is inert, a gap here means a regression could
+ * pass the suite unnoticed — so it enumerates what is allowed rather than
+ * guessing at what is not.
+ */
+const SAFE_URL_SCHEMES = ['http:', 'https:', 'mailto:']
+
+/** Matches a leading URI scheme per RFC 3986, tolerating obfuscation whitespace. */
+const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
+
+function hasSafeScheme(rawValue: string): boolean {
+  // Browsers ignore whitespace and control characters inside a scheme, so a
+  // value like "java\tscript:alert(1)" still executes. Strip those the way a
+  // browser would before testing, or this check is trivially bypassed.
+  const value = rawValue.replace(/[\s\u0000-\u001F]/g, '').toLowerCase()
+  const match = SCHEME_PATTERN.exec(value)
+  // No scheme at all: a relative path, anchor, or protocol-relative URL.
+  if (!match) return true
+  return SAFE_URL_SCHEMES.includes(match[0])
+}
+
+
+/**
  * Parses rendered HTML and returns a list of anything executable that survived
  * sanitization. An empty array means the markup is inert.
  */
@@ -19,9 +47,8 @@ function assertInert(html: string): string[] {
         problems.push(`event handler ${attr.name} on <${el.tagName.toLowerCase()}>`)
       }
       if (['href', 'src', 'xlink:href'].includes(attr.name.toLowerCase())) {
-        const value = attr.value.trim().toLowerCase().replace(/\s+/g, '')
-        if (value.startsWith('javascript:') || value.startsWith('data:text/html')) {
-          problems.push(`dangerous URL in ${attr.name}: ${attr.value}`)
+        if (!hasSafeScheme(attr.value)) {
+          problems.push(`unsafe URL scheme in ${attr.name}: ${attr.value}`)
         }
       }
     }
@@ -51,8 +78,50 @@ describe('renderSafeMarkdown', () => {
     ['svg onload', '<svg onload="alert(1)"></svg>'],
     ['javascript: link', '[click](javascript:alert(1))'],
     ['data: link', '[click](data:text/html;base64,PHNjcmlwdD4=)'],
+    ['vbscript: link', '[click](vbscript:msgbox(1))'],
+    ['tab-obfuscated javascript:', '<a href="java\tscript:alert(1)">x</a>'],
   ])('yields no executable content for %s', (_label, source) => {
     expect(assertInert(renderSafeMarkdown(source))).toEqual([])
+  })
+
+  it('permits the URL schemes real content uses', () => {
+    for (const source of [
+      '[site](https://example.com)',
+      '[site](http://example.com)',
+      '[mail](mailto:someone@example.com)',
+      '[anchor](#provenance)',
+      '[relative](/coin/42)',
+    ]) {
+      expect(assertInert(renderSafeMarkdown(source))).toEqual([])
+    }
+  })
+})
+
+// The oracle above is what proves the renderers are safe, so it needs its own
+// proof. CodeQL flagged an earlier denylist version of hasSafeScheme as
+// incomplete (js/incomplete-url-scheme-check) — it would have accepted
+// vbscript:. These cases fail if the allowlist ever regresses to a denylist.
+describe('assertInert (the test oracle itself)', () => {
+  it.each([
+    ['javascript:', '<a href="javascript:alert(1)">x</a>'],
+    ['vbscript:', '<a href="vbscript:msgbox(1)">x</a>'],
+    ['data:text/html', '<a href="data:text/html,<script>alert(1)</script>">x</a>'],
+    ['data:image/svg+xml', '<a href="data:image/svg+xml,<svg onload=alert(1)>">x</a>'],
+    ['file:', '<a href="file:///etc/passwd">x</a>'],
+    ['whitespace-obfuscated', '<a href="java\tscript:alert(1)">x</a>'],
+    ['newline-obfuscated', '<a href="java\nscript:alert(1)">x</a>'],
+    ['uppercase', '<a href="JaVaScRiPt:alert(1)">x</a>'],
+  ])('flags a raw %s URL that survived to the DOM', (_label, html) => {
+    expect(assertInert(html).length).toBeGreaterThan(0)
+  })
+
+  it('flags script elements and event handlers', () => {
+    expect(assertInert('<script>alert(1)</script>').length).toBeGreaterThan(0)
+    expect(assertInert('<div onclick="alert(1)">x</div>').length).toBeGreaterThan(0)
+  })
+
+  it('passes genuinely inert markup', () => {
+    expect(assertInert('<p><strong>Trajan</strong> <a href="https://example.com">ref</a></p>')).toEqual([])
   })
 })
 
