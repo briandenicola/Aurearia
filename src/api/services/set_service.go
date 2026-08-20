@@ -50,15 +50,61 @@ func (s *SetService) ListSets(userID uint) ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
+	// Summaries and goal completions are fetched in bulk rather than per set.
+	// Only standard and goal sets qualify: smart sets need their criteria
+	// evaluated individually, and agentic sets summarize in Go with different
+	// averaging semantics (see SetRepository.GetSetSummaries). Those two types
+	// fall back to the per-set path below.
+	batchableIDs := make([]uint, 0, len(sets))
+	goalIDs := make([]uint, 0, len(sets))
+	for _, set := range sets {
+		switch set.SetType {
+		case models.CoinSetTypeStandard:
+			batchableIDs = append(batchableIDs, set.ID)
+		case models.CoinSetTypeGoal:
+			batchableIDs = append(batchableIDs, set.ID)
+			goalIDs = append(goalIDs, set.ID)
+		}
+	}
+
+	batchedSummaries, err := s.repo.GetSetSummaries(batchableIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	batchedCompletions, err := s.repo.GetGoalSetCompletions(goalIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	batchable := make(map[uint]bool, len(batchableIDs))
+	for _, id := range batchableIDs {
+		batchable[id] = true
+	}
+
 	result := make([]map[string]interface{}, 0, len(sets))
 	for _, set := range sets {
-		summary, err := s.repo.GetSetSummary(set.ID, userID)
-		if err != nil {
-			return nil, err
+		var summary map[string]interface{}
+		if batchable[set.ID] {
+			summary = batchedSummaries[set.ID]
+			if summary == nil {
+				// No members, so the grouped query produced no row.
+				summary = repository.EmptySetSummary()
+			}
+		} else {
+			summary, err = s.repo.GetSetSummary(set.ID, userID)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		var completion interface{}
-		if set.SetType == models.CoinSetTypeGoal || set.SetType == models.CoinSetTypeAgentic {
+		switch {
+		case set.SetType == models.CoinSetTypeGoal:
+			if pct, ok := batchedCompletions[set.ID]; ok {
+				completion = pct
+			} else {
+				completion = 0.0
+			}
+		case set.SetType == models.CoinSetTypeAgentic:
 			if c, err := s.repo.GetSetCompletion(set.ID, userID); err == nil {
 				completion = c["completionPercentage"]
 			}
