@@ -1,3 +1,31 @@
+## 2026-08-20 — Feature 355 Timezone Portability Hotfix: Review & Approval
+
+**Defect**: Alpine production lacks zoneinfo; `time.LoadLocation` fails for valid IANA zones → HTTP 400 for users.
+
+**Fix Review**: Cassius's `_ "time/tzdata"` blank import in `main.go` (stdlib, zero supply-chain risk).
+
+**Correctness Findings**:
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Embeds IANA data | ✓ PASS | stdlib `time/tzdata` only; zero third-party deps |
+| Placement (Principle I) | ✓ PASS | `main.go` infrastructure layer; service agnostic |
+| Preserves validation | ✓ PASS | Invalid zones still error; `ErrInvalidTimezone` unchanged |
+| Covers all paths | ✓ PASS | Validation + scheduler runtime, same binary |
+| Deployment (Docker) | ✓ PASS | No changes needed; binary self-contained |
+| Binary size | ✓ PASS | +450 KB negligible |
+| Regression test | ✓ PARTIAL | Catches removal on Alpine; masked on CI with system zoneinfo (inherent Go limitation) |
+
+**Non-Blocking Post-Merge Hardening**:
+1. CI container test: Run regression inside Alpine (no tzdata) to verify on production-like environment
+2. Build-tag alternative: `-tags timetzdata` as secondary safety net
+
+**Verdict**: APPROVE — Correct, minimal, supply-chain-safe, release-ready.
+
+**Compliance**: Principle I (layered arch), Principle IV (simplest complete change), §17 (Quality Gate).
+
+**Orchestration Log**: `.squad/orchestration-log/${timestamp}-maximus-feature355-timezone-review.md`
+
 ## 2026-08-20 — Feature 355 Final Architecture Review: Three-Session Cycle BLOCK → APPROVE
 
 **Verdict**: APPROVE (architecturally complete; ready for operational gates T034/T035 then beta→main merge)
@@ -176,4 +204,23 @@ Yes. Unresolved decisions are design-phase clarifications, not blockers. Spec/pl
 
 - **Route conflict detection gap**: Per-test Gin routers don't exercise the full production route set. A dedicated startup/smoke test or route-registration test would catch this class of bug. Consider adding a `TestNoPanicOnFullRouteRegistration` to the architecture tests.
 - **Import-but-unused is a wiring smell**: When frontend code imports an API function and type but never calls them, it signals incomplete wiring. `vue-tsc` won't catch unused imports by default — need `noUnusedLocals` or a lint rule.
+
+
+---
+
+## 2026-08-20 — Feature 355 Timezone Hotfix Review: APPROVE
+
+**Verdict:** APPROVE — release-ready
+**Author:** Cassius
+**Scope:** `src/api/main.go` (+1 import), `src/api/timezone_embed_test.go` (new)
+
+### Key findings
+- Fix (`_ "time/tzdata"`) is the canonical stdlib solution; zero supply-chain risk.
+- Placement in `main.go` is Principle I compliant (infra layer, not service).
+- Covers both `purchase_reminder_service.go:48` and `reminder_scheduler.go:172` call sites.
+- Invalid-zone rejection preserved (`ErrInvalidTimezone` sentinel unchanged).
+- Dockerfile requires no modification — embedded data replaces system zoneinfo.
+- **Caveat:** Regression test cannot catch removal on CI hosts with system zoneinfo (inherent `LoadLocation` fallback). Risk is LOW — import is well-commented and in the most-reviewed file. Recommended post-merge: add a CI step running the test inside `golang:1.26.6-alpine` for true regression signal.
+
+Full review: `.squad/decisions/inbox/maximus-timezone-hotfix-review.md`
 

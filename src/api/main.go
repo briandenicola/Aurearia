@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	_ "time/tzdata" // embed IANA timezone database so Alpine runtime can resolve IANA zones
 
 	"github.com/briandenicola/ancient-coins-api/config"
 	"github.com/briandenicola/ancient-coins-api/database"
