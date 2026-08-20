@@ -8,12 +8,16 @@
           type="button"
           :class="['btn btn-xs', operator === 'and' ? 'btn-primary' : 'btn-ghost']"
           @click="operator = 'and'"
-        >All</button>
+        >
+          All
+        </button>
         <button
           type="button"
           :class="['btn btn-xs', operator === 'or' ? 'btn-primary' : 'btn-ghost']"
           @click="operator = 'or'"
-        >Any</button>
+        >
+          Any
+        </button>
         <span class="operator-label">of these rules</span>
       </div>
     </div>
@@ -133,7 +137,9 @@
         class="btn btn-ghost btn-xs remove-btn"
         title="Remove rule"
         @click="removeRule(idx)"
-      >✕</button>
+      >
+        ✕
+      </button>
     </div>
 
     <div class="rule-actions">
@@ -160,7 +166,9 @@
           class="chip chip-sm"
           :title="s.description"
           @click="applySuggestion(s)"
-        >{{ s.name }}</button>
+        >
+          {{ s.name }}
+        </button>
       </div>
     </div>
 
@@ -181,7 +189,9 @@
           type="button"
           class="btn btn-ghost btn-sm"
           @click="showSaveForm = !showSaveForm"
-        >Save as template</button>
+        >
+          Save as template
+        </button>
       </div>
       <div v-if="showSaveForm" class="save-form">
         <input

@@ -136,7 +136,6 @@
             :listing-checked-at="coin.listingCheckedAt"
             @dismissed="refreshCoin"
           />
-
         </div>
       </div>
     </div>

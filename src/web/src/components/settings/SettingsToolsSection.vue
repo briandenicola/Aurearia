@@ -28,7 +28,9 @@
           class="btn btn-secondary btn-sm"
           :disabled="blockedLoading"
           @click="$emit('unblock', user)"
-        >Unblock</button>
+        >
+          Unblock
+        </button>
       </div>
     </div>
     <p v-else class="text-sm text-text-muted mt-2">No blocked users.</p>

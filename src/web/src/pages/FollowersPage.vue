@@ -155,9 +155,8 @@
               </div>
             </div>
           </div>
+        </div>
       </div>
-    </div>
-
     </div>
 
     <!-- Search Modal -->
