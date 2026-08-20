@@ -409,14 +409,6 @@ function statusMessage(provider: OIDCAdminProvider) {
   return provider.lastTestMessage || 'Run a discovery test to verify issuer metadata. Client secrets are verified only during sign-in or account linking.'
 }
 
-function statusClass(provider: OIDCAdminProvider) {
-  return {
-    success: provider.lastTestStatus === 'ok',
-    error: provider.lastTestStatus === 'failed',
-    unknown: provider.lastTestStatus === 'unknown',
-  }
-}
-
 function resetForm() {
   form.name = ''
   form.displayName = ''

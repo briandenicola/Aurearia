@@ -79,13 +79,4 @@ function formatDimensionLabel(key: string): string {
   return labels[key] || key
 }
 
-function getDimensionFillClass(key: string): string {
-  const cssMap: Record<string, string> = {
-    metadata: 'fill-metadata',
-    imageCoverage: 'fill-images',
-    valuationFreshness: 'fill-valuation',
-    aiCoverage: 'fill-ai',
-  }
-  return cssMap[key] || `fill-${key}`
-}
 </script>

@@ -21,14 +21,18 @@
           :class="{ active: apiKeyScope === 'read' }"
           :disabled="generatingKey"
           @click="apiKeyScope = 'read'"
-        >Read</button>
+        >
+          Read
+        </button>
         <button
           type="button"
           class="chip"
           :class="{ active: apiKeyScope === 'read,write' }"
           :disabled="generatingKey"
           @click="apiKeyScope = 'read,write'"
-        >Read/Write</button>
+        >
+          Read/Write
+        </button>
       </div>
       <button
         class="btn btn-primary btn-sm inline-flex items-center gap-[0.35rem]"
@@ -67,7 +71,9 @@
       v-if="apiKeyMsg"
       class="text-body my-2"
       :class="apiKeyError ? 'text-byzantine' : 'text-gold'"
-    >{{ apiKeyMsg }}</p>
+    >
+      {{ apiKeyMsg }}
+    </p>
 
     <!-- Key list -->
     <div v-if="apiKeys.length" class="flex flex-col gap-2 mt-4">
@@ -103,7 +109,9 @@
           v-else
           class="btn btn-danger btn-sm"
           @click="handleRevokeKey(key.id)"
-        >Revoke</button>
+        >
+          Revoke
+        </button>
       </div>
     </div>
     <p v-else-if="!generatingKey" class="text-sm text-text-muted mt-2">No API keys yet.</p>

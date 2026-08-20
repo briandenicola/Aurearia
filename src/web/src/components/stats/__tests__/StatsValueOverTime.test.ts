@@ -17,11 +17,6 @@ const feb2024: ValueSnapshot = {
   id: 2, userId: 1, totalValue: 1350, totalInvested: 950, coinCount: 10,
   recordedAt: '2024-02-01T00:00:00Z',
 }
-const dec2023: ValueSnapshot = {
-  id: 3, userId: 1, totalValue: 800, totalInvested: 850, coinCount: 7,
-  recordedAt: '2023-12-01T00:00:00Z',
-}
-
 describe('StatsValueOverTime', () => {
   // ── Minimum data guard ──────────────────────────────────────────────────
 

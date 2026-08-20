@@ -11,7 +11,9 @@
           v-if="msg"
           class="text-body my-2"
           :class="error ? 'text-[#e74c3c]' : 'text-gold'"
-        >{{ msg }}</p>
+        >
+          {{ msg }}
+        </p>
         <div class="flex justify-end gap-2 mt-4">
           <button type="button" class="btn btn-secondary btn-sm" @click="$emit('close')">Cancel</button>
           <button type="submit" class="btn btn-primary btn-sm" :disabled="loading">

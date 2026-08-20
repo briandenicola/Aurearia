@@ -56,7 +56,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ChevronDown, Clock, Loader2, CheckCircle2, CircleSlash, XCircle } from 'lucide-vue-next'
-import type { DeepProviderId, DeepProviderStatus, DeepStreamEvent } from '@/types'
+import type { DeepProviderStatus, DeepStreamEvent } from '@/types'
 
 const props = defineProps<{
   events: DeepStreamEvent[]

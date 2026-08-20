@@ -1,4 +1,4 @@
-package services
+﻿package services
 
 import (
 	"fmt"
@@ -31,6 +31,9 @@ const (
 	// terminal child AvailabilityRun (owner/scheduled/admin-triggered), in addition to (never
 	// instead of) any per-coin wishlist_unavailable notifications fired during the same run (D6).
 	NotificationTypeAvailabilityRun = "wishlist_availability_run"
+	// NotificationTypePurchaseReminder is fired by the daily reminder scheduler when a
+	// pending reminder's remind_date has arrived. ReferenceID = reminder.ID, ReferenceURL = /coin/{coinID}.
+	NotificationTypePurchaseReminder = "purchase_reminder"
 )
 
 // NewNotificationService creates a new NotificationService.
@@ -383,6 +386,30 @@ func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID, coinI
 	}
 
 	go s.sendPushoverMessage(userID, buildCoinOfDayPushoverMessage(title, coinID, coinName, summary, s.publicAppBaseURL()))
+}
+
+// NotifyPurchaseReminder creates an in-app notification when a purchase reminder's
+// remind_date arrives. ReferenceID is the reminder ID; ReferenceURL deep-links to
+// the coin detail page. Pushover is best-effort.
+func (s *NotificationService) NotifyPurchaseReminder(userID, reminderID, coinID uint, coinName string) {
+	if coinName == "" {
+		coinName = "Unnamed coin"
+	}
+	title := "Purchase Reminder"
+	message := fmt.Sprintf("%s is on your wishlist — time to buy!", coinName)
+	refURL := fmt.Sprintf("/coin/%d", coinID)
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypePurchaseReminder,
+		Title:        title,
+		Message:      message,
+		ReferenceID:  reminderID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create purchase reminder notification for user %d, reminder %d: %v", userID, reminderID, err)
+	}
+	go s.sendPushover(userID, title, message, refURL)
 }
 
 // NotifyAIJobCompleted creates a notification when an asynchronous AI job completes.

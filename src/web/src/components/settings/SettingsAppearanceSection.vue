@@ -13,37 +13,51 @@
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'dark' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'dark')"
-        >Dark</button>
+        >
+          Dark
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'light' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'light')"
-        >Light</button>
+        >
+          Light
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'british-museum' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'british-museum')"
-        >British Museum</button>
+        >
+          British Museum
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'louvre' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'louvre')"
-        >Louvre</button>
+        >
+          Louvre
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'capitoline' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'capitoline')"
-        >Capitoline</button>
+        >
+          Capitoline
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'byzantine' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'byzantine')"
-        >Byzantine</button>
+        >
+          Byzantine
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'modern-greek' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'modern-greek')"
-        >Modern Greek</button>
+        >
+          Modern Greek
+        </button>
       </div>
     </div>
 
@@ -73,12 +87,16 @@
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="defaultView === 'swipe' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-default-view', 'swipe')"
-        >Swipe</button>
+        >
+          Swipe
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="defaultView === 'grid' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-default-view', 'grid')"
-        >Grid</button>
+        >
+          Grid
+        </button>
       </div>
     </div>
 
@@ -95,21 +113,27 @@
             ? 'bg-[var(--felt-red-dim)] text-[var(--felt-red-bright)]'
             : 'bg-transparent text-text-secondary'"
           @click="$emit('set-tray-felt-color', 'red')"
-        >Red</button>
+        >
+          Red
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="trayFeltColor === 'green'
             ? 'bg-[var(--felt-green-dim)] text-[var(--felt-green-bright)]'
             : 'bg-transparent text-text-secondary'"
           @click="$emit('set-tray-felt-color', 'green')"
-        >Green</button>
+        >
+          Green
+        </button>
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="trayFeltColor === 'navy'
             ? 'bg-[var(--felt-navy-dim)] text-[var(--felt-navy-bright)]'
             : 'bg-transparent text-text-secondary'"
           @click="$emit('set-tray-felt-color', 'navy')"
-        >Navy</button>
+        >
+          Navy
+        </button>
       </div>
     </div>
 

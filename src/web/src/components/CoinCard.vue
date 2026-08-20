@@ -89,6 +89,13 @@
       <div v-if="wishlist && (coin.currentValue || coin.purchasePrice)" class="mt-auto text-base font-semibold text-gold">
         {{ formatCurrency(coin.currentValue || coin.purchasePrice || 0) }}
       </div>
+      <span
+        v-if="wishlist && activeReminder && activeReminder.status !== 'cancelled'"
+        class="chip-sm mt-1 inline-flex w-fit !border-gold !text-gold"
+        style="background: var(--accent-gold-dim);"
+      >
+        {{ formatReminderBadge(activeReminder.remindDate) }}
+      </span>
       <SafeExternalLink
         v-if="wishlist && coin.referenceUrl"
         :href="coin.referenceUrl"
@@ -112,13 +119,15 @@
 
 <script setup lang="ts">
 import type { Coin, ImageType } from '@/types'
+import type { PurchaseReminder } from '@/types/coin'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Coins, ShoppingCart, Check } from 'lucide-vue-next'
+import { Check, Coins, ShoppingCart } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
+import { formatReminderBadge } from '@/composables/usePurchaseReminder'
 
 const router = useRouter()
 
@@ -129,12 +138,14 @@ const props = withDefaults(defineProps<{
   sold?: boolean
   selectable?: boolean
   selected?: boolean
+  activeReminder?: PurchaseReminder | null
 }>(), {
   imageSide: null,
   wishlist: false,
   sold: false,
   selectable: false,
   selected: false,
+  activeReminder: null,
 })
 
 const emit = defineEmits<{

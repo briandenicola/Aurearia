@@ -1,4 +1,4 @@
-import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
+﻿import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminSchedulesSection from '../AdminSchedulesSection.vue'
 
@@ -87,6 +87,7 @@ describe('AdminSchedulesSection', () => {
       'Collection Valuation',
       'Collection Health Snapshots',
       'Coin of the Day',
+      'Purchase Reminder Delivery',
     ]) {
       expect(wrapper.text()).toContain(heading)
     }

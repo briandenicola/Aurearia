@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="container">
     <div class="page-header">
       <h1>Notifications</h1>
@@ -47,6 +47,7 @@
           <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
           <Key v-else-if="n.type === 'api_key_rotation_required'" :size="20" />
           <FolderOpen v-else-if="n.type === 'set_milestone' || n.type === 'agentic_set_proposal_ready' || n.type === 'agentic_set_created'" :size="20" />
+          <BellRing v-else-if="n.type === 'purchase_reminder'" :size="20" />
           <Bell v-else :size="20" />
         </div>
         <div class="min-w-0 flex-1">
@@ -84,7 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, BellOff, AlertTriangle, UserPlus, Sparkles, Key, X, FolderOpen, ShieldCheck } from 'lucide-vue-next'
+import { Bell, BellOff, BellRing, AlertTriangle, UserPlus, Sparkles, Key, X, FolderOpen, ShieldCheck } from 'lucide-vue-next'
 import {
   getNotifications,
   markNotificationRead,

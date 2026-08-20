@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="admin-section card flex flex-col">
     <h2 class="mb-5 border-b border-border-subtle pb-3 text-xl font-medium">Schedules</h2>
 
@@ -137,6 +137,12 @@
       :settings-saving="settingsSaving"
       @save="emit('save')"
     />
+
+    <AdminPurchaseReminderSchedule
+      :settings="settings"
+      :settings-saving="settingsSaving"
+      @save="emit('save')"
+    />
   </section>
 </template>
 
@@ -146,6 +152,7 @@ import AdminAuctionEndingSchedule from '@/components/admin/schedules/AdminAuctio
 import AdminAuctionWatchBidDigestSchedule from '@/components/admin/schedules/AdminAuctionWatchBidDigestSchedule.vue'
 import AdminAvailabilitySchedule from '@/components/admin/schedules/AdminAvailabilitySchedule.vue'
 import AdminCoinOfDaySchedule from '@/components/admin/schedules/AdminCoinOfDaySchedule.vue'
+import AdminPurchaseReminderSchedule from '@/components/admin/schedules/AdminPurchaseReminderSchedule.vue'
 import AdminCollectionHealthSchedule from '@/components/admin/schedules/AdminCollectionHealthSchedule.vue'
 import AdminValuationSchedule from '@/components/admin/schedules/AdminValuationSchedule.vue'
 import type { AppSettings } from '@/types'

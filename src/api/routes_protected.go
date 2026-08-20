@@ -27,6 +27,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		catalogRegistrySvc := services.NewCatalogRegistryService(catalogRegistryRepo)
 		catalogRegistryHandler := handlers.NewCatalogRegistryHandler(catalogRegistrySvc)
 		coinSvc := services.NewCoinService(d.coinRepo, d.notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo).WithMintLocationSupport(mintLocationRepo).WithCatalogRegistrySupport(catalogRegistryRepo).WithSettingsSupport(d.settingsSvc)
+		coinSvc.WithReminderSupport(d.purchaseReminderRepo)
 		shipmentHandler := handlers.NewShipmentHandler(d.shipmentSvc)
 		d.wishlistSearchAlertSvc.WithCoinCreation(coinSvc)
 		coinHandler := handlers.NewCoinHandler(d.coinRepo, coinSvc, d.logger).WithSettingsSupport(d.settingsSvc).WithShipmentSupport(d.shipmentSvc)
@@ -67,6 +68,12 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		protected.POST("/coins/:id/shipment/sync", shipmentHandler.SyncForCoin)
 		protected.DELETE("/coins/:id", coinHandler.Delete)
 		protected.GET("/catalogs", catalogRegistryHandler.List)
+
+		purchaseReminderHandler := handlers.NewPurchaseReminderHandler(d.purchaseReminderSvc, d.logger)
+		protected.POST("/coins/:id/reminder", purchaseReminderHandler.CreateOrUpdate)
+		protected.GET("/coins/:id/reminder", purchaseReminderHandler.Get)
+		protected.DELETE("/coins/:id/reminder", purchaseReminderHandler.Cancel)
+		protected.GET("/purchase-reminders", purchaseReminderHandler.List)
 
 		noteSvc := services.NewNoteService(d.noteRepo)
 		noteHandler := handlers.NewNoteHandler(noteSvc)
