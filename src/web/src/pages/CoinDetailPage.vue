@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="container">
     <div v-if="store.loading && !coin" class="loading-overlay">
       <div class="spinner"></div>
@@ -79,19 +79,6 @@
               <span v-if="coin.isWishlist" class="chip-sm">Wishlist</span>
               <span v-if="coin.isSold" class="chip-sm">Sold</span>
             </div>
-            <!-- Feature 355: reminder info strip for wishlist coins -->
-            <div v-if="coin.isWishlist && !reminderLoading" class="mt-3 flex items-center gap-2">
-              <template v-if="reminder">
-                <span class="chip-sm !border-gold !text-gold" style="background: var(--accent-gold-dim);">
-                  {{ formatReminderBadge(reminder.remindDate) }}
-                </span>
-                <button class="btn btn-ghost btn-xs" @click="showReminderModal = true">Edit</button>
-              </template>
-              <button v-else class="btn btn-ghost btn-xs inline-flex items-center gap-1" @click="showReminderModal = true">
-                <BellRing :size="13" />
-                Set reminder
-              </button>
-            </div>
           </div>
 
           <div v-if="coin.obverseInscription || coin.reverseInscription || coin.obverseDescription || coin.reverseDescription" class="mb-6">
@@ -121,7 +108,7 @@
           <!-- T014-T016: Metadata table -->
           <div v-if="metadataRows.length" class="mb-6">
             <h3 class="mb-3 font-display text-base font-medium text-heading">Details</h3>
-            <CoinDetailMetadataTable :rows="metadataRows" />
+            <CoinDetailMetadataTable :rows="displayRows" @edit="handleMetadataEdit" />
           </div>
 
           <CoinReferencesSection
@@ -184,7 +171,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BellRing } from 'lucide-vue-next'
 import { useCoinsStore } from '@/stores/coins'
 import SellModal from '@/components/SellModal.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
@@ -201,8 +187,8 @@ import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
-import { usePurchaseReminder, formatReminderBadge } from '@/composables/usePurchaseReminder'
-import type { CoinImage, ShipmentUpsertInput } from '@/types'
+import { usePurchaseReminder, formatReminderDateValue } from '@/composables/usePurchaseReminder'
+import type { CoinDetailMetadataRow, CoinImage, ShipmentUpsertInput } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
 const route = useRoute()
@@ -222,7 +208,6 @@ const coin = computed(() => store.currentCoin)
 const coinIdRef = computed(() => coin.value?.id ?? 0)
 const {
   reminder,
-  loading: reminderLoading,
   saving: reminderSaving,
   error: reminderError,
   fetchReminder,
@@ -239,6 +224,27 @@ const metadataRows = computed(() => {
   if (!coin.value) return []
   return useCoinDetailMetadataRows(coin.value).rows.value
 })
+
+// Feature 355: inject reminder row into detail table after purchasePrice
+const displayRows = computed<CoinDetailMetadataRow[]>(() => {
+  const base = metadataRows.value
+  if (!coin.value?.isWishlist || !reminder.value) return base
+  const reminderRow: CoinDetailMetadataRow = {
+    key: 'purchaseReminder',
+    label: 'Purchase Reminder Date',
+    value: formatReminderDateValue(reminder.value.remindDate),
+    editLabel: 'Edit',
+  }
+  const purchasePriceIdx = base.findIndex(r => r.key === 'purchasePrice')
+  const insertAfter = purchasePriceIdx >= 0 ? purchasePriceIdx + 1 : 0
+  const result = [...base]
+  result.splice(insertAfter, 0, reminderRow)
+  return result
+})
+
+function handleMetadataEdit(key: string) {
+  if (key === 'purchaseReminder') showReminderModal.value = true
+}
 
 onMounted(async () => {
   const id = Number(route.params.id)

@@ -5175,3 +5175,71 @@ Fix is correct, minimal, and release-ready. Non-blocking hardening post-merge:
 
 **APPROVE** — ready for production beta release.
 
+
+---
+
+## 2026-08-20 — Feature 355 Reminder Detail-Row UX Revision: APPROVED
+
+**Feature**: specs/355-wishlist-purchase-reminders
+**Revision**: Reminder display in coin detail page
+**Author**: Aurelia (Frontend Developer)
+**Reviewer**: Maximus (Lead/Architect)
+**Verdict**: APPROVE — production-ready
+**Status**: Complete
+
+### Change Summary
+
+Replaced inline reminder pill/strip with standard metadata detail row in coin detail-page metadata grid. Row placed immediately after Purchase Price row. Allows user to edit reminder date via modal.
+
+### Files Changed (5)
+
+| File | Change |
+|---|---|
+| `CoinDetailPage.vue` | Added reminder modal trigger; removed old strip template |
+| `CoinDetailMetadataTable.vue` | Added optional `editLabel` prop; emit for edit action; row injection via computed |
+| `usePurchaseReminder.ts` | Added `formatReminderDateValue` helper (local-date construction, avoids UTC shift) |
+| `types/coin.ts` | Added optional `purchaseReminder` field to metadata rows |
+| `CoinDetailPage.test.ts` | 7 new tests (row presence, placement, edit behavior, empty state, no old strip) |
+
+### Review Checkpoints
+
+| Check | Status | Evidence |
+|---|---|---|
+| Row placement after Purchase Price | ✓ PASS | `displayRows` computed splices at `purchasePriceIdx + 1`; test asserts adjacency |
+| No date pill/strip | ✓ PASS | Template removed; test confirms zero gold-pill matches |
+| Edit opens modal | ✓ PASS | `handleMetadataEdit('purchaseReminder')` sets `showReminderModal = true` |
+| Backward-compatible | ✓ PASS | `editLabel` optional; emit only on set; existing callers unaffected |
+| Accessible | ✓ PASS | Button visible text "Edit"; uses `btn-ghost btn-xs` pattern |
+| Date formatting correct | ✓ PASS | `new Date(y, m - 1, d)` avoids UTC shift |
+| Mobile responsive | ✓ PASS | Inherits `.metadata-row` responsive behavior |
+| Empty state discoverable | ✓ PASS | Header bell icon still present; no loss of discoverability |
+| Wishlist badge untouched | ✓ PASS | `CoinCard.vue` unchanged; badge styling preserved |
+| Scope discipline | ✓ PASS | 5 related files only; no scope creep |
+| Tests complete | ✓ PASS | 7 tests covering row, placement, edit, empty state, no regression |
+
+### Minor Note (Non-Blocking)
+
+Dead `BellRing` import in `CoinDetailPage.vue` line 174 — import no longer used in template (strip removed; `CoinDetailHeaderActions` imports its own). Tree-shaken by Vite; no impact on build. Cleanup recommended in follow-up but not gating.
+
+### Fallback Behavior
+
+When `purchasePrice` absent from metadata rows, reminder row falls back to position 0. Reasonable defensive choice — row still renders correctly.
+
+### Constitution Compliance
+
+- **Principle I** (Layered Architecture): Frontend-only change; no API-layer impact
+- **Principle IV** (Simple Complete Changes): Minimal, proportional (one field, one emit, one computed)
+- **Principle VI** (Consistent UX): Detail row follows established metadata-table pattern
+- **§17 Quality Gate**: Type-check, tests, build passing
+- **§21 Definition of Done**: Tests assert user-visible behavior; no blast-radius
+
+### User Experience
+
+**Before**: Inline pill/strip on detail page (standalone, no edit capability)
+**After**: Standard metadata detail row (consistent with other metadata, edit button triggers modal)
+
+Improves discoverability and consistency; matches established coin-detail-page UX pattern.
+
+### Verdict
+
+**APPROVE** — Change is correct, minimal, fully tested, and production-ready. Minor dead-import cleanup recommended post-merge (non-blocking).

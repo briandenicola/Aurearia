@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="rounded-sm border border-border-subtle bg-card px-4 py-3">
     <div
       v-for="row in rows"
@@ -6,7 +6,10 @@
       class="metadata-row"
       :class="{ 'w-full': row.fullWidth }"
     >
-      <span v-if="!row.fullWidth" class="row-label">{{ row.label }}</span>
+      <span v-if="!row.fullWidth" class="row-label" :class="row.editLabel ? 'flex items-center gap-2' : ''">
+        {{ row.label }}
+        <button v-if="row.editLabel" class="btn btn-ghost btn-xs" @click="emit('edit', row.key)">{{ row.editLabel }}</button>
+      </span>
 
       <!-- Purchase location row with Store: prefix -->
       <template v-if="row.key === 'purchaseLocation'">
@@ -58,5 +61,9 @@ import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 defineProps<{
   rows: CoinDetailMetadataRow[]
+}>()
+
+const emit = defineEmits<{
+  edit: [key: string]
 }>()
 </script>

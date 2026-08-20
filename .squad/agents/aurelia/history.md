@@ -1,3 +1,57 @@
+## 2026-08-20 — Feature 355 Reminder Detail-Row UX Revision: Production-Ready
+
+**Task:** Migrate reminder display from inline pill to metadata detail row
+**Outcome:** Complete and approved; production-ready
+
+## Change Summary
+
+Migrated reminder display in coin detail page from inline pill/strip to standard metadata detail row placed immediately after Purchase Price in the metadata grid. Row includes Edit button that opens reminder modal for date updates.
+
+## Implementation Details
+
+**Files Changed (5)**:
+- CoinDetailPage.vue: Added modal trigger; removed old strip template
+- CoinDetailMetadataTable.vue: Added optional editLabel prop; emit wiring; computed row injection
+- usePurchaseReminder.ts: Added formatReminderDateValue helper (local-date, no UTC shift)
+- types/coin.ts: Added optional purchaseReminder metadata field
+- CoinDetailPage.test.ts: 7 comprehensive tests
+
+**Backward Compatibility**:
+- editLabel prop optional; emit gated
+- Existing metadata table callers unaffected
+- No breaking changes
+
+## Test Coverage (7 tests)
+
+1. Row presence in metadata grid [pass]
+2. Exact placement after Purchase Price [pass]
+3. Edit button exists and functional [pass]
+4. Edit opens reminder modal [pass]
+5. No old strip template remains [pass]
+6. Empty state (no reminder) doesn't render [pass]
+7. Date formatting avoids UTC shift [pass]
+
+## UX Improvements
+
+- Standard detail row matches established coin-detail pattern
+- Edit button enables inline reminder updates
+- Improves discoverability (consistent with other metadata)
+- Header bell icon preserved for empty-state discovery
+
+## Minor Non-Blocking Note
+
+Dead BellRing import in CoinDetailPage.vue (unused after strip removal). Tree-shaken by Vite. Cleanup recommended follow-up (not blocking).
+
+## Accessibility
+
+Button visible text "Edit" for accessible name. Uses established btn-ghost btn-xs pattern. Row inherits .metadata-row responsive behavior for mobile.
+
+## Verdict
+
+Production-ready. No blocking issues. Approved by Maximus.
+
+**Orchestration Log**: .squad/orchestration-log/${timestamp}-aurelia-feature355-reminder-detail-row.md
+
 ## 2026-08-20 — Feature 355: NB1 Badge Wiring Resolution & T037-T038 Admin Schedule UI
 
 **Assignment**: Strict Lockout §18.2 reassignment from Cassius
@@ -225,3 +279,24 @@ pm run build ✅ (strict ue-tsc --build + vite)
 - **Accessible toggle pattern:** Pair the visible <label for=...> with the checkbox id for both the text label AND the switch wrapper; the id on the <input> is what or must match.
 - **ria-describedby on time inputs:** Link the hint <span> with a unique id and set ria-describedby on the input. Tests verify both the attribute presence and that the hint element exists — prevents silent regressions if the hint is removed.
 
+
+
+## 2026-08-20 - Feature 355 UX Revision: Reminder as Detail-Grid Row
+
+**Role:** Frontend Developer - Aurelia
+
+### Work Completed
+
+- Removed the inline pill/strip from the title section of CoinDetailPage.vue; BellRing import and formatReminderBadge import removed
+- Added formatReminderDateValue(remindDate) to usePurchaseReminder.ts - uses local date construction (new Date(y, m-1, d)) to avoid UTC midnight timezone shift
+- Added editLabel?: string to CoinDetailMetadataRow in types/coin.ts; CoinDetailMetadataTable.vue renders a btn-ghost btn-xs button in the label column when editLabel is set, emits 'edit' with the row key
+- CoinDetailPage.vue computes displayRows by injecting a purchaseReminder row immediately after purchasePrice in the details grid; wires @edit='handleMetadataEdit' to open the modal
+- No-reminder empty state remains discoverable via the existing bell button in CoinDetailHeaderActions (:show-reminder-action='coin.isWishlist')
+- Added pages/__tests__/CoinDetailPage.reminder.test.ts: 7 focused tests for row presence, date as plain .row-value text, row placement after Purchase Price, Edit button, Edit click opens modal, old strip absent, row absent when no reminder
+
+### Learnings
+
+- editLabel in metadata rows: The lightest inline-action pattern is editLabel?: string on CoinDetailMetadataRow + emit('edit', key) from the table. Parent handles routing without table needing component-specific knowledge.
+- Row injection pattern: Compute displayRows by splicing extra rows into base metadata array by key index. Keeps composable pure; CoinDetailPage owns supplemental state (reminder).
+- Vue Test Utils stub selector: stubs: { PurchaseReminderModal: true } renders as <purchase-reminder-modal-stub> (kebab-case + -stub), NOT <purchaseremindermodal-stub>.
+- UTC shift: new Date('2026-09-01') parses as UTC midnight, shifts one day behind in US timezones. Use new Date(y, m-1, d) for date-only strings.

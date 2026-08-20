@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+﻿import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import { createOrUpdatePurchaseReminder, getPurchaseReminder, deletePurchaseReminder } from '@/api/client'
 import type { PurchaseReminder } from '@/types/coin'
@@ -29,6 +29,19 @@ export function formatReminderBadge(remindDate: string): string {
   const day = parseInt(parts[2] ?? '1', 10)
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return `Due ${months[month - 1] ?? '?'} ${day}`
+}
+
+/**
+ * Formats a YYYY-MM-DD remind date as a plain localized date string for detail-row
+ * display (e.g. "9/1/2026"). Uses local date construction to avoid UTC midnight
+ * timezone shift.
+ */
+export function formatReminderDateValue(remindDate: string): string {
+  const parts = remindDate.split('-')
+  const y = parseInt(parts[0] ?? '2000', 10)
+  const m = parseInt(parts[1] ?? '1', 10)
+  const d = parseInt(parts[2] ?? '1', 10)
+  return new Date(y, m - 1, d).toLocaleDateString()
 }
 
 /** Returns today's date as YYYY-MM-DD in local time. */
