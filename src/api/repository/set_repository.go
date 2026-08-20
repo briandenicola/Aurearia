@@ -975,3 +975,150 @@ func (r *SetRepository) DeleteCriteriaTemplate(id, userID uint) error {
 	}
 	return nil
 }
+
+// setSummaryRow is one grouped-aggregate row from GetSetSummaries.
+type setSummaryRow struct {
+	SetID           uint
+	CoinCount       int
+	TotalValue      float64
+	TotalInvested   float64
+	AvgValuePerCoin *float64
+}
+
+// GetSetSummaries returns summaries for many membership-backed sets using two
+// grouped queries instead of the two-or-three queries per set that
+// GetSetSummary costs.
+//
+// It deliberately covers only the set types whose summary comes from SQL
+// (standard and goal). Smart sets need their criteria evaluated per set, and
+// agentic sets summarize in Go via summarizeSetCoins, whose avgValuePerCoin
+// divides by every member coin while SQL AVG() skips NULL values. Folding
+// those into this query would silently change the numbers the UI shows, so
+// callers must fall back to GetSetSummary for them — see
+// SetService.ListSets.
+//
+// Sets with no members produce no row; callers should treat a missing entry as
+// an empty summary, which is what GetSetSummary returns for them today.
+func (r *SetRepository) GetSetSummaries(setIDs []uint, userID uint) (map[uint]map[string]interface{}, error) {
+	summaries := make(map[uint]map[string]interface{}, len(setIDs))
+	if len(setIDs) == 0 {
+		return summaries, nil
+	}
+
+	var rows []setSummaryRow
+	err := r.db.Raw(`
+		SELECT
+			coin_set_memberships.set_id AS set_id,
+			COUNT(coins.id) AS coin_count,
+			COALESCE(SUM(coins.current_value), 0) AS total_value,
+			COALESCE(SUM(coins.purchase_price), 0) AS total_invested,
+			AVG(coins.current_value) AS avg_value_per_coin
+		FROM coin_set_memberships
+		JOIN coins ON coins.id = coin_set_memberships.coin_id
+		WHERE coin_set_memberships.set_id IN (?) AND coins.user_id = ?
+		GROUP BY coin_set_memberships.set_id
+	`, setIDs, userID).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Highest-value coin per set, resolved in one pass with a window function
+	// rather than the correlated subquery GetSetSummary runs for a single set.
+	type highestRow struct {
+		SetID  uint
+		CoinID uint
+	}
+	var highest []highestRow
+	err = r.db.Raw(`
+		SELECT set_id, coin_id FROM (
+			SELECT
+				coin_set_memberships.set_id AS set_id,
+				coins.id AS coin_id,
+				ROW_NUMBER() OVER (
+					PARTITION BY coin_set_memberships.set_id
+					ORDER BY coins.current_value DESC
+				) AS row_num
+			FROM coin_set_memberships
+			JOIN coins ON coins.id = coin_set_memberships.coin_id
+			WHERE coin_set_memberships.set_id IN (?) AND coins.user_id = ?
+		) ranked
+		WHERE row_num = 1
+	`, setIDs, userID).Scan(&highest).Error
+	if err != nil {
+		return nil, err
+	}
+
+	highestBySet := make(map[uint]uint, len(highest))
+	for _, row := range highest {
+		highestBySet[row.SetID] = row.CoinID
+	}
+
+	for _, row := range rows {
+		var highestID *uint
+		if id, ok := highestBySet[row.SetID]; ok {
+			coinID := id
+			highestID = &coinID
+		}
+		summaries[row.SetID] = map[string]interface{}{
+			"coinCount":          row.CoinCount,
+			"totalValue":         row.TotalValue,
+			"totalInvested":      row.TotalInvested,
+			"avgValuePerCoin":    row.AvgValuePerCoin,
+			"highestValueCoinId": highestID,
+		}
+	}
+	return summaries, nil
+}
+
+// EmptySetSummary is the summary shape for a set with no members. It matches
+// what GetSetSummary returns when its aggregate matches no rows.
+func EmptySetSummary() map[string]interface{} {
+	return map[string]interface{}{
+		"coinCount":          0,
+		"totalValue":         float64(0),
+		"totalInvested":      float64(0),
+		"avgValuePerCoin":    (*float64)(nil),
+		"highestValueCoinId": (*uint)(nil),
+	}
+}
+
+// GetGoalSetCompletions returns completion percentages for many goal sets in a
+// single grouped query, mirroring getGoalSetCompletion's arithmetic exactly.
+// Only goal sets are covered: agentic completion runs per-set target matching.
+func (r *SetRepository) GetGoalSetCompletions(setIDs []uint, userID uint) (map[uint]float64, error) {
+	completions := make(map[uint]float64, len(setIDs))
+	if len(setIDs) == 0 {
+		return completions, nil
+	}
+
+	type completionRow struct {
+		SetID           uint
+		CollectionItems int
+		WishlistItems   int
+	}
+	var rows []completionRow
+	err := r.db.Raw(`
+		SELECT
+			coin_set_memberships.set_id AS set_id,
+			COALESCE(SUM(CASE WHEN coins.is_wishlist = 0 THEN 1 ELSE 0 END), 0) AS collection_items,
+			COALESCE(SUM(CASE WHEN coins.is_wishlist = 1 THEN 1 ELSE 0 END), 0) AS wishlist_items
+		FROM coin_set_memberships
+		JOIN coin_sets ON coin_sets.id = coin_set_memberships.set_id
+		JOIN coins ON coins.id = coin_set_memberships.coin_id
+		WHERE coin_set_memberships.set_id IN (?) AND coin_sets.user_id = ? AND coins.user_id = ?
+		GROUP BY coin_set_memberships.set_id
+	`, setIDs, userID, userID).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		total := row.CollectionItems + row.WishlistItems
+		if total == 0 {
+			completions[row.SetID] = 0
+			continue
+		}
+		completions[row.SetID] = (float64(row.CollectionItems) / float64(total)) * 100.0
+	}
+	return completions, nil
+}

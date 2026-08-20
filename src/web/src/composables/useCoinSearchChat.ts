@@ -4,8 +4,7 @@ import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, cr
 import type { CoinMutationPayload, CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinOptions } from '@/composables/useCoinOptions'
-import DOMPurify from 'dompurify'
-import MarkdownIt from 'markdown-it'
+import { renderSafeChatMarkdown } from '@/composables/useMarkdown'
 
 type ChatSuggestion = CoinSuggestion | CoinShow
 
@@ -42,7 +41,6 @@ const FIELD_LIMITS = {
 } as const
 const VOLUME_REQUIRED_REFERENCE_CATALOGS = new Set(['RIC', 'RPC', 'SNG'])
 
-const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
 export function normalizeSuggestionEra(value: string): 'ancient' | 'medieval' | 'modern' | '' {
   const normalized = value.trim().toLowerCase()
@@ -431,12 +429,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   }
 
   function formatMessage(text: string): string {
-    if (!text) return ''
-    const html = md.render(text)
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['strong', 'em', 'br', 'p', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'code', 'pre', 'blockquote', 'hr'],
-      ALLOWED_ATTR: ['href', 'target', 'rel'],
-    })
+    return renderSafeChatMarkdown(text)
   }
 
   function isCoinShowResults(suggestions: ChatSuggestion[]): boolean {

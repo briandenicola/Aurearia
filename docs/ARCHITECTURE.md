@@ -111,16 +111,20 @@ Request
 [Repository]  ── GORM queries, transactions (one repo per domain)
   │
   ▼
-[Database]    ── *gorm.DB (initialized once in main.go, injected everywhere)
+[Database]    ── *gorm.DB (initialized once in main.go, injected everywhere via deps.go)
 ```
 
 ### Architecture Rules
 
-**1. Only `main.go` imports the `database` package.**
-Every other package receives `*gorm.DB` or a repository/service through its constructor. Enforced by `architecture_test.go`.
+**1. Only the composition root imports the `database` package.**
+That means `main.go` (which calls `database.Connect`) and `deps.go` (which
+constructs every repository from `database.DB`). Every other package receives
+`*gorm.DB` or a repository/service through its constructor. Enforced by
+`architecture_test.go`, which forbids the import in `handlers/`, `services/`,
+`middleware/`, and `repository/`.
 
 ```go
-// GOOD (main.go)
+// GOOD (deps.go, the composition root)
 coinRepo := repository.NewCoinRepository(database.DB)
 
 // BAD (anywhere else)
@@ -169,7 +173,9 @@ All AI inference is proxied to the Python agent via `services/agent_proxy.go`.
 
 | Package | Responsibility | Imports Allowed |
 |---------|---------------|-----------------|
-| `main.go` | Composition root, DI wiring | Everything |
+| `main.go` | Entry point: config, DB connect, router assembly | Everything |
+| `deps.go` | Composition root: builds `appDeps` (repos, services, schedulers) | Everything |
+| `routes_*.go` | Route registration per auth tier, reading from `appDeps` | Everything |
 | `handlers/` | HTTP layer (thin) | `services/`, `repository/`, `models/` |
 | `services/` | Business logic, orchestration | `repository/`, `models/` |
 | `repository/` | Database access, GORM queries | `models/`, `gorm.io/gorm` |
@@ -180,18 +186,34 @@ All AI inference is proxied to the Python agent via `services/agent_proxy.go`.
 
 ### Dependency Injection Wiring
 
-All wiring happens in `main.go` following this sequence:
+Wiring is split between `main.go` (the sequence) and `deps.go` (the
+construction). `appDeps` is a plain hand-wired struct rather than a DI
+framework, because the construction order encodes real initialisation
+dependencies that are better left explicit.
 
 ```
+main.go:
 config.Load()
     → database.Connect(cfg.DBPath)
-    → construct repositories (each takes *gorm.DB)
-    → construct services (take repos + config)
-    → construct handlers (take repos + services)
-    → register routes under api/protected/admin groups
-    → start background schedulers
-    → r.Run()
+    → buildDeps(cfg) ─────────────┐   deps.go
+    → newHTTPRouter(cfg)          │     → construct repositories (each takes *gorm.DB)
+    → registerPublicRoutes        │     → construct services (take repos + config)
+    → registerProtectedRoutes     │     → construct schedulers + worker pools
+    → registerAdminRoutes         │     → returns *appDeps + a CancelFunc for shutdown
+    → registerExternalToolRoutes  │
+    → registerInternalToolRoutes ─┘
+    → runServer(...)  → schedulers start, http.Server serves,
+                        SIGTERM triggers graceful shutdown
 ```
+
+Each `register*Routes` function lives in its own `routes_*.go` file and takes
+`(group, d *appDeps)`. Adding an endpoint means adding a line there and, if it
+needs a new service, a field to `appDeps`.
+
+> Route files are gated: `route_openapi_drift_test.go` parses every file listed
+> in `routeSourceFiles` and fails if a registered route is missing from the
+> OpenAPI spec. A new `routes_*.go` must be added to that list —
+> `TestRouteSourceFilesCoverAllRouteRegistrations` fails if it is not.
 
 ### Route Groups and Authorization
 

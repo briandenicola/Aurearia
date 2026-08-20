@@ -3924,6 +3924,15 @@ definitions:
     required:
     - auctionLotId
     type: object
+  services.BreakdownEntry:
+    properties:
+      count:
+        type: integer
+      label:
+        type: string
+      value:
+        type: number
+    type: object
   services.CancelCollectionProposalResult:
     properties:
       message:
@@ -4416,6 +4425,74 @@ definitions:
       nextRunIn:
         example: 1h30m0s
         type: string
+    type: object
+  services.TimeMachineBounds:
+    properties:
+      earliestDate:
+        type: string
+      hasData:
+        type: boolean
+      latestDate:
+        type: string
+    type: object
+  services.TimeMachineSnapshot:
+    properties:
+      acquiredInYear:
+        type: integer
+      asOfDate:
+        type: string
+      byCategory:
+        items:
+          $ref: '#/definitions/services.BreakdownEntry'
+        type: array
+      byEra:
+        items:
+          $ref: '#/definitions/services.BreakdownEntry'
+        type: array
+      byMaterial:
+        items:
+          $ref: '#/definitions/services.BreakdownEntry'
+        type: array
+      coinCount:
+        type: integer
+      healthScore:
+        type: integer
+      topCoins:
+        items:
+          $ref: '#/definitions/services.TopCoin'
+        type: array
+      totalInvested:
+        type: number
+      totalValue:
+        type: number
+      undatedCoinCount:
+        description: |-
+          UndatedCoinCount is how many owned coins have no purchase date and so
+          appear at no point on the timeline. Surfaced rather than hidden: a
+          non-zero value means the numbers below understate the collection.
+        type: integer
+      unrealizedGain:
+        type: number
+      valueBasis:
+        $ref: '#/definitions/services.ValueBasis'
+    type: object
+  services.TopCoin:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      value:
+        type: number
+      valueFromHistory:
+        type: boolean
+    type: object
+  services.ValueBasis:
+    properties:
+      fromPurchasePrice:
+        type: integer
+      fromValuationHistory:
+        type: integer
     type: object
 info:
   contact: {}
@@ -14410,6 +14487,66 @@ paths:
       summary: Get investment breakdown
       tags:
       - Coins
+  /stats/time-machine:
+    get:
+      description: Reconstructs the collection as it stood on the requested date from
+        purchase/sold dates and recorded valuation history. Coins without a purchase
+        date cannot be placed on the timeline and are reported separately in undatedCoinCount.
+      parameters:
+      - description: Target date (YYYY-MM-DD)
+        in: query
+        name: date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.TimeMachineSnapshot'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the collection as of a past date
+      tags:
+      - Stats
+  /stats/time-machine/bounds:
+    get:
+      description: Returns the earliest acquisition on record and today, defining
+        the range the timeline scrubber can span. hasData is false when no coin has
+        a purchase date.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.TimeMachineBounds'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the time machine's date range
+      tags:
+      - Stats
   /storage-locations:
     get:
       description: Returns all storage locations belonging to the authenticated user.

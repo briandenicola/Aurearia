@@ -70,7 +70,7 @@ func TestNoDirectDatabaseImports(t *testing.T) {
 					t.Errorf(
 						"%s imports %q directly. Use dependency injection instead — "+
 							"accept *gorm.DB or a repository as a constructor parameter. "+
-							"Only main.go should reference the database package.",
+							"Only the composition root (main.go and deps.go) should reference the database package.",
 						filePath, forbiddenImport,
 					)
 				}
