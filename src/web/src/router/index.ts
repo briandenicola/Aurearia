@@ -176,6 +176,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/stats/time-machine',
+      name: 'stats-time-machine',
+      component: () => import('@/pages/StatsTimeMachinePage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/stats/health',
       name: 'stats-health',
       component: () => import('@/pages/StatsHealthPage.vue'),

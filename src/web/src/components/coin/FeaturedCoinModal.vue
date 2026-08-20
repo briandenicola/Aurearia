@@ -86,15 +86,12 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Share2, Sparkles, X } from 'lucide-vue-next'
 import { getFeaturedCoin, updateCoin, getApiErrorMessage } from '@/api/client'
 import type { FeaturedCoin } from '@/types'
-import MarkdownIt from 'markdown-it'
-import DOMPurify from 'dompurify'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
 
 const props = defineProps<{ featuredCoinId: number }>()
 const emit = defineEmits<{ close: [] }>()
-
-const md = new MarkdownIt({ html: false })
 
 const featured = ref<FeaturedCoin | null>(null)
 const loading = ref(false)
@@ -126,11 +123,7 @@ const images = computed(() => {
   })
 })
 
-const renderedSummary = computed(() => {
-  const s = featured.value?.summary || ''
-  if (!s) return ''
-  return DOMPurify.sanitize(md.render(s))
-})
+const renderedSummary = computed(() => renderSafeMarkdown(featured.value?.summary))
 
 function formatImageLabel(type: string) {
   if (!type) return ''

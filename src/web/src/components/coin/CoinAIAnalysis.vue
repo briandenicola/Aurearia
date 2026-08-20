@@ -92,9 +92,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { analyzeCoin, deleteAnalysis, formatAgentServiceError, getAIJob, getAIStatus, getCoinAIJobs, gradeCoin } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useNotifications } from '@/composables/useNotifications'
+import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { useToast } from '@/composables/useToast'
-import MarkdownIt from 'markdown-it'
-import DOMPurify from 'dompurify'
 import type { AIJob, AIJobStartResponse, CoinGradingResult } from '@/types'
 
 const props = defineProps<{
@@ -113,7 +112,6 @@ const emit = defineEmits<{
 const { showConfirm, showAlert } = useDialog()
 const { refresh: refreshNotifications } = useNotifications()
 const { showToast } = useToast()
-const md = new MarkdownIt({ html: false })
 const POLL_INTERVAL_MS = 3_000
 
 const analyzing = ref(false)
@@ -127,10 +125,10 @@ const activeJob = ref<AIJob | null>(null)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 let unmounted = false
 
-const renderedObverse = computed(() => (props.obverseAnalysis ? DOMPurify.sanitize(md.render(props.obverseAnalysis)) : ''))
-const renderedReverse = computed(() => (props.reverseAnalysis ? DOMPurify.sanitize(md.render(props.reverseAnalysis)) : ''))
-const renderedLegacy = computed(() => (props.aiAnalysis ? DOMPurify.sanitize(md.render(props.aiAnalysis)) : ''))
-const renderedGradingReport = computed(() => (gradingReport.value ? DOMPurify.sanitize(md.render(gradingReport.value)) : ''))
+const renderedObverse = computed(() => renderSafeMarkdown(props.obverseAnalysis))
+const renderedReverse = computed(() => renderSafeMarkdown(props.reverseAnalysis))
+const renderedLegacy = computed(() => renderSafeMarkdown(props.aiAnalysis))
+const renderedGradingReport = computed(() => renderSafeMarkdown(gradingReport.value))
 const busy = computed(() => analyzing.value || grading.value)
 const canGradeCoin = computed(() => props.hasObverse || props.hasReverse)
 const gradingDisabledTitle = computed(() => {

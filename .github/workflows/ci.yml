@@ -45,6 +45,28 @@ jobs:
             exit 1
           fi
 
+  go-race:
+    name: Go API (race detector)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: src/api/go.mod
+
+      # Runs in its own job so a data-race failure is unambiguous and does not
+      # mask (or get masked by) an ordinary test failure in the go-api job.
+      # The race detector requires cgo; the sqlite driver is pure Go, so this
+      # is the only place CGO_ENABLED=1 is needed.
+      - name: Test (race detector)
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./...
+
   vue-web:
     name: Vue Web
     runs-on: ubuntu-latest
