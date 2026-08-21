@@ -561,6 +561,7 @@ onMounted(async () => {
         auth.user.cngConfigured = data.cngConfigured
         auth.user.pushoverEnabled = data.pushoverEnabled
         auth.user.coinOfDayEnabled = data.coinOfDayEnabled
+        auth.user.pwaSwipeNavEnabled = data.pwaSwipeNavEnabled
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
 

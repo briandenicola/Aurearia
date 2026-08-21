@@ -271,3 +271,55 @@ func TestDeepIdentificationModelsAutoMigrate(t *testing.T) {
 		t.Fatalf("expected partial unique artifact role index to be creatable: %v", err)
 	}
 }
+
+// legacyUserWithoutSwipeNav simulates the users table before pwa_swipe_nav_enabled was added.
+type legacyUserWithoutSwipeNav struct {
+	ID                             uint   `gorm:"primaryKey"`
+	Username                       string `gorm:"uniqueIndex;not null"`
+	Email                          string `gorm:"uniqueIndex"`
+	PasswordHash                   string `gorm:"not null"`
+	EmperorTrackerEnabled          bool   `gorm:"default:false"`
+	EmperorTrackerShowUsurpers     bool   `gorm:"default:false"`
+	EmperorTrackerShowEmpresses    bool   `gorm:"default:false"`
+	EmperorTrackerShowOtherFigures bool   `gorm:"default:false"`
+}
+
+func (legacyUserWithoutSwipeNav) TableName() string { return "users" }
+
+// TestPWASwipeNavMigrationAddsColumnWithFalseDefault verifies that:
+// 1. An existing user row backfills to false (DB zero for NOT NULL DEFAULT 0).
+// 2. The column is named exactly pwa_swipe_nav_enabled (not p_w_a_swipe_nav_enabled
+//    or another GORM initialism variant), as required by the design review contract.
+func TestPWASwipeNavMigrationAddsColumnWithFalseDefault(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+
+	// Build the schema without pwa_swipe_nav_enabled, then seed a user row.
+	if err := db.AutoMigrate(&legacyUserWithoutSwipeNav{}); err != nil {
+		t.Fatalf("legacy schema migrate: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO users (id, username, email, password_hash) VALUES (1, 'cassius', 'cassius@example.test', 'hash')`).Error; err != nil {
+		t.Fatalf("seed legacy user: %v", err)
+	}
+
+	// Run the full-model AutoMigrate to add the new column.
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatalf("full-model AutoMigrate failed: %v", err)
+	}
+
+	// Assert the exact column name as specified in the design review.
+	if !db.Migrator().HasColumn(&models.User{}, "pwa_swipe_nav_enabled") {
+		t.Fatal("expected column pwa_swipe_nav_enabled to exist after AutoMigrate")
+	}
+
+	// Assert the legacy user reads back with pwa_swipe_nav_enabled = false.
+	var user models.User
+	if err := db.First(&user, 1).Error; err != nil {
+		t.Fatalf("load legacy user after migration: %v", err)
+	}
+	if user.PWASwipeNavEnabled {
+		t.Fatal("expected legacy user pwa_swipe_nav_enabled to be false after additive migration")
+	}
+}

@@ -132,6 +132,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
 		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
 		"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
+		"pwaSwipeNavEnabled":             user.PWASwipeNavEnabled,
 	})
 }
 
@@ -232,7 +233,7 @@ func (h *UserHandler) ImportCollection(c *gin.Context) {
 // UpdateProfile updates the authenticated user's profile info.
 //
 //	@Summary		Update profile
-//	@Description	Updates profile, privacy, NumisBids, Pushover, and coin-of-day preferences for the authenticated user.
+//	@Description	Updates profile, privacy, NumisBids, Pushover, coin-of-day, emperor-tracker, and PWA swipe navigation preferences for the authenticated user.
 //	@Tags			User
 //	@Accept			json
 //	@Produce		json
@@ -265,6 +266,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		EmperorTrackerShowUsurpers     *bool   `json:"emperorTrackerShowUsurpers"`
 		EmperorTrackerShowEmpresses    *bool   `json:"emperorTrackerShowEmpresses"`
 		EmperorTrackerShowOtherFigures *bool   `json:"emperorTrackerShowOtherFigures"`
+		PWASwipeNavEnabled             *bool   `json:"pwaSwipeNavEnabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -355,6 +357,9 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if req.EmperorTrackerShowOtherFigures != nil {
 		updates["emperor_tracker_show_other_figures"] = *req.EmperorTrackerShowOtherFigures
 	}
+	if req.PWASwipeNavEnabled != nil {
+		updates["pwa_swipe_nav_enabled"] = *req.PWASwipeNavEnabled
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 		goingPrivate := !*req.IsPublic && user.IsPublic
@@ -402,6 +407,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
 		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
 		"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
+		"pwaSwipeNavEnabled":             user.PWASwipeNavEnabled,
 	})
 }
 

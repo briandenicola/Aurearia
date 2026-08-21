@@ -16501,7 +16501,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates profile, privacy, NumisBids, Pushover, and coin-of-day preferences for the authenticated user.",
+                "description": "Updates profile, privacy, NumisBids, Pushover, coin-of-day, emperor-tracker, and PWA swipe navigation preferences for the authenticated user.",
                 "consumes": [
                     "application/json"
                 ],

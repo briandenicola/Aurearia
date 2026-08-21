@@ -32,6 +32,7 @@ type User struct {
 	EmperorTrackerShowUsurpers     bool       `gorm:"default:false" json:"emperorTrackerShowUsurpers"`
 	EmperorTrackerShowEmpresses    bool       `gorm:"default:false" json:"emperorTrackerShowEmpresses"`
 	EmperorTrackerShowOtherFigures bool       `gorm:"default:false" json:"emperorTrackerShowOtherFigures"`
+	PWASwipeNavEnabled             bool       `gorm:"column:pwa_swipe_nav_enabled;not null;default:false" json:"pwaSwipeNavEnabled"`
 	LockedUntil                    *time.Time `gorm:"index" json:"lockedUntil,omitempty"`
 	CreatedAt                      time.Time  `json:"createdAt"`
 }
