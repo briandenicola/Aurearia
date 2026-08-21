@@ -54,6 +54,18 @@ vi.mock('vue-router', async (importOriginal) => {
   }
 })
 
+// Auth store mock — reactive so that watch() inside the composable tracks user changes.
+// Default: pwaSwipeNavEnabled=true so all existing tests keep their current behavior.
+const authStore = vi.hoisted(() => ({
+  proxy: null as unknown as { user: { pwaSwipeNavEnabled?: boolean } | null },
+}))
+
+vi.mock('@/stores/auth', async () => {
+  const { reactive } = await import('vue')
+  authStore.proxy = reactive({ user: { pwaSwipeNavEnabled: true } as { pwaSwipeNavEnabled?: boolean } | null })
+  return { useAuthStore: () => authStore.proxy }
+})
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -158,6 +170,7 @@ beforeEach(() => {
   mockRouteState.query = {}
   mockRouteState.hash = ''
   Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true, writable: true })
+  if (authStore.proxy) { authStore.proxy.user = { pwaSwipeNavEnabled: true } }
 })
 
 // ===========================================================================
@@ -1018,5 +1031,178 @@ describe('overflow menu -- accessibility unchanged', () => {
     expect(source).not.toContain('aria-hidden')
     expect(source).not.toContain('tabIndex')
     expect(source).not.toContain('tabindex')
+  })
+})
+
+// ===========================================================================
+// 22. Preference gate -- account-wide pwaSwipeNavEnabled setting
+//     Design authority: .squad/decisions/inbox/maximus-pwa-swipe-setting-review.md
+// ===========================================================================
+
+describe('preference gate -- pwaSwipeNavEnabled', () => {
+  it('default disabled: pwaSwipeNavEnabled=false attaches no listeners and no gesture navigates', () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    const wrapper = mountHarness()
+    doLeftSwipe(wrapper.element as HTMLElement)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('pwaSwipeNavEnabled=true enables navigation in installed PWA', () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    doLeftSwipe(wrapper.element as HTMLElement)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('fail closed: user object with pwaSwipeNavEnabled absent (undefined) behaves as disabled', () => {
+    authStore.proxy.user = {}
+    const wrapper = mountHarness()
+    doLeftSwipe(wrapper.element as HTMLElement)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('fail closed: auth.user=null (logged out) attaches no listeners', () => {
+    authStore.proxy.user = null
+    const wrapper = mountHarness()
+    doLeftSwipe(wrapper.element as HTMLElement)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('browser inactive even with pwaSwipeNavEnabled=true: isPwa=false, no navigation', () => {
+    mockIsPwa.value = false
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    doLeftSwipe(wrapper.element as HTMLElement)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('live enable: flipping pwaSwipeNavEnabled true on a mounted component attaches listeners', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    doLeftSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    await nextTick()
+
+    doLeftSwipe(container)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('live disable: flipping pwaSwipeNavEnabled false detaches listeners and navigation stops', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    doLeftSwipe(container)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    mockPush.mockClear()
+
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    await nextTick()
+
+    doLeftSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('no duplicate listeners after repeated on/off/on cycles', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    await nextTick()
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    await nextTick()
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    await nextTick()
+
+    doLeftSwipe(container)
+    // Must be called exactly once -- duplicate listeners would give 2 or more
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('logout detaches listeners: auth.user null after enable stops navigation', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    doLeftSwipe(container)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    mockPush.mockClear()
+
+    authStore.proxy.user = null
+    await nextTick()
+
+    doLeftSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('account switch: replacing user with pwaSwipeNavEnabled=false detaches listeners', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    doLeftSwipe(container)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    mockPush.mockClear()
+
+    // Account switch: new user has the setting off
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    await nextTick()
+
+    doLeftSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('account switch: replacing user with pwaSwipeNavEnabled=true attaches listeners', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    doLeftSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+
+    // Account switch: new user has the setting on
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    await nextTick()
+
+    doLeftSwipe(container)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('preference gate and options.enabled gate are independent concerns', async () => {
+    // options.enabled is the modal-suppression gate; pwaSwipeNavEnabled is the account preference.
+    // Both must pass for navigation to occur.
+    const enabled = ref(true)
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness({ enabled })
+    const container = wrapper.element as HTMLElement
+
+    // Both gates open: navigation works
+    doLeftSwipe(container)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    mockPush.mockClear()
+
+    // Modal gate closes: navigation suppressed even with preference on
+    enabled.value = false
+    await nextTick()
+    doLeftSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+
+    wrapper.unmount()
   })
 })

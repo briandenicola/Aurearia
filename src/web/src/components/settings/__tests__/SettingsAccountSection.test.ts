@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+﻿import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsAccountSection from '@/components/settings/SettingsAccountSection.vue'
 import type { OIDCLinkedIdentity, OIDCPublicProvider, User } from '@/types'
@@ -24,6 +24,7 @@ const authUser: User = {
   emperorTrackerShowUsurpers: false,
   emperorTrackerShowEmpresses: false,
   emperorTrackerShowOtherFigures: false,
+  pwaSwipeNavEnabled: false,
 }
 
 vi.mock('@/stores/auth', () => ({
@@ -221,6 +222,7 @@ describe('SettingsAccountSection emperor tracker toggles', () => {
         emperorTrackerShowUsurpers: true,
         emperorTrackerShowEmpresses: false,
         emperorTrackerShowOtherFigures: false,
+        pwaSwipeNavEnabled: false,
       },
     })
   })
@@ -283,5 +285,110 @@ describe('SettingsAccountSection emperor tracker toggles', () => {
     )
     expect(authUser.emperorTrackerEnabled).toBe(true)
     expect(authUser.emperorTrackerShowUsurpers).toBe(true)
+  })
+})
+
+describe('SettingsAccountSection swipe navigation toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    authUser.pwaSwipeNavEnabled = false
+    mockGetOIDCIdentities.mockResolvedValue({ data: { identities: [] } })
+    mockGetOIDCPublicProviders.mockResolvedValue({ data: { providers: [] } })
+    mockUpdateProfile.mockResolvedValue({
+      data: {
+        id: 1, username: 'collector', role: 'user', email: 'collector@example.com',
+        avatarPath: '', isPublic: false, bio: '', zipCode: '',
+        numisBidsUsername: '', numisBidsConfigured: false, cngUsername: '', cngConfigured: false,
+        parcelAppConfigured: false, pushoverEnabled: false,
+        coinOfDayEnabled: true, coinOfDayIncludeWishlist: true,
+        emperorTrackerEnabled: false, emperorTrackerShowUsurpers: false,
+        emperorTrackerShowEmpresses: false, emperorTrackerShowOtherFigures: false,
+        pwaSwipeNavEnabled: true,
+      },
+    })
+  })
+
+  function checkboxForRowContaining(wrapper: ReturnType<typeof import('@vue/test-utils').mount>, text: string) {
+    const checkbox = wrapper.findAll('input[type="checkbox"]').find((input) => {
+      const row = input.element.closest('div')
+      return row?.textContent?.includes(text) ?? false
+    })
+    expect(checkbox, `expected to find a checkbox in a row containing "${text}"`).toBeTruthy()
+    return checkbox!
+  }
+
+  it('renders the Swipe Navigation toggle row with correct label and description', async () => {
+    const wrapper = mountSection()
+    await import('@vue/test-utils').then(m => m.flushPromises())
+
+    expect(wrapper.text()).toContain('Swipe Navigation')
+    expect(wrapper.text()).toContain('Applies to the installed app only')
+  })
+
+  it('is unchecked by default when auth user has pwaSwipeNavEnabled=false', async () => {
+    const { flushPromises } = await import('@vue/test-utils')
+    const wrapper = mountSection()
+    await flushPromises()
+
+    const cb = checkboxForRowContaining(wrapper, 'Swipe Navigation')
+    expect((cb.element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('sends pwaSwipeNavEnabled=true in the updateProfile payload after toggling on', async () => {
+    const { flushPromises } = await import('@vue/test-utils')
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await checkboxForRowContaining(wrapper, 'Swipe Navigation').setValue(true)
+    await buttonByText(wrapper, 'Save Profile').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ pwaSwipeNavEnabled: true }),
+    )
+  })
+
+  it('updates the auth store user on successful save', async () => {
+    const { flushPromises } = await import('@vue/test-utils')
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await checkboxForRowContaining(wrapper, 'Swipe Navigation').setValue(true)
+    await buttonByText(wrapper, 'Save Profile').trigger('click')
+    await flushPromises()
+
+    expect(authUser.pwaSwipeNavEnabled).toBe(true)
+  })
+
+  it('persists the server-confirmed value to localStorage on successful save', async () => {
+    const { flushPromises } = await import('@vue/test-utils')
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await checkboxForRowContaining(wrapper, 'Swipe Navigation').setValue(true)
+    await buttonByText(wrapper, 'Save Profile').trigger('click')
+    await flushPromises()
+
+    const stored = JSON.parse(localStorage.getItem('user') ?? '{}')
+    expect(stored.pwaSwipeNavEnabled).toBe(true)
+  })
+
+  it('does not update the auth store on a failed save', async () => {
+    const { flushPromises } = await import('@vue/test-utils')
+    mockUpdateProfile.mockRejectedValueOnce(new Error('network error'))
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await checkboxForRowContaining(wrapper, 'Swipe Navigation').setValue(true)
+    await buttonByText(wrapper, 'Save Profile').trigger('click')
+    await flushPromises()
+
+    // Auth store must remain at the pre-save value (false)
+    expect(authUser.pwaSwipeNavEnabled).toBe(false)
+    // localStorage must not have been updated to the new value
+    const stored = JSON.parse(localStorage.getItem('user') ?? '{}')
+    expect(stored.pwaSwipeNavEnabled).not.toBe(true)
+    expect(wrapper.text()).toContain('Failed to save profile')
   })
 })

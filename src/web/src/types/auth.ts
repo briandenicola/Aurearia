@@ -22,6 +22,7 @@ export interface User {
   emperorTrackerShowUsurpers?: boolean
   emperorTrackerShowEmpresses?: boolean
   emperorTrackerShowOtherFigures?: boolean
+  pwaSwipeNavEnabled?: boolean
 }
 
 export interface AuthResponse {
@@ -156,6 +157,7 @@ export interface UserInfo {
   emperorTrackerShowUsurpers?: boolean
   emperorTrackerShowEmpresses?: boolean
   emperorTrackerShowOtherFigures?: boolean
+  pwaSwipeNavEnabled?: boolean
   lockedUntil?: string | null
   failedLoginAttempts?: number
   createdAt: string

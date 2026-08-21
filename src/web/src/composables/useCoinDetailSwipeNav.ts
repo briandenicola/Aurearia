@@ -1,14 +1,16 @@
 // Experimental PWA-only swipe navigation across coin-detail menu pages.
-// Only active when running as an installed PWA (isPwa); desktop and in-browser
-// mobile are byte-for-byte unaffected.
+// Only active when running as an installed PWA (isPwa) and the user has
+// enabled the account-wide pwaSwipeNavEnabled preference. Desktop and
+// in-browser mobile are byte-for-byte unaffected regardless of preference.
 //
 // Exported constants are named so that Brutus's test file can reference them
 // without duplicating the values.
 
-import { onMounted, onUnmounted, type Ref } from 'vue'
+import { onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { COIN_DETAIL_SECTIONS, SECTION_ORDER } from '@/constants/coinDetailSections'
 import { usePwa } from '@/composables/usePwa'
+import { useAuthStore } from '@/stores/auth'
 
 /** Minimum horizontal travel (px) required to commit a swipe. */
 export const SWIPE_THRESHOLD = 64
@@ -18,7 +20,7 @@ export const AXIS_SLOP = 10
 export const EDGE_GUARD = 24
 /**
  * Required ratio: abs(dx) must be >= AXIS_DOMINANCE * abs(dy) at release.
- * A value of 2 means the horizontal travel must be at least 2× the vertical.
+ * A value of 2 means the horizontal travel must be at least 2x the vertical.
  */
 export const AXIS_DOMINANCE = 2
 
@@ -35,6 +37,7 @@ export function useCoinDetailSwipeNav(
   // Exit immediately for non-PWA; no listeners, no overhead.
   if (!isPwa) return
 
+  const auth = useAuthStore()
   const route = useRoute()
   const router = useRouter()
 
@@ -128,11 +131,13 @@ export function useCoinDetailSwipeNav(
     if (e.pointerId === activePointerId) reset()
   }
 
-  // Capture the element at mount so the same node is used for removal even
-  // if the ref is cleared before unmount.
+  // Capture the element at attach time so the same node is used for removal
+  // even if the ref is cleared before detach is called.
   let attachedElement: HTMLElement | null = null
 
-  onMounted(() => {
+  function attach() {
+    // No-op when already attached: prevents duplicate listeners on repeated enable/disable cycles.
+    if (attachedElement) return
     const el = containerRef.value
     if (!el) return
     attachedElement = el
@@ -141,9 +146,9 @@ export function useCoinDetailSwipeNav(
     el.addEventListener('pointerup', onPointerUp, { passive: true })
     el.addEventListener('pointercancel', onPointerCancel, { passive: true })
     el.addEventListener('lostpointercapture', onPointerCancel, { passive: true })
-  })
+  }
 
-  onUnmounted(() => {
+  function detach() {
     const el = attachedElement
     if (!el) return
     el.removeEventListener('pointerdown', onPointerDown)
@@ -152,5 +157,26 @@ export function useCoinDetailSwipeNav(
     el.removeEventListener('pointercancel', onPointerCancel)
     el.removeEventListener('lostpointercapture', onPointerCancel)
     attachedElement = null
+  }
+
+  onMounted(() => {
+    // Attach only when the account preference is enabled at mount time.
+    // Subsequent preference changes are handled by the watcher below.
+    if (auth.user?.pwaSwipeNavEnabled === true) attach()
   })
+
+  onUnmounted(() => {
+    detach()
+  })
+
+  // Reactively attach or detach when the user enables/disables the preference,
+  // logs out (auth.user becomes null), or switches accounts (new user value).
+  // attach() no-ops if already attached; detach() no-ops if not attached.
+  watch(
+    () => auth.user?.pwaSwipeNavEnabled === true,
+    (enabled) => {
+      if (enabled) attach()
+      else detach()
+    },
+  )
 }

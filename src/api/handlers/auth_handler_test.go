@@ -741,3 +741,20 @@ func TestAuthResponseIncludesEmperorTrackerFields(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthResponseIncludesPWASwipeNavEnabled(t *testing.T) {
+	router, _ := setupAuthHandlerRouter(t)
+
+	registerResp := registerTestUser(t, router, "pwaswipe", "pwaswipe@example.com", "password123")
+	userMap, ok := registerResp["user"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected user object in register response")
+	}
+	value, exists := userMap["pwaSwipeNavEnabled"]
+	if !exists {
+		t.Fatal("register response missing pwaSwipeNavEnabled field")
+	}
+	if value != false {
+		t.Errorf("pwaSwipeNavEnabled = %v, want false for a new user", value)
+	}
+}

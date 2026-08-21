@@ -60,6 +60,7 @@ export function useSettingsProfile() {
   const emperorTrackerShowUsurpers = ref(auth.user?.emperorTrackerShowUsurpers ?? false)
   const emperorTrackerShowEmpresses = ref(auth.user?.emperorTrackerShowEmpresses ?? false)
   const emperorTrackerShowOtherFigures = ref(auth.user?.emperorTrackerShowOtherFigures ?? false)
+  const pwaSwipeNavEnabled = ref(auth.user?.pwaSwipeNavEnabled ?? false)
   const profileMsg = ref('')
   const profileError = ref(false)
   const profileSaving = ref(false)
@@ -149,6 +150,7 @@ export function useSettingsProfile() {
         emperorTrackerShowUsurpers: emperorTrackerShowUsurpers.value,
         emperorTrackerShowEmpresses: emperorTrackerShowEmpresses.value,
         emperorTrackerShowOtherFigures: emperorTrackerShowOtherFigures.value,
+        pwaSwipeNavEnabled: pwaSwipeNavEnabled.value,
       }
       if (nbPassword.value) {
         data.numisBidsPassword = nbPassword.value
@@ -180,6 +182,7 @@ export function useSettingsProfile() {
         auth.user.emperorTrackerShowUsurpers = res.data.emperorTrackerShowUsurpers
         auth.user.emperorTrackerShowEmpresses = res.data.emperorTrackerShowEmpresses
         auth.user.emperorTrackerShowOtherFigures = res.data.emperorTrackerShowOtherFigures
+        auth.user.pwaSwipeNavEnabled = res.data.pwaSwipeNavEnabled
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       nbPassword.value = ''
@@ -283,6 +286,7 @@ export function useSettingsProfile() {
     emperorTrackerShowEmpresses,
     emperorTrackerShowOtherFigures,
     // Password
+    pwaSwipeNavEnabled,
     currentPassword,
     newPassword,
     confirmPassword,

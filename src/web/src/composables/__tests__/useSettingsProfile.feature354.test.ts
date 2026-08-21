@@ -80,7 +80,7 @@ describe('useSettingsProfile — Coin of the Day wishlist-inclusion toggle (spec
         parcelAppConfigured: false, pushoverEnabled: false,
         coinOfDayEnabled: true, coinOfDayIncludeWishlist: false,
         emperorTrackerEnabled: false, emperorTrackerShowUsurpers: false,
-        emperorTrackerShowEmpresses: false, emperorTrackerShowOtherFigures: false,
+        emperorTrackerShowEmpresses: false, emperorTrackerShowOtherFigures: false, pwaSwipeNavEnabled: false,
       },
     } as Awaited<ReturnType<typeof updateProfile>>)
 
@@ -103,7 +103,7 @@ describe('useSettingsProfile — Coin of the Day wishlist-inclusion toggle (spec
         parcelAppConfigured: false, pushoverEnabled: false,
         coinOfDayEnabled: true, coinOfDayIncludeWishlist: false,
         emperorTrackerEnabled: false, emperorTrackerShowUsurpers: false,
-        emperorTrackerShowEmpresses: false, emperorTrackerShowOtherFigures: false,
+        emperorTrackerShowEmpresses: false, emperorTrackerShowOtherFigures: false, pwaSwipeNavEnabled: false,
       },
     } as Awaited<ReturnType<typeof updateProfile>>)
 
