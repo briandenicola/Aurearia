@@ -1,95 +1,65 @@
 ---
-updated_at: 2026-08-20T23:33:39Z
-focus_area: Feature 355 — Wishlist Purchase Reminders (timezone hotfix merged; UX polish complete; beta release pending all gates)
+updated_at: 2026-08-21T09:09:41Z
+focus_area: Security Remediation — pip PYSEC-2026-3721 (complete, approved, release-ready; awaiting fresh beta gate verification)
 active_issues: []
 handoff_commit: pending
 ---
 
 # What We're Focused On
 
-**Feature 355 — Wishlist Purchase Reminders (Production-Ready, Beta Pending)**
+**Security Remediation — pip PYSEC-2026-3721 (COMPLETE, Approved, Release-Ready)**
 
 ## Status Summary
 
-Feature 355 implementation COMPLETE. Core backend + frontend DONE. Route BLOCK (B1) cleared; wishlist badge (NB1) resolved. Admin schedule UI (T037-T038) DONE. **Production Timezone Defect Fixed** (2026-08-20): Alpine container lacking zoneinfo caused `time.LoadLocation` to fail for valid IANA zones. Hotfix: embedded IANA database via stdlib `time/tzdata` blank import. Approved by Maximus. **UX Polish: Reminder Detail-Row** (2026-08-20): Migrated reminder display from inline pill to metadata detail row with edit capability. Approved by Maximus. **Beta release pending** final operational gates (T034 frontend validation, T035 scheduler regression test).
+pip vulnerability (PYSEC-2026-3721, fixed in pip >= 26.2) appeared in beta CI Security Scan. Root-cause analysis revealed two exposures: (1) CI dev-environment pip 26.1.2 via transitive uv.lock; (2) runtime image base-layer system pip 25.0.1 via Python ensurepip. Both remediated. All reviewer blocks cleared (Maximus APPROVE, Brutus APPROVE). Security Scan gate ready to re-verify on beta. Release-ready; awaiting fresh beta gates (type-check, build, tests, security scan, package scan).
 
-## Critical Hotfix: Timezone Portability (2026-08-20)
+## Remediation Completed
 
-### Defect
-Production Alpine containers lack `/usr/share/zoneinfo`. Feature 355's timezone validation (`time.LoadLocation`) failed for all valid IANA zones (e.g., `America/Chicago`), returning HTTP 400 for legitimate user inputs.
+### Part 1: CI Lockfile Fix (Aquila)
+- **Change:** `src/agent/uv.lock` pip 26.1.2 → 26.2.1 (3-line hunk)
+- **Impact:** CI audit environment now installs pip 26.2.1 (not vulnerable)
+- **Scope:** Transitive dev-only; no pyproject.toml change; production code unaffected
+- **Verified:** PyPI registry hash verification; pip-audit gate fixed
 
-### Solution
-Added `_ "time/tzdata"` blank import to `src/api/main.go`. Standard library package self-registers full IANA timezone database at init. Binary becomes self-contained; no OS zoneinfo dependency.
+### Part 2: Runtime Image Hardening (Cassius + Brutus)
+- **Issue:** Base image python:3.12-slim ships pip 25.0.1 via ensurepip (vulnerable)
+- **Application:** Never invokes pip; entrypoint is uvicorn (uid 10001)
+- **Solution:** `src/agent/Dockerfile` removes system pip: `RUN python -m pip uninstall -y pip`
+- **Guard:** `.github/workflows/security-scan.yml` agent-image-pip-check job
+  - Asserts pip unavailable in runtime container
+  - System-interpreter check (base pip removal verification)
+  - Smoke test: `/health` endpoint 200 response as uid 10001
+- **Status:** APPROVED by Maximus
 
-### Status
-- **Implementation**: DONE (Cassius)
-- **Review**: APPROVED (Maximus)
-- **Regression Test**: 8 valid zones + 3 invalid rejections (catches removal on Alpine)
-- **Supply Chain**: Zero risk (stdlib only)
-- **Binary Size**: +450 KB (negligible)
-- **Docker**: No changes needed
+## Review Cycle (Complete)
 
-### Files Changed
-- `src/api/main.go`: +1 line (blank import)
-- `src/api/timezone_embed_test.go`: New test (package main)
+1. **Aquila (temp specialist):** Lockfile proposal; false "runtime unaffected" claim
+2. **Maximus (Lead):** BLOCK on B1 (runtime pip exposed) + B2 (mechanism misattributed)
+3. **Cassius (Backend):** Removed system pip from Dockerfile; corrected B1/B2; CLEARED
+4. **Brutus (QA):** Refined CI assertions; added `/health` smoke test; APPROVED
+5. **Maximus:** Release-ready clearance
 
-### Next: Non-Blocking Post-Merge Hardening
-Add CI container test to verify regression on Alpine (recommended but not gating).
-## UX Polish: Reminder Detail-Row Display (2026-08-20)
+## Decisions Merged
 
-### Change
-Migrated reminder display from inline pill/strip to standard metadata detail row in coin detail page, immediately after Purchase Price.
+Three decision records now in `.squad/decisions.md`:
+1. aquila-pip-security-remediation.md (lockfile proposal + initial review BLOCK)
+2. maximus-pip-security-remediation-review.md (B1/B2 block + revision instructions)
+3. cassius-runtime-pip-revision.md (runtime pip removal + CI hardening)
 
-### Implementation
-- Row includes Edit button that opens reminder modal for date updates
-- Backward-compatible: optional editLabel prop; existing metadata table callers unaffected
-- Date formatting avoids UTC shift (local-date construction)
-- All 7 tests pass (row presence, placement, edit, empty state, regression)
+## Non-Blocking Items (Follow-Up)
 
-### Files Changed
-- CoinDetailPage.vue: Modal trigger; removed old strip template
-- CoinDetailMetadataTable.vue: Optional editLabel prop; row injection
-- usePurchaseReminder.ts: formatReminderDateValue helper
-- types/coin.ts: purchaseReminder metadata field
-- CoinDetailPage.test.ts: 7 comprehensive tests
+- NB2: pip-api pins no version floor; future `uv lock` can drift (issue to track)
+- NB6: `/usr/local/bin/pip` dangling symlink after uninstall (cosmetic, waived)
 
-### UX Benefits
-Standard detail row improves discoverability and consistency with established coin-detail pattern. Users can edit reminders inline from detail page. Minor dead BellRing import cleanup recommended follow-up (non-blocking).
+## Release Gates (Pending Verification)
 
+✅ Remediation complete
+✅ Maximus APPROVE
+✅ Brutus APPROVE
+⏳ Fresh beta gates required:
+  - Frontend type-check + build
+  - Backend package tests + architecture test
+  - Security Scan job (verify pip-audit clears)
+  - Container image scan (Trivy/Grype)
 
-## Implementation Deliverables (Complete)
-
-### Feature 355 Core Capability
-
-**Wishlist Purchase Reminders**
-- Date-based reminders on wishlist coins with IANA timezone snapshot (now portable to Alpine)
-- Daily scheduler with catch-up for overdue reminders; durable idempotency via status gate
-- In-app notification (type `purchase_reminder`) with deep-link to coin detail; Pushover best-effort
-- Auto-cancel on any IsWishlist -> false transition within the same transaction
-- Inline modal + badge on existing wishlist/detail surfaces; no new route
-- One active reminder per (coin, user); upsert on re-POST
-- Admin Settings schedule UI: enable/disable toggle + start-time input (DONE — T037-T038)
-
-## Ownership
-
-- **Cassius**: Backend (model, repo, service, handler, scheduler) — DONE; hotfix approved
-- **Aurelia**: Frontend (modal, badge, composable, API client, admin schedule UI) — DONE
-- **Brutus**: Regression QA — PENDING (T034, T035 required before beta→main merge)
-- **Maximus**: Architecture review — COMPLETE + hotfix approval
-
-## Operational Gates (Before Beta→Main Merge)
-
-1. **T034**: Full frontend build validation (`npm run type-check`, `npm run build`)
-2. **T035**: Brutus scheduler regression test
-
-Both are **operational gates** (not architectural blockers). Architecture review is complete.
-
-## Next Steps
-
-1. **IMMEDIATE**: Run operational gates T034 and T035
-2. **Post-gates**: Merge beta branch to main
-3. **Post-merge**: Implement non-blocking hardening (CI container test for timezone regression)
-
-## Previous Focus (Archived)
-
-Feature 340 (Shipment Delivered Terminal-State Sync Exclusion) and Feature 354 (Deep-Identification Run History & Wishlist-Eligible Coin of the Day) — implementation/review complete. Merged to beta pending Feature 355 final gates.
+**Release pending fresh beta gate verification.**

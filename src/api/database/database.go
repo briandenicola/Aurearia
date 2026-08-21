@@ -1,6 +1,7 @@
 ﻿package database
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -124,6 +125,21 @@ func Connect(dbPath string) {
 	DB.Exec("UPDATE users SET coin_of_day_include_wishlist=1 WHERE coin_of_day_include_wishlist IS NULL")
 	DB.Exec("UPDATE deep_identification_jobs SET expires_at=? WHERE status IN (?, ?)", models.DeepIdentificationNoExpirySentinel, models.DeepJobStatusCompleted, models.DeepJobStatusPartial)
 
+	// D2 source backfill + D4 cleanup: see backfillCoinValueHistorySources below.
+	// D4 runs only after a successful backfill -- data-integrity gate (B2 fix).
+	if err := backfillCoinValueHistorySources(DB); err != nil {
+		log.Fatalf("database: D2 source backfill failed: %v", err)
+	}
+	// D4: one-time idempotent cleanup of legacy scheduled-valuation journal entries.
+	// Safe: the scheduled valuation writer always writes a coin_value_history row first,
+	// so no information is lost by removing the duplicate journal lines.
+	// On-demand entries intentionally preserved.
+	if result := DB.Exec("DELETE FROM coin_journals WHERE entry LIKE 'Scheduled AI Value Estimate: $%'"); result.Error != nil {
+		log.Printf("database: D4 cleanup warning -- could not remove legacy scheduled valuation journal entries: %v", result.Error)
+	} else if result.RowsAffected > 0 {
+		log.Printf("database: removed %d legacy scheduled valuation journal entries (D4 cleanup)", result.RowsAffected)
+	}
+
 	if err := seedCatalogRegistry(DB); err != nil {
 		log.Fatalf("Failed to seed catalog registry: %v", err)
 	}
@@ -153,6 +169,31 @@ func logLegacyAvailabilityRunCount(db *gorm.DB) {
 	}
 	log.Printf("Availability runs: %d legacy admin row(s) (user_id = 0) present", count)
 }
+
+// backfillCoinValueHistorySources repairs the source field on legacy coin_value_history rows.
+//
+// SQLite applies the column DEFAULT ('manual') to every pre-existing row at ALTER TABLE time,
+// so a NULL/empty WHERE predicate matches zero legacy rows (B1 root cause). The AI-tier
+// backfill therefore keys on source='manual' AND confidence IN ('high','medium','low'):
+//   - correct: only the scheduled valuation writer produced rows with those confidence tiers
+//   - safe: true manual edits carry confidence='manual' and will never match the IN list
+//   - idempotent: post-deploy AI rows are written with source!='manual' and never re-matched
+//
+// Returns a non-nil error if either SQL statement fails. Connect() gates the D4 destructive
+// journal cleanup on a nil return so no journal rows are deleted if the backfill fails (B2).
+func backfillCoinValueHistorySources(db *gorm.DB) error {
+	// AI-confidence rows came from the scheduled valuation writer; the ALTER TABLE default
+	// stamped them 'manual' -- flip them to the correct attribution.
+	if result := db.Exec("UPDATE coin_value_histories SET source='ai_scheduled' WHERE source='manual' AND confidence IN ('high','medium','low')"); result.Error != nil {
+		return fmt.Errorf("ai_scheduled backfill: %w", result.Error)
+	}
+	// Defensive: stamp any row still holding NULL or empty source as manual.
+	if result := db.Exec("UPDATE coin_value_histories SET source='manual' WHERE source IS NULL OR source=''"); result.Error != nil {
+		return fmt.Errorf("manual default backfill: %w", result.Error)
+	}
+	return nil
+}
+
 
 const mintLocationSeedVersionKey = "MintLocationSeedVersion"
 const currentMintLocationSeedVersion = "1"

@@ -22064,6 +22064,10 @@ const docTemplate = `{
                 "recordedAt": {
                     "type": "string"
                 },
+                "source": {
+                    "description": "Source identifies the origin of this value entry: manual, ai_scheduled, or ai_estimate.\nLegacy rows with no source default to 'manual' via backfill in database.go.",
+                    "type": "string"
+                },
                 "userId": {
                     "type": "integer"
                 },

@@ -101,3 +101,58 @@ jobs:
         # pip-audit does not expose a portable severity threshold; fail closed
         # on any vulnerability and document temporary ignores with owner/expiry.
         run: uv run pip-audit
+
+  agent-image-pip-check:
+    name: Agent image — no pip in runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build agent image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: src/agent
+          file: src/agent/Dockerfile
+          push: false
+          load: true
+          tags: ancient-coins-agent:ci
+
+      - name: Verify pip absent from runtime image
+        # pip 25.0.1 is shipped by the python:3.12-slim base image (PYSEC-2026-3721).
+        # The Dockerfile final stage removes it via 'python -m pip uninstall -y pip'.
+        # The second check bypasses the venv PATH and invokes the base interpreter directly
+        # so it fails on an unhardened image (system pip present) and passes only after removal.
+        run: |
+          if docker run --rm ancient-coins-agent:ci pip --version 2>/dev/null; then
+            echo "FAIL: pip binary is still present in the runtime image" >&2
+            exit 1
+          fi
+          if docker run --rm ancient-coins-agent:ci /usr/local/bin/python3.12 -m pip --version 2>/dev/null; then
+            echo "FAIL: python -m pip is still usable via base interpreter in the runtime image" >&2
+            exit 1
+          fi
+          echo "PASS: pip is not accessible in the runtime image"
+
+      - name: Smoke-test /health endpoint
+        # Starts the already-built image on a random loopback port, polls GET /health
+        # (no auth -- PUBLIC_PATHS in security.py), and always removes the exact container.
+        run: |
+          CID=$(docker run -d -p 127.0.0.1::8081 ancient-coins-agent:ci)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1' EXIT
+          PORT=$(docker port "$CID" 8081/tcp | awk -F: '{print $NF}')
+          TIMEOUT=30
+          ELAPSED=0
+          until curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; do
+            sleep 1
+            ELAPSED=$((ELAPSED + 1))
+            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+              echo "FAIL: /health did not respond within ${TIMEOUT}s" >&2
+              docker logs "$CID" >&2
+              exit 1
+            fi
+          done
+          BODY=$(curl -sf "http://127.0.0.1:${PORT}/health")
+          echo "PASS: /health returned 200 -- response: $BODY"

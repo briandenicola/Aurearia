@@ -300,3 +300,49 @@ pm run build ✅ (strict ue-tsc --build + vite)
 - Row injection pattern: Compute displayRows by splicing extra rows into base metadata array by key index. Keeps composable pure; CoinDetailPage owns supplemental state (reminder).
 - Vue Test Utils stub selector: stubs: { PurchaseReminderModal: true } renders as <purchase-reminder-modal-stub> (kebab-case + -stub), NOT <purchaseremindermodal-stub>.
 - UTC shift: new Date('2026-09-01') parses as UTC midnight, shifts one day behind in US timezones. Use new Date(y, m-1, d) for date-only strings.
+
+## 2026-08-21 — Value History Table + Tag Suggestion Error Surface
+
+**Task:** (1) Add bounded-scroll value history table to CoinDetailValuationPage; (2) Add explicit error/retry state to CoinTagsSection recommendations.
+
+**Outcome:** Complete; all 1054 tests pass, `npm run build` clean.
+
+## Change Summary
+
+**Files Changed (4 source + 2 new test files)**:
+
+- `src/web/src/types/coin.ts`: Added optional `source?: 'ai_scheduled' | 'ai_estimate' | 'manual' | string` to `CoinValueHistory`. Additive — absent on legacy rows; inference from `confidence` used as fallback.
+- `src/web/src/pages/CoinDetailValuationPage.vue`: Added bounded-scroll table (Date/Value/Change/Source, newest-first) below the existing SVG chart. Table renders at >=1 entry; chart retains its >=2-point gate. `max-h-[16.5rem] overflow-y-auto` pattern from CoinActivityJournal. Sticky thead. Source label resolved from `source` field with confidence-based fallback for legacy rows (D2 inference rule). `sorted[i-1]!.value` non-null assertion for strict TypeScript.
+- `src/web/src/components/coin/CoinTagsSection.vue`: Added `recommendationsError` ref. `loadRecommendations` now sets error on catch instead of silently setting empty list. Template inserts `v-else-if="recommendationsError"` state with error text and Retry button between Loading and No-suggestions branches.
+- `src/web/src/pages/__tests__/CoinDetailValuationPage.test.ts` (new, 14 tests): wishlist/sold gate, no-data state, table structure, newest-first order, Change delta (—/+/-), source resolution from field, legacy confidence inference, chart-gate independence.
+- `src/web/src/components/coin/__tests__/CoinTagsSection.test.ts` (new, 7 tests): loading state, success, empty, API error, retry button presence, retry success, retry loading indicator.
+
+## Key Patterns Learned
+
+- **Shell scoped-slot stub**: Stub `CoinDetailSectionPageShell` with `computed: { coin() { return coinRef.value } }` + `template: '<div><slot :coin="coin" /></div>'`. The `coinRef` shared between `useCoinDetailContext` mock and stub keeps both in sync per test.
+- **Loading state timing**: `recommendationsLoading` starts false; `onMounted` sets it true. Tests must `await wrapper.vm.$nextTick()` after `mount()` before asserting the loading state, since onMounted is a microtask.
+- **apply_patch `+++` regression**: Using `+++` as a replacement marker corrupts the file; use PowerShell `Set-Content` + regex for in-place fixes when patching a single line is needed after a failed attempt.
+- **Strict array index access**: `sorted[i - 1]!.value` — TypeScript `--build` rejects `sorted[i-1].value` as possibly undefined even in a ternary that guards `i === 0`. Non-null assertion is the proportional fix here; no cast needed.
+
+## 2026-08-21 — Feature 356 Valuation Journal & Tag Rebalance: Frontend Implementation
+
+**Work**: D5 table + tag error surface fix
+**Status**: APPROVED — No review blocks
+
+### Implementation (Background)
+
+Delivered:
+- D5: Value Trend bounded scrolling table (CoinDetailValuationPage.vue) with Date | Value | Change | Source columns, newest-first
+- types/coin.ts: Added source? field with fallback ('?? "manual"' for legacy payloads)
+- CoinTagsSection.vue: Fixed silent-failure bug; four-branch template (loading | error+retry | empty | items)
+- All design tokens used; no hardcoded colors/radii/spacing
+- 22 new Vue tests; npm run type-check and npm run build pass
+
+### Deferred Non-Blocking
+
+CoinDetailActionsPage.vue stale comment (assigned in design but not done). Carried forward as NB1.
+
+**Status**: APPROVED by Maximus. Ready to ship.
+
+
+

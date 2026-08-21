@@ -363,6 +363,8 @@ export interface CoinValueHistory {
   value: number
   confidence: string
   recordedAt: string
+  /** Additive — absent on legacy rows; infer from confidence when missing. */
+  source?: 'ai_scheduled' | 'ai_estimate' | 'manual' | string
 }
 
 // T002: Coin detail page types for #219

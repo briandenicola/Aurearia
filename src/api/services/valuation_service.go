@@ -441,7 +441,8 @@ func (s *ValuationService) CancelRun(runID uint) bool {
 }
 
 // updateCoinValuation updates a single coin's current value and records
-// a value history entry and journal entry.
+// a value history entry. No journal entry is written; value history is the
+// single source of truth for scheduled AI estimate events.
 func (s *ValuationService) updateCoinValuation(coin *models.Coin, userID uint, estimate *ValueEstimate) {
 	newValue := estimate.EstimatedValue
 	now := time.Now()
@@ -461,15 +462,8 @@ func (s *ValuationService) updateCoinValuation(coin *models.Coin, userID uint, e
 		UserID:     userID,
 		Value:      newValue,
 		Confidence: estimate.Confidence,
+		Source:     models.ValueHistorySourceAIScheduled,
 		RecordedAt: now,
-	})
-
-	// Record journal entry
-	journalText := fmt.Sprintf("Scheduled AI Value Estimate: $%.2f (%s confidence)", newValue, estimate.Confidence)
-	s.coinRepo.CreateJournalEntry(&models.CoinJournal{
-		CoinID: coin.ID,
-		UserID: userID,
-		Entry:  journalText,
 	})
 }
 

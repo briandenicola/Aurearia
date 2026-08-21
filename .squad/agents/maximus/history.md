@@ -261,3 +261,136 @@ Yes. Unresolved decisions are design-phase clarifications, not blockers. Spec/pl
 - **Caveat:** Regression test cannot catch removal on CI hosts with system zoneinfo (inherent `LoadLocation` fallback). Risk is LOW — import is well-commented and in the most-reviewed file. Recommended post-merge: add a CI step running the test inside `golang:1.26.6-alpine` for true regression signal.
 
 Full review: `.squad/decisions/inbox/maximus-timezone-hotfix-review.md`
+
+---
+
+## 2026-08-21 — Valuation History Source + Tag Rebalance Implementation Review: BLOCK
+
+**Verdict:** BLOCK — 4 blocking findings
+**Authors:** Cassius (`src/api/`), Aurelia (`src/web/`), Brutus (tests)
+**Scope:** `database/database.go`, `models/coin_value_history.go`, `services/{valuation,ai_job,coin,coin_recommendation}_service.go`, `CoinDetailValuationPage.vue`, `CoinTagsSection.vue`, `types/coin.ts`, 3 test files
+
+### Blocking findings
+
+- **B1 (P0, data loss)**: The D2 source backfill matches zero rows. GORM's AutoMigrate emits
+  `ALTER TABLE coin_value_histories ADD source varchar(20) NOT NULL DEFAULT "manual"`, which SQLite
+  stamps onto every pre-existing row, so `WHERE source IS NULL OR source=''` is dead. Reproduced
+  empirically on the pinned gorm/glebarez versions. Every legacy scheduled AI valuation renders as
+  "Manual", and because D4 deletes the journal rows on the same boot, the attribution is gone from
+  both surfaces permanently. Fix: key off `source='manual' AND confidence IN ('high','medium','low')`,
+  which is naturally idempotent post-deploy. Revision owner: **Brutus**.
+- **B2 (P0)**: The destructive D4 journal delete runs unconditionally and both backfill `Exec` calls
+  discard `.Error`. Gate the delete on a verified backfill; surface the errors. Revision owner: **Brutus**.
+- **B3 (P0, Principle IX)**: No migration/backfill regression test, despite D2 mandating one and
+  `feature353_migration_order_regression_test.go` existing as precedent. `valuation_service_source_test.go`
+  tests the writer on a fresh table and cannot catch B1 by construction. Revision owner: **Cassius**.
+- **B4 (P1)**: The medium floor was never measured against the real collection (design review Risk 7).
+  `Category 0.20 + Era 0.20 + Material 0.075 = 0.475` clears medium with zero ruler/mint/denomination
+  agreement, and Era is near-collinear with Category on this collection — plausible swing from drought
+  to saturation of the 12-suggestion cap. Needs a real-collection score distribution before merge.
+  Revision owner: **Brutus** (measurement); decision stays with Maximus.
+
+### Verified correct
+
+D1 and D3 writer paths; no duplicate-history risk (`RecordValueHistory` has exactly two service callers
+on mutually exclusive paths); D4 LIKE prefix confirmed against `git log -S` as the only historical
+format; ownership scoping on both read and write; table sort/delta/one-row/empty-state logic; the
+four-branch tag error state with working retry; additive `source?` type with a fallback rather than a
+cast; design tokens all pre-existing. `go vet` clean, Go and Vue tests pass.
+
+### Learnings
+
+- **A GORM column default silently defeats an "is null or empty" backfill.** Any future additive column
+  that needs value-dependent backfill must either omit the GORM `default:` tag or key the backfill off
+  the default value itself. Worth adding to the migration skill notes.
+- **A writer test is not a migration test.** Tests that AutoMigrate an empty table can never exercise
+  ALTER-on-populated-table behaviour, which is where every backfill bug lives.
+
+Full review: `.squad/decisions/inbox/maximus-valuation-tag-implementation-review.md`
+
+### Ownership correction (same day, post-verdict)
+
+My first assignment table was invalid twice: B3 went to Cassius, who is locked out for this cycle,
+and B1/B2 went to Brutus, whose charter bars implementation. No existing squad member is eligible
+for B1-B3 — Cassius and Brutus are both locked out of their own rejected artifacts, Aurelia is
+frontend-only, and Ralph, Scribe, and Maximus are all non-implementers by charter. **Escalated:
+B1, B2, and B3 go to a new `marcellus` (Data Migration Engineer) specialist scoped to
+`src/api/database/`, pending Brian's spawn approval.** B4 stays with Brutus (it is a measurement,
+not implementation — no lockout applies). NB1 is withdrawn from this cycle and returns to Aurelia,
+who carries no lockout: none of her artifacts were rejected and `CoinDetailActionsPage.vue` is not
+in the change set. Verdict unchanged.
+
+---
+
+## 2026-08-21 — Valuation History Source + Tag Rebalance, Revision 2: CLEAR / APPROVE
+
+**Verdict:** CLEAR — the BLOCK is lifted, all four findings resolved
+**Revision owners:** Marcellus (B1–B3, new specialist), Brutus (B4)
+**Scope reviewed:** `src/api/database/database.go`, new `src/api/database/feature356_migration_order_regression_test.go`
+
+- **B1 CLEARED.** `backfillCoinValueHistorySources` keys on
+  `source='manual' AND confidence IN ('high','medium','low')` — correct, safe, and naturally
+  idempotent. Genuinely regression-guarded: the test calls the real production helper, and I had
+  already confirmed empirically that the old predicate matches zero rows on this fixture shape, so
+  reverting the WHERE clause fails the test.
+- **B2 CLEARED.** Errors wrap and propagate; `Connect()` gates on `log.Fatalf`, which is stronger
+  than the conditional the test models — the process exits, so the destructive DELETE is physically
+  unreachable after a failed backfill. The delete's own error is now logged rather than swallowed.
+- **B3 CLEARED.** Four tests pass; cleanup scope positively verified narrow (on-demand and unrelated
+  journal rows asserted to survive by primary key). Full suite green across 11 packages, vet and
+  build clean.
+- **B4 CLEARED** on Brutus's 162-pair quantitative evidence — exactly the measurement Risk 7 asked for.
+
+### Carried forward (test-quality debt, does not gate the merge) — owner Marcellus
+
+- **NB6:** `TestFeature356Migration_D4CleanupSkippedWhenBackfillFails` has an unreachable gate branch
+  (`t.Fatal` already returned), so its three survival assertions are tautologies. The error-propagation
+  half is real; the gate half is theatre. Rename or restructure.
+- **NB7:** The replicated `Connect()` sequence and D4 SQL string have no drift guard — reorder the
+  production code and all four tests still pass. Feature 353 already solved this by parsing
+  `database.go`'s live source text; Feature 356 should adopt the same pattern.
+
+### Learnings
+
+- **`log.Fatalf` as a migration gate is more robust than a conditional**, but it is also why the
+  ordering cannot be unit-tested directly — which is precisely when a source-text drift guard earns
+  its keep. That pairing is now the house pattern for this file.
+- **A test whose failure branch precedes its subject can assert nothing.** Worth a lint pass over
+  other `t.Fatal`-then-`if` sequences in the migration tests.
+
+Full review: `.squad/decisions/inbox/maximus-valuation-tag-implementation-review.md`
+
+## 2026-08-21 — Feature 356 Valuation Journal & Tag Rebalance: Design Review + Post-Implementation Review
+
+**Phases**: Design (sync), post-impl review (sync), revision clearance (sync)
+**Work**: Before-design review + post-implementation architecture review + revision verification
+**Verdict**: CLEAR / APPROVE — All blocks resolved
+
+### Design Review (Maximus, Sync)
+
+Comprehensive diagnosis of valuation journal bloat (scheduled AI estimates duplicating history records) and tag suggestion drought (ruler-weight gate makes cross-ruler tags unreachable). Delivered design decisions D1–D5 + Item 2 rebalance strategy. Identified 7 risks (ranked); confirmed silent-failure bug in tag recommendations (200 empty indistinguishable from 500).
+
+### Post-Implementation Review (Maximus, Sync)
+
+Issued BLOCK on four findings:
+- **B1** (P0 data loss): Backfill WHERE clause dead no-op due to SQLite DEFAULT applied at ALTER time
+- **B2** (P0 ordering): D4 destructive cleanup not gated on backfill success
+- **B3** (P0 test): No migration-order regression test; violates Principle IX
+- **B4** (P1 product): Medium confidence threshold never validated against real collection
+
+Escalated B1–B3 to **Marcellus** (new Data Migration Engineer); reassigned B4 to Brutus (measurement).
+
+### Revision Clearance (Maximus, Sync)
+
+Verified all four findings resolved:
+- **B1 CLEARED**: Corrected WHERE clause verified idempotent; regression test confirms AI-tier rows properly labeled
+- **B2 CLEARED**: Error handling implemented; D4 unreachable after backfill failure; gate before delete
+- **B3 CLEARED**: 4 migration-order tests present and passing; full suite green (11 packages)
+- **B4 CLEARED**: Brutus quantitative evidence accepted (162 anonymized pairs; medium floor does not flood 12-suggestion cap)
+
+**Status**: All reviewer blocks lifted. Ship ready.
+
+## §17 Quality Gate: Design review, post-impl review, and revision clearance all pass per Principle I, III, IV, IX; constitution §17, §18.2, §21
+
+
+

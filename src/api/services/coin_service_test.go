@@ -305,6 +305,10 @@ func TestUpdateCoin_RecordsValueHistory(t *testing.T) {
 	}
 
 	// Verify journal entry was created
+	if history[0].Source != models.ValueHistorySourceManual {
+		t.Errorf("expected source %q, got %q", models.ValueHistorySourceManual, history[0].Source)
+	}
+
 	var journals []models.CoinJournal
 	db.Where("coin_id = ?", coin.ID).Find(&journals)
 	if len(journals) != 1 {
@@ -581,7 +585,7 @@ func TestCreateCoin_WishlistAgentStylePayload_PersistsNormalizedReferences(t *te
 	}
 }
 
-func TestUpdateCoin_EstimateSkipsHistory(t *testing.T) {
+func TestUpdateCoin_EstimateWritesHistoryWithAIEstimateSource(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinService(db)
 
@@ -601,11 +605,21 @@ func TestUpdateCoin_EstimateSkipsHistory(t *testing.T) {
 		t.Fatalf("UpdateCoin failed: %v", err)
 	}
 
-	// source="estimate" should NOT record value history
-	var count int64
-	db.Model(&models.CoinValueHistory{}).Where("coin_id = ?", coin.ID).Count(&count)
-	if count != 0 {
-		t.Errorf("expected 0 value history entries for estimate source, got %d", count)
+	// source="estimate" should record value history with Source="ai_estimate"
+	var history []models.CoinValueHistory
+	db.Where("coin_id = ?", coin.ID).Find(&history)
+	if len(history) != 1 {
+		t.Fatalf("expected 1 value history entry for estimate source, got %d", len(history))
+	}
+	if history[0].Source != models.ValueHistorySourceAIEstimate {
+		t.Errorf("expected Source %q, got %q", models.ValueHistorySourceAIEstimate, history[0].Source)
+	}
+
+	// Applied estimate must NOT create a journal entry
+	var journals []models.CoinJournal
+	db.Where("coin_id = ?", coin.ID).Find(&journals)
+	if len(journals) != 0 {
+		t.Fatalf("expected 0 journal entries for estimate apply, got %d", len(journals))
 	}
 }
 
