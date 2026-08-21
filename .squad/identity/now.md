@@ -1,74 +1,65 @@
 ---
-updated_at: 2026-08-21T08:16:05Z
-focus_area: Feature 356 — Valuation Journal Defragmentation & Tag Suggestion Restoration (implementation + review complete; all reviewer blocks cleared; awaiting merge)
+updated_at: 2026-08-21T09:09:41Z
+focus_area: Security Remediation — pip PYSEC-2026-3721 (complete, approved, release-ready; awaiting fresh beta gate verification)
 active_issues: []
-handoff_commit: pending (product code changes not yet committed per Scribe orchestration protocol)
+handoff_commit: pending
 ---
 
 # What We're Focused On
 
-**Feature 356 — Valuation Journal Defragmentation & Tag Suggestion Restoration (COMPLETE, Ready to Merge)**
+**Security Remediation — pip PYSEC-2026-3721 (COMPLETE, Approved, Release-Ready)**
 
 ## Status Summary
 
-Feature 356 implementation COMPLETE. Core backend + frontend DONE. All reviewer blocks cleared (Maximus CLEAR on B1–B4). Product changes remain uncommitted pending final orchestration. **Journal bloat eliminated**: scheduled AI value estimates removed from activity journal; value history is now the single source of truth. **Tag suggestions restored**: ruler-weight gate fixed; medium-confidence thematic tags now surface with balanced scoring. **Silent-failure bug fixed**: error states now visually distinct from empty results with explicit Retry.
+pip vulnerability (PYSEC-2026-3721, fixed in pip >= 26.2) appeared in beta CI Security Scan. Root-cause analysis revealed two exposures: (1) CI dev-environment pip 26.1.2 via transitive uv.lock; (2) runtime image base-layer system pip 25.0.1 via Python ensurepip. Both remediated. All reviewer blocks cleared (Maximus APPROVE, Brutus APPROVE). Security Scan gate ready to re-verify on beta. Release-ready; awaiting fresh beta gates (type-check, build, tests, security scan, package scan).
 
-## Key Deliverables
+## Remediation Completed
 
-### Value Trend Table (D5 — Aurelia Frontend)
-- Bounded scrolling table on CoinDetailValuationPage.vue: Date | Value | Change | Source columns
-- Newest-first display; sticky headers; mobile-responsive
-- Design tokens enforced; no hardcoded colors/radii/spacing
-- 22 new tests; npm run type-check and npm run build pass
+### Part 1: CI Lockfile Fix (Aquila)
+- **Change:** `src/agent/uv.lock` pip 26.1.2 → 26.2.1 (3-line hunk)
+- **Impact:** CI audit environment now installs pip 26.2.1 (not vulnerable)
+- **Scope:** Transitive dev-only; no pyproject.toml change; production code unaffected
+- **Verified:** PyPI registry hash verification; pip-audit gate fixed
 
-### Valuation History & Cleanup (D1–D4 — Cassius + Marcellus Backend)
-- D1: Scheduled valuation journal writes removed; history is single record
-- D2: CoinValueHistory.Source column added with confidence-based legacy backfill
-- D3: On-demand estimates routed to history at apply time (source='ai_estimate')
-- D4: One-time idempotent cleanup; legacy "Scheduled AI Value Estimate: $%" rows deleted on boot
-- Marcellus: Fixed B1 (backfill WHERE clause correction) and B2 (error gating); added 4 migration-order regression tests
-- All 11 Go packages pass; go build, go vet clean
+### Part 2: Runtime Image Hardening (Cassius + Brutus)
+- **Issue:** Base image python:3.12-slim ships pip 25.0.1 via ensurepip (vulnerable)
+- **Application:** Never invokes pip; entrypoint is uvicorn (uid 10001)
+- **Solution:** `src/agent/Dockerfile` removes system pip: `RUN python -m pip uninstall -y pip`
+- **Guard:** `.github/workflows/security-scan.yml` agent-image-pip-check job
+  - Asserts pip unavailable in runtime container
+  - System-interpreter check (base pip removal verification)
+  - Smoke test: `/health` endpoint 200 response as uid 10001
+- **Status:** APPROVED by Maximus
 
-### Tag Scoring Rebalance (Item 2 — Cassius)
-- Ruler weight reduced from 0.45 to 0.30; weights flattened for balanced scoring
-- Medium confidence floor (>= 0.45) now reachable by thematic tags
-- Category/Material="Other" noise filtering added
-- Brutus quantitative validation: 162 anonymized pairs; 47% medium-tier reachability; 12-suggestion cap not flooded
+## Review Cycle (Complete)
 
-### Error Surface Fix (CoinTagsSection — Aurelia Frontend)
-- Silent-failure bug fixed: error states visually distinct from empty results
-- Four-branch template: loading | error+retry | empty | items
-- Error cleared on retry success
+1. **Aquila (temp specialist):** Lockfile proposal; false "runtime unaffected" claim
+2. **Maximus (Lead):** BLOCK on B1 (runtime pip exposed) + B2 (mechanism misattributed)
+3. **Cassius (Backend):** Removed system pip from Dockerfile; corrected B1/B2; CLEARED
+4. **Brutus (QA):** Refined CI assertions; added `/health` smoke test; APPROVED
+5. **Maximus:** Release-ready clearance
 
-## Review Cycle Summary
+## Decisions Merged
 
-1. **Design Review** (Maximus, sync): D1–D5 design + Item 2 rebalance strategy; 7 risks identified
-2. **Implementation** (Cassius/Aurelia/Brutus, background): All deliverables shipped
-3. **Post-Implementation Review** (Maximus, sync): **BLOCK issued** on B1–B4
-4. **Escalation**: Spawned **Marcellus** (Data Migration Engineer) for B1–B3; reassigned B4 to Brutus
-5. **Revision** (Marcellus/Brutus, background): All findings resolved
-6. **Revision Review** (Maximus, sync): **CLEAR / APPROVE** on B1–B4
+Three decision records now in `.squad/decisions.md`:
+1. aquila-pip-security-remediation.md (lockfile proposal + initial review BLOCK)
+2. maximus-pip-security-remediation-review.md (B1/B2 block + revision instructions)
+3. cassius-runtime-pip-revision.md (runtime pip removal + CI hardening)
 
-## Non-Blocking Items (Deferred Post-Merge)
+## Non-Blocking Items (Follow-Up)
 
-1. NB1: Stale comment in CoinDetailActionsPage.vue (Aurelia)
-2. NB2: Empty Confidence on ai_estimate rows (document deviation)
-3. NB3: Hardcoded "Other" literals → use constants
-4. NB4: confidenceMeetsMinimum unknown-tier fallthrough
-5. NB5: text-xs off type scale
-6. NB6: Test gate branch unreachable (migrate test)
-7. NB7: No drift guard for source backfill
+- NB2: pip-api pins no version floor; future `uv lock` can drift (issue to track)
+- NB6: `/usr/local/bin/pip` dangling symlink after uninstall (cosmetic, waived)
 
-## Product Code Status
+## Release Gates (Pending Verification)
 
-✅ Implementation complete — All 11 Go packages pass; npm run type-check and npm run build pass
-✅ Reviewer gates cleared — Maximus CLEAR on B1–B4; Brutus APPROVE on B4
-✅ Test coverage verified — 4 migration tests + 22 Vue tests
-⏸️ Uncommitted — Product code changes staged but not yet committed per Scribe protocol
+✅ Remediation complete
+✅ Maximus APPROVE
+✅ Brutus APPROVE
+⏳ Fresh beta gates required:
+  - Frontend type-check + build
+  - Backend package tests + architecture test
+  - Security Scan job (verify pip-audit clears)
+  - Container image scan (Trivy/Grype)
 
-## Previous Focus: Feature 355 Wishlist Purchase Reminders
-
-Feature 355 complete and merged to beta. Implementation: timezone hotfix (Alpine zoneinfo portability), UX polish (reminder detail-row). All gates cleared; beta release pending operational validation (T034, T035).
-
-
-
+**Release pending fresh beta gate verification.**
