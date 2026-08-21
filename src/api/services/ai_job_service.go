@@ -356,16 +356,6 @@ func (s *AIJobService) processValueEstimateJob(job *models.AIJob) error {
 		Comparables:    estimate.Comparables,
 	}
 	resultJSON, _ := json.Marshal(result)
-	if estimate.EstimatedValue > 0 {
-		journalText := fmt.Sprintf("AI Value Estimate: $%.2f (%s confidence)", estimate.EstimatedValue, estimate.Confidence)
-		if err := s.repo.CreateJournalEntry(&models.CoinJournal{
-			CoinID: job.CoinID,
-			UserID: job.UserID,
-			Entry:  journalText,
-		}); err != nil {
-			return err
-		}
-	}
 	if err := s.repo.Complete(job.ID, string(resultJSON)); err != nil {
 		return err
 	}

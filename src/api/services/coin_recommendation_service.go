@@ -18,7 +18,9 @@ var (
 const (
 	minRecommendationSampleSize      = 2
 	maxRecommendationsPerCoin        = 12
-	requiredRecommendationConfidence = "high"
+	// medium confidence allows thematic tags (same category/era/material, different ruler)
+	// to score high enough after the ruler weight was reduced from 0.45 to 0.30.
+	requiredRecommendationConfidence = "medium"
 )
 
 type CoinRecommendationItem struct {
@@ -102,7 +104,7 @@ func (s *CoinRecommendationService) ListForCoin(coinID, userID uint) ([]CoinReco
 			continue
 		}
 		confidence := confidenceTier(score)
-		if confidence != requiredRecommendationConfidence {
+		if !confidenceMeetsMinimum(confidence, requiredRecommendationConfidence) {
 			continue
 		}
 		key := recommendationTargetKey(models.RecommendationTargetTypeSet, set.ID)
@@ -133,7 +135,7 @@ func (s *CoinRecommendationService) ListForCoin(coinID, userID uint) ([]CoinReco
 			continue
 		}
 		confidence := confidenceTier(score)
-		if confidence != requiredRecommendationConfidence {
+		if !confidenceMeetsMinimum(confidence, requiredRecommendationConfidence) {
 			continue
 		}
 		key := recommendationTargetKey(models.RecommendationTargetTypeTag, tag.ID)
@@ -200,7 +202,7 @@ func (s *CoinRecommendationService) ListForCoin(coinID, userID uint) ([]CoinReco
 		if rec.Status != models.RecommendationStatusPending {
 			continue
 		}
-		if rec.Confidence != requiredRecommendationConfidence {
+		if !confidenceMeetsMinimum(rec.Confidence, requiredRecommendationConfidence) {
 			continue
 		}
 		targetName := ""
@@ -338,11 +340,17 @@ func buildTargetProfiles(coins []models.Coin, excludeCoinID uint) recommendation
 func addCoinToProfile(profile *recommendationProfile, coin models.Coin) {
 	profile.sampleSize++
 	incrementIfPresent(profile.rulerCount, coin.Ruler)
-	incrementIfPresent(profile.categoryCount, string(coin.Category))
+	// Skip "Other" category/material — they are "unknown" values and should not
+	// contribute to similarity scoring (mirrors coinHasEnoughMetadata).
+	if coin.Category != "" && coin.Category != "Other" {
+		incrementIfPresent(profile.categoryCount, string(coin.Category))
+	}
 	incrementIfPresent(profile.eraCount, string(coin.Era))
 	incrementIfPresent(profile.mintCount, coin.Mint)
 	incrementIfPresent(profile.denominationCount, coin.Denomination)
-	incrementIfPresent(profile.materialCount, string(coin.Material))
+	if coin.Material != "" && coin.Material != "Other" {
+		incrementIfPresent(profile.materialCount, string(coin.Material))
+	}
 }
 
 func incrementIfPresent(bucket map[string]int, raw string) {
@@ -371,12 +379,19 @@ func scoreCoinAgainstProfile(coin *models.Coin, profile *recommendationProfile, 
 		}
 	}
 
-	addFeatureScore("Ruler", profile.rulerCount, coin.Ruler, 0.45)
-	addFeatureScore("Category", profile.categoryCount, string(coin.Category), 0.2)
-	addFeatureScore("Era", profile.eraCount, string(coin.Era), 0.15)
-	addFeatureScore("Mint", profile.mintCount, coin.Mint, 0.1)
-	addFeatureScore("Denomination", profile.denominationCount, coin.Denomination, 0.05)
-	addFeatureScore("Material", profile.materialCount, string(coin.Material), 0.05)
+	// Weights sum to 1.0.  Ruler is 0.30 (was 0.45) so thematic tags whose coins
+	// span multiple rulers can still qualify at medium confidence when category,
+	// era, and/or material strongly agree.
+	addFeatureScore("Ruler", profile.rulerCount, coin.Ruler, 0.30)
+	if coin.Category != "" && coin.Category != "Other" {
+		addFeatureScore("Category", profile.categoryCount, string(coin.Category), 0.20)
+	}
+	addFeatureScore("Era", profile.eraCount, string(coin.Era), 0.20)
+	addFeatureScore("Mint", profile.mintCount, coin.Mint, 0.15)
+	addFeatureScore("Denomination", profile.denominationCount, coin.Denomination, 0.075)
+	if coin.Material != "" && coin.Material != "Other" {
+		addFeatureScore("Material", profile.materialCount, string(coin.Material), 0.075)
+	}
 
 	if len(reasons) == 0 && score > 0 {
 		reasons = append(reasons, "Multiple metadata fields align with this target's existing coins")
@@ -393,6 +408,13 @@ func confidenceTier(score float64) string {
 	default:
 		return "low"
 	}
+}
+
+// confidenceMeetsMinimum returns true when tier is at or above the minimum required level.
+// Ordered: high > medium > low.
+func confidenceMeetsMinimum(tier, minimum string) bool {
+	order := map[string]int{"high": 2, "medium": 1, "low": 0}
+	return order[tier] >= order[minimum]
 }
 
 func recommendationTargetKey(targetType models.RecommendationTargetType, targetID uint) string {

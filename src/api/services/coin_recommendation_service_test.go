@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
+
 func setupCoinRecommendationServiceDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -191,7 +192,10 @@ func TestCoinRecommendationService_AcceptAndRejectFlow(t *testing.T) {
 	}
 }
 
-func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighRecommendations(t *testing.T) {
+// TestCoinRecommendationService_ListForCoin_FiltersOutWeakMatches verifies that a
+// target whose only overlap with a tag/set is category+era (score=0.40, below
+// the medium threshold of 0.45) produces no suggestions.
+func TestCoinRecommendationService_ListForCoin_FiltersOutWeakMatches(t *testing.T) {
 	db := setupCoinRecommendationServiceDB(t)
 	createTestUserRecord(t, db, 1)
 
@@ -240,7 +244,64 @@ func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighRecommendations(
 		t.Fatalf("ListForCoin returned error: %v", err)
 	}
 	if len(recommendations) != 0 {
-		t.Fatalf("expected no non-high recommendations, got %d", len(recommendations))
+		t.Fatalf("expected no recommendations (score below medium threshold), got %d", len(recommendations))
+	}
+}
+
+// TestCoinRecommendationService_ThematicTagSuggestedAcrossRulers verifies that a
+// thematic tag whose coins share category+era+material but have different rulers can
+// still generate a medium-confidence recommendation after the ruler weight reduction.
+// Category(0.20)+Era(0.20)+Material(0.075) = 0.475 >= medium threshold(0.45).
+func TestCoinRecommendationService_ThematicTagSuggestedAcrossRulers(t *testing.T) {
+	db := setupCoinRecommendationServiceDB(t)
+	createTestUserRecord(t, db, 1)
+
+	// targetCoin is a Roman bronze from a different ruler than the tag coins
+	targetCoin := models.Coin{Name: "Target Bronze", Ruler: "Gordian III", Category: models.CategoryRoman, Era: models.EraAncient, Material: models.MaterialBronze, UserID: 1}
+	peer1 := models.Coin{Name: "Bronze Peer 1", Ruler: "Philip I", Category: models.CategoryRoman, Era: models.EraAncient, Material: models.MaterialBronze, UserID: 1}
+	peer2 := models.Coin{Name: "Bronze Peer 2", Ruler: "Trajan Decius", Category: models.CategoryRoman, Era: models.EraAncient, Material: models.MaterialBronze, UserID: 1}
+	if err := db.Create(&[]models.Coin{targetCoin, peer1, peer2}).Error; err != nil {
+		t.Fatalf("failed to create coins: %v", err)
+	}
+	var coins []models.Coin
+	if err := db.Order("id ASC").Find(&coins).Error; err != nil {
+		t.Fatalf("failed to reload coins: %v", err)
+	}
+	targetCoin, peer1, peer2 = coins[0], coins[1], coins[2]
+
+	tag := models.Tag{UserID: 1, Name: "Roman Bronze Coins", Color: "#b08d57"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("failed to create tag: %v", err)
+	}
+	if err := db.Create(&[]models.CoinTag{
+		{CoinID: peer1.ID, TagID: tag.ID},
+		{CoinID: peer2.ID, TagID: tag.ID},
+	}).Error; err != nil {
+		t.Fatalf("failed to create tag memberships: %v", err)
+	}
+
+	svc := NewCoinRecommendationService(
+		repository.NewCoinRecommendationRepository(db),
+		repository.NewTagRepository(db),
+		repository.NewSetRepository(db),
+	)
+	recommendations, err := svc.ListForCoin(targetCoin.ID, 1)
+	if err != nil {
+		t.Fatalf("ListForCoin returned error: %v", err)
+	}
+
+	var found *CoinRecommendationItem
+	for i := range recommendations {
+		if recommendations[i].TargetType == models.RecommendationTargetTypeTag && recommendations[i].TargetID == tag.ID {
+			found = &recommendations[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected tag %q suggested for thematic bronze coin, got %v", tag.Name, recommendations)
+	}
+	if found.Confidence != "medium" && found.Confidence != "high" {
+		t.Errorf("expected at least medium confidence for thematic tag, got %q (score=%.3f)", found.Confidence, found.Score)
 	}
 }
 

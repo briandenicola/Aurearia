@@ -299,29 +299,44 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 			if oldValue != nil {
 				oldVal = *oldValue
 			}
-			if newVal != oldVal && source != "estimate" {
-				// Update CurrentValueUpdatedAt whenever CurrentValue changes manually
+			if newVal != oldVal {
+				// Update CurrentValueUpdatedAt whenever CurrentValue changes
 				now := time.Now()
 				existing.CurrentValueUpdatedAt = &now
 				if err := txRepo.UpdateField(existing, "current_value_updated_at", now); err != nil {
 					return err
 				}
 
-				if err := txRepo.RecordValueHistory(&models.CoinValueHistory{
-					CoinID:     existing.ID,
-					UserID:     userID,
-					Value:      newVal,
-					Confidence: "manual",
-					RecordedAt: now,
-				}); err != nil {
-					return err
-				}
-				if err := txRepo.CreateJournalEntry(&models.CoinJournal{
-					CoinID: existing.ID,
-					UserID: userID,
-					Entry:  fmt.Sprintf("Current value updated manually: $%.2f", newVal),
-				}); err != nil {
-					return err
+				if source == "estimate" {
+					// Applied on-demand AI estimate: persist to value history, no journal.
+					if err := txRepo.RecordValueHistory(&models.CoinValueHistory{
+						CoinID:     existing.ID,
+						UserID:     userID,
+						Value:      newVal,
+						Confidence: "",
+						Source:     models.ValueHistorySourceAIEstimate,
+						RecordedAt: now,
+					}); err != nil {
+						return err
+					}
+				} else {
+					if err := txRepo.RecordValueHistory(&models.CoinValueHistory{
+						CoinID:     existing.ID,
+						UserID:     userID,
+						Value:      newVal,
+						Confidence: "manual",
+						Source:     models.ValueHistorySourceManual,
+						RecordedAt: now,
+					}); err != nil {
+						return err
+					}
+					if err := txRepo.CreateJournalEntry(&models.CoinJournal{
+						CoinID: existing.ID,
+						UserID: userID,
+						Entry:  fmt.Sprintf("Current value updated manually: $%.2f", newVal),
+					}); err != nil {
+						return err
+					}
 				}
 			}
 		}

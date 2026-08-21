@@ -168,7 +168,10 @@ func TestAIJobServiceAnalysisJobUpdatesCoinResult(t *testing.T) {
 	}
 }
 
-func TestAIJobServiceValueEstimateJournalsWithoutApplyingValue(t *testing.T) {
+// TestAIJobServiceValueEstimateStoresResultWithoutJournalOrApplyingValue verifies D3:
+// the estimate job stores the result JSON on the AIJob record but does NOT create a
+// journal entry and does NOT update the coin's CurrentValue.
+func TestAIJobServiceValueEstimateStoresResultWithoutJournalOrApplyingValue(t *testing.T) {
 	db, svc := newAIJobServiceTestDB(t)
 	coin := createAIJobTestCoin(t, db, 1)
 	job, _, err := svc.EnqueueValueEstimate(1, coin.ID)
@@ -178,13 +181,15 @@ func TestAIJobServiceValueEstimateJournalsWithoutApplyingValue(t *testing.T) {
 
 	svc.processJob(job.ID)
 
-	var journal models.CoinJournal
-	if err := db.Where("coin_id = ? AND user_id = ?", coin.ID, uint(1)).First(&journal).Error; err != nil {
-		t.Fatalf("expected journal entry: %v", err)
+	// No journal entry should be created (D3: estimate jobs no longer journal)
+	var journalCount int64
+	if err := db.Model(&models.CoinJournal{}).Where("coin_id = ? AND user_id = ?", coin.ID, uint(1)).Count(&journalCount).Error; err != nil {
+		t.Fatalf("count journal entries: %v", err)
 	}
-	if journal.Entry != "AI Value Estimate: $321.00 (high confidence)" {
-		t.Fatalf("journal entry = %q", journal.Entry)
+	if journalCount != 0 {
+		t.Fatalf("expected no journal entries for on-demand estimate (D3), got %d", journalCount)
 	}
+
 	var updated models.Coin
 	if err := db.First(&updated, coin.ID).Error; err != nil {
 		t.Fatalf("load coin: %v", err)

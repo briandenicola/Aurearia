@@ -72,6 +72,10 @@
     <div class="mt-4 border-t border-border-subtle pt-4">
       <h4 class="mb-2 text-sm font-medium text-text-secondary">Suggested Tags & Sets</h4>
       <div v-if="recommendationsLoading" class="text-sm text-text-muted">Loading suggestions...</div>
+      <div v-else-if="recommendationsError" class="flex flex-col items-start gap-2">
+        <p class="text-sm text-[var(--color-negative)]">{{ recommendationsError }}</p>
+        <button class="btn btn-ghost btn-xs" type="button" @click="loadRecommendations">Retry</button>
+      </div>
       <div v-else-if="!recommendations.length" class="text-sm text-text-muted">No suggestions yet.</div>
       <div v-else class="flex flex-col gap-2">
         <div
@@ -117,6 +121,7 @@ const userTags = ref<Tag[]>([])
 const userSets = ref<CoinSetSummary[]>([])
 const recommendations = ref<CoinRecommendation[]>([])
 const recommendationsLoading = ref(false)
+const recommendationsError = ref('')
 const showTagPicker = ref(false)
 const itemToAdd = ref('')
 
@@ -149,10 +154,12 @@ async function loadAvailableItems() {
 
 async function loadRecommendations() {
   recommendationsLoading.value = true
+  recommendationsError.value = ''
   try {
     const response = await getCoinRecommendations(props.coinId)
     recommendations.value = response.data?.recommendations ?? []
   } catch {
+    recommendationsError.value = 'Could not load suggestions. Check your connection and retry.'
     recommendations.value = []
   } finally {
     recommendationsLoading.value = false
