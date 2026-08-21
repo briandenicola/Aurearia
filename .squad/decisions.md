@@ -1,5 +1,15 @@
 # Squad Decisions
 
+### 2026-08-21T08:19:04-05:00: User directive
+**By:** Brian DeNicola (via Copilot)
+**What:** Push the completed valuation-journal and tag-suggestion fixes to beta, then merge beta into main only after all required gates are green.
+**Why:** User request — captured for team memory
+
+
+---
+
+# Squad Decisions
+
 # Design Review - Valuation Journal Noise & Tag Suggestion Drought
 
 **Date:** 2026-08-21
@@ -6440,6 +6450,7 @@ Improves discoverability and consistency; matches established coin-detail-page U
 ### Verdict
 
 **APPROVE** — Change is correct, minimal, fully tested, and production-ready. Minor dead-import cleanup recommended post-merge (non-blocking).
+
 
 
 
