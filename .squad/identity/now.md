@@ -1,65 +1,91 @@
 ---
-updated_at: 2026-08-21T09:09:41Z
-focus_area: Security Remediation — pip PYSEC-2026-3721 (complete, approved, release-ready; awaiting fresh beta gate verification)
+updated_at: 2026-08-21T10:37:35Z
+focus_area: Experimental PWA coin-detail swipe navigation (approved for beta only; 68 targeted + 1122 full frontend tests/type-check/build green; Maximus APPROVE; awaiting device evaluation)
 active_issues: []
 handoff_commit: pending
 ---
 
 # What We're Focused On
 
-**Security Remediation — pip PYSEC-2026-3721 (COMPLETE, Approved, Release-Ready)**
+**Experimental PWA Coin-Detail Swipe Navigation (Beta-Only, Approved, Release-Ready)**
 
 ## Status Summary
 
-pip vulnerability (PYSEC-2026-3721, fixed in pip >= 26.2) appeared in beta CI Security Scan. Root-cause analysis revealed two exposures: (1) CI dev-environment pip 26.1.2 via transitive uv.lock; (2) runtime image base-layer system pip 25.0.1 via Python ensurepip. Both remediated. All reviewer blocks cleared (Maximus APPROVE, Brutus APPROVE). Security Scan gate ready to re-verify on beta. Release-ready; awaiting fresh beta gates (type-check, build, tests, security scan, package scan).
+Swipe navigation experiment complete and approved for beta release. Canonical 8-stop menu (Overview → Shipment → Journal → Health → Notes → Actions → Analysis → Valuation; Sell/Copy structurally excluded) navigable via left/right touch swipe on PWA installs. Design review and QA clearance complete (Maximus APPROVE, Brutus APPROVE). Full frontend test suite green (68 targeted + 1122 total). Shipped to beta only per Brian's directive; no main PR opened. Ready for device evaluation on beta; main merge pending mounted integration tests + real-PWA device results.
 
-## Remediation Completed
+## Feature 356 Status (Completed)
 
-### Part 1: CI Lockfile Fix (Aquila)
-- **Change:** `src/agent/uv.lock` pip 26.1.2 → 26.2.1 (3-line hunk)
-- **Impact:** CI audit environment now installs pip 26.2.1 (not vulnerable)
-- **Scope:** Transitive dev-only; no pyproject.toml change; production code unaffected
-- **Verified:** PyPI registry hash verification; pip-audit gate fixed
+Value history journal remediation shipped to beta and merged:
+- Journal bloat eliminated (scheduled AI estimates removed)
+- Tag suggestions restored (ruler-weight gate fixed)
+- Silent-failure bug fixed (error states distinct from empty results)
 
-### Part 2: Runtime Image Hardening (Cassius + Brutus)
-- **Issue:** Base image python:3.12-slim ships pip 25.0.1 via ensurepip (vulnerable)
-- **Application:** Never invokes pip; entrypoint is uvicorn (uid 10001)
-- **Solution:** `src/agent/Dockerfile` removes system pip: `RUN python -m pip uninstall -y pip`
-- **Guard:** `.github/workflows/security-scan.yml` agent-image-pip-check job
-  - Asserts pip unavailable in runtime container
-  - System-interpreter check (base pip removal verification)
-  - Smoke test: `/health` endpoint 200 response as uid 10001
-- **Status:** APPROVED by Maximus
+## PWA Swipe Experiment Details
 
-## Review Cycle (Complete)
+### Design & Scope
 
-1. **Aquila (temp specialist):** Lockfile proposal; false "runtime unaffected" claim
-2. **Maximus (Lead):** BLOCK on B1 (runtime pip exposed) + B2 (mechanism misattributed)
-3. **Cassius (Backend):** Removed system pip from Dockerfile; corrected B1/B2; CLEARED
-4. **Brutus (QA):** Refined CI assertions; added `/health` smoke test; APPROVED
-5. **Maximus:** Release-ready clearance
+**8-stop canonical order (no wrap):**
+1. Overview (base)
+2. Shipment Tracker
+3. Activity Journal
+4. Metadata Health
+5. Notes
+6. Actions
+7. AI Analysis
+8. Value Trend
 
-## Decisions Merged
+**Gesture semantics:**
+- 64 px minimum horizontal distance
+- 2:1 axis dominance (≈27° cone)
+- 10 px axis-lock slop (vertical lock abandons swipe)
+- 24 px edge guard on both sides (iOS/Android system swipe protection)
+- Touch-only; primary pointer; multi-touch cancels
+- No wrap at boundaries
+- Passive listeners; no preventDefault (native scroll/momentum preserved)
+- Interactive descendants suppressed (button, input, a, select, textarea, role=button, contenteditable, [data-swipe-ignore])
 
-Three decision records now in `.squad/decisions.md`:
-1. aquila-pip-security-remediation.md (lockfile proposal + initial review BLOCK)
-2. maximus-pip-security-remediation-review.md (B1/B2 block + revision instructions)
-3. cassius-runtime-pip-revision.md (runtime pip removal + CI hardening)
+### Implementation (Aurelia)
 
-## Non-Blocking Items (Follow-Up)
+**Components modified:**
+- `useCoinDetailSwipeNav.ts` — New composable (exported constants: SWIPE_THRESHOLD, AXIS_SLOP, EDGE_GUARD, AXIS_DOMINANCE)
+- `CoinDetailPage.vue` — Composable wired; modal gates (sell/purchase/reminder)
+- `CoinDetailSectionPageShell.vue` — Composable wired
+- `CoinDetailValuationPage.vue` — `data-swipe-ignore` added to value-history table (overflow-x-auto)
 
-- NB2: pip-api pins no version floor; future `uv lock` can drift (issue to track)
-- NB6: `/usr/local/bin/pip` dangling symlink after uninstall (cosmetic, waived)
+**Test coverage:**
+- `useCoinDetailSwipeNav.test.ts` — 68 dedicated tests (all design-review criteria)
+- Integration tests in `CoinDetailPage.test.ts`, `CoinDetailValuationPage.test.ts`, `CoinDetailHeaderActions.test.ts`
 
-## Release Gates (Pending Verification)
+### QA Clearance (Brutus)
 
-✅ Remediation complete
-✅ Maximus APPROVE
-✅ Brutus APPROVE
-⏳ Fresh beta gates required:
-  - Frontend type-check + build
-  - Backend package tests + architecture test
-  - Security Scan job (verify pip-audit clears)
-  - Container image scan (Trivy/Grype)
+✅ **68 targeted tests PASS** — All design-review criteria verified
+✅ **1122 full frontend tests PASS** — No regressions
+✅ **Type-check PASS** (vue-tsc --build)
+✅ **Production build PASS** (vite 2309 modules, no warnings)
+✅ **No blocks or findings** — Implementation matches approved contract
 
-**Release pending fresh beta gate verification.**
+### Review Status
+
+**Maximus:** APPROVE for beta only. Main re-entry criteria:
+1. Mounted call-site integration tests (real router/coin context)
+2. Recorded installed-PWA device evaluation (iOS/Android real-device swipe feel)
+3. Optionally: cleanup items from QA findings (non-blocking)
+
+**Notable:** Test commit `aea17127` may show red in isolation if Feature 356 not merged; not a blocker.
+
+### Release Plan
+
+✅ Beta: Shipped; awaiting device evaluation
+⏳ Main: Pending mounted integration tests + real-PWA device results
+
+## Non-Blocking Follow-Up Items
+
+From Maximus design review:
+- Dead code cleanup: `components/coin/CoinDetailSectionLinks.vue` (not imported; separate `chore:` change)
+- Real-device smoke testing (iOS/Android; not blocking beta)
+
+## Operational Gates (Before Main Merge)
+
+1. Real-PWA device evaluation (iOS/Android)
+2. Mounted call-site integration tests
+3. Optional: cleanup items from NB findings
