@@ -150,7 +150,6 @@ export function useSettingsProfile() {
         emperorTrackerShowUsurpers: emperorTrackerShowUsurpers.value,
         emperorTrackerShowEmpresses: emperorTrackerShowEmpresses.value,
         emperorTrackerShowOtherFigures: emperorTrackerShowOtherFigures.value,
-        pwaSwipeNavEnabled: pwaSwipeNavEnabled.value,
       }
       if (nbPassword.value) {
         data.numisBidsPassword = nbPassword.value
@@ -182,7 +181,6 @@ export function useSettingsProfile() {
         auth.user.emperorTrackerShowUsurpers = res.data.emperorTrackerShowUsurpers
         auth.user.emperorTrackerShowEmpresses = res.data.emperorTrackerShowEmpresses
         auth.user.emperorTrackerShowOtherFigures = res.data.emperorTrackerShowOtherFigures
-        auth.user.pwaSwipeNavEnabled = res.data.pwaSwipeNavEnabled
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       nbPassword.value = ''
@@ -198,6 +196,24 @@ export function useSettingsProfile() {
     }
   }
 
+
+  // Swipe Navigation -- immediate-apply save for View Settings / Appearance tab.
+  // Uses a narrow payload so Account saves cannot clobber a newer value set here.
+  async function savePwaSwipeNav(value: boolean) {
+    const previous = pwaSwipeNavEnabled.value
+    pwaSwipeNavEnabled.value = value
+    try {
+      const res = await updateProfile({ pwaSwipeNavEnabled: value })
+      if (auth.user) {
+        auth.user.pwaSwipeNavEnabled = res.data.pwaSwipeNavEnabled
+        localStorage.setItem('user', JSON.stringify(auth.user))
+      }
+      pwaSwipeNavEnabled.value = res.data.pwaSwipeNavEnabled
+    } catch (err) {
+      pwaSwipeNavEnabled.value = previous
+      throw err
+    }
+  }
   // Password
   const currentPassword = ref('')
   const newPassword = ref('')
@@ -287,6 +303,7 @@ export function useSettingsProfile() {
     emperorTrackerShowOtherFigures,
     // Password
     pwaSwipeNavEnabled,
+    savePwaSwipeNav,
     currentPassword,
     newPassword,
     confirmPassword,

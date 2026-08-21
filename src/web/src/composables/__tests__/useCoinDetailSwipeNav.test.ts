@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Contract-based regression tests for the PWA-only coin-detail swipe navigation composable.
  *
  * Design authority: .squad/decisions/inbox/maximus-pwa-detail-swipe-review.md
@@ -374,8 +374,9 @@ describe('axis dominance', () => {
     wrapper.unmount()
   })
 
-  it('diagonal with abs(dx) < 2*abs(dy) at release does not navigate', () => {
-    // dx=64 meets distance; dy=40; 64 < 2*40=80 -- fails dominance check
+  it('arced swipe (axis locked horizontal, vertical drift at release) navigates -- 2:1 dominance gate removed', () => {
+    // dx=64 meets distance; dy=40; axis locked horizontal at first move (dx=12 > dy=3).
+    // Old 2:1 release check would have rejected this; new implementation accepts it.
     const wrapper = mountHarness()
     const container = wrapper.element as HTMLElement
     const startX = 300
@@ -383,10 +384,10 @@ describe('axis dominance', () => {
     firePointer(container, 'pointerdown', { clientX: startX, clientY: 400 })
     // First move: dx=12, dy=3 -- horizontal axis locked (dx > dy)
     firePointer(container, 'pointermove', { clientX: startX - 12, clientY: 403 })
-    // Release at dx=64, dy=40: distance passes but angle too steep
+    // Release at dx=64, dy=40: vertical drift at release is now ignored -- navigates
     firePointer(container, 'pointerup', { clientX: startX - 64, clientY: 440 })
 
-    expect(mockPush).not.toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
@@ -591,7 +592,7 @@ describe('edge guard', () => {
 // ===========================================================================
 
 describe('suppression zones -- interactive descendants', () => {
-  const suppressedTags = ['button', 'input', 'textarea', 'select', 'a'] as const
+  const suppressedTags = ['input', 'textarea', 'select'] as const
 
   for (const tag of suppressedTags) {
     it(`gesture starting on <${tag}> child does not navigate`, () => {
@@ -612,7 +613,58 @@ describe('suppression zones -- interactive descendants', () => {
     })
   }
 
-  it('gesture starting on [role="button"] element does not navigate', () => {
+  it('gesture starting on <button> child navigates -- button no longer suppresses (R3)', () => {
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    const child = document.createElement('button')
+    container.appendChild(child)
+
+    const startX = 300
+    firePointer(container, 'pointerdown', { clientX: startX, clientY: 400, target: child })
+    firePointer(container, 'pointermove', { clientX: startX - 12, clientY: 401 })
+    firePointer(container, 'pointerup', { clientX: startX - 64, clientY: 402 })
+
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    container.removeChild(child)
+    wrapper.unmount()
+  })
+
+  it('gesture starting on <a> child navigates -- anchor no longer suppresses (R3)', () => {
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    const child = document.createElement('a')
+    container.appendChild(child)
+
+    const startX = 300
+    firePointer(container, 'pointerdown', { clientX: startX, clientY: 400, target: child })
+    firePointer(container, 'pointermove', { clientX: startX - 12, clientY: 401 })
+    firePointer(container, 'pointerup', { clientX: startX - 64, clientY: 402 })
+
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    container.removeChild(child)
+    wrapper.unmount()
+  })
+
+  it('tap (no travel) on a child button fires click, does not navigate (R5)', () => {
+    // Guards the regression risk: removing button from exclusion list must not break button taps.
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    const btn = document.createElement('button')
+    const clickSpy = vi.fn()
+    btn.addEventListener('click', clickSpy)
+    container.appendChild(btn)
+
+    firePointer(container, 'pointerdown', { clientX: 300, clientY: 400, target: btn })
+    firePointer(container, 'pointerup', { clientX: 300, clientY: 400, target: btn })
+    btn.click()
+
+    expect(mockPush).not.toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    container.removeChild(btn)
+    wrapper.unmount()
+  })
+
+  it('gesture starting on [role="button"] element navigates -- removed from exclusion list \(R3\)', () => {
     const wrapper = mountHarness()
     const container = wrapper.element as HTMLElement
     const el = document.createElement('div')
@@ -624,7 +676,7 @@ describe('suppression zones -- interactive descendants', () => {
     firePointer(container, 'pointermove', { clientX: startX - 12, clientY: 401 })
     firePointer(container, 'pointerup', { clientX: startX - 64, clientY: 402 })
 
-    expect(mockPush).not.toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
@@ -773,19 +825,15 @@ describe('PWA gate -- isPwa false', () => {
     wrapper.unmount()
   })
 
-  it('registers no pointer event listeners on the container when isPwa is false', () => {
-    // Source invariant: the isPwa guard is an unconditional early return that
-    // appears before onMounted, guaranteeing zero listeners and zero overhead
-    // when not running as an installed PWA.
-    const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
-      'utf-8',
-    )
-    const isPwaGuardIdx = source.indexOf('if (!isPwa) return')
-    const onMountedIdx = source.indexOf('onMounted(')
-    expect(isPwaGuardIdx).toBeGreaterThan(-1)
-    expect(onMountedIdx).toBeGreaterThan(-1)
-    expect(isPwaGuardIdx).toBeLessThan(onMountedIdx)
+  it('no listeners registered on the container when isPwa is false (behavioral)', () => {
+    // Behavioral proxy: when isPwa is false the composable is a no-op.
+    // A qualifying swipe on the container does not navigate.
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    doLeftSwipe(container)
+    doRightSwipe(container)
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 })
 
@@ -834,40 +882,16 @@ describe('query and hash forwarding', () => {
 })
 
 // ===========================================================================
-// 16. Text selection discard
-// ===========================================================================
-
-describe('text selection discard', () => {
-  it('discards gesture when window.getSelection() is non-empty at release', () => {
-    vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'selected text' } as Selection)
-    const wrapper = mountHarness()
-    doLeftSwipe(wrapper.element as HTMLElement)
-    expect(mockPush).not.toHaveBeenCalled()
-    vi.restoreAllMocks()
-    wrapper.unmount()
-  })
-
-  it('allows gesture when getSelection returns an empty string', () => {
-    vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => '' } as Selection)
-    const wrapper = mountHarness()
-    doLeftSwipe(wrapper.element as HTMLElement)
-    expect(mockPush).toHaveBeenCalledTimes(1)
-    vi.restoreAllMocks()
-    wrapper.unmount()
-  })
-})
-
-// ===========================================================================
 // 17. Passive listeners and no scroll interference (criterion 16)
 // ===========================================================================
 
 describe('passive listeners -- no scroll interference', () => {
   it('all pointer event listeners are registered with { passive: true }', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
+      join(process.cwd(), 'src', 'composables', 'useSwipeGesture.ts'),
       'utf-8',
     )
-    // Every addEventListener call in the composable must carry { passive: true }
+    // Every addEventListener call in the primitive must carry { passive: true }
     // so that pointer events never block the browser's native scroll path.
     const addCount = (source.match(/\.addEventListener\(/g) ?? []).length
     const passiveCount = (source.match(/passive:\s*true/g) ?? []).length
@@ -877,7 +901,7 @@ describe('passive listeners -- no scroll interference', () => {
 
   it('composable source contains no preventDefault call', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
+      join(process.cwd(), 'src', 'composables', 'useSwipeGesture.ts'),
       'utf-8',
     )
     expect(source).not.toContain('preventDefault')
@@ -921,7 +945,7 @@ describe('unmount cleanup', () => {
 describe('source invariants', () => {
   it('composable source does not add aria attributes or manipulate focus', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
+      join(process.cwd(), 'src', 'composables', 'useSwipeGesture.ts'),
       'utf-8',
     )
     expect(source).not.toContain('setAttribute')
@@ -933,7 +957,7 @@ describe('source invariants', () => {
 
   it('composable source does not attach listeners to window or document (container-scoped only)', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
+      join(process.cwd(), 'src', 'composables', 'useSwipeGesture.ts'),
       'utf-8',
     )
     expect(source).not.toMatch(/window\.addEventListener/)
@@ -942,7 +966,7 @@ describe('source invariants', () => {
 
   it('composable source has no module-level mutable state that would persist across instances', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
+      join(process.cwd(), 'src', 'composables', 'useSwipeGesture.ts'),
       'utf-8',
     )
     // Match let/var starting at column 0 only — indented declarations are inside function bodies
@@ -1025,7 +1049,7 @@ describe('overflow menu -- accessibility unchanged', () => {
 
   it('useCoinDetailSwipeNav adds no aria-hidden, no focus trap, no tabindex', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'composables', 'useCoinDetailSwipeNav.ts'),
+      join(process.cwd(), 'src', 'composables', 'useSwipeGesture.ts'),
       'utf-8',
     )
     expect(source).not.toContain('aria-hidden')
@@ -1203,6 +1227,126 @@ describe('preference gate -- pwaSwipeNavEnabled', () => {
     doLeftSwipe(container)
     expect(mockPush).not.toHaveBeenCalled()
 
+    wrapper.unmount()
+  })
+})
+
+
+// ===========================================================================
+// R1-R9. Regression matrix -- Phase 1 corrections
+// ===========================================================================
+
+describe('R1: touch-action applied and restored', () => {
+  it('container touch-action is pan-y while feature is attached', () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    const el = wrapper.element as HTMLElement
+    expect(el.style.touchAction).toBe('pan-y')
+    wrapper.unmount()
+  })
+
+  it('touch-action is restored after unmount', () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    const el = wrapper.element as HTMLElement
+    wrapper.unmount()
+    // restored to the prior value (empty string -- no prior inline value was set)
+    expect(el.style.touchAction).not.toBe('pan-y')
+  })
+
+  it('touch-action is restored when preference is turned off', async () => {
+    authStore.proxy.user = { pwaSwipeNavEnabled: true }
+    const wrapper = mountHarness()
+    const el = wrapper.element as HTMLElement
+    expect(el.style.touchAction).toBe('pan-y')
+
+    authStore.proxy.user = { pwaSwipeNavEnabled: false }
+    await nextTick()
+
+    expect(el.style.touchAction).not.toBe('pan-y')
+    wrapper.unmount()
+  })
+})
+
+describe('R2: arced swipe navigates (no release-time 2:1 dominance gate)', () => {
+  it('dx=-80 dy=+50 navigates (axis locked horizontal at slop, vertical drift at release ignored)', () => {
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    const startX = 300
+
+    firePointer(container, 'pointerdown', { clientX: startX, clientY: 400 })
+    // horizontal axis locked (dx=12 > dy=3)
+    firePointer(container, 'pointermove', { clientX: startX - 12, clientY: 403 })
+    // release with large vertical drift -- no 2:1 gate, navigates
+    firePointer(container, 'pointerup', { clientX: startX - 80, clientY: 450 })
+
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+})
+
+describe('R6: stale document text selection does not block a qualifying swipe', () => {
+  it('non-empty window.getSelection at release does not discard the gesture', () => {
+    vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'selected text' } as Selection)
+    const wrapper = mountHarness()
+    doLeftSwipe(wrapper.element as HTMLElement)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
+    wrapper.unmount()
+  })
+})
+
+describe('R7: fresh gesture after pointercancel navigates -- no stuck state', () => {
+  it('first gesture cancelled, second qualifying gesture navigates', () => {
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    const startX = 300
+
+    // First gesture: cancelled
+    firePointer(container, 'pointerdown', { clientX: startX, clientY: 400 })
+    firePointer(container, 'pointermove', { clientX: startX - 12, clientY: 401 })
+    firePointer(container, 'pointercancel', { clientX: startX - 12, clientY: 401 })
+
+    // Second gesture: clean and qualifying
+    doLeftSwipe(container, startX)
+    expect(mockPush).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+})
+
+describe('R8: vertical-dominant drag still rejects (axis lock preserved)', () => {
+  it('vertical-dominant drag at slop does not navigate', () => {
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+    const startX = 300
+
+    firePointer(container, 'pointerdown', { clientX: startX, clientY: 400 })
+    // dy=15 > dx=3 at slop -- vertical axis locked, gesture abandoned
+    firePointer(container, 'pointermove', { clientX: startX - 3, clientY: 415 })
+    firePointer(container, 'pointermove', { clientX: startX - 80, clientY: 420 })
+    firePointer(container, 'pointerup', { clientX: startX - 80, clientY: 420 })
+
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
+describe('R9: gesture within edge guard ignored', () => {
+  it('gesture starting within 24 px of left viewport edge is ignored', () => {
+    const wrapper = mountHarness()
+    const container = wrapper.element as HTMLElement
+
+    doLeftSwipe(container, EDGE_GUARD - 1) // startX = 23, inside guard
+    expect(mockPush).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('gesture starting within 24 px of right viewport edge is ignored', () => {
+    const wrapper = mountHarness({ routePath: '/coin/42/shipment' })
+    const container = wrapper.element as HTMLElement
+
+    doRightSwipe(container, window.innerWidth - 10) // inside right guard
+    expect(mockPush).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

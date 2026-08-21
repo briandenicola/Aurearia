@@ -109,18 +109,14 @@ API calls (loading your collection, saving coins, AI analysis) still require net
 
 You can customize the PWA experience in **Settings**:
 
-**Appearance Tab** — Device-local preferences:
+**Appearance Tab:**
 | Setting | Description |
 | ------- | ----------- |
 | **Default View** | Choose whether the gallery opens in **swipe** or **grid** mode |
 | **Default Sort** | Set your preferred sort order for the collection |
+| **Swipe Navigation** | Enable left/right swipe to move between a coin’s sections in the installed app. Off by default. Stored with your user account and follows you across devices. |
 
-These preferences are saved in your browser's local storage and persist across sessions.
-
-**Account Tab** — Account-wide settings:
-| Setting | Description |
-| ------- | ----------- |
-| **Swipe Navigation** | Enable left/right swipe to move between a coin's sections. Applies to the installed app only; has no effect in a web browser. Stored with your user account and follows you across devices.
+Most preferences in this tab are stored locally on this device and do not follow you to other devices or installations. **Swipe Navigation** is the exception: it is account-backed and syncs across all your devices when you are signed in.
 
 ---
 

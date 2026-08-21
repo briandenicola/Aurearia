@@ -86,23 +86,24 @@ describe('useSettingsProfile -- pwaSwipeNavEnabled (PWA swipe navigation prefere
     expect(pwaSwipeNavEnabled.value).toBe(true)
   })
 
-  it('sends pwaSwipeNavEnabled in the updateProfile payload', async () => {
+  it('Account save (handleSaveProfile) does NOT include pwaSwipeNavEnabled -- Appearance tab owns it via savePwaSwipeNav', async () => {
+    // D8: pwaSwipeNavEnabled was removed from the Account save payload so Account saves
+    // cannot clobber the Appearance-managed value.
     seedStoredUser({ pwaSwipeNavEnabled: false })
     setActivePinia(createPinia())
     vi.mocked(updateProfile).mockResolvedValue(
-      makeProfileResponse(true) as Awaited<ReturnType<typeof updateProfile>>,
+      makeProfileResponse(false) as Awaited<ReturnType<typeof updateProfile>>,
     )
 
     const settings = useSettingsProfile()
-    settings.pwaSwipeNavEnabled.value = true
     await settings.handleSaveProfile()
 
     expect(updateProfile).toHaveBeenCalledTimes(1)
     const payload = vi.mocked(updateProfile).mock.calls[0]?.[0] as Record<string, unknown>
-    expect(payload).toMatchObject({ pwaSwipeNavEnabled: true })
+    expect(payload).not.toHaveProperty('pwaSwipeNavEnabled')
   })
 
-  it('syncs the server-confirmed value into the auth store user on success', async () => {
+  it('savePwaSwipeNav sends ONLY pwaSwipeNavEnabled -- narrow payload, not the full profile', async () => {
     seedStoredUser({ pwaSwipeNavEnabled: false })
     setActivePinia(createPinia())
     vi.mocked(updateProfile).mockResolvedValue(
@@ -110,15 +111,30 @@ describe('useSettingsProfile -- pwaSwipeNavEnabled (PWA swipe navigation prefere
     )
 
     const settings = useSettingsProfile()
-    settings.pwaSwipeNavEnabled.value = true
-    await settings.handleSaveProfile()
+    await settings.savePwaSwipeNav(true)
+
+    expect(updateProfile).toHaveBeenCalledTimes(1)
+    const payload = vi.mocked(updateProfile).mock.calls[0]?.[0] as Record<string, unknown>
+    expect(Object.keys(payload)).toEqual(['pwaSwipeNavEnabled'])
+    expect(payload.pwaSwipeNavEnabled).toBe(true)
+  })
+
+  it('savePwaSwipeNav syncs the server-confirmed value into the auth store user on success', async () => {
+    seedStoredUser({ pwaSwipeNavEnabled: false })
+    setActivePinia(createPinia())
+    vi.mocked(updateProfile).mockResolvedValue(
+      makeProfileResponse(true) as Awaited<ReturnType<typeof updateProfile>>,
+    )
+
+    const settings = useSettingsProfile()
+    await settings.savePwaSwipeNav(true)
 
     const { useAuthStore } = await import('@/stores/auth')
     const auth = useAuthStore()
     expect(auth.user?.pwaSwipeNavEnabled).toBe(true)
   })
 
-  it('persists the server-confirmed value to localStorage on success', async () => {
+  it('savePwaSwipeNav persists the server-confirmed value to localStorage on success', async () => {
     seedStoredUser({ pwaSwipeNavEnabled: false })
     setActivePinia(createPinia())
     vi.mocked(updateProfile).mockResolvedValue(
@@ -126,21 +142,21 @@ describe('useSettingsProfile -- pwaSwipeNavEnabled (PWA swipe navigation prefere
     )
 
     const settings = useSettingsProfile()
-    settings.pwaSwipeNavEnabled.value = true
-    await settings.handleSaveProfile()
+    await settings.savePwaSwipeNav(true)
 
     const stored = JSON.parse(localStorage.getItem('user') ?? '{}')
     expect(stored.pwaSwipeNavEnabled).toBe(true)
   })
 
   it('does NOT update auth store or localStorage when save fails (confirmed, not optimistic)', async () => {
+    // Exercises the actual UI-invoked path: savePwaSwipeNav throws on failure,
+    // rolls back the local ref, and leaves auth store + localStorage untouched.
     seedStoredUser({ pwaSwipeNavEnabled: false })
     setActivePinia(createPinia())
     vi.mocked(updateProfile).mockRejectedValue(new Error('network error'))
 
     const settings = useSettingsProfile()
-    settings.pwaSwipeNavEnabled.value = true
-    await settings.handleSaveProfile()
+    await expect(settings.savePwaSwipeNav(true)).rejects.toThrow()
 
     const { useAuthStore } = await import('@/stores/auth')
     const auth = useAuthStore()
@@ -151,6 +167,7 @@ describe('useSettingsProfile -- pwaSwipeNavEnabled (PWA swipe navigation prefere
     const stored = JSON.parse(localStorage.getItem('user') ?? '{}')
     expect(stored.pwaSwipeNavEnabled).not.toBe(true)
 
-    expect(settings.profileError.value).toBe(true)
+    // Local ref must be rolled back (optimistic update reverted).
+    expect(settings.pwaSwipeNavEnabled.value).toBe(false)
   })
 })
