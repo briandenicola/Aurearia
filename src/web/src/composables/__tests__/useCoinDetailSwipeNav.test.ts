@@ -664,7 +664,7 @@ describe('suppression zones -- interactive descendants', () => {
     wrapper.unmount()
   })
 
-  it('gesture starting on [role="button"] element navigates -- removed from exclusion list \(R3\)', () => {
+  it('gesture starting on [role="button"] element navigates -- removed from exclusion list (R3)', () => {
     const wrapper = mountHarness()
     const container = wrapper.element as HTMLElement
     const el = document.createElement('div')

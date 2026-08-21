@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useSwipeGesture } from '@/composables/useSwipeGesture'
