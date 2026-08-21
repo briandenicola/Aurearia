@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div ref="containerRef" class="container">
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
     </div>
@@ -73,6 +73,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useCoinDetailSwipeNav } from '@/composables/useCoinDetailSwipeNav'
 import { useRouter } from 'vue-router'
 import { ChevronLeft } from 'lucide-vue-next'
 import { useCoinDetailContext } from '@/composables/useCoinDetailContext'
@@ -91,6 +92,12 @@ const obverseImage = computed(() => coin.value?.images?.find((image) => image.im
 const reverseImage = computed(() => coin.value?.images?.find((image) => image.imageType === 'reverse') ?? null)
 const showSellModal = ref(false)
 const duplicating = ref(false)
+
+const containerRef = ref<HTMLElement | null>(null)
+
+// Swipe navigation is suppressed while SellModal is open inside this container.
+const swipeEnabled = computed(() => !showSellModal.value)
+useCoinDetailSwipeNav(containerRef, { enabled: swipeEnabled })
 const router = useRouter()
 const { showAlert } = useDialog()
 

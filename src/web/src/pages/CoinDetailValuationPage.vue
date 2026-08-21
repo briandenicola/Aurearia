@@ -40,7 +40,7 @@
         <div v-if="valueHistoryTableRows.length > 0" class="flex flex-col gap-2">
           <p class="section-label">Value History</p>
           <div class="rounded-sm border border-border-subtle overflow-hidden">
-            <div :class="['overflow-y-auto overflow-x-auto', { 'max-h-[16.5rem]': valueHistoryTableRows.length > 4 }]">
+            <div data-swipe-ignore :class="['overflow-y-auto overflow-x-auto', { 'max-h-[16.5rem]': valueHistoryTableRows.length > 4 }]">
               <table class="w-full text-sm">
                 <thead class="sticky top-0 z-10 bg-card">
                   <tr class="border-b border-border-subtle">

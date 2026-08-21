@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="container">
+  <div ref="containerRef" class="container">
     <div v-if="store.loading && !coin" class="loading-overlay">
       <div class="spinner"></div>
     </div>
@@ -188,6 +188,7 @@ import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
 import { usePurchaseReminder, formatReminderDateValue } from '@/composables/usePurchaseReminder'
+import { useCoinDetailSwipeNav } from '@/composables/useCoinDetailSwipeNav'
 import type { CoinDetailMetadataRow, CoinImage, ShipmentUpsertInput } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
@@ -201,6 +202,12 @@ const showReminderModal = ref(false)
 const lightboxImage = ref<CoinImage | null>(null)
 const { sharing, shareCoinCard } = useCoinShareCard()
 const duplicating = ref(false)
+
+const containerRef = ref<HTMLElement | null>(null)
+
+// Swipe navigation is suppressed while any non-teleported modal is open.
+const swipeEnabled = computed(() => !showSellModal.value && !showPurchaseModal.value && !showReminderModal.value)
+useCoinDetailSwipeNav(containerRef, { enabled: swipeEnabled })
 
 const coin = computed(() => store.currentCoin)
 
