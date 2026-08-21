@@ -176,7 +176,8 @@
         ></span>
       </label>
     </div>
-  </section></template>
+  </section>
+</template>
 
 <script setup lang="ts">
 import { ref } from 'vue'

@@ -453,7 +453,7 @@ describe('G6 — hasDragged suppresses click navigation after a drag', () => {
 describe('G7 — flip button @pointerdown.stop prevents drag start', () => {
   it('pointerdown on .flip-btn does not start a gesture (setPointerCapture not called on card-stack)', () => {
     const wrapper = mountGallery({ startIndex: 0 })
-    const card = prepCard(wrapper)
+    const _card = prepCard(wrapper)
     const stack = getStack(wrapper)
     const flipBtn = wrapper.find('.flip-btn').element
 
