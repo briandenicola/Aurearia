@@ -1,91 +1,107 @@
 ---
-updated_at: 2026-08-21T10:37:35Z
-focus_area: Experimental PWA coin-detail swipe navigation (approved for beta only; 68 targeted + 1122 full frontend tests/type-check/build green; Maximus APPROVE; awaiting device evaluation)
+updated_at: 2026-08-21T12:09:54Z
+focus_area: PWA swipe navigation account-wide preference (pwaSwipeNavEnabled, default false, Settings → Account, beta-only, mounted call-site integration tests satisfied, on-device evaluation remains main-gate blocker)
 active_issues: []
 handoff_commit: pending
 ---
 
 # What We're Focused On
 
-**Experimental PWA Coin-Detail Swipe Navigation (Beta-Only, Approved, Release-Ready)**
+**PWA Swipe Navigation Account-Wide Preference (Approved for Beta, Mounted Gate Satisfied)**
 
 ## Status Summary
 
-Swipe navigation experiment complete and approved for beta release. Canonical 8-stop menu (Overview → Shipment → Journal → Health → Notes → Actions → Analysis → Valuation; Sell/Copy structurally excluded) navigable via left/right touch swipe on PWA installs. Design review and QA clearance complete (Maximus APPROVE, Brutus APPROVE). Full frontend test suite green (68 targeted + 1122 total). Shipped to beta only per Brian's directive; no main PR opened. Ready for device evaluation on beta; main merge pending mounted integration tests + real-PWA device results.
+Account-wide `pwaSwipeNavEnabled` preference implemented and approved for beta release. Single boolean column on users table (default false); synchronized across all devices via server-side persistence. Settings → Account toggle (always visible; PWA-only scope in description). Confirmed save model. Listeners attach/detach reactively in `useCoinDetailSwipeNav` composable; gates at feature level, not call sites. Mounted call-site integration tests gate satisfied. Backend, frontend, OpenAPI, and docs all cleared (Maximus APPROVE, Brutus APPROVE). Ready for beta-only push. Main merge pending recorded installed-PWA device evaluation (on-device gesture feel, iOS/Android).
 
-## Feature 356 Status (Completed)
+## Experimental PWA Coin-Detail Swipe Navigation Status (Released to Beta)
 
-Value history journal remediation shipped to beta and merged:
-- Journal bloat eliminated (scheduled AI estimates removed)
-- Tag suggestions restored (ruler-weight gate fixed)
-- Silent-failure bug fixed (error states distinct from empty results)
+8-stop canonical menu swipe navigation (Overview → Shipment → Journal → Health → Notes → Actions → Analysis → Valuation) shipped to beta with this preference gating feature enabled. Sell/Copy excluded. All gates green; no blocks from earlier swipe experiment batch.
 
-## PWA Swipe Experiment Details
+## PWA Account Preference Details
 
-### Design & Scope
+### Design & Contract
 
-**8-stop canonical order (no wrap):**
-1. Overview (base)
-2. Shipment Tracker
-3. Activity Journal
-4. Metadata Health
-5. Notes
-6. Actions
-7. AI Analysis
-8. Value Trend
+**Storage:** Single `pwa_swipe_nav_enabled` column on `users` table. Explicit GORM column name to pin acronym handling. Default false; AutoMigrate adds `NOT NULL DEFAULT 0` on existing rows (no backfill code).
 
-**Gesture semantics:**
-- 64 px minimum horizontal distance
-- 2:1 axis dominance (≈27° cone)
-- 10 px axis-lock slop (vertical lock abandons swipe)
-- 24 px edge guard on both sides (iOS/Android system swipe protection)
-- Touch-only; primary pointer; multi-touch cancels
-- No wrap at boundaries
-- Passive listeners; no preventDefault (native scroll/momentum preserved)
-- Interactive descendants suppressed (button, input, a, select, textarea, role=button, contenteditable, [data-swipe-ignore])
+**API:** Reuse existing profile endpoints.
+- `GET /auth/me` — includes `pwaSwipeNavEnabled` in response
+- `PUT /user/profile` — accepts `pwaSwipeNavEnabled` in request body (pointer semantics: omitted = unchanged)
+- `writeAuthResponse` funnel — login, register, refresh, WebAuthn, OIDC all carry field
+- Ownership: authenticated context only; request body never carries user id
 
-### Implementation (Aurelia)
+**Settings UI:** Settings → Account, using existing toggle pattern.
+- Visibility: Always shown (browser and installed PWA) — PWA-only constraint in description
+- Save model: Confirmed (not optimistic)
+- Failure behavior: auth store and localStorage unchanged; retry available
 
-**Components modified:**
-- `useCoinDetailSwipeNav.ts` — New composable (exported constants: SWIPE_THRESHOLD, AXIS_SLOP, EDGE_GUARD, AXIS_DOMINANCE)
-- `CoinDetailPage.vue` — Composable wired; modal gates (sell/purchase/reminder)
-- `CoinDetailSectionPageShell.vue` — Composable wired
-- `CoinDetailValuationPage.vue` — `data-swipe-ignore` added to value-history table (overflow-x-auto)
+**Runtime Gate:** Inside `useCoinDetailSwipeNav` composable.
+- Condition: `isPwa && auth.user?.pwaSwipeNavEnabled === true` (fail closed)
+- Lifecycle: attach/detach driven by onMounted, onUnmounted, and reactive watch
+- Live toggle: no remount; listeners update reactively
+- Logout: detaches immediately (user.value = null)
+- Account switch: applies new account's value immediately
+- Modal gate (enabled option): independent; unchanged
 
-**Test coverage:**
-- `useCoinDetailSwipeNav.test.ts` — 68 dedicated tests (all design-review criteria)
-- Integration tests in `CoinDetailPage.test.ts`, `CoinDetailValuationPage.test.ts`, `CoinDetailHeaderActions.test.ts`
+**Documentation:** PWA Guide and Features documents clarified.
+- Account tab table added to PWA Guide (was blocking on table rendering, now fixed)
+- Features/PWA Features reorganized to Account heading (was under Appearance)
+- `features.md` Settings section updated
 
-### QA Clearance (Brutus)
+### Implementation Details
 
-✅ **68 targeted tests PASS** — All design-review criteria verified
-✅ **1122 full frontend tests PASS** — No regressions
-✅ **Type-check PASS** (vue-tsc --build)
-✅ **Production build PASS** (vite 2309 modules, no warnings)
-✅ **No blocks or findings** — Implementation matches approved contract
+**Backend (Cassius):**
+- `PWASwipeNavEnabled` field + explicit `column:pwa_swipe_nav_enabled` tag
+- Response types: `GetMe`, `UpdateProfile`, auth payloads
+- 6 new targeted tests: migration, defaults, persistence, ownership, auth response
+- `task openapi` regenerated 4 artifact files
+
+**Frontend (Aurelia):**
+- Types: `User`, `UserInfo`, `updateProfile` endpoint
+- Composable: `useSettingsProfile` (ref, save payload, response sync, localStorage)
+- UI: `SettingsAccountSection` toggle row (after Emperor Tracker, before Save)
+- Startup: `App.vue` getMe() sync copies `pwaSwipeNavEnabled`
+- Gate: `useCoinDetailSwipeNav` refactored (attach/detach lifecycle, preference watch, no-op guard)
+- 17 new frontend tests + 2 mounted call-site integration test files
+
+**Docs Revision (Maximus cycle):**
+- `docs/pwa-guide.md` B1 → B1a: fixed Account Tab table (header, delimiter, rendering)
+- `docs/features/pwa-features.md` B1: moved Swipe Navigation to Account heading
+- `docs/features.md`: Settings section updated
+
+### QA Results (Brutus)
+
+✅ Go vet: PASS
+✅ Go test (all 12 packages): PASS
+✅ OpenAPI drift: PASS
+✅ Frontend targeted (23 new tests): PASS
+✅ Frontend full suite (1149 tests): PASS
+✅ Type-check: PASS
+✅ Production build: PASS
+
+**All 40+ acceptance criteria verified:** defaults, persistence, ownership, API completeness, UI visibility/save model, reactive lifecycle, logout/switch, fail-closed, mounted call-site binding (highest-risk miss), App.vue hydration, gesture regression.
 
 ### Review Status
 
-**Maximus:** APPROVE for beta only. Main re-entry criteria:
-1. Mounted call-site integration tests (real router/coin context)
-2. Recorded installed-PWA device evaluation (iOS/Android real-device swipe feel)
-3. Optionally: cleanup items from QA findings (non-blocking)
+**Maximus:** APPROVED for beta only. All code and docs cleared. Mounted call-site integration tests satisfied (refs bound in components, tests assert HTMLElement at mount). Recorded installed-PWA device evaluation (on-device gesture feel, iOS/Android, real PWA install) remains sole outstanding main-gate blocker.
 
-**Notable:** Test commit `aea17127` may show red in isolation if Feature 356 not merged; not a blocker.
+**Brutus:** APPROVE. Zero blocks; all gates green.
 
-### Release Plan
+### Release Gates
 
-✅ Beta: Shipped; awaiting device evaluation
-⏳ Main: Pending mounted integration tests + real-PWA device results
+✅ Backend and frontend implementation
+✅ OpenAPI/docs/test coverage
+✅ 1149 frontend tests + 12 Go packages
+✅ Mounted call-site binding tests (integration test gate satisfied)
+✅ Maximus APPROVE for beta
+✅ Brutus APPROVE
 
-## Non-Blocking Follow-Up Items
+⏳ Beta: Ready to push
+⏳ Main: Blocked on recorded installed-PWA device evaluation only
 
-From Maximus design review:
-- Dead code cleanup: `components/coin/CoinDetailSectionLinks.vue` (not imported; separate `chore:` change)
-- Real-device smoke testing (iOS/Android; not blocking beta)
+## Previous Focus (Archived)
 
-## Operational Gates (Before Main Merge)
+**Experimental PWA Coin-Detail Swipe Navigation (Released to Beta):** 8-stop menu (Overview → Shipment → Journal → Health → Notes → Actions → Analysis → Valuation), Sell/Copy excluded. Gestures: 64 px threshold, 2:1 axis dominance, 10 px axis-lock, 24 px edge guard, no wrap, passive listeners. 68 targeted tests + 1122 full suite green. Maximus APPROVE for beta only. Device evaluation awaited before main merge.
 
-1. Real-PWA device evaluation (iOS/Android)
-2. Mounted call-site integration tests
-3. Optional: cleanup items from NB findings
+**Feature 356 Value History Remediation (Merged to Beta):** Journal bloat eliminated (scheduled AI estimates removed from activity log), tag suggestions restored (ruler-weight gate fixed, medium-confidence thematic tags surface), silent-failure bug fixed (error states distinct from empty results). All reviewer blocks cleared.
+
+**Security Remediation (PYSEC-2026-3721):** Pip 26.2.1 lockfile update (Aquila), system pip removal from runtime image (Cassius), regression guard CI job with `/health` smoke test (Brutus). All blocks cleared; release-ready pending fresh beta gates.
