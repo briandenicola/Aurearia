@@ -203,3 +203,81 @@ host, providing an exact regression signal.
 - Regression test must live in `package main` and must NOT import `time/tzdata`
   itself, otherwise the test silently re-embeds the data and masks removal.
 
+
+---
+
+## 2026-08-21 — Valuation Journal Noise & Tag Suggestion Drought (D1-D4 + Tag Rebalance)
+
+**Role:** Cassius, Backend Developer
+**Design Review:** `.squad/decisions/inbox/maximus-valuation-tag-review.md`
+
+### Summary of Changes
+
+**D1 — Remove scheduled valuation journal entries**
+- `services/valuation_service.go` `updateCoinValuation`: removed `CreateJournalEntry` call. Value history is the single source of truth for scheduled AI estimates.
+
+**D2 — `Source` field on `CoinValueHistory`**
+- `models/coin_value_history.go`: added `Source string` column with GORM default `'manual'`. Constants: `ValueHistorySourceManual`, `ValueHistorySourceAIScheduled`, `ValueHistorySourceAIEstimate`.
+- `database/database.go`: additive AutoMigrate handles the new column. Two idempotent `UPDATE` statements backfill legacy rows: `confidence IN ('high','medium','low')` → `source='ai_scheduled'`; remaining empty → `source='manual'`.
+
+**D3 — On-demand estimate applies to value history at apply time**
+- `services/ai_job_service.go`: removed `CreateJournalEntry` from `processValueEstimateJob`. Estimate jobs no longer pollute the journal.
+- `services/coin_service.go` `updateCoin`: changed gate from `source != "estimate"` to unconditional value-change handler. When `source == "estimate"`: writes `CoinValueHistory{Source: "ai_estimate", Confidence: ""}`, no journal. When `source != "estimate"` (manual): writes history with `Source: "manual"` and journal entry (unchanged behavior). `CurrentValueUpdatedAt` is now also set on estimate applies.
+
+**D4 — One-time cleanup of legacy scheduled journal rows**
+- `database/database.go`: idempotent `DELETE FROM coin_journals WHERE entry LIKE 'Scheduled AI Value Estimate: $%'`. Logs count of removed rows on first run.
+
+**Item 2 — Tag recommendation scoring rebalance**
+- `services/coin_recommendation_service.go`:
+  - Changed `requiredRecommendationConfidence` from `"high"` to `"medium"`.
+  - Changed gate from exact equality to `confidenceMeetsMinimum(tier, minimum)` (high > medium > low) so high-confidence matches still surface.
+  - Weights: Ruler 0.45→0.30, Category 0.20→0.20, Era 0.15→0.20, Mint 0.10→0.15, Denomination 0.05→0.075, Material 0.05→0.075 (sum = 1.0).
+  - `addCoinToProfile` and `scoreCoinAgainstProfile`: skip Category="Other" and Material="Other" as noise (mirrors `coinHasEnoughMetadata` convention). Without this guard GORM's default `Material='Other'` inflated scores and made category+era cross the medium threshold spuriously.
+
+### Test Changes
+- `services/coin_service_test.go`: `TestUpdateCoin_EstimateSkipsHistory` → `TestUpdateCoin_EstimateWritesHistoryWithAIEstimateSource` (asserts history IS written with Source="ai_estimate" and no journal). `TestUpdateCoin_RecordsValueHistory` gains Source="manual" assertion.
+- `services/ai_job_service_test.go`: `TestAIJobServiceValueEstimateJournalsWithoutApplyingValue` → `TestAIJobServiceValueEstimateStoresResultWithoutJournalOrApplyingValue` (asserts no journal entry).
+- `services/coin_recommendation_service_test.go`: `TestCoinRecommendationService_ListForCoin_FiltersOutNonHighRecommendations` → `FiltersOutWeakMatches` (score 0.40 < 0.45 medium). New test `ThematicTagSuggestedAcrossRulers` (Category+Era+Bronze = 0.475 → medium). Fixed `setupCoinRecommendationServiceDB` to use unique named in-memory DBs (was sharing `:memory:` across tests, causing stale-data pollution).
+- `services/valuation_service_source_test.go`: new file. `TestValuationService_UpdateCoinValuation_WritesAIScheduledSource` verifies D1+D2 (history row Source="ai_scheduled", 0 journal entries).
+
+### Quality Gate
+`go build ./... && go vet ./... && go test ./...` — all 11 packages pass.
+
+### Key Design Decisions & Lessons
+1. **Exact-equality confidence gate was the hidden defect.** `confidence != "high"` excluded everything not exactly "high". The fix requires `confidenceMeetsMinimum()` (ordered comparison), not just changing the threshold string.
+2. **GORM default Material='Other' is scoring noise.** Treat "Other" category/material like empty when computing similarity. This matches `coinHasEnoughMetadata` and prevents spurious recommendations from the default value.
+3. **`:memory:` SQLite in test setup is not isolated by default.** Multiple `gorm.Open(sqlite.Open(":memory:"), ...)` calls share the same in-memory DB within a process. Tests that create data in a shared DB can pollute later tests. Use `"file:name_N?mode=memory&cache=shared"` with a unique name per test.
+4. **D3 confidence at apply time is unavailable.** The on-demand estimate confidence is stored in the AIJob result JSON; by apply time the UpdateCoin path only receives `source="estimate"` with no confidence. History row written with empty confidence string; the Source="ai_estimate" field is the discriminator for the UI table label.
+5. **The apply_patch tool works well for clean context-match diffs; for multi-block edits use PowerShell .Replace() or direct file writes.**
+
+## 2026-08-21 — Feature 356 Valuation Journal & Tag Rebalance: Backend Implementation
+
+**Work**: D1–D4 + Item 2 tag rebalance; revision (B1–B2 fix by Marcellus)
+**Status**: Implementation complete; BLOCKED by B1–B2 findings, CLEARED after Marcellus revision
+
+### Implementation (Background)
+
+Delivered:
+- D1: Removed scheduled valuation journal writes; value history is sole source
+- D2: Added CoinValueHistory.Source column + confidence-based backfill
+- D3: Routed on-demand estimates to history at apply time (source='ai_estimate')
+- D4: Idempotent DELETE cleanup for legacy "Scheduled AI Value Estimate: $%" rows
+- Item 2: Rebalanced tag scoring weights (Ruler 0.30, flatten distribution); added Category/Material="Other" noise filtering
+- All 11 Go packages pass; go build, go vet clean
+
+### Post-Implementation Review (Maximus)
+
+Issued BLOCK on B1–B2 (migration data loss and ordering defects). Cassius locked out per §18.2.
+
+### Revision (Marcellus)
+
+Marcellus fixed both findings:
+- **B1**: Corrected WHERE clause to source='manual' AND confidence IN ('high','medium','low')
+- **B2**: Extracted backfillCoinValueHistorySources helper; gated D4 on nil return; errors propagated
+
+Final status: **CLEARED** by Maximus. Ready to ship.
+
+
+
+
+
