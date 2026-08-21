@@ -1,4 +1,4 @@
-# Features
+﻿# Features
 
 > **This page has been reorganized!** Detailed feature documentation has moved to individual files in the [`docs/features/`](features/) directory for better discoverability and maintainability.
 
@@ -235,8 +235,8 @@ For the full social API reference, see the [API Reference](api-reference.md#soci
 
 All authenticated users can access **Settings**, organized in a tabbed layout:
 
-- **Account** — Change password (requires current password), register WebAuthn/FIDO2 passkeys for passwordless login, manage avatar and profile settings including feature toggles (Coin of the Day, Emperor Tracker, Swipe Navigation).
-- **Appearance** — Choose from seven color themes: Dark (default), Light, British Museum (sandstone neutrals with bronze-green accents), Louvre (warm cream stone with Napoleon III gold), Capitoline (terracotta warmth with aged copper-bronze), Byzantine (imperial crimson grounds with Byzantine gold), or Modern Greek (deep navy grounds with white Hellenic accents). Set time zone, choose default gallery view (swipe or grid), and default sort order. Preferences persist across sessions.
+- **Account** — Change password (requires current password), register WebAuthn/FIDO2 passkeys for passwordless login, manage avatar and profile settings including feature toggles (Coin of the Day, Emperor Tracker).
+- **Appearance** — Choose from seven color themes: Dark (default), Light, British Museum (sandstone neutrals with bronze-green accents), Louvre (warm cream stone with Napoleon III gold), Capitoline (terracotta warmth with aged copper-bronze), Byzantine (imperial crimson grounds with Byzantine gold), or Modern Greek (deep navy grounds with white Hellenic accents). Set time zone, choose default gallery view (swipe or grid), default sort order, and enable Swipe Navigation for the installed PWA. Visual preferences persist locally; Swipe Navigation is stored account-wide.
 - **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, valuations, and structured references), and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
 - **Conversations** — View, reopen, or delete saved AI search agent conversations.
 - **Tags** — Create, rename, and delete custom tags with color selection. Tags created here can be attached to any coin in your collection.

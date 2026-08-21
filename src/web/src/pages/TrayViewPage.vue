@@ -37,16 +37,16 @@
           <span class="tray-size-value">{{ traySizeScale.toFixed(2) }}x</span>
         </label>
       </div>
-      <MuseumTray
-        class="touch-pan-y select-none"
-        :coins="currentDrawerCoins"
-        :felt-theme="feltColor"
-        :show-captions="false"
-        :size-scale="traySizeScale"
-        :style="traySwipeStyle"
-        @pointerdown="onTrayPointerDown"
-        @coin-clicked="handleCoinClicked"
-      />
+      <div ref="trayGestureRef" class="tray-gesture-surface select-none">
+        <MuseumTray
+          :coins="currentDrawerCoins"
+          :felt-theme="feltColor"
+          :show-captions="false"
+          :size-scale="traySizeScale"
+          :style="traySwipeStyle"
+          @coin-clicked="handleCoinClicked"
+        />
+      </div>
       <TrayControls
         :drawer-index="drawerIndex"
         :total-drawers="totalDrawers"
@@ -73,6 +73,7 @@ import type { Coin } from '@/types'
 import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
 import { Landmark, ArrowLeft, Plus } from 'lucide-vue-next'
+import { useSwipeGesture } from '@/composables/useSwipeGesture'
 
 const STORAGE_KEY = 'tray:sizeScale'
 const DEFAULT_SIZE_SCALE = 1
@@ -88,19 +89,18 @@ const loadedCoins = ref<Coin[]>([])
 const drawerIndex = ref(0)
 const coinsPerDrawer = 12
 const trayPageLimit = 100
+
+// Consumer-owned drag/animation state; updated by useSwipeGesture callbacks
 const trayDragX = ref(0)
-const trayDragY = ref(0)
-const trayIsDragging = ref(false)
 const trayIsAnimating = ref(false)
 const suppressCoinClick = ref(false)
 const traySizeScale = ref(DEFAULT_SIZE_SCALE)
-let trayStartX = 0
-let trayStartY = 0
-let trayPointerId: number | null = null
 const trayAnimationTimers: ReturnType<typeof setTimeout>[] = []
 
-const SWIPE_THRESHOLD = 100
 const FLY_DISTANCE = 600
+
+// Template ref for the gesture surface wrapper div
+const trayGestureRef = ref<HTMLElement | null>(null)
 
 const trayCoins = computed((): TrayCoin[] => {
   return loadedCoins.value
@@ -164,50 +164,10 @@ function handleCoinClicked(coinId: number) {
   router.push({ name: 'coin-detail', params: { id: coinId } })
 }
 
-function onTrayPointerDown(event: PointerEvent) {
-  if (trayIsAnimating.value || totalDrawers.value <= 1) return
-  const target = event.currentTarget as HTMLElement
-  target.setPointerCapture(event.pointerId)
-  trayPointerId = event.pointerId
-  trayStartX = event.clientX
-  trayStartY = event.clientY
-  trayDragX.value = 0
-  trayDragY.value = 0
-  trayIsDragging.value = true
-  suppressCoinClick.value = false
-
-  target.addEventListener('pointermove', onTrayPointerMove)
-  target.addEventListener('pointerup', onTrayPointerUp)
-  target.addEventListener('pointercancel', onTrayPointerUp)
-}
-
-function onTrayPointerMove(event: PointerEvent) {
-  if (!trayIsDragging.value) return
-  trayDragX.value = event.clientX - trayStartX
-  trayDragY.value = event.clientY - trayStartY
-  if (Math.abs(trayDragX.value) > 8 && Math.abs(trayDragX.value) > Math.abs(trayDragY.value)) {
-    suppressCoinClick.value = true
-  }
-}
-
-function onTrayPointerUp(event: PointerEvent) {
-  if (!trayIsDragging.value) return
-  const target = event.currentTarget as HTMLElement
-  target.removeEventListener('pointermove', onTrayPointerMove)
-  target.removeEventListener('pointerup', onTrayPointerUp)
-  target.removeEventListener('pointercancel', onTrayPointerUp)
-  if (trayPointerId !== null) {
-    target.releasePointerCapture(trayPointerId)
-    trayPointerId = null
-  }
-  trayIsDragging.value = false
-
-  if (Math.abs(trayDragX.value) > SWIPE_THRESHOLD && Math.abs(trayDragX.value) > Math.abs(trayDragY.value)) {
-    flyTray(trayDragX.value > 0 ? -1 : 1)
-    return
-  }
-
+function traySpringBack() {
   trayIsAnimating.value = true
+  // trayDragX holds the last live value from onMove; setting to 0 in the same
+  // sync block lets Vue batch both and CSS transition fires from current → 0.
   trayDragX.value = 0
   const timer = setTimeout(() => {
     trayIsAnimating.value = false
@@ -216,23 +176,57 @@ function onTrayPointerUp(event: PointerEvent) {
   trayAnimationTimers.push(timer)
 }
 
-function flyTray(direction: 1 | -1) {
+/**
+ * Fly the tray off-screen then navigate.
+ *
+ * direction -1 = leftward swipe → next drawer   (swipe left = next, iOS convention)
+ * direction  1 = rightward swipe → previous drawer
+ */
+function flyTray(direction: -1 | 1) {
   trayIsAnimating.value = true
-  trayDragX.value = direction * -FLY_DISTANCE
+  trayDragX.value = direction * FLY_DISTANCE   // negative = flies left, positive = flies right
 
   const timer = setTimeout(() => {
-    if (direction > 0) {
-      handleNextDrawer()
+    if (direction < 0) {
+      handleNextDrawer()    // left swipe = next drawer
     } else {
-      handlePrevDrawer()
+      handlePrevDrawer()    // right swipe = previous drawer
     }
     trayDragX.value = 0
-    trayDragY.value = 0
     trayIsAnimating.value = false
     suppressCoinClick.value = false
   }, 300)
   trayAnimationTimers.push(timer)
 }
+
+// Gate: block new gestures during animation, and when only one drawer exists
+const trayGestureEnabled = computed(() => !trayIsAnimating.value && totalDrawers.value > 1)
+
+// Shared pointer primitive: owns capture, touch-action, pointer lifecycle, and threshold.
+// Consumer owns visual state (trayDragX), animation timers, navigation, and click guard.
+const { isDragging: trayIsDragging } = useSwipeGesture(trayGestureRef, {
+  threshold: 101,        // strict > 100: primitive commits at >= threshold, so 101 → > 100
+  lockSlop: 10,          // axis-lock: vertical-dominant drags yield to the browser's pan-y handler
+  touchAction: 'pan-y',  // UA handles vertical scroll; primitive only claims horizontal drags
+  capture: true,
+  enabled: trayGestureEnabled,
+  onStart() {
+    suppressCoinClick.value = false
+  },
+  onMove(dx, dy) {
+    trayDragX.value = dx
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      suppressCoinClick.value = true
+    }
+  },
+  onCommit(direction) {
+    // direction -1 = leftward = next drawer; 1 = rightward = previous drawer
+    flyTray(direction)
+  },
+  onCancel() {
+    traySpringBack()
+  },
+})
 
 async function loadTrayCoins() {
   loading.value = true

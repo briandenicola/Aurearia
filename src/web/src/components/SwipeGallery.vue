@@ -26,7 +26,6 @@
         class="swipe-card active-card"
         :class="{ animating: isAnimating }"
         :style="cardStyle"
-        @pointerdown="onPointerDown"
         @click="onCardTap"
       >
         <div class="swipe-card-image" :class="{ 'coin-flipping': isFlipping }">
@@ -78,6 +77,7 @@ import type { Coin, ImageType } from '@/types'
 import { useCoinsStore } from '@/stores/coins'
 import { Coins, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import { useSwipeGesture } from '@/composables/useSwipeGesture'
 
 const props = defineProps<{
   coins: Coin[]
@@ -111,110 +111,48 @@ function flipCoin() {
     }, FLIP_DURATION)
   }, FLIP_DURATION)
 }
+
 const stackRef = ref<HTMLElement | null>(null)
 const animationTimers: ReturnType<typeof setTimeout>[] = []
 
-// Drag state
+// Consumer-owned drag state for live visual feedback (updated via onMove callback)
 const dragX = ref(0)
 const dragY = ref(0)
-const isDragging = ref(false)
-let startX = 0
-let startY = 0
-let hasDragged = false
-let pointerId: number | null = null
 
-const SWIPE_THRESHOLD = 100
+// Used for hint opacity; same boundary value as old SWIPE_THRESHOLD
+const HINT_THRESHOLD = 100
 const FLY_DISTANCE = 600
+// Travel (px) beyond which a subsequent click is treated as a drag, not a tap
+const HASDRAGGED_SLOP = 5
 
-// Clamp index if coins list shrinks (e.g., after filter change)
-watch(() => props.coins.length, (len) => {
-  if (len > 0 && currentIndex.value >= len) {
-    store.galleryIndex = len - 1
-  }
-})
+// Click-suppression flag — persists from move until the next gesture start
+let hasDragged = false
 
-const currentCoin = computed(() => props.coins[currentIndex.value] ?? null)
-const nextCoin = computed(() => {
-  if (!props.coins.length) return null
-  const nextIdx = (currentIndex.value + 1) % props.coins.length
-  return props.coins[nextIdx] ?? null
-})
+// Gate: block new gestures while fly-away animation or coin flip is in progress
+const gestureEnabled = computed(() => !isAnimating.value && !isFlipping.value)
 
-const leftHintOpacity = computed(() => Math.min(1, Math.max(0, -dragX.value / SWIPE_THRESHOLD)))
-const rightHintOpacity = computed(() => Math.min(1, Math.max(0, dragX.value / SWIPE_THRESHOLD)))
-
-const cardStyle = computed(() => {
-  if (!isDragging.value && !isAnimating.value) return {}
-  const rotate = dragX.value * 0.05
-  return {
-    transform: `translate(${dragX.value}px, ${dragY.value}px) rotate(${rotate}deg)`,
-    transition: isAnimating.value ? 'transform 0.3s ease' : 'none',
-  }
-})
-
-function getImage(coin: Coin): string | null {
-  const targetType: ImageType = activeSide.value
-  const byType = coin.images?.find((img) => img.imageType === targetType)
-  if (byType) return byType.filePath
-  const primary = coin.images?.find((img) => img.isPrimary)
-  const first = coin.images?.[0]
-  const img = primary || first
-  return img ? img.filePath : null
-}
-
-function onPointerDown(e: PointerEvent) {
-  if (isAnimating.value || isFlipping.value) return
-  const target = e.target as HTMLElement
-  target.setPointerCapture(e.pointerId)
-  pointerId = e.pointerId
-  startX = e.clientX
-  startY = e.clientY
-  hasDragged = false
-  isDragging.value = true
+function springBack() {
+  isAnimating.value = true
+  // dragX still holds the last live value from onMove; setting to 0 in the same
+  // synchronous block lets Vue batch both updates so the CSS transition fires
+  // from the current rendered position back to zero.
   dragX.value = 0
   dragY.value = 0
-
-  target.addEventListener('pointermove', onPointerMove)
-  target.addEventListener('pointerup', onPointerUp)
-  target.addEventListener('pointercancel', onPointerUp)
+  const tid = setTimeout(() => {
+    isAnimating.value = false
+  }, 300)
+  animationTimers.push(tid)
 }
 
-function onPointerMove(e: PointerEvent) {
-  if (!isDragging.value) return
-  dragX.value = e.clientX - startX
-  dragY.value = (e.clientY - startY) * 0.3
-  if (Math.abs(dragX.value) > 5) hasDragged = true
-}
-
-function onPointerUp(e: PointerEvent) {
-  if (!isDragging.value) return
-  const target = e.target as HTMLElement
-  target.removeEventListener('pointermove', onPointerMove)
-  target.removeEventListener('pointerup', onPointerUp)
-  target.removeEventListener('pointercancel', onPointerUp)
-  if (pointerId !== null) {
-    target.releasePointerCapture(pointerId)
-    pointerId = null
-  }
-  isDragging.value = false
-
-  if (Math.abs(dragX.value) > SWIPE_THRESHOLD) {
-    flyAway(dragX.value > 0 ? 1 : -1)
-  } else {
-    // Spring back
-    isAnimating.value = true
-    dragX.value = 0
-    dragY.value = 0
-    const tid = setTimeout(() => {
-      isAnimating.value = false
-    }, 300)
-    animationTimers.push(tid)
-  }
-}
-
-function flyAway(direction: 1 | -1) {
+/**
+ * Fly the active card off-screen then navigate.
+ *
+ * direction -1 = leftward swipe → next coin   (swipe left = next, iOS convention)
+ * direction  1 = rightward swipe → previous coin
+ */
+function flyAway(direction: -1 | 1) {
   isAnimating.value = true
-  dragX.value = direction * FLY_DISTANCE
+  dragX.value = direction * FLY_DISTANCE   // negative = flies left, positive = flies right
   dragY.value = direction * -50
 
   const tid = setTimeout(() => {
@@ -225,7 +163,8 @@ function flyAway(direction: 1 | -1) {
     const len = props.coins.length
     if (len === 0) return
 
-    if (direction > 0) {
+    if (direction < 0) {
+      // Advance to next coin (swipe left)
       if (currentIndex.value < len - 1) {
         currentIndex.value = currentIndex.value + 1
       } else if (absoluteIndex.value < props.total - 1) {
@@ -238,6 +177,7 @@ function flyAway(direction: 1 | -1) {
         }
       }
     } else {
+      // Retreat to previous coin (swipe right)
       if (currentIndex.value > 0) {
         currentIndex.value = currentIndex.value - 1
       } else if (props.page > 1) {
@@ -259,6 +199,67 @@ function flyAway(direction: 1 | -1) {
   animationTimers.push(tid)
 }
 
+// Clamp index if coins list shrinks (e.g., after filter change)
+watch(() => props.coins.length, (len) => {
+  if (len > 0 && currentIndex.value >= len) {
+    store.galleryIndex = len - 1
+  }
+})
+
+const currentCoin = computed(() => props.coins[currentIndex.value] ?? null)
+const nextCoin = computed(() => {
+  if (!props.coins.length) return null
+  const nextIdx = (currentIndex.value + 1) % props.coins.length
+  return props.coins[nextIdx] ?? null
+})
+
+const leftHintOpacity = computed(() => Math.min(1, Math.max(0, -dragX.value / HINT_THRESHOLD)))
+const rightHintOpacity = computed(() => Math.min(1, Math.max(0, dragX.value / HINT_THRESHOLD)))
+
+const cardStyle = computed(() => {
+  if (!isDragging.value && !isAnimating.value) return {}
+  const rotate = dragX.value * 0.05
+  return {
+    transform: `translate(${dragX.value}px, ${dragY.value}px) rotate(${rotate}deg)`,
+    transition: isAnimating.value ? 'transform 0.3s ease' : 'none',
+  }
+})
+
+function getImage(coin: Coin): string | null {
+  const targetType: ImageType = activeSide.value
+  const byType = coin.images?.find((img) => img.imageType === targetType)
+  if (byType) return byType.filePath
+  const primary = coin.images?.find((img) => img.isPrimary)
+  const first = coin.images?.[0]
+  const img = primary || first
+  return img ? img.filePath : null
+}
+
+// Shared pointer primitive: owns capture, touch-action, pointer lifecycle, and threshold.
+// Consumer owns visual state (dragX/dragY), animation timers, navigation, and click guard.
+const { isDragging } = useSwipeGesture(stackRef, {
+  threshold: 101,       // strict > 100: primitive commits at >= threshold, so 101 → > 100
+  lockSlop: null,       // no axis lock; card surface owns both axes via touch-action: none
+  touchAction: 'none',  // belt-and-suspenders; CSS .card-stack also declares touch-action: none
+  capture: true,
+  enabled: gestureEnabled,
+  onStart() {
+    hasDragged = false
+  },
+  onMove(dx, dy) {
+    dragX.value = dx
+    dragY.value = dy * 0.3   // dampen vertical component in card transform
+    if (Math.abs(dx) > HASDRAGGED_SLOP) hasDragged = true
+  },
+  onCommit(direction) {
+    // direction -1 = leftward = next coin; 1 = rightward = previous coin
+    flyAway(direction)
+  },
+  onCancel() {
+    springBack()
+  },
+})
+
 function onCardTap() {
   if (hasDragged || !currentCoin.value) return
   router.push(`/coin/${currentCoin.value.id}`)
@@ -266,13 +267,13 @@ function onCardTap() {
 
 function goNext() {
   if (props.coins.length > 0 && props.total > 1 && !isAnimating.value) {
-    flyAway(1)
+    flyAway(-1)  // left = next
   }
 }
 
 function goPrev() {
   if (props.coins.length > 0 && props.total > 1 && !isAnimating.value) {
-    flyAway(-1)
+    flyAway(1)   // right = previous
   }
 }
 

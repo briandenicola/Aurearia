@@ -1,4 +1,4 @@
-# PWA Features
+﻿# PWA Features
 
 > Progressive Web App with installable interface, offline read access, mobile-optimized controls, and camera integration.
 
@@ -92,9 +92,6 @@ Ancient Coins is a fully-featured Progressive Web App installable on iOS, Androi
 - **Default Sort Order** — Affects both online and offline views
 - **Time Zone** — Affects timestamps offline
 - **Tray Felt Color** — Customizes tray presentation for collection and set tray views
-
-**Account** — Go to **Settings → Account**:
-
 - **Swipe Navigation** — Enable left/right swipe between a coin's detail sections in the installed app. Off by default. Stored with your user account and follows you across devices.
 
 ## Related Features
