@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir uv==0.11.22 \
 
 # Final image
 FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9
+# Strip system pip (25.0.1, PYSEC-2026-3721) — the app venv never needs pip at runtime.
+RUN python -m pip uninstall -y pip
 RUN groupadd --gid 10001 app \
     && useradd --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin --no-create-home app
 WORKDIR /app
