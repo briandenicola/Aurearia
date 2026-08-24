@@ -458,3 +458,57 @@ onCommit/onCancel/onMove/onStart callbacks. Consumers own navigation/animation/b
 ### Deferred
 Gallery and Tray pointer engine migration is Phase 2, blocked on Brutus's characterization tests.
 Decision record: .squad/decisions/inbox/aurelia-shared-swipe-phase1.md
+
+---
+
+## 2026-08-24 -- Background removal: post-CSP-fix failure is a second, distinct CSP gap
+
+**Directive:** Diagnose the new runtime failure after Cassius's `706435fe` (blob: script-src fix).
+**Requested by:** Brian DeNicola
+
+### Root cause (proven, not guessed)
+Not a regression of the blob: fix -- a *second*, previously-masked CSP gap. `@imgly/background-removal@1.7.0`
+bundles `ndarray@1.0.19` verbatim (`dist/index.mjs`, `require_ndarray` block). `ndarray`'s
+`compileConstructor()` unconditionally builds typed-array view classes via `new Function(code)` --
+no feature-detection, no fallback. This runs on the *first* tensor operation of every session
+(`imageDecode` -> `wrappedNDArrayCtor` -> `compileConstructor`, then again for resize/HWC->BCHW/etc.,
+each distinct dtype+dimension pair). `script-src`'s existing `'wasm-unsafe-eval'` only covers
+WebAssembly compilation; it does not cover `new Function()`/`eval()` for JS strings -- that requires
+`'unsafe-eval'`, which the policy correctly does not grant (csp.go's own comment says so explicitly).
+
+### How I proved it (not guessed from the empty console object)
+Built a throwaway repro (`repro.html` importing `removeCoinBackground` directly + a small Playwright
+script) served via `vite dev`, with a temporary plugin replicating `appCSP` verbatim as a response
+header (dev server sets no CSP by default, so this was a required addition to reproduce the failure
+class). Without the CSP header: success (imgly's own code detects `crossOriginIsolated` is false and
+warns + falls back to single-threaded WASM -- so the earlier `numThreads`/`SharedArrayBuffer` angle
+some of us might reach for first is a dead end, not the cause). With the header: reproduced the exact
+production failure --
+`EvalError: Evaluating a string as JavaScript violates ... script-src 'self' 'wasm-unsafe-eval' blob:`
+-- with a stack through `compileConstructor -> wrappedNDArrayCtor -> imageDecode -> imageSourceToImageData
+-> removeBackground`. Confirmed the "unhelpful/empty logged value" in the production report:
+`JSON.stringify(evalError)` is `{}` because `Error`'s `message`/`stack` are non-enumerable -- the object
+itself was never actually empty, only its JSON serialization is. All repro files (`repro.html`,
+`repro-playwright.mjs`, the vite.config.ts CSP-header plugin, and the locally-downloaded
+`public/imgly-background-removal/` assets) were deleted/reverted before finishing; none were committed.
+
+### Why I did not touch csp.go or commit anything
+1.7.0 is the latest published version (checked npm) -- there is no newer release that replaces `ndarray`
+with something eval-free, and patching the vendored bundle (patch-package on a minified third-party
+dist to swap out `compileConstructor`) is exactly the "replace/generalize infrastructure" move the
+directive told me to avoid unless proven necessary, and it would be fragile against any future
+`@imgly/background-removal` bump. CSP hashes/nonces do not cover `eval`/`new Function` (CSP3 has no
+hash-based allowance for dynamic-string execution, only for inline `<script>`/handlers). The only real
+fix is adding `'unsafe-eval'` to `script-src` in `src/api/middleware/csp.go` -- a substantive, global
+security-policy relaxation (re-enables arbitrary string-to-JS execution for the whole page, not just
+this library), squarely Cassius's call and probably an ADR-worthy tradeoff (§22), not a unilateral
+frontend patch. Per the directive's explicit branch for this case, I stopped rather than making a
+hopeful/partial commit.
+
+### Takeaway for next time
+When a bundled library needs both `'wasm-unsafe-eval'` (WASM compile) and dynamic tensor/typed-array
+codegen (`ndarray`-style `new Function`), those are two independent CSP grants -- fixing the wasm one
+does not fix the eval one, and vice versa (mirrors the `worker-src`/`connect-src`/`script-src` blob:
+lesson from `706435fe`). Before trusting any "empty" logged error object, try `JSON.stringify` on a
+known `Error` locally first -- it reproduces the same `{}` and rules out a genuinely swallowed error
+before spending time chasing one.
