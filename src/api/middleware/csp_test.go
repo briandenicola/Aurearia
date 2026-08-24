@@ -85,6 +85,61 @@ func TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport(t *testing
 	}
 }
 
+// TestContentSecurityPolicyWorkerNamespaceAllowsUnsafeEval locks the exact
+// backend contract Aurelia's module worker depends on (commit fbbe8503):
+// requests under /assets/workers/ — and only those — get a policy carrying
+// script-src 'unsafe-eval', because @imgly/background-removal's ndarray
+// dependency calls compileConstructor() (`new Function(...)`) and throws an
+// EvalError under any stricter script-src. No other route in this table may
+// ever pick up 'unsafe-eval', including paths that merely share the
+// "/assets/workers" prefix textually.
+func TestContentSecurityPolicyWorkerNamespaceAllowsUnsafeEval(t *testing.T) {
+	csp := cspForPath(t, "/assets/workers/backgroundRemovalWorker-abc123.js")
+
+	if !strings.Contains(csp, "'unsafe-eval'") {
+		t.Fatalf("worker script CSP must allow 'unsafe-eval': %s", csp)
+	}
+	for _, required := range []string{
+		"default-src 'none'",
+		"script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:",
+		"connect-src 'self' blob:",
+		"worker-src 'self' blob:",
+		"object-src 'none'",
+	} {
+		if !strings.Contains(csp, required) {
+			t.Fatalf("worker script CSP missing %q: %s", required, csp)
+		}
+	}
+
+	// A dedicated module worker has no DOM: document-oriented directives
+	// must not leak in from appCSP, whether by inheritance or by accident.
+	for _, forbidden := range []string{"style-src", "img-src", "font-src", "base-uri", "form-action", "frame-ancestors", "manifest-src"} {
+		if strings.Contains(csp, forbidden) {
+			t.Fatalf("worker script CSP must not carry document-oriented directive %q: %s", forbidden, csp)
+		}
+	}
+}
+
+// TestContentSecurityPolicyUnsafeEvalStaysScopedToWorkerNamespace is the
+// negative-space complement of the test above: 'unsafe-eval' must appear
+// nowhere except the /assets/workers/ response path, including on paths
+// specifically crafted to look like that prefix without actually being it.
+func TestContentSecurityPolicyUnsafeEvalStaysScopedToWorkerNamespace(t *testing.T) {
+	for _, path := range []string{
+		"/",
+		"/api/coins",
+		"/assets/index-abc123.js",
+		"/assets/workers-evil/payload.js",
+		"/assets/workersuffix/payload.js",
+		"/swagger/index.html",
+	} {
+		csp := cspForPath(t, path)
+		if strings.Contains(csp, "'unsafe-eval'") {
+			t.Fatalf("%s must not receive 'unsafe-eval': %s", path, csp)
+		}
+	}
+}
+
 func TestContentSecurityPolicyRelaxesOnlySwagger(t *testing.T) {
 	swagger := cspForPath(t, "/swagger/index.html")
 	if !strings.Contains(swagger, "script-src 'self' 'unsafe-inline'") {
