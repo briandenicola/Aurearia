@@ -512,3 +512,72 @@ does not fix the eval one, and vice versa (mirrors the `worker-src`/`connect-src
 lesson from `706435fe`). Before trusting any "empty" logged error object, try `JSON.stringify` on a
 known `Error` locally first -- it reproduces the same `{}` and rules out a genuinely swallowed error
 before spending time chasing one.
+
+## 2026-08-24 -- Background removal: dedicated module-worker CSP isolation (Maximus's design), spiked and implemented
+
+**Task:** Follow-up to the two entries above. Maximus selected a dedicated same-origin ES-module Worker
+with an exact-path CSP rule over site-wide `'unsafe-eval'` or a `patch-package` de-eval rewrite. Required
+a real (non-mocked) spike proving the design before any implementation.
+
+### Spike (dev mode, then repeated against the production build)
+Built a throwaway harness page + Playwright script twice: once against `vite dev` (source), once against
+`vite build` output served by a minimal static Node server (`dist/`). Both times, a Vite dev/prod
+middleware/server set the **page** response to a strict CSP (`script-src 'self' 'wasm-unsafe-eval'
+blob:` -- no `'unsafe-eval'`) while only responses whose path matched the worker's own script (dev:
+`/src/workers/...` + the `@imgly_background-removal` optimized-dep chunk; prod: `/assets/workers/*`)
+got a separate CSP adding `'unsafe-eval'`. A real `new Worker(new URL(...), {type:'module'})` posting a
+real image Blob to `backgroundRemovalWorker.ts` (which calls the real `@imgly/background-removal`
+`removeBackground()`, no mocks) returned a non-empty `image/png` Blob (~4 MB) in both dev and prod-build
+runs. **Negative control**: reapplying the strict CSP to the worker's own response reproduced the exact
+production `EvalError: ... 'unsafe-eval' is not an allowed source of script ...` -- proving the CSP header
+is what's actually gating the behavior, not a coincidence. All spike artifacts (`worker-csp-spike.html`,
+`*-playwright.mjs`, `build-spike-server.mjs`, temporary `vite.config.ts` CSP-plugin edits, scratch
+`dist/`) were deleted/reverted before implementing; none were committed.
+
+### Implementation
+- `src/web/src/workers/backgroundRemovalConfig.ts` (new): shared config, moved off `window.location.origin`
+  onto the bare `location` global so it resolves in both `Window` and `WorkerGlobalScope`.
+- `src/web/src/workers/backgroundRemovalWorker.ts` (new): the actual module worker entry -- static
+  `import { removeBackground } from '@imgly/background-removal'`, a `{id, image}` -> `{id, ok, result|error}`
+  message protocol.
+- `src/web/src/utils/backgroundRemoval.ts` (rewritten): `removeCoinBackground(image): Promise<Blob>` keeps
+  its exact signature (both call sites, `ImageLightbox.vue` and `useImageProcessor.ts`, needed zero edits).
+  Internally it's now a worker client: a lazily-created page-level singleton `Worker` (avoids repeated
+  30-60s model init per component instance), `Map`-based request correlation via an incrementing id (not
+  `crypto.randomUUID()`, for deterministic tests), and a `BackgroundRemovalError` typed error (`stage:
+  'library' | 'worker-error' | 'message-error' | 'terminated'`). On a worker-level `error` or
+  `messageerror` event the specific failing request can't be attributed, so *all* currently-pending
+  requests are rejected rather than left hanging. `terminateBackgroundRemovalWorker()` exported for
+  tests/teardown.
+- `src/web/vite.config.ts`: added `worker: { format: 'es', rollupOptions: { output: { entryFileNames:
+  'assets/workers/[name]-[hash].js', chunkFileNames: 'assets/workers/[name]-[hash].js' } } }`. Confirmed
+  via `npm run build` + file inspection that this pins *every* worker-reachable chunk -- including
+  `@imgly/background-removal`'s internal dynamically-imported `onnxruntime-web` (`ort.bundle.min-*.js`,
+  `ort.webgpu.bundle.min-*.js`) -- under `assets/workers/`, and that grepping every other emitted chunk
+  for `imgly`/`onnxruntime`/`removeBackground` turns up nothing: the eval-needing code is fully confined
+  to that one directory prefix.
+
+### Backend integration contract for Cassius
+Apply the worker-scoped CSP addition (`'unsafe-eval'` alongside the existing `'wasm-unsafe-eval'`, `blob:`,
+etc.) only to responses whose request path has the prefix `/assets/workers/` -- exactly mirroring the
+existing `strings.HasPrefix(c.Request.URL.Path, "/swagger")` pattern in `csp.go`. Do **not** add
+`'unsafe-eval'` to the app-wide `appCSP`. The exact Worker constructor URL Vite emits (verified in the
+build output) is a fully static, build-time-resolved path like `/assets/workers/backgroundRemovalWorker-
+<hash>.js` -- no runtime manifest lookup needed, the prefix alone is sufficient and the hash will change
+per release the same way every other asset hash does.
+
+### Tests
+Rewrote `src/web/src/utils/__tests__/backgroundRemoval.test.ts`: config assertions unchanged, plus a new
+fake-`Worker` (`vi.stubGlobal`) suite covering success, a library error surfaced through the worker,
+worker `error` event (rejects all pending, doesn't hang), `messageerror` event, out-of-order concurrent
+request correlation by id, singleton reuse across calls, and `terminateBackgroundRemovalWorker()`
+(terminates + rejects in-flight + next call builds a fresh worker). jsdom/happy-dom don't implement real
+Workers or enforce CSP, so a real Playwright CSP-differentiated regression isn't practical to run as part
+of the Vitest suite; the two ad hoc Playwright spikes (dev + build) are the authoritative evidence for
+this PR, and the actual page-vs-worker CSP header split can only be regression-tested once Cassius's
+`/assets/workers/` rule exists in the real backend -- that's the natural home for a real e2e spec.
+
+### Validation
+Targeted Vitest (`backgroundRemoval.test.ts` 10/10, `ImageLightbox.test.ts` 2/2, full suite 258/258),
+direct-node `vue-tsc --build --force` (exit 0), direct-node `vite build` (exit 0, worker chunks verified
+under `assets/workers/`).
