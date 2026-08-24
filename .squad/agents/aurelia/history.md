@@ -1,3 +1,33 @@
+﻿## 2026-08-21 -- Experimental PWA Coin-Detail Swipe Navigation (beta only)
+
+**Task:** Implement left/right swipe between coin-detail menu pages in installed PWA mode
+**Outcome:** Composable implemented, wired into two call sites, horizontal-scroller audit done; type-check + build green
+
+## What I Learned
+
+**Axis-lock before dominance:** Checking which axis wins at the initial slop crossing (10px) and immediately abandoning a vertical-first stream prevents a user who starts scrolling from accidentally navigating later if they drift horizontal. The release-time 2:1 dominance check is an additional guard at release.
+
+**lostpointercapture is identical to pointercancel for reset:** Both mean the browser has taken over this pointer stream. One handler for both is cleaner than two identical one-liners.
+
+**Non-PWA early return:** The isPwa guard exits before useRoute/useRouter are called. Reading a module-level constant before hooks is fine in Vue 3 Composition API.
+
+**CRLF files break apply_patch context matching:** Several files in this repo use CRLF. Use PowerShell ReadAllText + Replace with explicit CRLF as the fallback.
+
+**data-swipe-ignore audit:** Only CoinDetailValuationPage.vue had an overflow-x-auto wrapper. ZoomableSurface is not used in any coin-detail route.
+
+## Files Changed (4)
+
+- src/web/src/composables/useCoinDetailSwipeNav.ts -- new composable
+- src/web/src/pages/CoinDetailPage.vue -- containerRef + swipeEnabled + composable call
+- src/web/src/components/coin/CoinDetailSectionPageShell.vue -- same wiring
+- src/web/src/pages/CoinDetailValuationPage.vue -- data-swipe-ignore on overflow-x-auto table
+
+## Validation
+
+- npm run type-check -- exit 0
+- npm run build -- exit 0
+- Targeted tests: 25/25 passed
+
 ## 2026-08-20 — Feature 355 Reminder Detail-Row UX Revision: Production-Ready
 
 **Task:** Migrate reminder display from inline pill to metadata detail row
@@ -346,3 +376,85 @@ CoinDetailActionsPage.vue stale comment (assigned in design but not done). Carri
 
 
 
+
+## 2026-08-21 -- Account-wide PWA Swipe Navigation Setting (beta only)
+
+**Task:** Add `pwaSwipeNavEnabled` account preference; default disabled; toggle in Settings → Account; reactive listener lifecycle in composable
+**Outcome:** All 7 frontend files updated, 3 test files updated with 17 new tests (80 total in swipe nav, up from 68); 1139 full frontend tests pass; type-check PASS; production build PASS
+
+## What I Learned
+
+**vi.hoisted for shared reactive state in vi.mock factories:** `let x` at module scope is in TDZ when vi.mock factories run (hoisted earlier). The solution: `const holder = vi.hoisted(() => ({ proxy: null }))` to declare the holder before everything, then assign the reactive proxy inside the factory: `holder.proxy = reactive(...)`. Tests then mutate through `holder.proxy.user = x` which goes through the Vue 3 Proxy and triggers watchers.
+
+**reactive() caches proxies:** `reactive(sameObject)` always returns the same proxy, but only writes through the proxy (not the original object) trigger Vue's reactivity. Tests must mutate the PROXY, not the original object.
+
+**attach()/detach() no-op guards eliminate duplicate listeners:** `if (attachedElement) return` in attach and `if (!el) return` in detach make repeated enable/disable cycles safe. No need for separate tracking flags.
+
+**watch() + onMounted separation:** onMounted handles the initial state; watch() handles subsequent changes. Using `immediate: true` would be wrong here because the container ref isn't available at watch registration time.
+
+## Files Changed (7 production + 3 test + 3 docs + 1 inbox)
+
+Production:
+- src/web/src/types/auth.ts -- pwaSwipeNavEnabled to User and UserInfo
+- src/web/src/api/endpoints/auth.ts -- pwaSwipeNavEnabled in updateProfile arg/return types
+- src/web/src/composables/useSettingsProfile.ts -- ref, payload, sync, return
+- src/web/src/components/settings/SettingsAccountSection.vue -- toggle row + destructure
+- src/web/src/App.vue -- getMe sync block
+- src/web/src/composables/useCoinDetailSwipeNav.ts -- preference gate + attach/detach lifecycle
+
+Tests:
+- src/web/src/composables/__tests__/useCoinDetailSwipeNav.test.ts -- auth mock + 12 new preference gate tests
+- src/web/src/components/settings/__tests__/SettingsAccountSection.test.ts -- 5 new toggle tests
+- src/web/src/composables/__tests__/useSettingsProfile.feature354.test.ts -- mock responses updated
+
+Docs:
+- docs/features.md, docs/pwa-guide.md, docs/features/pwa-features.md -- one line each
+
+## Validation
+
+- vue-tsc --build -- exit 0
+- npm run build -- exit 0
+- Targeted (80 swipe + 17 settings): all pass
+- Full suite: 1139/1139 pass (baseline was 1122)
+
+---
+
+## 2026-08-21 -- Phase 1: Shared Swipe Primitive
+
+**Branch:** beta
+**Directive refs:** copilot-directive-20260821T125730, copilot-directive-20260821T130452
+**Design authority:** maximus-pwa-swipe-reliability-review.md ss9-13
+
+### Extraction
+Created useSwipeGesture.ts -- shared pointer primitive extracted from Gallery's proven engine.
+Full pointer lifecycle: passive listeners, touch-action attach/restore, axis lock (lockSlop),
+edge guard, pointer-type filter, multi-touch abort, optional capture, reactive enabled gate,
+onCommit/onCancel/onMove/onStart callbacks. Consumers own navigation/animation/boundaries.
+
+### Root-Cause Fix (coin detail reliability)
+- touch-action: pan-y applied to container inline on attach; restored on detach/disable
+- Axis lock (lockSlop=10) is the sole direction gate; release-time 2:1 dominance check deleted
+- Exclusion selector narrowed to form elements + [data-swipe-ignore]; buttons/anchors allowed
+- window.getSelection() text-selection gate removed
+- useCoinDetailSwipeNav.ts rewritten as thin adapter (~60 lines); no pointer state machine
+
+### Setting Move
+- Swipe Navigation toggle moved from SettingsAccountSection to SettingsAppearanceSection
+- Immediate-apply semantics: updateProfile({ pwaSwipeNavEnabled }) per toggle
+- Optimistic update + rollback on failure; error surfaced (no silent failure)
+- pwaSwipeNavEnabled removed from Account save payload
+
+### Tests
+- NEW useSwipeGesture.test.ts -- touchAction, arced swipe, exclusions, cancel, gate, etc.
+- useCoinDetailSwipeNav.test.ts surgery: s7 arced swipe, s12 exclusions, s14 behavioral,
+  s16 deleted, s17/s19 re-pointed at primitive, R1-R9 matrix added
+- NEW SettingsAppearanceSection.test.ts -- S1/S3/S4
+- SettingsAccountSection.test.ts -- old swipe block replaced with S2/S5
+
+### Docs
+- docs/pwa-guide.md, docs/features/pwa-features.md, docs/features.md -- Swipe Navigation
+  moved from Account to View Settings/Appearance in all three
+
+### Deferred
+Gallery and Tray pointer engine migration is Phase 2, blocked on Brutus's characterization tests.
+Decision record: .squad/decisions/inbox/aurelia-shared-swipe-phase1.md

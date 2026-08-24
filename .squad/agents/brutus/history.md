@@ -1,3 +1,72 @@
+## 2026-08-24 — Cassius CSP blob: script-src Fix (background-removal): APPROVE
+
+**Assignment**: Independent read-only reviewer gate on Cassius's fix for the production CSP
+regression breaking `@imgly/background-removal` (blob: script import blocked).
+**Author of change**: Cassius. **Commit reviewed**: `706435fe629254f78a6e6482e7f18416a9f170a2`.
+**Files reviewed**: `src/api/middleware/csp.go`, `src/api/middleware/csp_test.go` (diff only);
+`src/web/src/utils/backgroundRemoval.ts` read for workflow context (unmodified, out of scope).
+
+### What changed
+`script-src` went from `'self' 'wasm-unsafe-eval'` to `'self' 'wasm-unsafe-eval' blob:'`. Nothing
+else in `appCSP` changed. A new test,
+`TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport`, was added alongside the
+existing `TestContentSecurityPolicyIsSetOnAppRoutes` (updated in place to expect the new literal).
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| Matches the exact browser failure | Screenshot showed `blob:https://coins.denicolafamily.com/...` rejected under `script-src 'self' 'wasm-unsafe-eval'`. `worker-src` and `connect-src` already allowed `blob:`; only `script-src` — which governs the library's `import(URL.createObjectURL(...))` dynamic import — was missing it. Adding `blob:` there is the precise, minimal fix for the named directive and fetch context. |
+| Blast radius | `git show` diff is +8/-3 in `csp.go` (comment + one directive line) and +34/-2 in `csp_test.go`. `default-src`, `object-src`, `frame-ancestors`, `form-action`, `style-src`, `img-src`, `font-src`, `connect-src`, `worker-src`, `manifest-src`, and `swaggerCSP` are byte-identical to before. No broadening beyond the one directive. |
+| Dangerous tokens still absent | `'unsafe-inline'` and `'unsafe-eval'` (plain JS eval, not `wasm-unsafe-eval`) do not appear anywhere in `script-src` for the app CSP. Verified by inspection and by the passing test. |
+| Regression test would actually catch a revert | `TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport` does `strings.Contains(csp, "script-src 'self' 'wasm-unsafe-eval' blob:")` — fails immediately if `blob:` is dropped, reordered in a way that breaks the literal, or the directive is regressed to the old two-token form. |
+| Regression test would catch a dangerous addition | The same test splits the header on `"; "`, isolates the directive with prefix `script-src`, and checks *that substring only* for `'unsafe-inline'`/`'unsafe-eval'`. This is correctly scoped: it does not false-positive on `'wasm-unsafe-eval'` (no leading `'` before `unsafe-eval'` inside that token) and does not miss a future `'unsafe-eval'` appended after `blob:` in script-src. Confirmed by re-deriving both cases by hand rather than trusting the comment. |
+| Existing whole-header test still holds | `TestContentSecurityPolicyIsSetOnAppRoutes` was updated to require the new literal directive and still separately asserts `"script-src 'self' 'unsafe-inline'"` and `"'unsafe-eval'"` are absent from the full header — kept as defense in depth, not redundant with the new test's directive-scoped check. |
+| Focused test run | `go test ./middleware/... -run TestContentSecurityPolicy -v` — all 3 pass. Full `go test ./middleware/...` — all pass (19 tests, includes rate limit, HSTS, IP deny, capability tests — no collateral breakage). `go vet ./middleware/...` — clean. |
+| Out-of-scope observation (non-blocking) | `docs/deployment.md`'s example nginx CSP header (`script-src 'self';` only, no `wasm-unsafe-eval` or `blob:`) was already stale before this commit and remains stale after it — it documents a different, older policy shape than the Go middleware. Not introduced or worsened by this change; not part of this commit's diff; not blocking. Worth a follow-up doc pass by whoever owns docs, not a revision of this fix. |
+
+### Acceptance criteria verified
+1. `blob:` added specifically to `script-src`, matching the exact directive the browser named in the violation.
+2. No other directive (including `default-src`) was broadened.
+3. `unsafe-inline` and JS `unsafe-eval` remain absent from the app's `script-src`, and a directive-scoped test — not just a whole-header substring test — now guards that specifically.
+4. The new regression test fails on revert of the fix and fails on introduction of either dangerous token into `script-src`, verified by hand-tracing the string logic against both mutation scenarios.
+5. `go build`/`go vet`/targeted and full `middleware` package tests are green with no collateral regressions.
+
+### Verdict
+
+**APPROVE.** Principle IV (single-directive, comment-documented, no scope creep) and Principle V
+(policy stays explicit and narrow; the one new allowance is provably the minimal one needed) are
+both satisfied, and §17's targeted-regression-test requirement is met with a test that is
+correctly scoped rather than merely present. No block.
+
+---
+## 2026-08-21 — Cassius Runtime pip Remediation: APPROVE
+
+**Assignment**: QA validation of Cassius's runtime pip (PYSEC-2026-3721) remediation
+**Author of change**: Cassius (Backend Developer)
+**Files reviewed**: `src/agent/Dockerfile`, `.github/workflows/security-scan.yml`, `src/agent/uv.lock` (Aquila's approved hunk, unchanged by Cassius)
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| Diff scope | Dockerfile +2 lines, security-scan.yml +33 lines; uv.lock untouched by Cassius (Aquila's approved hunk only) |
+| `git diff --check` | CLEAN |
+| YAML syntax | Valid — 5 jobs parsed: gitleaks, govulncheck, npm-audit, pip-audit, agent-image-pip-check |
+| Action pins | All 3 new actions hash-pinned (checkout, setup-buildx-action, build-push-action) consistent with workflow convention |
+| Build context | `context: src/agent`, `file: src/agent/Dockerfile`, `push: false`, `load: true` — correct |
+| Instruction order | `RUN python -m pip uninstall -y pip` (line 11) precedes `COPY --from=builder /app/.venv` (line 15) and `USER 10001` (line 23); runs as root before venv arrives |
+| Venv runtime | uvicorn path and CMD unchanged; system pip uninstall does not touch /app/.venv |
+| CI verification logic | Inverted-pass: `if pip --version succeeds → exit 1`; `if python -m pip --version succeeds → exit 1`; both checks valid given PATH precedence from `ENV PATH=/app/.venv/bin:` |
+| `--no-dev` mechanism | No `dependency-groups` in lockfile → `--no-dev` is a no-op; protection is via no `--extra` flag; pip-audit carries `marker = "extra == 'dev'"`; pip/pip-api are transitive dev-only deps excluded from builder venv without `--extra dev` |
+| Ensurepip residual | Bundled wheel remains on disk; `python -m ensurepip` cannot write to root-owned site-packages when container runs as uid 10001 — not exploitable in the runtime security posture; documented in Cassius's residual risk table |
+| Aquila corrections | Factually accurate: `--no-dev` is not the load-bearing mechanism; runtime image did carry pip 25.0.1 via base image system pip (Aquila's claim "runtime image unaffected" was false) |
+
+### Verdict
+
+**APPROVE** — The Dockerfile change correctly removes system pip 25.0.1 from the final image before the non-root user switch and before the venv is copied. The CI regression job uses correct hash-pinned actions, correct build context, and sound inverted-pass logic. The `--no-dev` mechanism explanation is accurate per lockfile markers. Ensurepip residual risk is acceptable under the non-root runtime user. No issues found.
+
+---
 ## 2026-08-21 — Feature 356 Marcellus Revision: B1/B2 CLEAR — Overall APPROVE
 
 **Assignment**: Marcellus revision of B1 and B2 blocking items
@@ -610,5 +679,24 @@ Analyzed 162 anonymized (coin, tag) pairs across 9 candidate coin types. Verdict
 
 **Status**: All blocks cleared (B1–B3 by Marcellus, B4 by Brutus measurement). Ready to ship.
 
+---
 
+## 2026-08-24 — Cassius CSP blob: script-src Fix (background-removal): APPROVE
 
+**Assignment**: Independent read-only reviewer gate on Cassius's fix for the production CSP regression breaking @imgly/background-removal (blob: script import blocked).
+**Author of change**: Cassius. **Commit reviewed**: 706435fe629254f78a6e6482e7f18416a9f170a2.
+**Files reviewed**: src/api/middleware/csp.go, src/api/middleware/csp_test.go (diff only).
+
+**What changed**: script-src went from 'self' 'wasm-unsafe-eval' to 'self' 'wasm-unsafe-eval' blob:'. Nothing else in appCSP changed.
+
+**Validation Evidence**:
+- Matches exact browser failure: blob:https://coins.denicolafamily.com/... was rejected under script-src 'self' 'wasm-unsafe-eval'. Adding blob: fixes the named directive.
+- Blast radius: +8/-3 in csp.go, +34/-2 in csp_test.go. Default-src and other directives byte-identical.
+- Dangerous tokens absent: unsafe-inline and JS unsafe-eval remain absent from script-src.
+- Regression test: TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport locks the exact directive string and asserts dangerous tokens are absent.
+- Test run: go test ./middleware/... -run TestContentSecurityPolicy - all 3 pass. Full package - 19 tests pass, no collateral breakage. go vet ./middleware/... - clean.
+- Out-of-scope observation (non-blocking): docs/deployment.md CSP example was already stale before this commit and remains stale after - not introduced or worsened by this fix.
+
+**Verdict**: APPROVE. Principle IV (single-directive, no scope creep) and Principle V (policy stays explicit and narrow) both satisfied. §17 targeted-regression-test requirement met with correctly scoped test. No block.
+
+**Orchestration Log**: .squad/orchestration-log/2026-08-24T22-40-42Z-brutus-background-removal-qa.md

@@ -10914,3 +10914,227 @@ new PR, unmerged -> Brian's on-device pass -> Brian authorizes merge.
 spec; B2-B5 are cleared outright, B1 is cleared in substance and awaits only the runner that
 caught it, and I authorize the `beta` validation push under the four conditions above.
 
+
+
+---
+
+# Cassius — Background Removal CSP Fix (2026-08-24)
+
+**Requested by:** Brian DeNicola
+**Commit:** 706435fe (branch `beta`)
+
+## Decision
+`script-src` in `src/api/middleware/csp.go` now includes `blob:` alongside
+the existing `'self' 'wasm-unsafe-eval'`. This was the minimum change needed
+to unblock `@imgly/background-removal` in production, which dynamically
+imports its worker/WASM glue as a script/module from a `blob:` URL. That
+import is governed by `script-src`, independent of `worker-src`/`connect-src`
+already allowing `blob:` — those directives cover different fetch contexts
+and neither substitutes for the other.
+
+No change to `default-src`, no `unsafe-eval`, no `unsafe-inline`.
+
+## Why this matters to the team
+`worker-src`/`connect-src` allowing `blob:` created a false sense that all
+`blob:` usage by this library was covered. Anyone touching CSP for a
+library that uses blob URLs (workers, dynamic imports, or object URLs for
+media) should check which specific directive governs the resource type
+actually being fetched — script imports need `script-src`, not just
+`worker-src`/`connect-src`.
+
+## Test coverage added
+`src/api/middleware/csp_test.go`:
+`TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport` — locks
+the exact `script-src 'self' 'wasm-unsafe-eval' blob:'` string and asserts
+`unsafe-inline`/`unsafe-eval` are absent specifically from the `script-src`
+directive (not just the header as a whole).
+
+## Validation
+`go build ./...`, `go vet ./...`, `go test ./...` all green from `src/api`.
+Targeted middleware tests (`TestContentSecurityPolicy*`) pass individually.
+
+## Status
+Shipped to `beta`. No lockout, no open follow-up. Not a candidate for
+`default-src` broadening or further CSP relaxation absent a new concrete
+failure.
+
+
+---
+
+# Retrospective - Quality Gate run 32523730837 (Vue Web / Lint failure)
+
+- **Author:** Maximus (Lead / Architect)
+- **Date:** 2026-08-21T15:33-05:00
+- **Trigger:** Configured after-failure retrospective
+- **Run:** `32523730837` - Quality Gate on `beta` @ `2c5487cd`
+- **Related:** `.squad/decisions/inbox/maximus-shared-swipe-final-review.md` (Round 2, condition 2)
+
+---
+
+## What happened
+
+The `beta` validation push I authorized reached CI. Three of four jobs passed. **Vue Web failed at
+its first step, Lint**, with `eslint . --ext .vue,.ts,.tsx --max-warnings 0` reporting 5 problems -
+2 errors and 3 warnings, all fatal under `--max-warnings 0`:
+
+| File | Line | Rule | Severity |
+|---|---|---|---|
+| `composables/__tests__/useCoinDetailSwipeNav.test.ts` | 667:92 | `no-useless-escape` (`\(`) | error |
+| `composables/__tests__/useCoinDetailSwipeNav.test.ts` | 667:96 | `no-useless-escape` (`\)`) | error |
+| `components/__tests__/SwipeGallery.characterization.test.ts` | 456:11 | `no-unused-vars` (`card`) | warning = fatal |
+| `components/settings/SettingsAppearanceSection.vue` | 179:13 | `vue/multiline-html-element-content-newline` | warning = fatal |
+| `composables/__tests__/useSwipeGesture.test.ts` | 13:10 | `no-unused-vars` (`afterEach`) | warning = fatal |
+
+**Consequence that matters more than the lint errors:** the Vue Web job runs
+`Lint -> Type check -> Test -> Build`. Lint exited 1, so **Type check, Test, and Build never ran**.
+The consolidation guard test did not execute on `ubuntu-latest`. **B1 therefore remains
+conditional with zero evidence** - Round 2 condition 2 is not satisfied and cannot be satisfied
+until a push gets past the Lint step.
+
+---
+
+## Root cause
+
+**`npm run lint` is absent from every documented validation surface, while CI runs it first and
+blocking.** I checked all three:
+
+| Surface | Frontend commands it documents | Lint listed? |
+|---|---|---|
+| Constitution §17 Quality Gate | `vue-tsc --build`, `npm run build` | **No** |
+| `Taskfile.yml` | `build-web`, `test-critical-workflows`, `lint-agent` (Python only) | **No** - there is no `lint-web` target at all |
+| `.github/copilot-instructions.md` | `npm run build`, `npm run type-check`, `npx vue-tsc --noEmit` | **No** |
+| `.github/workflows/ci.yml` | `npm run lint --max-warnings 0`, then type-check, test, build | **Yes, and first** |
+
+So an agent that validated faithfully against the authoritative checklist, ran `task --list` to
+find targets, and followed the repo's own contributor instructions would run type-check, tests and
+build - and would still push a red gate. This is a **specification defect, not a discipline
+failure**. Under the Hierarchy of Authority the constitution outranks the workflow file, which
+means §17 is the document that is wrong.
+
+### Contributing causes
+
+1. **Validation by recall rather than by parity.** Both the QA clearance and the release validation
+   enumerated commands from memory. Nobody diffed the local recipe against `ci.yml`. Had anyone
+   done so once, the gap was a 30-second read.
+2. **My own triage was wrong, and this one is mine.** I flagged the collapsed
+   `</section></template>` in `SettingsAppearanceSection.vue` twice - Round 1 §3.6 and Round 2 N3 -
+   and both times filed it as cosmetic, non-blocking. It is a blocking gate failure. A reviewer nit
+   list that contains a real gate failure mislabeled as cosmetic is worse than not noticing it,
+   because it tells everyone downstream the item is safe to defer. I also did not check the unused
+   `card`, unused `afterEach`, or the regex escapes at all - I read those test files for false
+   positives and threshold semantics and never once considered lint.
+3. **`--max-warnings 0` erases the warning/error distinction.** Three of the five failures print as
+   "warning" and are fatal anyway. Nothing in our docs says this, so a local run that prints only
+   warnings reads as passing.
+4. **Same failure class as B1, twice in one batch.** Green locally, red on the runner. B1 was a
+   Windows/Linux path split; this is a documented-recipe/actual-workflow split. The common shape is
+   that our local validation is not derived from the thing that actually gates us.
+
+---
+
+## Current state
+
+Partial remediation is already in the working tree: the two `no-useless-escape` errors and the
+unused `afterEach` are fixed. **Two problems remain and `npm run lint` still exits 1 locally:**
+`card` unused at `SwipeGallery.characterization.test.ts:456`, and the template newline at
+`SettingsAppearanceSection.vue:179`. The tree is not yet pushable.
+
+---
+
+## Block / lockout determination
+
+**No block. No lockout. No agent is barred from any artifact.**
+
+§18.2 Strict Lockout attaches to a **reviewer rejection**. This is CI discovery on a validation
+push that I explicitly authorized, which is the mechanism working as designed - beta caught it
+instead of a release catching it. Round 2 condition 3 (block re-hardens if CI is red *traceable to
+the guard*) has **not** fired: the failure is lint, not the guard. Aurelia, Brutus and Livia are
+all eligible.
+
+**Assignment: Livia**, as the current holder of the revision, for continuity rather than
+eligibility. Scope: fix the two remaining lint problems, then the process corrections below.
+
+**B1 stays conditional**, unchanged in substance, and converts to cleared on a green `Vue Web` job
+that actually reaches and passes the Test step.
+
+---
+
+## Process corrections
+
+| # | Correction | Owner |
+|---|---|---|
+| P1 | Add a `lint-web` target to `Taskfile.yml` (`cd src/web && npm run lint`), mirroring the existing `lint-agent`. The absence of this target is the mechanical reason the step was invisible. | Livia |
+| P2 | Add a `quality-gate` aggregate target that runs the CI steps **in CI order** - lint, type-check, test, build - so local validation is one command that cannot drift by omission. | Livia |
+| P3 | Amend constitution §17 to list `npm run lint` clean for frontend changes, and state explicitly that `--max-warnings 0` makes warnings blocking. This is a constitution change and requires a §22 amendment: I propose, Brian ratifies. | Maximus proposes / Brian ratifies |
+| P4 | Update the Build/Test/Lint block in `.github/copilot-instructions.md` to include `npm run lint`. | Livia |
+| P5 | Standing rule for QA clearance: the command list must be **derived from `.github/workflows/ci.yml`**, not recalled, and the clearance record must name the workflow file and commit it was derived from. Run lint first, because a lint failure masks every downstream signal - which is exactly how we lost the B1 evidence this run. | Brutus |
+| P6 | Reviewer rule for me: any item I am about to file as a cosmetic nit gets checked against the linter before it goes on the non-blocking list. "Cosmetic" is a claim about the gate, not about my taste. | Maximus |
+
+P1, P2 and P4 are documentation and tooling only and do not touch product code, so they can ship
+with the lint fix in the same push.
+
+---
+
+## Sequence from here
+
+1. Livia clears the two remaining lint problems and lands P1, P2, P4.
+2. `npm run lint`, then the full local `quality-gate`, green on Windows.
+3. Push to `beta`. **The `Vue Web` job must reach and pass Test** - that run is B1's evidence.
+4. If green: B1 clears automatically per Round 2 condition 2; open the new PR, unmerged.
+5. Brian's on-device iOS/Android pass remains the merge gate.
+6. P3 goes to Brian as a §22 amendment proposal, independent of this batch.
+
+**Summary in one line:** nobody skipped a step - the step was missing from all three documents that
+define our steps while CI enforced it first and blocking, the resulting lint failure cost us the
+ubuntu evidence B1 was pushed to obtain, and I contributed by filing a real gate failure twice as a
+cosmetic nit.
+
+---
+
+## Addendum - review of Livia's lint-only correction (2026-08-21T15:40-05:00)
+
+**AUTHORIZED for `beta` repush, with one gating step: the remaining two fixes are still
+uncommitted and MUST be committed before the push.**
+
+### A second failed run happened in the interim
+
+`0f0ade1b` was committed and pushed at 15:35 carrying only half the fix, producing a **second
+failed Quality Gate, run `32524360546`**, which died on the same Lint step with the two warnings
+that were still uncommitted (`card`, `</template>`). Two beta runs have now burned without ever
+reaching the Test step, so **B1 still has zero ubuntu evidence**. The rule this violates is P5:
+do not push until `npm run lint` exits 0 locally.
+
+### The four fixes, all behaviour-neutral
+
+| Fix | Change | Behaviour impact |
+|---|---|---|
+| `useCoinDetailSwipeNav.test.ts:667` (committed) | `\(R3\)` -> `(R3)` in an `it()` title | None - string literal in a test name, never matched against |
+| `useSwipeGesture.test.ts:13` (committed) | Dropped unused `afterEach` import | None - genuinely unreferenced |
+| `SwipeGallery.characterization.test.ts:456` (uncommitted) | `const card` -> `const _card` | **None, and the right call.** `prepCard()` installs the `setPointerCapture` / `releasePointerCapture` spies on `.card-stack`; renaming keeps the call, deleting the line would have broken G7's assertion outright |
+| `SettingsAppearanceSection.vue:179` (uncommitted) | `</section></template>` split across two lines | None - template whitespace, trimmed by the compiler; no rendered output change |
+
+Only one product file is touched and the change is whitespace in a closing tag. No runtime logic,
+no gesture code, no settings logic. This is a lint-only correction as scoped.
+
+### Verification on the current tree
+
+`npm run lint` clean (0 problems). `npm run type-check` (`vue-tsc --build`) clean. I re-ran the six
+suites covering every touched file - **198 tests, all green** (guard 3, primitive 42, detail 88,
+Gallery characterization 31, Tray characterization 24, Appearance 10). Livia's 41 figure is the two
+directly-edited files; the wider set agrees.
+
+### Scope
+
+P1-P6 in this retrospective remain **proposals only** and are explicitly **not** part of this push.
+No Taskfile target, no §17 amendment, no contributor-instruction edit ships with the lint fix.
+They go to Brian separately.
+
+### Conditions (unchanged from the Round 2 record)
+
+1. Commit the two remaining fixes, confirm `npm run lint` exits 0, then push to `beta`.
+2. `beta` only - no merge to `main`, new PR opens unmerged.
+3. **B1 converts to cleared only when the `Vue Web` job reaches and passes the Test step** with the
+   consolidation guard green. Lint passing is not B1's evidence; it is only the thing that stopped
+   us from collecting it.
+4. Brian's on-device iOS/Android pass remains the merge gate.
+

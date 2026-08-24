@@ -42,8 +42,9 @@ func TestContentSecurityPolicyIsSetOnAppRoutes(t *testing.T) {
 		"object-src 'none'",
 		"frame-ancestors 'none'",
 		"base-uri 'self'",
-		// @imgly/background-removal compiles an ONNX model to WASM.
-		"script-src 'self' 'wasm-unsafe-eval'",
+		// @imgly/background-removal compiles an ONNX model to WASM and
+		// dynamically imports its worker/WASM glue as a blob: module.
+		"script-src 'self' 'wasm-unsafe-eval' blob:",
 		// Proxied auction images arrive as blob: URLs; the mint map needs OSM tiles.
 		"img-src 'self' data: blob: " + OSMTileHost,
 		"worker-src 'self' blob:",
@@ -51,6 +52,35 @@ func TestContentSecurityPolicyIsSetOnAppRoutes(t *testing.T) {
 	for _, directive := range required {
 		if !strings.Contains(csp, directive) {
 			t.Fatalf("app CSP missing %q: %s", directive, csp)
+		}
+	}
+}
+
+// TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport locks the
+// exact production fix: @imgly/background-removal dynamically imports a
+// blob: URL as a script/module (not just a worker or fetch target), so
+// script-src — not just worker-src/connect-src — must permit blob:. Without
+// this, the browser blocks the dynamic import with "Failed to fetch
+// dynamically imported module" and background removal reports no available
+// backend. This must never regress to bare 'self' 'wasm-unsafe-eval', and
+// must never gain 'unsafe-inline' or 'unsafe-eval' to get there.
+func TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport(t *testing.T) {
+	csp := cspForPath(t, "/api/coins")
+
+	if !strings.Contains(csp, "script-src 'self' 'wasm-unsafe-eval' blob:") {
+		t.Fatalf("app CSP must allow blob: script imports for background removal: %s", csp)
+	}
+
+	for _, forbidden := range []string{"'unsafe-inline'", "'unsafe-eval'"} {
+		var scriptSrc string
+		for _, directive := range strings.Split(csp, "; ") {
+			if strings.HasPrefix(directive, "script-src") {
+				scriptSrc = directive
+				break
+			}
+		}
+		if strings.Contains(scriptSrc, forbidden) {
+			t.Fatalf("script-src must not contain %q: %s", forbidden, scriptSrc)
 		}
 	}
 }

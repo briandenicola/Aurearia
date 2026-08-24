@@ -277,7 +277,41 @@ Marcellus fixed both findings:
 
 Final status: **CLEARED** by Maximus. Ready to ship.
 
+## 2026-08-24 — Production CSP Blocked Background Removal's Blob Script Import
+
+**Work**: Diagnosed and fixed a production CSP regression breaking `@imgly/background-removal`.
+
+### Root Cause
+Browser console showed `blob:https://coins.denicolafamily.com/...` violating `script-src 'self' 'wasm-unsafe-eval'`, followed by `TypeError: Failed to fetch dynamically imported module`. `worker-src` and `connect-src` already allowed `blob:`, which masked the real gap: the library dynamically imports its worker/WASM glue code as a *script/module* via a blob URL (`import(URL.createObjectURL(...))`), and that import is governed by `script-src`, not `worker-src` or `connect-src`. Three directives look related but each governs a distinct fetch type — allowing `blob:` on two of three isn't enough.
+
+### Fix
+`src/api/middleware/csp.go`: `script-src` changed from `'self' 'wasm-unsafe-eval'` to `'self' 'wasm-unsafe-eval' blob:'`. No change to `default-src`, no `unsafe-eval`, no `unsafe-inline`. Added `TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport` in `csp_test.go` to lock the exact directive string and re-assert `unsafe-inline`/`unsafe-eval` stay absent from `script-src` specifically (not just the whole header), since a future edit could add either token to a different directive without failing the old whole-header checks.
+
+### Key Lesson
+When a CSP violation names a directive, check whether *sibling* directives that already allow the same scheme (here `blob:`) create a false sense that the resource type is fully covered. Each CSP directive governs a specific fetch context (script vs. worker vs. connect); a resource can pass one check and still be blocked by another that shares the same URL scheme. `go build ./... && go vet ./... && go test ./...` all green from `src/api`.
 
 
+## 2026-08-24 — Background Removal CSP Fix: Production Defect Resolution
 
+**Context**: Production CSP failure prevented @imgly/background-removal from loading its worker WASM glue via dynamic import. The library uses blob: URLs for its worker and dynamically imports from that blob URL, which is governed by the script-src directive (not worker-src/connect-src).
 
+**Solution**: Added blob: to script-src directive in src/api/middleware/csp.go (Commit 706435fe).
+
+**Rationale**:
+- script-src directive specifically governs script imports
+- worker-src and connect-src already allowed blob: but those govern different fetch contexts
+- No change to default-src; unsafe-inline and JS unsafe-eval remain absent
+- Comprehensive targeted test added: TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport
+
+**Files Changed**:
+- src/api/middleware/csp.go: +1 line (blob: in script-src + comment)
+- src/api/middleware/csp_test.go: new regression test
+
+**Validation**:
+- go build, go vet, go test all green
+- Targeted middleware CSP tests pass
+- Full middleware suite (19 tests) passes with no regressions
+
+**Verdict**: Released to beta. APPROVE by Brutus (independent QA gate). Non-blocking: docs/deployment.md CSP example remains stale (pre-existing).
+
+**Orchestration Log**: .squad/orchestration-log/2026-08-24T22-40-42Z-cassius-background-removal-csp-fix.md
