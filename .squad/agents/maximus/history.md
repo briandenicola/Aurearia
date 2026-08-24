@@ -308,6 +308,56 @@ cast; design tokens all pre-existing. `go vet` clean, Go and Vue tests pass.
 
 Full review: `.squad/decisions/inbox/maximus-valuation-tag-implementation-review.md`
 
+---
+
+## 2026-08-21 — pip PYSEC-2026-3721 Security Remediation Review: BLOCK
+
+**Verdict:** BLOCK — on the security assessment, not the code change
+**Author:** Aquila (Security/CI Engineer, temporary)
+**Scope:** `src/agent/uv.lock` (uncommitted, 3 lines) + `.squad/decisions/inbox/aquila-pip-security-remediation.md`
+**CI run:** 32487765837 (beta)
+
+### The change itself is correct — approved on its merits
+
+Root cause confirmed from the failed log: `pip 26.1.2 / PYSEC-2026-3721 / fix 26.2`, from the
+`pip-audit -> pip-api -> pip` chain, with `pip-audit` carrying `marker = "extra == 'dev'"`. No
+suppression or ignore flag was added; the gate still fails closed. Diff is one hunk, 3 lines, no
+other package touched. **I verified the new hashes against PyPI rather than trusting the lockfile** —
+both sha256 digests, both sizes, and both upload timestamps match byte for byte. CI installs via
+`uv sync --locked --extra dev`, so the lockfile really is the source of the audited pip and the gate
+will go green.
+
+### Blocking findings
+
+- **B1**: The record claims, as verified fact, that the final image "contains no system pip". False.
+  I pulled the pinned base image config from the registry: CPython is built `--with-ensurepip` and a
+  layer symlinks `pip3 -> pip` into `/usr/local/bin`; the image is `PYTHON_VERSION=3.12.13`, and
+  CPython v3.12.13 bundles `pip-25.0.1`. **The deployed runtime ships pip 25.0.1, which is affected by
+  the very advisory being remediated.** So "Residual Risk: None identified" is wrong, and the drafted
+  commit message would write "Runtime image unaffected" into permanent git history. Revision owner: **Cassius**.
+- **B2**: The `--no-dev` mechanism is misattributed. `pip-audit` is a PEP 621 *extra*, not a uv
+  dependency-group, so `--no-dev` is a no-op here — pip stays out of the builder venv because
+  `uv sync` installs no extras by default. Conclusion right, load-bearing reasoning wrong.
+  Revision owner: **Cassius**.
+- **NB1**: "Validation Evidence" never actually ran `uv run pip-audit` to watch the gate go green.
+  Owner: **Brutus**.
+- **NB2**: `pip-api` pins pip with no specifier, so the version is free-floating and will drift back
+  on the next unrelated `uv lock` — this remediation is not durable. Follow-up.
+
+`uv.lock` is approved as-is and must not be re-resolved during the revision; the hashes are
+registry-verified and a gratuitous `uv lock` risks pulling unrelated upgrades into a clean diff.
+
+### Learnings
+
+- **"Verified by reading the Dockerfile" cannot establish what a base image contains.** Claims about
+  runtime contents need the image inspected — registry config and layer history are enough and take
+  two minutes. This is the second finding this session caused by an assertion that was reasoned
+  rather than observed.
+- **A dependency-only vuln fix still deserves a hash check against the registry.** Cheap, and it is
+  the one control that catches a poisoned lockfile.
+
+Full review: `.squad/decisions/inbox/maximus-pip-security-remediation-review.md`
+
 ### Ownership correction (same day, post-verdict)
 
 My first assignment table was invalid twice: B3 went to Cassius, who is locked out for this cycle,
@@ -392,5 +442,263 @@ Verified all four findings resolved:
 
 ## §17 Quality Gate: Design review, post-impl review, and revision clearance all pass per Principle I, III, IV, IX; constitution §17, §18.2, §21
 
+---
 
+## 2026-08-21 — Runtime pip Exposure (PYSEC-2026-3721), Revision Review
 
+**Artifacts**: `src/agent/Dockerfile`, `.github/workflows/security-scan.yml`,
+`.squad/decisions/inbox/cassius-runtime-pip-revision.md` (author: Cassius);
+`src/agent/uv.lock` (author: Aquila, previously approved)
+**Work**: Verification of the revision answering blocks B1/B2
+**Verdict**: CLEAR / APPROVE — both blocks lifted
+
+B1 and B2 are resolved. Cassius removed the base image's pip 25.0.1 in the final stage rather than
+merely documenting the exposure, added an `agent-image-pip-check` CI job that rebuilds the real
+image and asserts pip is unreachable, corrected the false "contains no system pip" claim and the
+drafted commit message, and fixed the `--no-dev` misattribution with the durable invariant
+("no extras are selected in the production build"). Aquila's approved `uv.lock` hunk was preserved
+byte-for-byte and not re-resolved. Both new action pins verified against the GitHub API as real
+tagged releases (setup-buildx v4.2.0, build-push v7.3.0) per Principle VII.
+
+Cleared with seven non-blocking findings, the two most material being: the second CI assertion
+(`python -m pip`) runs the venv interpreter and is therefore vacuous — it would pass on an
+unhardened image, leaving the bare-`pip` assertion doing all the work; and nothing in this
+repository ever starts the agent image, so a Dockerfile change that bricks the runtime would ship
+as `:beta`. Neither is a regression introduced by this change. NB3/NB7 (CI hardening) routed to
+Brutus; NB4/NB5 (record precision) stay with Cassius.
+
+## §17 Quality Gate: pass per Principle IV, V, VII; constitution §17, §18.2, §21
+
+---
+
+## 2026-08-21 — Runtime pip Exposure (PYSEC-2026-3721), Final Approval
+
+**Artifacts**: `.github/workflows/security-scan.yml` (author: Brutus, NB3/NB7 refinement);
+`.squad/decisions/inbox/cassius-runtime-pip-revision.md` (author: Cassius, NB4/NB5 corrections)
+**Work**: Final verification of non-blocking findings
+**Verdict**: APPROVE — release-ready
+
+**NB3 closed**: the system assertion now invokes `/usr/local/bin/python3.12 -m pip` by absolute
+path. Python derives `sys.prefix` from `sys.executable` and the Dockerfile sets no `VIRTUAL_ENV`,
+so the check resolves against system site-packages and would exit 0 on an unhardened image. The
+assertion can now fail, which is what the finding required.
+
+**NB7 closed**: the smoke step runs the real CMD as uid 10001 and proves the server binds and
+serves HTTP. Ephemeral loopback port binding, exact CID capture, `trap … EXIT` cleanup, deliberate
+omission of `--rm` so `docker logs` survives, 30s poll with a log dump on timeout. Verified the
+endpoint choice is correct rather than incidental: `/health` is in `PUBLIC_PATHS` and needs no
+credential, whereas `/ready` 503s without `AGENT_INTERNAL_SERVICE_TOKEN`; and every `Settings`
+field in `app/config.py` has a default, so the container starts with zero env vars and the test
+will not be flaky for configuration reasons.
+
+**NB4/NB5 closed**: the Residual Risk table now names the ensurepip bundled wheel explicitly and
+marks it accepted low risk instead of claiming no residual exposure, and the scope table gained the
+builder-stage pip row. Three minor documentation nits recorded without action (the `--user`
+ensurepip path is not actually blocked by permissions; the symlink creation order is stated
+backwards; `docker port` has a benign fail-loud race). None change a risk verdict.
+
+All blocks and findings from this cycle are closed. NB2 (no durable `pip>=26.2` floor) remains the
+only open item and belongs in an issue, not a merge gate. Flagged that
+`cassius-runtime-pip-revision.md` is untracked and must be `git add`-ed so the decision record
+lands with the change it justifies (Principle VIII).
+
+## §17 Quality Gate: pass per Principle IV, V, VII, IX; constitution §17, §21
+
+---
+
+## 2026-08-21 — PWA Coin-Detail Swipe Navigation, Implementation Review
+
+**Artifacts**: `src/web/src/composables/useCoinDetailSwipeNav.ts`, `CoinDetailPage.vue`,
+`CoinDetailSectionPageShell.vue`, `CoinDetailValuationPage.vue` (author: Aurelia);
+`src/web/src/composables/__tests__/useCoinDetailSwipeNav.test.ts` (author: Brutus)
+**Work**: Post-implementation review against the 2026-08-21 design record
+**Verdict**: APPROVE for the `beta` push — no production defect; two conditions on main-line re-entry
+
+The implementation matches the approved design on every parameter. Checks worth recording: `usePwa()`
+returns `isPwa` as a plain boolean rather than a `Ref`, so the `if (!isPwa) return` guard genuinely
+short-circuits and desktop registers no listeners; the eight stops are derived from `SECTION_ORDER`
+with `/coin/:id` prefixed and match `router/index.ts` exactly, making Sell and Copy structurally
+unreachable; thresholds 64/10/2:1/24 are exported constants and behave correctly at the boundaries;
+all five listeners are passive with no `preventDefault`; and cleanup captures the element at mount.
+
+The modal gate and the `data-swipe-ignore` audit were verified as complete rather than merely
+present: the section pages inside the shell render no modals, `CameraCaptureModal`, `AppDialog`, and
+`ImageLightbox` are all teleported, `AppOverflowMenu`'s backdrop really is a `button` (the §2 design
+assumption), the value-history wrapper is the only `overflow-x` surface across the eight routes, and
+the Value Trend chart is a static SVG with no drag handlers. §17 re-run independently: 68/68,
+1122/1122 across 153 files, `vue-tsc --build` exit 0.
+
+Six findings, none blocking. The material one is that component integration is asserted by grepping
+`.vue` source text — no test proves `ref="containerRef"` is bound on the container, and that single
+omission would leave the feature entirely dead with a green suite. I verified both bindings by
+inspection. Also recorded: criterion 15 was delivered as a string grep rather than a render
+assertion; the `isPwa` listener test asserts source positions; the duplication test cannot fail; the
+manual installed-PWA verification was never performed, so the only environment where the feature is
+live has never been exercised; and `aea17127` is a red tree because the tests were committed before
+the implementation.
+
+Conditions attached to the fresh directive required for main-line re-entry: mount-based call-site
+assertions (Brutus), and a recorded on-device result (Aurelia / Brian's beta evaluation). Beta push
+approved; stop at `beta` per the Release Constraint.
+
+## §17 Quality Gate: pass per Principle IV, VI, VIII; constitution §17, §21
+
+## 2026-08-21 — PWA Coin-Detail Swipe Navigation: Design Review (before-work, APPROVED TO IMPLEMENT)
+
+Facilitated the configured before-work Design Review for Brian's experimental PWA-only swipe
+navigation across the coin-detail menu. Record written to
+`.squad/decisions/inbox/maximus-pwa-detail-swipe-review.md`. No product code touched.
+
+Established the eligible route list from the one live menu — `CoinDetailOverflowMenu.vue` driven by
+`SECTION_ORDER` in `constants/coinDetailSections.ts` — and confirmed it matches the screenshot
+exactly. Eight stops with Overview as index 0: overview, shipment, journal, health, notes, actions,
+analysis, valuation. Sell and Copy Coin are structurally excluded because the list derives from
+`SECTION_ORDER`, not from the menu's rendered children; both are mutating actions and neither is a
+route. No conditional section items exist — only Sell is conditional, and it is out. Found
+`CoinDetailSectionLinks.vue` to be dead code; it is not a second order source and its deletion is a
+separate chore.
+
+Gesture ruling: pointer events filtered to `pointerType === 'touch'` and `isPrimary`, 64 px minimum
+travel, 2:1 horizontal dominance, axis locked at a 10 px slop, no velocity floor, all listeners
+`{ passive: true }` and no `preventDefault` anywhere so native scrolling is untouched, 24 px edge
+guard against system back-swipes, multi-touch and `pointercancel` reset, and no wrap at either
+boundary. `SwipeGallery`'s wrap-around is paging behaviour and does not transfer to a fixed menu.
+
+The subtle one: `SellModal`, `PurchaseModal`, and `PurchaseReminderModal` are not teleported — they
+render inside the same `.container` the listener binds to. Required an explicit `enabled: Ref<boolean>`
+gate fed by each page's own modal refs rather than DOM sniffing for an overlay.
+
+Placement: one composable, two call sites (`CoinDetailPage.vue` and `CoinDetailSectionPageShell.vue`),
+covering all eight routes; all seven section pages route through the shell, and the two containers
+never co-mount, so double registration cannot occur. Rejected a global `App.vue` listener (pushes
+detail knowledge into the shell, untestable) and per-page listeners (seven copies of the same cleanup
+bug). Reused `usePwa()` as-is; noted that `isPwa` is a module-level non-reactive constant, so tests
+must mock the module — the pattern six existing test files already use.
+
+Ruled no affordance and no transition for v1 under Principle IV: beta-only experiment, the overflow
+menu stays the accessible primary path, and a counter row is the named follow-up only if Brian reports
+ambiguity. Assigned implementation to Aurelia, all sixteen acceptance criteria to Brutus, and held the
+release constraint: `feat:` commit, push to `beta`, stop — no main PR.
+
+## 2026-08-21 — Account-Wide PWA Swipe Preference, Implementation Review
+
+**Verdict: BLOCK**, narrowed to two documentation files. Backend, frontend, gate placement, lifecycle
+and tests are explicitly cleared. Revision on the single blocking artifact assigned to Cassius;
+Aurelia is under Strict Lockout (§18.2) as the author of the user-facing documentation edits.
+
+The storage contract landed the way section 1 required. The explicit `column:pwa_swipe_nav_enabled`
+tag with `not null;default:false` makes AutoMigrate emit an additive `NOT NULL DEFAULT` column that
+SQLite stamps onto every existing row at DDL time, so legacy users read `false` with no backfill
+written — the same GORM/SQLite mechanism that made the Feature 356 valuation backfill dead code is
+here the desired behaviour, and the team correctly did not write one. The migration test pins the
+resolved column name instead of assuming GORM's initialism handling, which is exactly what I asked
+for and the kind of assumption that has burned this repo before.
+
+Pointer omission, ownership and payload completeness all check out. `*bool` with an `!= nil` guard
+means an omitted key is a genuine no-op; `UpdateProfile` reads `c.GetUint("userId")` and never takes
+an id from the body; and I traced all five auth paths individually — register, login, refresh,
+WebAuthn and OIDC converge on the single `writeAuthResponse` map, so payload completeness is
+structural rather than five coincidences.
+
+The runtime gate is in the right place and fails closed. `if (!isPwa) return` precedes
+`useAuthStore()`, so browser sessions never touch the store, which is also why the pre-existing
+non-PWA tests stay valid without Pinia. `attach()`/`detach()` are driven by `onMounted`,
+`onUnmounted` and a non-immediate `watch` on the strict `=== true` expression, so logout, account
+switch and a live toggle all re-evaluate, and a missing key evaluates false. Blast-radius item 12
+held — neither detail component was edited, which was my stated tell that the gate went in the wrong
+layer. The original gesture contract is untouched; all 68 prior composable tests pass unmodified.
+
+I re-ran the gate rather than accepting QA's numbers: build, vet and `go test ./...` green across 12
+packages, the three route/OpenAPI drift tests green at `-count=1`, 1149 frontend tests over 156
+files, `vue-tsc --build` exit 0. Brutus's figures reproduce exactly.
+
+Half the pre-main gate is now cleared. The mounted call-site tests capture the `containerRef` handed
+to the composable, mount the real component and assert it holds an `HTMLElement`, which goes null the
+instant `ref="containerRef"` is dropped — the silent-failure seam I named as NB1 on the gesture
+review. The recorded installed-PWA device evaluation is still outstanding and still blocks main.
+
+What I blocked on is a factual inversion in the PWA documentation. `docs/pwa-guide.md` adds the
+Swipe Navigation row to a table closed by "These preferences are saved in your browser's local
+storage and persist across sessions", which is now false for the row just added to it. Account-wide
+server persistence is the whole reason this feature exists; section 1 of the design rejected local
+storage precisely so the setting would follow the user across devices. `docs/features/pwa-features.md`
+repeats the error by filing the bullet under a "Settings → Appearance" heading and then contradicting
+itself in its own last clause. `docs/features.md` is correct. A user-visible setting whose documented
+data residency is the opposite of the shipped contract is not a typo, and it was heading into git
+history — §19 and §21 item 7.
+
+Ownership took some walking. Aurelia authored the docs and is locked out. Scribe and Ralph are
+infrastructure and routing only, Brutus is QA, and I do not implement. Cassius is eligible, is not
+locked out on this artifact, already owns the OpenAPI documentation surface for the same feature, and
+the correction is a statement about backend data residency — his contract. Standing up a new
+specialist for two markdown lines would have failed Principle IV, unlike the Marcellus escalation
+where the work was genuinely a distinct engineering discipline.
+
+Non-blocking: a `// Password` comment now mislabelling `pwaSwipeNavEnabled` in the composable return
+object; a stray UTF-8 BOM on `SettingsAccountSection.test.ts` and two Go test files left without a
+trailing newline; a duplicate-listener test that cannot fail because `addEventListener` dedupes
+identical callbacks; live enable/disable tests that replace the user object where production mutates
+the property in place; and register-only coverage of the auth payload field.
+
+## §17 Quality Gate: pass on code, fail on documentation per Principle IV, V, VI; constitution §17, §18.2, §19, §21
+
+## 2026-08-21 — Account-Wide PWA Swipe Preference, B1 Docs Revision Review
+
+**`docs/features/pwa-features.md` cleared. `docs/pwa-guide.md` block retained.** Revision on the one
+remaining file assigned to Aurelia; Cassius is locked out as the author of the defect now being
+rejected.
+
+The substance I blocked on is genuinely fixed in both files. Swipe Navigation is out of the Appearance
+framing, sits under an Account heading, and is described as stored with the user account, following
+across devices, off by default, and scoped to the installed app. The device-local Appearance wording
+survives verbatim and the local-storage sentence now sits inside the Appearance block where it is
+actually true. `docs/features/pwa-features.md` is correct as written — a relabelled Appearance list
+plus a clean Account bullet.
+
+`docs/pwa-guide.md` did not land. The Account Tab entry is a table row with no header row, no
+delimiter row, no trailing pipe, and no blank line separating it from the paragraph above. I did not
+argue this from the spec — I rendered the section through GitHub's own `/markdown` endpoint in `gfm`
+mode, the renderer that actually serves this repository, and it returns a paragraph containing literal
+pipe characters. The page shows a correct Appearance table immediately followed by what reads as a
+broken copy of one. The block was raised against what the reader sees, so accurate wording inside a
+construct that does not render does not clear it. Two lines, and the fix is either a proper header and
+delimiter or the bullet form that the sibling file already uses.
+
+Ownership took a judgement call worth recording. Cassius authored this revision, so the defect is his
+and Strict Lockout attaches to him for this cycle. Aurelia's lockout belonged to the previous cycle,
+which closed when Cassius delivered and I reviewed it; the current defect is not hers, and user-facing
+documentation is her standing surface. Treating lockout as permanent rather than per-cycle would have
+left no eligible owner for a two-line Markdown fix and pushed us toward another specialist
+escalation, which Principle IV does not support at this size.
+
+Code clearance from the implementation review is unaffected and was not re-verified. Beta only; the
+recorded installed-PWA device evaluation is still the outstanding main-line gate.
+
+## §17 Quality Gate: partial pass — one documentation file cleared, one retained per Principle IV; constitution §17, §18.2, §19, §21
+
+## 2026-08-21 — Account-Wide PWA Swipe Preference, B1a Clearance
+
+**CLEAR.** B1 is fully closed and no blocks remain against this change. Released to `beta`.
+
+Aurelia's revision gives the Account Tab block a preceding blank line, a `Setting | Description`
+header, a delimiter row, and a complete Swipe Navigation row. I re-rendered the section through
+GitHub's `/markdown` endpoint in `gfm` mode rather than reading the source and assuming, and it now
+emits a proper table with both cells populated, matching the Appearance table above it. The literal
+pipes are gone from the reader's view, which was the entire finding.
+
+The approved wording came through byte for byte, the device-local Appearance table and its
+local-storage sentence are untouched, and the whole file diff is one heading rewording plus five added
+lines. No trailing whitespace, no BOM, newline at end. The only residue is that the new row omits the
+trailing pipe the Appearance rows carry; GFM parses it correctly and the render proves it, so forcing
+another cycle over a cosmetic asymmetry would be exactly the disproportionate enforcement Principle IV
+warns against. Noted as non-blocking and left for whoever next touches the file.
+
+Three cycles on this change and each block was worth it: a data-residency inversion in the user
+guide, then a construct that did not render, then clean. Both revisions were verified against the
+renderer that actually serves the repository, not against my reading of the spec — the second defect
+would have shipped if I had only checked the wording.
+
+Beta only. The mounted call-site half of the main-line gate is satisfied; the recorded installed-PWA
+device evaluation is still outstanding and still blocks any `main` PR.
+
+## §17 Quality Gate: pass per Principle IV, V, VI; constitution §17, §18.2, §19, §21
