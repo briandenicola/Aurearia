@@ -152,6 +152,72 @@ describe('removeCoinBackground (worker client)', () => {
     await expect(promise).rejects.toMatchObject({ stage: 'message-error' })
   })
 
+  it('terminates the crashed worker and constructs+uses a fresh one on the next call after an "error" event', async () => {
+    const first = removeCoinBackground(new Blob(['a'], { type: 'image/png' }))
+    const deadWorker = currentWorker()
+
+    deadWorker.emitError('script failed to load')
+    await expect(first).rejects.toMatchObject({ stage: 'worker-error' })
+    expect(deadWorker.terminate).toHaveBeenCalledTimes(1)
+
+    // A later call must not reuse the dead instance -- it must construct a
+    // fresh worker, and that fresh worker must actually complete the request
+    // (not just exist), proving the singleton was recreated, not just leaked.
+    const second = removeCoinBackground(new Blob(['b'], { type: 'image/png' }))
+    expect(FakeWorker.instances).toHaveLength(2)
+    const freshWorker = currentWorker()
+    expect(freshWorker).not.toBe(deadWorker)
+
+    freshWorker.emitMessage({ id: freshWorker.lastRequestId(), ok: true, result: new Blob(['out'], { type: 'image/png' }) })
+    await expect(second).resolves.toBeInstanceOf(Blob)
+  })
+
+  it('terminates the crashed worker and constructs+uses a fresh one on the next call after a "messageerror" event', async () => {
+    const first = removeCoinBackground(new Blob(['a'], { type: 'image/png' }))
+    const deadWorker = currentWorker()
+
+    deadWorker.emitMessageError()
+    await expect(first).rejects.toMatchObject({ stage: 'message-error' })
+    expect(deadWorker.terminate).toHaveBeenCalledTimes(1)
+
+    const second = removeCoinBackground(new Blob(['b'], { type: 'image/png' }))
+    expect(FakeWorker.instances).toHaveLength(2)
+    const freshWorker = currentWorker()
+    expect(freshWorker).not.toBe(deadWorker)
+
+    freshWorker.emitMessage({ id: freshWorker.lastRequestId(), ok: true, result: new Blob(['out'], { type: 'image/png' }) })
+    await expect(second).resolves.toBeInstanceOf(Blob)
+  })
+
+  it('does not clear a newer worker when a stale event from an already-replaced worker fires late', async () => {
+    // Simulate reentrancy/event-ordering: worker A crashes and is replaced by
+    // worker B, but A's `error` event listener is invoked again afterward
+    // (e.g. a duplicate/late-delivered DOM event). This must not null out the
+    // singleton that now points at the healthy worker B.
+    const first = removeCoinBackground(new Blob(['a'], { type: 'image/png' }))
+    const workerA = currentWorker()
+    workerA.emitError('first crash')
+    await expect(first).rejects.toMatchObject({ stage: 'worker-error' })
+
+    const second = removeCoinBackground(new Blob(['b'], { type: 'image/png' }))
+    const workerB = currentWorker()
+    expect(workerB).not.toBe(workerA)
+
+    // Late/duplicate error event from the already-invalidated worker A.
+    workerA.emitError('stale late event from replaced worker')
+
+    // worker B must still be the live singleton and able to complete `second`.
+    workerB.emitMessage({ id: workerB.lastRequestId(), ok: true, result: new Blob(['out'], { type: 'image/png' }) })
+    await expect(second).resolves.toBeInstanceOf(Blob)
+
+    // A subsequent call must still reuse worker B (not be forced to recreate),
+    // proving the stale event from A did not null the singleton.
+    const third = removeCoinBackground(new Blob(['c'], { type: 'image/png' }))
+    expect(FakeWorker.instances).toHaveLength(2)
+    workerB.emitMessage({ id: workerB.lastRequestId(), ok: true, result: new Blob(['out2'], { type: 'image/png' }) })
+    await expect(third).resolves.toBeInstanceOf(Blob)
+  })
+
   it('correlates concurrent requests by id so responses resolve the matching caller', async () => {
     const first = removeCoinBackground(new Blob(['a'], { type: 'image/png' }))
     const second = removeCoinBackground(new Blob(['b'], { type: 'image/png' }))
