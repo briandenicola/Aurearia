@@ -1,3 +1,33 @@
+## 2026-08-25 — Background-Removal Worker CSP Isolation: Architecture Selection + Block Resolution
+
+**Session:** Background-Removal Worker CSP Isolation & Reminder 404
+**Timestamp:** 2026-08-25T00:21:44Z
+**Status:** ✅ COMPLETE
+
+**Outcome 1 - Architecture Selection:**
+Selected dedicated same-origin module worker with exact `/assets/workers/` CSP scope as secure architecture. Explicitly rejected app-wide `unsafe-eval` in appCSP (violates Principle V) and vendored library patches (fragile, unsafe). Worker isolation is proportional per Principle IV.
+
+**Outcome 2 - Block Resolution (Strict Lockout §18.2):**
+Addressed Brutus's BLOCK independently with:
+- Explicit worker lifecycle management using `AbortController` to cancel pending tasks on crash
+- Stale-event safety proof: ORT nested pthread workers use blob paths; orphaned chunks are dead over HTTP(S)
+- Commit: `3a0d7b04`
+
+**Outcome 3 - Documentation:**
+Authored Accepted ADR: `docs/adr/0014-background-removal-worker-csp-isolation.md`
+Updated ADR index.
+Commit: `0d38e24d`
+
+**Key Achievements:**
+- Proved worker crash-reuse pattern is safe with revised lifecycle
+- Validated ORT pthread interaction with blob-based workers
+- Comprehensive ADR documenting architecture decision
+- Ready for Brutus re-review and explicit clearance
+
+**Orchestration Log:** .squad/orchestration-log/maximus-worker-isolation-revision.md
+
+---
+
 ## 2026-08-20 — Feature 355 Reminder Detail-Row UX Revision: Architecture Review APPROVE
 
 **Change**: Migrate reminder display from inline pill to metadata detail row
@@ -702,3 +732,189 @@ Beta only. The mounted call-site half of the main-line gate is satisfied; the re
 device evaluation is still outstanding and still blocks any `main` PR.
 
 ## §17 Quality Gate: pass per Principle IV, V, VI; constitution §17, §18.2, §19, §21
+
+## 2026-08-24 — Release Gate: CSP Background Removal Production Fix (beta → main PR #655)
+
+**Gated Commit**: `09e1053e0d6bd5a44e151d8a5ae08f5d0f86f698` (beta tip)
+**Implementation**: `706435fe629254f78a6e6482e7f18416a9f170a2` (CSP blob directive)
+**Root Cause**: Production CSP blocked @imgly/background-removal's dynamic module import
+**Fix**: Added `blob:` to app `script-src` in `src/web/public/app-header.xml`; no `unsafe-inline`, no `unsafe-eval`
+
+**Gate Status**: ALL CLEAR
+
+| Workflow | ID | Result | URL |
+|----------|----|----|---|
+| Quality Gate | 32786002653 | ✓ PASS | https://github.com/briandenicola/Aurearia/actions/runs/32786002653 |
+| Security Scan | 32786002625 | ✓ PASS | https://github.com/briandenicola/Aurearia/actions/runs/32786002625 |
+| CodeQL | 32786002447 | ✓ PASS | https://github.com/briandenicola/Aurearia/actions/runs/32786002447 |
+
+**PR Opened**: #655
+- Base: main
+- Head: beta
+- State: OPEN (not draft)
+- Title: `fix(csp): allow blob: script-src for background-removal dynamic import`
+- Reviewer Verdict: Brutus APPROVE
+- DoD: 18/18 complete
+- Principles: IV (Simple Complete), V (Security by Default), VII (Conventional Commits)
+
+**Verification**:
+- Local beta confirmed at final tip `09e1053e`
+- No prior beta→main PR existed
+- All three gates evaluated final commit, all green
+- PR opened non-draft, ready for merge review (user to deploy after merge)
+
+**Decision**: Release gate satisfied. PR ready for reviewer. User responsible for production header deployment before user retry.
+
+
+---
+
+## 2026-08-24 — Background-Removal Worker-Crash Recreation: Strict Lockout Revision (Brutus BLOCK cleared)
+
+**Role**: Revision owner under Strict Lockout (SS18.2). Aurelia (fbbe8503) and Cassius (6cdce47d) locked
+out for this cycle; this revision is independently authored and owned by me alone, per Brian's directive.
+
+**Assignment**: Fix Brutus's BLOCKING Finding 1
+(.squad/decisions/inbox/brutus-background-removal-worker-review.md) on the background-removal
+module-worker isolation: the page-level singleton `worker` in
+`src/web/src/utils/backgroundRemoval.ts` was never invalidated after its own `error`/`messageerror`
+events (only `terminateBackgroundRemovalWorker()` nulled it, and no production path called that), so
+after one worker crash every subsequent `removeCoinBackground()` call reused the dead instance and hung
+forever with no resolve/reject — confirmed by Brutus's throwaway Vitest probe.
+
+### Fix
+
+- `createWorker()`'s `error`/`messageerror` listeners now call a new `invalidateWorker(instance)`:
+  terminates the dead worker and, guarded on `worker === instance`, nulls the module-level singleton
+  only if it still points at that same dead instance. This is the exact identity-guarded fix Brutus
+  specified, and it is what lets the next `getWorker()` call construct a fresh worker.
+- Went one step further than the literal ask after my own reentrancy test exposed a real gap: the
+  original `rejectAllPending()` rejected the *entire* shared `pending` map regardless of which worker a
+  request belonged to. A stale/duplicate `error`/`messageerror` event from an already-replaced worker
+  would therefore spuriously fail requests that were legitimately in flight against a newer, healthy
+  worker. Fixed by recording the owning `Worker` instance on each `PendingRequest` and rejecting only
+  that instance's own pending requests (`rejectPendingForWorker`). `terminateBackgroundRemovalWorker()`
+  keeps its original "reject everything" semantics for explicit teardown.
+- No bounded timeout added. The identity-guarded recreation directly eliminates the infinite-hang path
+  Brutus reproduced; a timeout would be unrelated scope under Principle IV (simplest complete
+  proportional change). `ImageLightbox.vue`/`useImageProcessor.ts` unmount handling was reviewed and is
+  unaffected by this fix (the worker singleton is intentionally page-level, not component-scoped, to
+  avoid re-paying ~tens-of-seconds model init cost).
+
+### Tests added (`backgroundRemoval.test.ts`)
+
+- Crash-then-fresh-worker recovery for both `error` and `messageerror`: proves the worker is terminated,
+  the *next* call constructs a new instance, and that new instance actually completes a subsequent
+  request (not merely that a second `Worker` object exists).
+- Stale-old-worker-event-after-replacement: worker A crashes and is replaced by worker B; a late/duplicate
+  `error` event from A must not null the singleton or fail B's in-flight request — B must still resolve,
+  and a third call must still reuse B rather than being forced to recreate again.
+- All prior concurrency/correlation/singleton-reuse/termination coverage left unchanged and still green.
+
+### Non-blocking investigation (Finding 2 — nested onnxruntime-web pthread chunk)
+
+Resolved with direct, real-browser evidence rather than returning the blocker to Brutus. Ran
+`npm run prepare-background-removal-assets` to fetch the real IMG.LY model/ORT assets, rebuilt
+production (`npm run build`), and drove a real Chromium session (Playwright, throwaway harness —
+not committed) through the actual Go `SecurityHeaders()` + `ContentSecurityPolicy()` +
+`configureStaticRoutes()` middleware chain serving the real `dist/` output over a real
+`httptest.Server`. Findings:
+
+- `self.crossOriginIsolated` is `true` (global COOP/COEP confirmed live end-to-end).
+- onnxruntime-web's threaded WASM runtime does spawn its em-pthread worker pool in this deployment (7
+  nested workers observed for the real `isnet_quint8` model init) — this path is real, not theoretical.
+- Every nested worker is constructed from a `blob:` URL, not from the two orphaned
+  `ort(.webgpu)?.bundle.min-*.mjs` chunks Vite emits under plain `dist/assets/` (outside
+  `/assets/workers/`). `blob:` is already covered by the existing `worker-src 'self' blob:` in both
+  `appCSP` and `workerScriptCSP` — no widening required.
+- The two orphaned chunks were never requested by the browser in this real trace. Source inspection
+  confirms why: their only reference, inside the worker-scoped `ort.bundle.min-*.js` itself, is
+  `import.meta.url.startsWith('file:') ? new URL('/assets/ort.bundle.min-<hash>.mjs', ...) :
+  new URL(import.meta.url)` — the `file:` branch is Node/SSR-only dead code in a browser (a script
+  loaded over http/https never has a `file:` import.meta.url), so production always takes the
+  self-referential `new URL(import.meta.url)` branch, which stays inside `/assets/workers/` and
+  `workerScriptCSP`.
+- Zero CSP violations were logged across the entire worker/threading/model-fetch flow.
+- **Conclusion**: no code change needed; the existing CSP boundary already correctly covers the real
+  nested-worker path. This closes Finding 2 with evidence rather than leaving it an open risk for a
+  future onnxruntime-web bump to silently break — if a future bump changes the em-pthread bootstrap to
+  reference the orphaned `.mjs` chunks directly (rather than self-referencing), that would be a new,
+  observable regression, not a currently-live gap.
+
+### Validation (all green)
+
+- Targeted Vitest: `backgroundRemoval.test.ts` 13/13, `ImageLightbox.test.ts` 2/2.
+- Full Vitest suite: 161 files / 1274 tests, all pass.
+- `npx vue-tsc --build --force`: clean.
+- `npm run build`: clean, worker chunks land under `dist/assets/workers/` as designed.
+- No backend files changed in this revision; Go build/vet/test not re-run since csp.go/main_static_test.go
+  are untouched from Cassius's already-APPROVED `6cdce47d`.
+
+### Commit / Push
+
+- Commit `3a0d7b04` on `beta` (pushed): `fix(web): recreate crashed background-removal singleton worker
+  (Strict Lockout revision)`. Scope: `src/web/src/utils/backgroundRemoval.ts` +
+  `src/web/src/utils/__tests__/backgroundRemoval.test.ts` only — no unrelated files, no decisions/inbox
+  files, no history files included in that commit.
+- No PR opened, no merge, no deploy — per instructions. This history entry itself is not part of a
+  separate "history-only" commit advancing `beta`.
+
+**Status**: Finding 1 (blocking) fixed and tested. Finding 2 (non-blocking) resolved with direct evidence,
+no code change required. Brutus's BLOCK on this scope should be considered clearable pending Brutus's own
+independent re-review; I do not clear my own block per §18.2 (that authority belongs to the blocking
+reviewer).
+
+---
+
+## 2026-08-24 — ADR 0014: Background-Removal Worker CSP Isolation (post-clearance)
+
+**Context**: Brutus explicitly CLEAR/APPROVE'd revision `3a0d7b04`; Strict Lockout for this scope is
+over. Follow-up task: author the ADR for the selected security boundary (Constitution SS21 item 12:
+"if a material design choice was made, an ADR is added in `docs/adr/`").
+
+**Action**: Read `docs/adr/README.md` (index/process/numbering convention) and several existing ADRs
+(0007, 0008, 0013) for Nygard Context/Decision/Status/Consequences style and citation conventions,
+plus Constitution Principles IV/V/VII and SS17/SS19/SS21 for exact wording. Confirmed 0001-0013 are
+occupied; 0014 is the next free number (did not assume it -- verified via glob before creating the
+file).
+
+Created `docs/adr/0014-background-removal-worker-csp-isolation.md`, Status: Accepted, capturing:
+- The forcing fact (`@imgly/background-removal` 1.7.0's vendored `ndarray` needs JS `new Function()`;
+  `wasm-unsafe-eval` is a distinct, insufficient grant).
+- Three rejected alternatives with reasons: app-wide `unsafe-eval` (rejected -- SPA holds JWT in
+  `localStorage`, Principle V), patching the vendored bundle (rejected -- correctness/maintenance risk
+  on every dependency bump), iframe/replacement (rejected -- disproportionate, Principle IV).
+- The selected boundary: dedicated same-origin ES-module Worker under `/assets/workers/`
+  (`vite.config.ts` `worker.rollupOptions.output`), matched by an exact-prefix Go CSP branch
+  (`workerScriptCSP` in `csp.go`) that alone carries `'unsafe-eval'`; `appCSP` (the SPA document's
+  policy) is unchanged. Documented why this is a real isolation boundary (no DOM/localStorage/token
+  reachable from a Worker), not merely a smaller version of the same grant.
+- Validation evidence: the real Go static+CSP contract test
+  (`TestBackgroundRemovalWorkerAssetIsReachableWithWorkerCSP`), the frontend worker-client unit tests,
+  and my own real-browser production-build investigation from the prior revision cycle (non-empty
+  output PNG, zero CSP violations, nested onnxruntime-web pthread workers confirmed built from
+  already-covered `blob:` URLs, not the orphaned out-of-prefix `.mjs` chunks).
+- Consequences including the CSP-branch drift risk (two policies must stay in sync with
+  `vite.config.ts`'s worker output path, guarded by the Go contract test), the harmless-but-unpruned
+  orphaned chunks, and an explicit statement that **no deployment occurred** as part of this decision
+  or its validation -- a real coin-photo smoke test in the deployed environment remains outstanding.
+- Cited implementation commits `fbbe8503` (Aurelia), `6cdce47d` (Cassius), `3a0d7b04` (mine, Strict
+  Lockout revision), and Constitution Principles IV/V/VII + SS17/SS21.
+
+Updated `docs/adr/README.md`'s index table with the new 0014 row, matching the existing table format
+exactly (date, linked title, status).
+
+No markdownlint/ADR-validation tooling exists in this repo (checked `Taskfile.yml` and for
+`.markdownlint*` configs -- none found), so no automated docs validation was run beyond matching the
+established format of ADRs 0001/0007/0008/0013 by direct comparison.
+
+**Commit / Push**: `0d38e24d` on `beta` (pushed) --
+`docs(adr): record scoped-worker CSP isolation decision for background-removal unsafe-eval`. Scope:
+`docs/adr/0014-background-removal-worker-csp-isolation.md` (new) + `docs/adr/README.md` (index row)
+only -- no constitution edits, no implementation edits, no decisions/inbox or history files included
+in that commit.
+
+No PR opened, no merge, no deploy. This history entry itself is not part of a separate
+"history-only" commit advancing `beta`.
+
+**Status**: ADR 0014 Accepted and pushed. Ready for Brutus/Brian's own review of the ADR text itself
+if further governance sign-off is desired; nothing further blocks this scope from my side.

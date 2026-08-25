@@ -1,4 +1,25 @@
-﻿## 2026-08-21 -- Experimental PWA Coin-Detail Swipe Navigation (beta only)
+﻿## 2026-08-25 — Background-Removal Worker CSP Isolation
+
+**Session:** Background-Removal Worker CSP Isolation & Reminder 404
+**Timestamp:** 2026-08-25T00:21:44Z
+**Status:** ✅ COMPLETE
+
+**Task:** Diagnose IMG.LY 1.7.0 background-removal failure; prove worker isolation feasibility
+**Outcome:** Diagnosed `new Function` constraint in vendored ndarray; proved dedicated same-origin worker with scoped CSP enables safe IMG.LY execution (commit `fbbe8503`)
+
+Aurelia diagnosed the root cause of the second background-removal failure: IMG.LY 1.7.0 includes a vendored ndarray library that uses JS `new Function` for numerical operations, which the app's CSP correctly blocks. Aurelia proved that dedicated same-origin worker isolation (worker thread in `/assets/workers/`) with worker-scoped CSP allows IMG.LY operations without app-wide CSP relaxation, aligning with Principle V (Security by Default).
+
+**Key Contributions:**
+- Worker client/config/tests implementation
+- Established worker-only CSP isolation architecture
+- Proved cross-origin-isolated mode enables worker-side math without app-level unsafe-eval
+- Ready for Maximus architecture review and Cassius CSP implementation
+
+**Orchestration Log:** .squad/orchestration-log/aurelia-background-removal-worker-isolation.md
+
+---
+
+## 2026-08-21 -- Experimental PWA Coin-Detail Swipe Navigation (beta only)
 
 **Task:** Implement left/right swipe between coin-detail menu pages in installed PWA mode
 **Outcome:** Composable implemented, wired into two call sites, horizontal-scroller audit done; type-check + build green
@@ -458,3 +479,126 @@ onCommit/onCancel/onMove/onStart callbacks. Consumers own navigation/animation/b
 ### Deferred
 Gallery and Tray pointer engine migration is Phase 2, blocked on Brutus's characterization tests.
 Decision record: .squad/decisions/inbox/aurelia-shared-swipe-phase1.md
+
+---
+
+## 2026-08-24 -- Background removal: post-CSP-fix failure is a second, distinct CSP gap
+
+**Directive:** Diagnose the new runtime failure after Cassius's `706435fe` (blob: script-src fix).
+**Requested by:** Brian DeNicola
+
+### Root cause (proven, not guessed)
+Not a regression of the blob: fix -- a *second*, previously-masked CSP gap. `@imgly/background-removal@1.7.0`
+bundles `ndarray@1.0.19` verbatim (`dist/index.mjs`, `require_ndarray` block). `ndarray`'s
+`compileConstructor()` unconditionally builds typed-array view classes via `new Function(code)` --
+no feature-detection, no fallback. This runs on the *first* tensor operation of every session
+(`imageDecode` -> `wrappedNDArrayCtor` -> `compileConstructor`, then again for resize/HWC->BCHW/etc.,
+each distinct dtype+dimension pair). `script-src`'s existing `'wasm-unsafe-eval'` only covers
+WebAssembly compilation; it does not cover `new Function()`/`eval()` for JS strings -- that requires
+`'unsafe-eval'`, which the policy correctly does not grant (csp.go's own comment says so explicitly).
+
+### How I proved it (not guessed from the empty console object)
+Built a throwaway repro (`repro.html` importing `removeCoinBackground` directly + a small Playwright
+script) served via `vite dev`, with a temporary plugin replicating `appCSP` verbatim as a response
+header (dev server sets no CSP by default, so this was a required addition to reproduce the failure
+class). Without the CSP header: success (imgly's own code detects `crossOriginIsolated` is false and
+warns + falls back to single-threaded WASM -- so the earlier `numThreads`/`SharedArrayBuffer` angle
+some of us might reach for first is a dead end, not the cause). With the header: reproduced the exact
+production failure --
+`EvalError: Evaluating a string as JavaScript violates ... script-src 'self' 'wasm-unsafe-eval' blob:`
+-- with a stack through `compileConstructor -> wrappedNDArrayCtor -> imageDecode -> imageSourceToImageData
+-> removeBackground`. Confirmed the "unhelpful/empty logged value" in the production report:
+`JSON.stringify(evalError)` is `{}` because `Error`'s `message`/`stack` are non-enumerable -- the object
+itself was never actually empty, only its JSON serialization is. All repro files (`repro.html`,
+`repro-playwright.mjs`, the vite.config.ts CSP-header plugin, and the locally-downloaded
+`public/imgly-background-removal/` assets) were deleted/reverted before finishing; none were committed.
+
+### Why I did not touch csp.go or commit anything
+1.7.0 is the latest published version (checked npm) -- there is no newer release that replaces `ndarray`
+with something eval-free, and patching the vendored bundle (patch-package on a minified third-party
+dist to swap out `compileConstructor`) is exactly the "replace/generalize infrastructure" move the
+directive told me to avoid unless proven necessary, and it would be fragile against any future
+`@imgly/background-removal` bump. CSP hashes/nonces do not cover `eval`/`new Function` (CSP3 has no
+hash-based allowance for dynamic-string execution, only for inline `<script>`/handlers). The only real
+fix is adding `'unsafe-eval'` to `script-src` in `src/api/middleware/csp.go` -- a substantive, global
+security-policy relaxation (re-enables arbitrary string-to-JS execution for the whole page, not just
+this library), squarely Cassius's call and probably an ADR-worthy tradeoff (§22), not a unilateral
+frontend patch. Per the directive's explicit branch for this case, I stopped rather than making a
+hopeful/partial commit.
+
+### Takeaway for next time
+When a bundled library needs both `'wasm-unsafe-eval'` (WASM compile) and dynamic tensor/typed-array
+codegen (`ndarray`-style `new Function`), those are two independent CSP grants -- fixing the wasm one
+does not fix the eval one, and vice versa (mirrors the `worker-src`/`connect-src`/`script-src` blob:
+lesson from `706435fe`). Before trusting any "empty" logged error object, try `JSON.stringify` on a
+known `Error` locally first -- it reproduces the same `{}` and rules out a genuinely swallowed error
+before spending time chasing one.
+
+## 2026-08-24 -- Background removal: dedicated module-worker CSP isolation (Maximus's design), spiked and implemented
+
+**Task:** Follow-up to the two entries above. Maximus selected a dedicated same-origin ES-module Worker
+with an exact-path CSP rule over site-wide `'unsafe-eval'` or a `patch-package` de-eval rewrite. Required
+a real (non-mocked) spike proving the design before any implementation.
+
+### Spike (dev mode, then repeated against the production build)
+Built a throwaway harness page + Playwright script twice: once against `vite dev` (source), once against
+`vite build` output served by a minimal static Node server (`dist/`). Both times, a Vite dev/prod
+middleware/server set the **page** response to a strict CSP (`script-src 'self' 'wasm-unsafe-eval'
+blob:` -- no `'unsafe-eval'`) while only responses whose path matched the worker's own script (dev:
+`/src/workers/...` + the `@imgly_background-removal` optimized-dep chunk; prod: `/assets/workers/*`)
+got a separate CSP adding `'unsafe-eval'`. A real `new Worker(new URL(...), {type:'module'})` posting a
+real image Blob to `backgroundRemovalWorker.ts` (which calls the real `@imgly/background-removal`
+`removeBackground()`, no mocks) returned a non-empty `image/png` Blob (~4 MB) in both dev and prod-build
+runs. **Negative control**: reapplying the strict CSP to the worker's own response reproduced the exact
+production `EvalError: ... 'unsafe-eval' is not an allowed source of script ...` -- proving the CSP header
+is what's actually gating the behavior, not a coincidence. All spike artifacts (`worker-csp-spike.html`,
+`*-playwright.mjs`, `build-spike-server.mjs`, temporary `vite.config.ts` CSP-plugin edits, scratch
+`dist/`) were deleted/reverted before implementing; none were committed.
+
+### Implementation
+- `src/web/src/workers/backgroundRemovalConfig.ts` (new): shared config, moved off `window.location.origin`
+  onto the bare `location` global so it resolves in both `Window` and `WorkerGlobalScope`.
+- `src/web/src/workers/backgroundRemovalWorker.ts` (new): the actual module worker entry -- static
+  `import { removeBackground } from '@imgly/background-removal'`, a `{id, image}` -> `{id, ok, result|error}`
+  message protocol.
+- `src/web/src/utils/backgroundRemoval.ts` (rewritten): `removeCoinBackground(image): Promise<Blob>` keeps
+  its exact signature (both call sites, `ImageLightbox.vue` and `useImageProcessor.ts`, needed zero edits).
+  Internally it's now a worker client: a lazily-created page-level singleton `Worker` (avoids repeated
+  30-60s model init per component instance), `Map`-based request correlation via an incrementing id (not
+  `crypto.randomUUID()`, for deterministic tests), and a `BackgroundRemovalError` typed error (`stage:
+  'library' | 'worker-error' | 'message-error' | 'terminated'`). On a worker-level `error` or
+  `messageerror` event the specific failing request can't be attributed, so *all* currently-pending
+  requests are rejected rather than left hanging. `terminateBackgroundRemovalWorker()` exported for
+  tests/teardown.
+- `src/web/vite.config.ts`: added `worker: { format: 'es', rollupOptions: { output: { entryFileNames:
+  'assets/workers/[name]-[hash].js', chunkFileNames: 'assets/workers/[name]-[hash].js' } } }`. Confirmed
+  via `npm run build` + file inspection that this pins *every* worker-reachable chunk -- including
+  `@imgly/background-removal`'s internal dynamically-imported `onnxruntime-web` (`ort.bundle.min-*.js`,
+  `ort.webgpu.bundle.min-*.js`) -- under `assets/workers/`, and that grepping every other emitted chunk
+  for `imgly`/`onnxruntime`/`removeBackground` turns up nothing: the eval-needing code is fully confined
+  to that one directory prefix.
+
+### Backend integration contract for Cassius
+Apply the worker-scoped CSP addition (`'unsafe-eval'` alongside the existing `'wasm-unsafe-eval'`, `blob:`,
+etc.) only to responses whose request path has the prefix `/assets/workers/` -- exactly mirroring the
+existing `strings.HasPrefix(c.Request.URL.Path, "/swagger")` pattern in `csp.go`. Do **not** add
+`'unsafe-eval'` to the app-wide `appCSP`. The exact Worker constructor URL Vite emits (verified in the
+build output) is a fully static, build-time-resolved path like `/assets/workers/backgroundRemovalWorker-
+<hash>.js` -- no runtime manifest lookup needed, the prefix alone is sufficient and the hash will change
+per release the same way every other asset hash does.
+
+### Tests
+Rewrote `src/web/src/utils/__tests__/backgroundRemoval.test.ts`: config assertions unchanged, plus a new
+fake-`Worker` (`vi.stubGlobal`) suite covering success, a library error surfaced through the worker,
+worker `error` event (rejects all pending, doesn't hang), `messageerror` event, out-of-order concurrent
+request correlation by id, singleton reuse across calls, and `terminateBackgroundRemovalWorker()`
+(terminates + rejects in-flight + next call builds a fresh worker). jsdom/happy-dom don't implement real
+Workers or enforce CSP, so a real Playwright CSP-differentiated regression isn't practical to run as part
+of the Vitest suite; the two ad hoc Playwright spikes (dev + build) are the authoritative evidence for
+this PR, and the actual page-vs-worker CSP header split can only be regression-tested once Cassius's
+`/assets/workers/` rule exists in the real backend -- that's the natural home for a real e2e spec.
+
+### Validation
+Targeted Vitest (`backgroundRemoval.test.ts` 10/10, `ImageLightbox.test.ts` 2/2, full suite 258/258),
+direct-node `vue-tsc --build --force` (exit 0), direct-node `vite build` (exit 0, worker chunks verified
+under `assets/workers/`).

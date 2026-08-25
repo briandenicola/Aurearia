@@ -64,5 +64,6 @@ ADR 0001 for the full list.
 | 0011 | [Persisted Deep Agentic Coin Identification](0011-deep-agentic-coin-identification.md) | 2026-08-16 | Proposed (amended by 0012) |
 | 0012 | [Vision-First Deep Identification (Image Hypothesis as Primary Claim Source)](0012-vision-first-deep-identification.md) | 2026-08-16 | Accepted |
 | 0013 | [Wishlist Coins May Hold Catalog References](0013-wishlist-coins-may-hold-catalog-references.md) | 2026-08-17 | Proposed (amends Feature 351) |
+| 0014 | [Scoped-Worker CSP Isolation for Background-Removal `unsafe-eval`](0014-background-removal-worker-csp-isolation.md) | 2026-08-24 | Accepted |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

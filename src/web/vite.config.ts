@@ -124,6 +124,22 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  worker: {
+    // Module format (not the default 'iife') so the worker's static
+    // `import` statements (backgroundRemovalWorker.ts, @imgly/background-removal)
+    // work as real ESM, matching the `type: 'module'` Worker constructor
+    // option in src/utils/backgroundRemoval.ts.
+    format: 'es',
+    rollupOptions: {
+      output: {
+        // Stable directory prefix (hash still varies per build) so the
+        // backend can apply an exact-path CSP rule to worker assets only,
+        // mirroring the /swagger prefix rule in src/api/middleware/csp.go.
+        entryFileNames: 'assets/workers/[name]-[hash].js',
+        chunkFileNames: 'assets/workers/[name]-[hash].js',
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {
