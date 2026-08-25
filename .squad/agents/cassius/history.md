@@ -1,3 +1,25 @@
+## 2026-08-25 — Worker CSP Implementation + Reminder 404 Analysis
+
+**Session:** Background-Removal Worker CSP Isolation & Reminder 404
+**Timestamp:** 2026-08-25T00:21:44Z
+**Status:** ✅ COMPLETE
+
+**Task 1 - Reminder 404 Investigation:** Analyzed `GET /api/coins/284/reminder` 404 error
+**Outcome 1:** Confirmed intentional contract behavior; endpoint correctly returns 404 when no active reminder exists for a coin. No code change required.
+
+**Task 2 - Worker-Only CSP Implementation:** Implement CSP isolation for worker-scope background removal
+**Outcome 2:** Implemented worker-only CSP rules (`/assets/workers/` sandbox) and static contract tests validating CSP isolation. App-level CSP remains unchanged (no unsafe-eval). Commit `6cdce47d`.
+
+**Key Contributions:**
+- Worker-scoped CSP rules enabling IMG.LY numeric operations
+- Static contract tests for CSP compliance
+- Verified app-level appCSP unchanged (security by default)
+- Ready for QA validation
+
+**Orchestration Log:** .squad/orchestration-log/cassius-worker-csp-and-reminder-404.md
+
+---
+
 ## 2026-08-20 — Feature 355 Timezone Portability Hotfix: Production Defect Resolution
 
 **Context**: Alpine production container lacks `/usr/share/zoneinfo`; `time.LoadLocation` fails for valid IANA zones, returning HTTP 400 for legitimate user inputs.

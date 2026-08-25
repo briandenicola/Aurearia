@@ -1,4 +1,25 @@
-﻿## 2026-08-21 -- Experimental PWA Coin-Detail Swipe Navigation (beta only)
+﻿## 2026-08-25 — Background-Removal Worker CSP Isolation
+
+**Session:** Background-Removal Worker CSP Isolation & Reminder 404
+**Timestamp:** 2026-08-25T00:21:44Z
+**Status:** ✅ COMPLETE
+
+**Task:** Diagnose IMG.LY 1.7.0 background-removal failure; prove worker isolation feasibility
+**Outcome:** Diagnosed `new Function` constraint in vendored ndarray; proved dedicated same-origin worker with scoped CSP enables safe IMG.LY execution (commit `fbbe8503`)
+
+Aurelia diagnosed the root cause of the second background-removal failure: IMG.LY 1.7.0 includes a vendored ndarray library that uses JS `new Function` for numerical operations, which the app's CSP correctly blocks. Aurelia proved that dedicated same-origin worker isolation (worker thread in `/assets/workers/`) with worker-scoped CSP allows IMG.LY operations without app-wide CSP relaxation, aligning with Principle V (Security by Default).
+
+**Key Contributions:**
+- Worker client/config/tests implementation
+- Established worker-only CSP isolation architecture
+- Proved cross-origin-isolated mode enables worker-side math without app-level unsafe-eval
+- Ready for Maximus architecture review and Cassius CSP implementation
+
+**Orchestration Log:** .squad/orchestration-log/aurelia-background-removal-worker-isolation.md
+
+---
+
+## 2026-08-21 -- Experimental PWA Coin-Detail Swipe Navigation (beta only)
 
 **Task:** Implement left/right swipe between coin-detail menu pages in installed PWA mode
 **Outcome:** Composable implemented, wired into two call sites, horizontal-scroller audit done; type-check + build green
