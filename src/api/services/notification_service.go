@@ -645,31 +645,24 @@ const auctionLotsTrackedInAppLimit = 10
 // per lot, the coin name in bold, then the auction house/sale, lot number and how the lot is
 // being tracked, then a fully-qualified link into the app's auction view for that exact lot.
 // Every interpolated value is HTML-escaped — lot titles are scraped from third-party auction
-// sites, so they can carry markup. Lots are dropped (with a trailing summary line) once the
-// body would exceed Pushover's message length limit, mirroring the watch-bid digest, so a
-// large sync can never produce a message the API rejects.
+// sites, so they can carry markup. Batching and length-trimming are handled by the shared
+// buildBatchedLotMessage, the same path the watch-bid digest uses.
 func buildAuctionLotsTrackedPushoverMessage(lots []models.AuctionLot, publicAppBaseURL string) PushoverMessage {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("Auction sync started tracking %d new lot(s):\n\n", len(lots)))
-
-	for i, lot := range lots {
-		entry := fmt.Sprintf(
-			"<b>%s</b>\n%s\n",
-			html.EscapeString(auctionLotTitle(lot)),
-			html.EscapeString(auctionLotTrackingLabel(lot)),
-		)
-		if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lot.ID); lotURL != "" {
-			entry += fmt.Sprintf("<a href=\"%s\">View lot in Aurearia</a>\n", html.EscapeString(lotURL))
-		}
-		entry += "\n"
-
-		omittedNote := fmt.Sprintf("… %d more lot(s) omitted\n", len(lots)-i)
-		if builder.Len()+len(entry) > pushoverMessageLimit-len(omittedNote) {
-			builder.WriteString(omittedNote)
-			break
-		}
-		builder.WriteString(entry)
-	}
+	message := buildBatchedLotMessage(
+		fmt.Sprintf("Auction sync started tracking %d new lot(s):\n\n", len(lots)),
+		lots,
+		func(lot models.AuctionLot) string {
+			entry := fmt.Sprintf(
+				"<b>%s</b>\n%s\n",
+				html.EscapeString(auctionLotTitle(lot)),
+				html.EscapeString(auctionLotTrackingLabel(lot)),
+			)
+			if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lot.ID); lotURL != "" {
+				entry += fmt.Sprintf("<a href=\"%s\">View lot in Aurearia</a>\n", html.EscapeString(lotURL))
+			}
+			return entry + "\n"
+		},
+	)
 
 	// The notification-level action link mirrors the in-app reference: straight to the lot
 	// when there is exactly one, otherwise the auctions list.
@@ -684,7 +677,7 @@ func buildAuctionLotsTrackedPushoverMessage(lots []models.AuctionLot, publicAppB
 
 	return PushoverMessage{
 		Title:    auctionLotsTrackedTitle(len(lots)),
-		Message:  strings.TrimRight(builder.String(), "\n"),
+		Message:  message,
 		URL:      actionURL,
 		URLTitle: urlTitle,
 		HTML:     true,
