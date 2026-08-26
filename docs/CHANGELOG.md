@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **New auction lot notifications** — The background watchlist sync now sends one
+  batched notification when it starts tracking lots you watched or bid on at
+  NumisBids or CNG. The Pushover push is rich HTML listing each lot's coin name,
+  auction house and sale, lot number, and whether it is being watched or bid on,
+  with a fully-qualified link to that lot in the app (`/auctions?lot=<id>`, a new
+  deep link on the Auctions page). Requires **Public App URL** in Admin →
+  Settings for the links; users without Pushover still get the in-app
+  notification. See `specs/_backlog/F031-auction-sync-new-lot-notifications.md`.
+
 ## [4.0.0] — 2026-08-15
 
 ### Added

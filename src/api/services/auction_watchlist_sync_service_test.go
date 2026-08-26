@@ -1,8 +1,10 @@
 package services
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -17,10 +19,32 @@ func setupAuctionWatchlistSyncDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AuctionLot{}, &models.AuctionEvent{}); err != nil {
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get sql db: %v", err)
+	}
+	// NotifyAuctionLotsTracked fires Pushover on a background goroutine; pin the pool to one
+	// connection so it can't land on a second, unmigrated ":memory:" instance.
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&models.User{}, &models.AuctionLot{}, &models.AuctionEvent{}, &models.Notification{}, &models.AppSetting{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
+}
+
+// newSyncNotificationService builds the notification service the sync service notifies
+// through. Pushover is left unconfigured: these tests assert on the in-app notification the
+// sync creates synchronously, which is also the record a user without Pushover relies on (F027).
+func newSyncNotificationService(db *gorm.DB) *NotificationService {
+	logger := NewLogger(10)
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(db))
+	return NewNotificationService(
+		repository.NewNotificationRepository(db),
+		nil,
+		repository.NewUserRepository(db),
+		NewPushoverService(settingsSvc, logger),
+		logger,
+	)
 }
 
 // cngSyncFixture models a small watched-lots response covering, in one page, a still-active
@@ -299,5 +323,109 @@ func TestAuctionWatchlistSyncService_SyncNumiBidsNoPerLotScrape(t *testing.T) {
 	}
 	if lot.Currency != "EUR" {
 		t.Errorf("Currency = %q, want EUR", lot.Currency)
+	}
+}
+
+// TestAuctionWatchlistSyncService_NotifiesOnceForNewlyTrackedLots covers F031: a sync that
+// starts tracking lots the user did not have before must produce exactly one batched
+// notification naming every new lot, and a second sync over the same watchlist — where
+// nothing is new — must produce none.
+func TestAuctionWatchlistSyncService_NotifiesOnceForNewlyTrackedLots(t *testing.T) {
+	server := newCNGSyncTestServer(t, "4-OURCUSTOMER", "4-OTHERCUSTOMER")
+	defer server.Close()
+	restore := overrideCNGURLs(server.URL)
+	defer restore()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	syncSvc := NewAuctionWatchlistSyncService(auctionRepo, userRepo, nil, NewCNGAuctionService(nil), nil, nil).
+		WithNotifications(newSyncNotificationService(db))
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", CNGUsername: "user@example.com", CNGPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("SyncUser returned error: %v", err)
+	}
+
+	var notifications []models.Notification
+	if err := db.Where("type = ?", NotificationTypeAuctionLotsTracked).Find(&notifications).Error; err != nil {
+		t.Fatalf("failed to load notifications: %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("got %d new-lot notifications, want exactly 1 batched notification", len(notifications))
+	}
+
+	notification := notifications[0]
+	// The fixture holds four lots, but only the active one the user is bidding on is newly
+	// *tracked*; the three that arrive already closed are not new tracking activity.
+	if notification.Title != "New Auction Lot Tracked" {
+		t.Errorf("title = %q, want single-lot title", notification.Title)
+	}
+	if !strings.Contains(notification.Message, "Active Lot") {
+		t.Errorf("message does not name the new lot: %q", notification.Message)
+	}
+	if !strings.Contains(notification.Message, "Bidding") {
+		t.Errorf("message does not say how the lot is tracked: %q", notification.Message)
+	}
+	for _, closedLot := range []string{"Won Lot", "Lost Lot", "Watched Only Lot"} {
+		if strings.Contains(notification.Message, closedLot) {
+			t.Errorf("message names already-closed lot %q: %q", closedLot, notification.Message)
+		}
+	}
+	var newLot models.AuctionLot
+	if err := db.Where("source_lot_id = ?", "4-ACTIVE").First(&newLot).Error; err != nil {
+		t.Fatalf("new lot not found: %v", err)
+	}
+	if want := fmt.Sprintf("/auctions?lot=%d", newLot.ID); notification.ReferenceURL != want {
+		t.Errorf("ReferenceURL = %q, want %q", notification.ReferenceURL, want)
+	}
+
+	// Re-syncing the same watchlist adds nothing, so it must stay silent.
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("second SyncUser returned error: %v", err)
+	}
+	var afterResync int64
+	if err := db.Model(&models.Notification{}).Where("type = ?", NotificationTypeAuctionLotsTracked).Count(&afterResync).Error; err != nil {
+		t.Fatalf("failed to count notifications: %v", err)
+	}
+	if afterResync != 1 {
+		t.Fatalf("got %d notifications after re-sync, want 1 — an unchanged watchlist must not re-notify", afterResync)
+	}
+}
+
+// TestAuctionWatchlistSyncService_SyncsWithoutNotificationService guards the F026 rule that
+// syncing never depends on notification wiring: with no notification service attached, the
+// sync still refreshes lots instead of panicking or short-circuiting.
+func TestAuctionWatchlistSyncService_SyncsWithoutNotificationService(t *testing.T) {
+	server := newCNGSyncTestServer(t, "4-OURCUSTOMER", "4-OTHERCUSTOMER")
+	defer server.Close()
+	restore := overrideCNGURLs(server.URL)
+	defer restore()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	syncSvc := NewAuctionWatchlistSyncService(
+		repository.NewAuctionLotRepository(db),
+		repository.NewUserRepository(db),
+		nil,
+		NewCNGAuctionService(nil),
+		nil,
+		nil,
+	)
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", CNGUsername: "user@example.com", CNGPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	synced, err := syncSvc.SyncUser(user)
+	if err != nil {
+		t.Fatalf("SyncUser returned error: %v", err)
+	}
+	if synced != 4 {
+		t.Fatalf("synced = %d, want 4", synced)
 	}
 }

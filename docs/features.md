@@ -119,6 +119,7 @@ Track auction lots from NumisBids and CNG Auctions through a provider-aware bidd
 - **Won → Collection** — When a lot is marked as Won, use **Add to Collection** to create a collection coin from mapped auction data such as title, category, auction house, sale date, and bid price.
 - **AI Auction Search** — Ask the AI agent to search supported auction sources such as NumisBids and CNG Auctions for coins matching a description. The agent (Team 5) searches, fetches lot details, and formats results.
 - **Credential Validation** — NumisBids and CNG credentials are validated against the live provider before being saved. The Settings page shows connected/error/validating status indicators.
+- **New Lot Notifications** — When the background watchlist sync starts tracking lots you watched or bid on at the provider, it sends one batched notification for the whole run. The Pushover push is rich HTML naming each lot's coin name, auction house and sale, lot number, and whether it is watched or bid on, and links straight to the lot in the app (`/auctions?lot=<id>`). The manual sync button does not notify.
 
 ## Coin Details
 
@@ -399,6 +400,7 @@ An in-app notification system with an unread badge count in the navigation bar.
 
 - **Social Notifications** — Follow requests, comments, and star ratings generate notifications.
 - **Alert and Reminder Triggers** — Price alert and bid sniping reminder triggers create notifications.
+- **New Auction Lots** — The background auction watchlist sync creates one batched `auction_lots_tracked` notification per run listing the lots it started tracking; clicking it opens the lot (`referenceUrl` is `/auctions?lot=<id>` for a single lot, `/auctions` for a batch).
 - **Mark as Read** — Mark individual notifications or all at once as read.
 - **Delete** — Remove notifications you no longer need.
 - **Real-Time Badge** — The unread count badge polls automatically using a shared composable.

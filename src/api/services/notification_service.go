@@ -26,6 +26,11 @@ const (
 	NotificationTypeAuctionPriceAlert  = "auction_price_alert"
 	NotificationTypeAuctionBidReminder = "auction_bid_reminder"
 	NotificationTypeAuctionEndingSoon  = "auction_ending_soon"
+	// NotificationTypeAuctionLotsTracked is fired by the background watchlist sync when it
+	// picks up lots it was not tracking before (newly watched, or newly bid on). One
+	// notification covers every new lot found in a single sync run — see
+	// NotifyAuctionLotsTracked.
+	NotificationTypeAuctionLotsTracked = "auction_lots_tracked"
 	NotificationTypeShipmentStatus     = "shipment_status"
 	// NotificationTypeAvailabilityRun is the terminal-outcome notification created for every
 	// terminal child AvailabilityRun (owner/scheduled/admin-triggered), in addition to (never
@@ -354,6 +359,52 @@ func (s *NotificationService) NotifyAuctionEndingSoon(userID uint, lots []models
 	}
 }
 
+// NotifyAuctionLotsTracked creates a single in-app notification, plus a single rich-HTML
+// Pushover push, for every lot a background watchlist sync started tracking in one run —
+// whether it landed on the watchlist or was picked up as one the user is already bidding on.
+// Batching is the whole point: a sync that discovers a dozen new lots must produce one
+// notification, not a dozen (F031). Pushover delivery stays best-effort and never gates the
+// in-app notification, per F027.
+func (s *NotificationService) NotifyAuctionLotsTracked(userID uint, lots []models.AuctionLot) {
+	if len(lots) == 0 {
+		return
+	}
+
+	title := auctionLotsTrackedTitle(len(lots))
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Auction sync started tracking %d new lot(s):\n\n", len(lots)))
+	for i, lot := range lots {
+		if i == auctionLotsTrackedInAppLimit {
+			builder.WriteString(fmt.Sprintf("… and %d more\n", len(lots)-i))
+			break
+		}
+		builder.WriteString(fmt.Sprintf("%s\n%s\n\n", auctionLotTitle(lot), auctionLotTrackingLabel(lot)))
+	}
+
+	// A single new lot can deep-link straight to itself; a batch can only sensibly land on
+	// the auctions list, since no one page shows an arbitrary set of lots.
+	refURL := "/auctions"
+	var refID uint
+	if len(lots) == 1 {
+		refURL = auctionLotAppPath(lots[0].ID)
+		refID = lots[0].ID
+	}
+
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypeAuctionLotsTracked,
+		Title:        title,
+		Message:      strings.TrimRight(builder.String(), "\n"),
+		ReferenceID:  refID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create auction lots tracked notification for user %d: %v", userID, err)
+	}
+
+	go s.sendPushoverMessage(userID, buildAuctionLotsTrackedPushoverMessage(lots, s.publicAppBaseURL()))
+}
+
 // NotifyCoinOfDay creates an in-app notification and Pushover alert for the
 // user's daily featured coin. The ReferenceID points to the FeaturedCoin record
 // so the frontend can open the dedicated modal.
@@ -585,6 +636,108 @@ func buildCoinOfDayPushoverMessage(title string, coinID uint, coinName, summary,
 	}
 }
 
+// auctionLotsTrackedInAppLimit caps how many lots the in-app notification body lists before
+// collapsing the rest into an "… and N more" line. The Pushover body has its own, tighter cap
+// (pushoverMessageLimit) because the API rejects oversized messages outright.
+const auctionLotsTrackedInAppLimit = 10
+
+// buildAuctionLotsTrackedPushoverMessage renders the batched new-lot push as Pushover HTML:
+// per lot, the coin name in bold, then the auction house/sale, lot number and how the lot is
+// being tracked, then a fully-qualified link into the app's auction view for that exact lot.
+// Every interpolated value is HTML-escaped — lot titles are scraped from third-party auction
+// sites, so they can carry markup. Lots are dropped (with a trailing summary line) once the
+// body would exceed Pushover's message length limit, mirroring the watch-bid digest, so a
+// large sync can never produce a message the API rejects.
+func buildAuctionLotsTrackedPushoverMessage(lots []models.AuctionLot, publicAppBaseURL string) PushoverMessage {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Auction sync started tracking %d new lot(s):\n\n", len(lots)))
+
+	for i, lot := range lots {
+		entry := fmt.Sprintf(
+			"<b>%s</b>\n%s\n",
+			html.EscapeString(auctionLotTitle(lot)),
+			html.EscapeString(auctionLotTrackingLabel(lot)),
+		)
+		if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lot.ID); lotURL != "" {
+			entry += fmt.Sprintf("<a href=\"%s\">View lot in Aurearia</a>\n", html.EscapeString(lotURL))
+		}
+		entry += "\n"
+
+		omittedNote := fmt.Sprintf("… %d more lot(s) omitted\n", len(lots)-i)
+		if builder.Len()+len(entry) > pushoverMessageLimit-len(omittedNote) {
+			builder.WriteString(omittedNote)
+			break
+		}
+		builder.WriteString(entry)
+	}
+
+	// The notification-level action link mirrors the in-app reference: straight to the lot
+	// when there is exactly one, otherwise the auctions list.
+	actionURL := buildPublicAppURL(publicAppBaseURL, "/auctions")
+	urlTitle := "Open auctions"
+	if len(lots) == 1 {
+		if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lots[0].ID); lotURL != "" {
+			actionURL = lotURL
+			urlTitle = "View auction lot"
+		}
+	}
+
+	return PushoverMessage{
+		Title:    auctionLotsTrackedTitle(len(lots)),
+		Message:  strings.TrimRight(builder.String(), "\n"),
+		URL:      actionURL,
+		URLTitle: urlTitle,
+		HTML:     true,
+	}
+}
+
+func auctionLotsTrackedTitle(count int) string {
+	if count == 1 {
+		return "New Auction Lot Tracked"
+	}
+	return fmt.Sprintf("%d New Auction Lots Tracked", count)
+}
+
+// auctionLotTrackingLabel adds how the lot is being tracked to the shared auction/lot label,
+// so a lot synced as an active bid is distinguishable from one that is only being watched.
+func auctionLotTrackingLabel(lot models.AuctionLot) string {
+	// NumisBids watchlist rows carry a sale name but no auction house; naming the provider
+	// reads better in a notification than auctionLotLabel's generic "Auction" fallback. The
+	// lot is a copy, so this only affects the rendered label.
+	if strings.TrimSpace(lot.AuctionHouse) == "" {
+		lot.AuctionHouse = auctionSourceLabel(lot.Source)
+	}
+	return fmt.Sprintf("%s — %s", auctionLotLabel(lot), auctionLotTrackingVerb(lot))
+}
+
+func auctionSourceLabel(source models.AuctionSource) string {
+	switch source {
+	case models.AuctionSourceCNG:
+		return "CNG Auctions"
+	case models.AuctionSourceNumisBids:
+		return "NumisBids"
+	default:
+		// Unknown source: leave it blank so auctionLotLabel applies its own fallback.
+		return ""
+	}
+}
+
+func auctionLotTrackingVerb(lot models.AuctionLot) string {
+	if lot.Status == models.AuctionStatusBidding {
+		return "Bidding"
+	}
+	return "Watching"
+}
+
+// auctionLotAppPath is the in-app (relative) route that opens a single lot. The auctions page
+// reads the lot query parameter and opens that lot's detail modal.
+func auctionLotAppPath(lotID uint) string {
+	if lotID == 0 {
+		return "/auctions"
+	}
+	return fmt.Sprintf("/auctions?lot=%d", lotID)
+}
+
 func formatAIJobType(jobType string) string {
 	switch jobType {
 	case "analysis":
@@ -597,6 +750,19 @@ func formatAIJobType(jobType string) string {
 }
 
 func buildCoinOfDayURL(publicAppBaseURL string, coinID uint) string {
+	return buildPublicAppURL(publicAppBaseURL, fmt.Sprintf("/coin/%d", coinID))
+}
+
+// buildAuctionLotAppURL returns the fully-qualified link to a lot inside the app, or "" when
+// no valid public app URL is configured — a relative link in a push notification is broken on
+// the device, so it is better to omit the link entirely (same rule as coin-of-the-day).
+func buildAuctionLotAppURL(publicAppBaseURL string, lotID uint) string {
+	return buildPublicAppURL(publicAppBaseURL, auctionLotAppPath(lotID))
+}
+
+// buildPublicAppURL joins an app-relative path onto the configured public app URL, returning
+// "" unless that setting is a usable absolute http(s) URL.
+func buildPublicAppURL(publicAppBaseURL, path string) string {
 	base := strings.TrimRight(strings.TrimSpace(publicAppBaseURL), "/")
 	if base == "" {
 		return ""
@@ -608,7 +774,7 @@ func buildCoinOfDayURL(publicAppBaseURL string, coinID uint) string {
 	if parsed.Scheme != "https" && parsed.Scheme != "http" {
 		return ""
 	}
-	return fmt.Sprintf("%s/coin/%d", base, coinID)
+	return base + path
 }
 
 func truncateRunes(value string, max int) string {

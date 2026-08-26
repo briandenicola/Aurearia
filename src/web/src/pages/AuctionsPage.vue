@@ -137,7 +137,7 @@
           :lot="selectedLot"
           :price-alerts="alertsByLot[selectedLot.id] ?? []"
           :bid-reminders="remindersByLot[selectedLot.id] ?? []"
-          @close="selectedLot = null"
+          @close="closeLot"
           @updated="handleLotUpdated"
           @alerts-updated="fetchAlertState"
         />
@@ -155,7 +155,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent, listAlerts, listReminders } from '@/api/client'
+import { useRoute, useRouter } from 'vue-router'
+import { getAuctionLot, getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent, listAlerts, listReminders } from '@/api/client'
 import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 
 import AuctionLotCard from '@/components/AuctionLotCard.vue'
@@ -173,6 +174,8 @@ import { auctionLotNeedsAttention } from '@/utils/auctionLot'
 
 const { isPwa } = usePwa()
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 
 const lots = ref<AuctionLot[]>([])
 const statusCounts = ref<Record<string, number>>({})
@@ -282,6 +285,32 @@ async function handleRefresh() {
 function openLot(lot: AuctionLot) {
   selectedLot.value = lot
 }
+
+function closeLot() {
+  selectedLot.value = null
+  // Drop the deep-link parameter so the lot does not reopen on the next navigation back here.
+  if (route.query.lot !== undefined) {
+    const { lot: _removed, ...rest } = route.query
+    router.replace({ query: rest })
+  }
+}
+
+// Deep-link support for auction notifications: both the in-app notification and the Pushover
+// push for newly tracked lots link to /auctions?lot=<id>, so the lot must open on arrival. The
+// lot is always fetched by id rather than looked up in the loaded list, because the list is
+// filtered (Bidding by default) and usually will not contain the linked lot.
+async function openLotFromRoute(rawLotId: unknown) {
+  const lotId = Number(rawLotId)
+  if (!Number.isInteger(lotId) || lotId <= 0) return
+  try {
+    const res = await getAuctionLot(lotId)
+    if (res.data) selectedLot.value = res.data
+  } catch {
+    // Lot was deleted, or belongs to someone else — leave the page on the plain list.
+  }
+}
+
+watch(() => route.query.lot, lotId => { openLotFromRoute(lotId) })
 
 function handleImported() {
   showImport.value = false
@@ -403,4 +432,5 @@ const groupedLots = computed<AuctionLotHouseGroup[]>(() => {
 fetchLots()
 fetchAllCounts()
 fetchAlertState()
+openLotFromRoute(route.query.lot)
 </script>

@@ -50,6 +50,8 @@ export const deleteReminder = (id: number) => api.delete<{ message: string }>(`/
 export const getAuctionLots = (params?: { status?: string; search?: string; source?: string; sort?: string; order?: string; page?: number; limit?: number }) =>
   api.get<AuctionLotListResponse>('/auctions', { params })
 
+export const getAuctionLot = (id: number) => api.get<AuctionLot>(`/auctions/${id}`)
+
 export const getAuctionLotCounts = (params?: { source?: string }) =>
   api.get<{ counts: Record<string, number> }>('/auctions/counts', { params })
 
