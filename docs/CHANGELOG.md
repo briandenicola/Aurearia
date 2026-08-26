@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   deep link on the Auctions page). Requires **Public App URL** in Admin →
   Settings for the links; users without Pushover still get the in-app
   notification. See `specs/_backlog/F031-auction-sync-new-lot-notifications.md`.
+- **Now bidding alerts** — The same sync sends a separate batched notification
+  when a lot you were only watching moves to bidding (the provider now reports a
+  bid of yours on it), carrying the current high bid and your max bid alongside
+  the lot's app link. CNG only in practice, since NumisBids exposes no bid data.
 
 ## [4.0.0] — 2026-08-15
 

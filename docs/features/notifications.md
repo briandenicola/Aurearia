@@ -12,6 +12,7 @@ Open **Notifications** from the top bar or sidebar badge to review in-app notifi
 - **Wishlist availability** — Scheduled/manual availability checks can notify when wishlist items become unavailable.
 - **Auction alerts** — Price alerts, bid reminders, auction ending reminders, and watch-bid digests.
 - **New auction lots** — One batched alert when the background watchlist sync starts tracking lots you watched or bid on at NumisBids or CNG; opens the lot directly from the notification.
+- **Now bidding** — One batched alert when the sync sees a bid of yours appear on a lot you were only watching, with the current high bid and your max bid.
 - **Coin of the Day** — Daily featured coin notification for opted-in users.
 - **Set milestones** — Coin set milestone notifications when configured thresholds are crossed.
 

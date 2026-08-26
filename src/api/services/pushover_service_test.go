@@ -307,3 +307,68 @@ func TestBuildAuctionLotsTrackedPushoverMessage_TrimsOversizedBatches(t *testing
 		t.Errorf("title = %q, want the full new-lot count even when the body is trimmed", got)
 	}
 }
+
+func TestPushoverServiceSendMessage_BiddingLotsUseHTMLAndCarryBidState(t *testing.T) {
+	var captured url.Values
+	svc, cleanup := newTestPushoverService(t, &captured)
+	defer cleanup()
+
+	currentBid := 90.0
+	maxBid := 200.0
+	lot := newTrackedLot(11, "Julia Domna AR Denarius", 95, models.AuctionStatusBidding)
+	lot.CurrentBid = &currentBid
+	lot.MaxBid = &maxBid
+
+	message := buildAuctionLotsBiddingPushoverMessage([]models.AuctionLot{lot}, "https://coins.example.com")
+	message.UserKey = "user-key"
+
+	if err := svc.SendMessage(message); err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+
+	if got := captured.Get("html"); got != "1" {
+		t.Fatalf("html form field = %q, want 1", got)
+	}
+	if got := captured.Get("title"); got != "Now Bidding on an Auction Lot" {
+		t.Fatalf("title form field = %q, want single-lot bidding title", got)
+	}
+	if got := captured.Get("url"); got != "https://coins.example.com/auctions?lot=11" {
+		t.Fatalf("url form field = %q, want the lot's own app URL", got)
+	}
+
+	body := captured.Get("message")
+	if !strings.Contains(body, "<b>Julia Domna AR Denarius</b>") {
+		t.Errorf("message did not bold the coin name: %q", body)
+	}
+	if !strings.Contains(body, "CNG - Keystone 17 (Lot 95)") {
+		t.Errorf("message did not carry the auction and lot number: %q", body)
+	}
+	if !strings.Contains(body, "current high bid 90.00 USD · your max bid 200.00 USD") {
+		t.Errorf("message did not carry the bid state: %q", body)
+	}
+	if !strings.Contains(body, `<a href="https://coins.example.com/auctions?lot=11">View lot in Aurearia</a>`) {
+		t.Errorf("message did not deep-link the lot: %q", body)
+	}
+}
+
+func TestBuildAuctionLotsBiddingPushoverMessage_BatchesAndEscapes(t *testing.T) {
+	first := newTrackedLot(11, "Julia Domna AR Denarius", 95, models.AuctionStatusBidding)
+	second := newTrackedLot(12, "<Trajan> & Sons AV Aureus", 96, models.AuctionStatusBidding)
+
+	message := buildAuctionLotsBiddingPushoverMessage([]models.AuctionLot{first, second}, "https://coins.example.com")
+
+	if message.Title != "Now Bidding on 2 Auction Lots" {
+		t.Errorf("title = %q, want batched bidding title", message.Title)
+	}
+	// A batch has no single lot to open, so the action link lands on the auctions list.
+	if message.URL != "https://coins.example.com/auctions" {
+		t.Errorf("URL = %q, want auctions list URL", message.URL)
+	}
+	if strings.Contains(message.Message, "<Trajan>") {
+		t.Errorf("message contains unescaped scraped markup: %q", message.Message)
+	}
+	// No provider bid data at all still reads sensibly, via the shared bid formatter.
+	if !strings.Contains(message.Message, "current high bid unavailable") {
+		t.Errorf("message did not fall back for a missing bid: %q", message.Message)
+	}
+}

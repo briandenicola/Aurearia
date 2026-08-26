@@ -429,3 +429,156 @@ func TestAuctionWatchlistSyncService_SyncsWithoutNotificationService(t *testing.
 		t.Fatalf("synced = %d, want 4", synced)
 	}
 }
+
+// cngBidStateFixture is a single active lot, optionally carrying the user's absentee (max)
+// bid. Syncing it without the absentee bid tracks it as watching; syncing the same lot with
+// one is exactly the watching → bidding transition CNG reports once a bid is placed on their
+// site.
+func cngBidStateFixture(withAbsenteeBid bool) string {
+	absentee := ""
+	if withAbsenteeBid {
+		absentee = `"absentee_bid":{"max_bid":"200.00"},`
+	}
+	return `<!doctype html><html><script>
+viewVars = {
+  "currentRouteName":"watched-lots-index",
+  "lots":{
+    "query_info":{"total_num_results":1,"page_size":50},
+    "result_page":[
+      {
+        "row_id":"4-ACTIVE","lot_number":95,"title":"Julia Domna AR Denarius","starting_price":"60.00",
+        "status":"active","_detail_url":"/lots/view/4-ACTIVE/julia-domna",
+        "timed_auction_bid":{"amount":"90.00","registration":{"customer":{"row_id":"4-OTHERCUSTOMER"}}},
+        ` + absentee + `
+        "auction":{"row_id":"4-SALE","title":"Keystone 17","currency_code":"USD","effective_end_time":"2027-01-01T00:00:00Z"}
+      }
+    ]
+  }
+};
+</script></html>`
+}
+
+// newCNGBidStateTestServer serves the watched-lots page without an absentee bid until
+// placeBid is called, then with one — letting a test drive two syncs across the transition.
+func newCNGBidStateTestServer(t *testing.T) (*httptest.Server, func()) {
+	t.Helper()
+	var loggedIn, bidPlaced bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			w.Write([]byte(`viewVars = {"me":null};`))
+		case "/login":
+			if r.Method == http.MethodPost {
+				loggedIn = true
+				http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "test"})
+				http.Redirect(w, r, "/", http.StatusFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`<form action="/login"><input name="username"><input name="password"></form>`))
+		case "/ajax/refresh-me":
+			if !loggedIn {
+				w.Write([]byte(`null`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"row_id":"4-OURCUSTOMER"}`))
+		case "/watched-lots":
+			if !loggedIn {
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+			w.Write([]byte(cngBidStateFixture(bidPlaced)))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return server, func() { bidPlaced = true }
+}
+
+// TestAuctionWatchlistSyncService_NotifiesWhenWatchedLotMovesToBidding covers the
+// watching → bidding half of F031: placing a bid on the provider's site must notify on the
+// next sync, separately from the new-lot notification, and must not repeat on later syncs.
+func TestAuctionWatchlistSyncService_NotifiesWhenWatchedLotMovesToBidding(t *testing.T) {
+	server, placeBid := newCNGBidStateTestServer(t)
+	defer server.Close()
+	restore := overrideCNGURLs(server.URL)
+	defer restore()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	syncSvc := NewAuctionWatchlistSyncService(
+		repository.NewAuctionLotRepository(db),
+		repository.NewUserRepository(db),
+		nil,
+		NewCNGAuctionService(nil),
+		nil,
+		nil,
+	).WithNotifications(newSyncNotificationService(db))
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", CNGUsername: "user@example.com", CNGPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	countOfType := func(notificationType string) int64 {
+		t.Helper()
+		var count int64
+		if err := db.Model(&models.Notification{}).Where("type = ?", notificationType).Count(&count).Error; err != nil {
+			t.Fatalf("failed to count %s notifications: %v", notificationType, err)
+		}
+		return count
+	}
+
+	// First sync: the lot is new and only being watched.
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("first SyncUser returned error: %v", err)
+	}
+	if got := countOfType(NotificationTypeAuctionLotsTracked); got != 1 {
+		t.Fatalf("tracked notifications after first sync = %d, want 1", got)
+	}
+	if got := countOfType(NotificationTypeAuctionLotsBidding); got != 0 {
+		t.Fatalf("bidding notifications after first sync = %d, want 0 — nothing is bid on yet", got)
+	}
+
+	// The user bids on CNG; the next sync sees the absentee bid.
+	placeBid()
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("second SyncUser returned error: %v", err)
+	}
+
+	var bidding []models.Notification
+	if err := db.Where("type = ?", NotificationTypeAuctionLotsBidding).Find(&bidding).Error; err != nil {
+		t.Fatalf("failed to load bidding notifications: %v", err)
+	}
+	if len(bidding) != 1 {
+		t.Fatalf("got %d bidding notifications, want exactly 1", len(bidding))
+	}
+	if bidding[0].Title != "Now Bidding on an Auction Lot" {
+		t.Errorf("title = %q, want single-lot bidding title", bidding[0].Title)
+	}
+	if !strings.Contains(bidding[0].Message, "Julia Domna AR Denarius") {
+		t.Errorf("message does not name the lot: %q", bidding[0].Message)
+	}
+	if !strings.Contains(bidding[0].Message, "your max bid 200.00 USD") {
+		t.Errorf("message does not carry the bid state: %q", bidding[0].Message)
+	}
+	var lot models.AuctionLot
+	if err := db.Where("source_lot_id = ?", "4-ACTIVE").First(&lot).Error; err != nil {
+		t.Fatalf("lot not found: %v", err)
+	}
+	if want := fmt.Sprintf("/auctions?lot=%d", lot.ID); bidding[0].ReferenceURL != want {
+		t.Errorf("ReferenceURL = %q, want %q", bidding[0].ReferenceURL, want)
+	}
+	// An already-tracked lot moving state is not a newly tracked lot.
+	if got := countOfType(NotificationTypeAuctionLotsTracked); got != 1 {
+		t.Errorf("tracked notifications = %d, want 1 — the transition must not re-notify as new", got)
+	}
+
+	// A third sync sees the same bidding lot: no transition, so no repeat notification.
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("third SyncUser returned error: %v", err)
+	}
+	if got := countOfType(NotificationTypeAuctionLotsBidding); got != 1 {
+		t.Fatalf("bidding notifications after re-sync = %d, want 1 — an unchanged lot must not re-notify", got)
+	}
+}

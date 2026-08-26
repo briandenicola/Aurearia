@@ -31,6 +31,10 @@ const (
 	// notification covers every new lot found in a single sync run — see
 	// NotifyAuctionLotsTracked.
 	NotificationTypeAuctionLotsTracked = "auction_lots_tracked"
+	// NotificationTypeAuctionLotsBidding is fired by the background watchlist sync when a lot
+	// it already tracks moves from watching to bidding — i.e. the provider now reports a bid
+	// of yours on it. One notification covers every such lot found in a single sync run.
+	NotificationTypeAuctionLotsBidding = "auction_lots_bidding"
 	NotificationTypeShipmentStatus     = "shipment_status"
 	// NotificationTypeAvailabilityRun is the terminal-outcome notification created for every
 	// terminal child AvailabilityRun (owner/scheduled/admin-triggered), in addition to (never
@@ -405,6 +409,50 @@ func (s *NotificationService) NotifyAuctionLotsTracked(userID uint, lots []model
 	go s.sendPushoverMessage(userID, buildAuctionLotsTrackedPushoverMessage(lots, s.publicAppBaseURL()))
 }
 
+// NotifyAuctionLotsBidding creates a single in-app notification, plus a single rich-HTML
+// Pushover push, for every lot a background sync moved from watching to bidding in one run —
+// the provider has started reporting a bid of yours on a lot you were only watching. This is
+// distinct from NotifyAuctionLotsTracked: those lots are newly tracked, these were already
+// tracked and changed state, so they carry their own title and their current/max bid rather
+// than being folded into the new-lot list. Batched and best-effort on the same terms (F031).
+func (s *NotificationService) NotifyAuctionLotsBidding(userID uint, lots []models.AuctionLot) {
+	if len(lots) == 0 {
+		return
+	}
+
+	title := auctionLotsBiddingTitle(len(lots))
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("You now have a bid on %d lot(s) you were watching:\n\n", len(lots)))
+	for i, lot := range lots {
+		if i == auctionLotsTrackedInAppLimit {
+			builder.WriteString(fmt.Sprintf("… and %d more\n", len(lots)-i))
+			break
+		}
+		builder.WriteString(fmt.Sprintf("%s\n%s\n%s\n\n", auctionLotTitle(lot), auctionLotLabel(lot), auctionLotBidSummary(lot)))
+	}
+
+	refURL := "/auctions"
+	var refID uint
+	if len(lots) == 1 {
+		refURL = auctionLotAppPath(lots[0].ID)
+		refID = lots[0].ID
+	}
+
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypeAuctionLotsBidding,
+		Title:        title,
+		Message:      strings.TrimRight(builder.String(), "\n"),
+		ReferenceID:  refID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create auction lots bidding notification for user %d: %v", userID, err)
+	}
+
+	go s.sendPushoverMessage(userID, buildAuctionLotsBiddingPushoverMessage(lots, s.publicAppBaseURL()))
+}
+
 // NotifyCoinOfDay creates an in-app notification and Pushover alert for the
 // user's daily featured coin. The ReferenceID points to the FeaturedCoin record
 // so the frontend can open the dedicated modal.
@@ -682,6 +730,64 @@ func buildAuctionLotsTrackedPushoverMessage(lots []models.AuctionLot, publicAppB
 		URLTitle: urlTitle,
 		HTML:     true,
 	}
+}
+
+// buildAuctionLotsBiddingPushoverMessage renders the batched watching → bidding push. Same
+// HTML shape and escaping rules as the newly-tracked push, but each lot leads with the bid
+// state that just changed — the current high bid and your max bid — since that is what makes
+// the notification actionable.
+func buildAuctionLotsBiddingPushoverMessage(lots []models.AuctionLot, publicAppBaseURL string) PushoverMessage {
+	message := buildBatchedLotMessage(
+		fmt.Sprintf("You now have a bid on %d lot(s) you were watching:\n\n", len(lots)),
+		lots,
+		func(lot models.AuctionLot) string {
+			entry := fmt.Sprintf(
+				"<b>%s</b>\n%s\n%s\n",
+				html.EscapeString(auctionLotTitle(lot)),
+				html.EscapeString(auctionLotLabel(lot)),
+				html.EscapeString(auctionLotBidSummary(lot)),
+			)
+			if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lot.ID); lotURL != "" {
+				entry += fmt.Sprintf("<a href=\"%s\">View lot in Aurearia</a>\n", html.EscapeString(lotURL))
+			}
+			return entry + "\n"
+		},
+	)
+
+	actionURL := buildPublicAppURL(publicAppBaseURL, "/auctions")
+	urlTitle := "Open auctions"
+	if len(lots) == 1 {
+		if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lots[0].ID); lotURL != "" {
+			actionURL = lotURL
+			urlTitle = "View auction lot"
+		}
+	}
+
+	return PushoverMessage{
+		Title:    auctionLotsBiddingTitle(len(lots)),
+		Message:  message,
+		URL:      actionURL,
+		URLTitle: urlTitle,
+		HTML:     true,
+	}
+}
+
+func auctionLotsBiddingTitle(count int) string {
+	if count == 1 {
+		return "Now Bidding on an Auction Lot"
+	}
+	return fmt.Sprintf("Now Bidding on %d Auction Lots", count)
+}
+
+// auctionLotBidSummary states where the bidding stands, reusing formatAuctionBid so the
+// wording matches the watch-bid digest and the single-lot alerts. The max bid is only shown
+// when the provider reports one (CNG absentee bids); NumisBids never does.
+func auctionLotBidSummary(lot models.AuctionLot) string {
+	summary := formatAuctionBid(lot.CurrentBid, lot.Currency)
+	if lot.MaxBid != nil {
+		summary = fmt.Sprintf("%s · your max bid %.2f %s", summary, *lot.MaxBid, auctionCurrency(lot.Currency))
+	}
+	return summary
 }
 
 func auctionLotsTrackedTitle(count int) string {

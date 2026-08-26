@@ -25,6 +25,7 @@ NumisBids lots should be treated as tracked watchlist/import records. After the 
 - **Manual Lot Entry** — Paste NumisBids or CNG lot URLs to add lots
 - **Watchlist Sync** — Auto-import configured NumisBids and/or CNG watched lots with one click
 - **New Lot Notifications** — One batched alert when the background sync starts tracking lots you watched or bid on at the provider
+- **Now Bidding Alerts** — A separate batched alert when the sync sees a bid of yours appear on a lot you were only watching
 - **Status Workflow** — Watching → Bidding → Won/Lost/Passed, with CNG outcomes auto-detected where available and NumisBids outcomes updated manually
 - **Price Alerts** — Notify when bidding crosses your threshold
 - **Bid Reminders** — Get reminded X minutes before lot closes
@@ -71,6 +72,13 @@ NumisBids lots should be treated as tracked watchlist/import records. After the 
 - Deep links require **Public App URL** in Admin → Settings; without it the notification still lists the lots, just without links
 - Lots that first appear already closed (passed/won/lost) do not notify, and re-syncing an unchanged watchlist stays silent
 - The manual **Sync Watchlists** button does not notify — it reports its results on screen
+
+### Now Bidding Alerts
+- Fired when the background sync sees a lot you were only watching move to **Bidding** — i.e. the provider now reports a bid of yours on it, usually because you bid on their site
+- Batched the same way: one alert per sync run covering every lot that moved, whichever provider it came from
+- Each lot carries the current high bid and your max bid alongside the coin name, auction, lot number, and app link
+- CNG only in practice: CNG exposes your absentee (max) bid, NumisBids exposes no bid data, so NumisBids lots never move to Bidding automatically
+- A lot that stays in Bidding across later syncs does not re-alert
 
 ## API Endpoints
 

@@ -41,11 +41,23 @@ type AuctionLotListFilters struct {
 	Limit     int
 }
 
-// AuctionLotUpsertResult describes whether an upsert inserted a new lot and calendar event.
+// AuctionLotUpsertResult describes whether an upsert inserted a new lot and calendar event,
+// and what status transition (if any) it applied to an existing one.
 type AuctionLotUpsertResult struct {
 	Created      bool
 	EventCreated bool
 	EventID      *uint
+	// LotID identifies the row the upsert wrote. On insert this matches the ID GORM assigns
+	// to the passed lot; on update the passed lot is a provider-shaped value with no ID of
+	// its own, so this is the only way a caller can address the stored row (e.g. to build a
+	// link to it).
+	LotID uint
+	// PreviousStatus is the status the lot held before this upsert changed it, and is set
+	// only when a provider-driven status transition was actually applied. It stays empty
+	// when the lot was created, and when the existing lot's status was left untouched — so
+	// callers can react to a real transition (e.g. watching → bidding) without re-deriving
+	// the transition rules below.
+	PreviousStatus models.AuctionLotStatus
 }
 
 // List returns a paginated list of auction lots for the given user.
@@ -227,6 +239,7 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 				return err
 			}
 			result.Created = true
+			result.LotID = lot.ID
 			if autoCreateEvent && shouldAutoCreateCalendarEvent(lot) {
 				event, created, err := txRepo.findOrCreateCalendarEventForLot(lot)
 				if err != nil {
@@ -241,6 +254,7 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 			}
 			return nil
 		}
+		result.LotID = existing.ID
 		// Update fields that may have changed
 		updates := map[string]interface{}{
 			"current_bid":      lot.CurrentBid,
@@ -276,12 +290,15 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 		case lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusPassed)
 			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+			result.PreviousStatus = existing.Status
 		case lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusBidding)
 			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+			result.PreviousStatus = existing.Status
 		case (lot.Status == models.AuctionStatusWon || lot.Status == models.AuctionStatusLost) && !isTerminal:
 			updates["status"] = string(lot.Status)
 			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+			result.PreviousStatus = existing.Status
 			if lot.Status == models.AuctionStatusWon && lot.WinningBid != nil {
 				updates["winning_bid"] = lot.WinningBid
 			}

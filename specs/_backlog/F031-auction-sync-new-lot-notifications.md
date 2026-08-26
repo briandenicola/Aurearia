@@ -33,6 +33,10 @@ enough detail to recognise each coin and open it in the app.
       re-syncs over an unchanged watchlist.
 - [x] Lots newly tracked as *watching* and lots newly tracked as *bidding* both
       notify, and the notification says which of the two each lot is.
+- [x] A lot already tracked as *watching* that the provider later reports a bid
+      on notifies as its own batched "now bidding" notification, carrying the
+      current high bid and the user's max bid, and does not repeat on
+      subsequent syncs while the lot stays in bidding.
 - [x] The Pushover push is rich HTML and names, per lot: the coin name, the
       auction (house and sale), the lot number, and a fully-qualified link to
       that lot in the app.
@@ -68,18 +72,35 @@ enough detail to recognise each coin and open it in the app.
       `/auctions?lot=<id>`, a new deep-link parameter on the auctions page that
       opens that lot's detail modal, fetching the lot by id so it works even
       when the current status filter excludes it.
-- [ ] Should a lot that transitions watching → bidding on a *later* sync (the
+- [x] Should a lot that transitions watching → bidding on a *later* sync (the
       user placed a bid on the provider's site after the lot was already
-      tracked) also notify? Out of scope here — this card covers lots the sync
-      newly starts tracking, not status changes on lots it already tracks.
+      tracked) also notify? — Yes. It fires as a separate batched notification
+      (`auction_lots_bidding`) rather than being folded into the new-lot list:
+      the two mean different things, warrant different titles, and a bid
+      appearing on a lot you already track is the more actionable of the two.
+      A sync run therefore sends at most two pushes, each batched across every
+      lot and provider in that run.
 
 ## Notes
 
+Only CNG can drive the watching → bidding transition today: it exposes the
+user's absentee (max) bid on the watched-lots page, which is what
+`syncCNG` reads to set `AuctionStatusBidding`. NumisBids exposes no bid signal
+at all (F022), so its lots stay in watching until manually changed and never
+raise this notification.
+
 Implemented as `NotificationService.NotifyAuctionLotsTracked`, which creates one
 in-app notification (`auction_lots_tracked`) and one batched HTML Pushover push
-per sync run. `AuctionWatchlistSyncService` collects lots whose upsert reported
-`Created` and whose status is watching or bidding, across both providers, and
-notifies once at the end of `SyncUser` — so a user with both NumisBids and CNG
+per sync run. The transition half is `NotifyAuctionLotsBidding`, fed by a new
+`AuctionLotUpsertResult.PreviousStatus` — the repository already owned the
+watching → bidding rule, so it now reports the transition it applied instead of
+callers re-deriving it. `AuctionLotUpsertResult.LotID` was added alongside it:
+on the update path the provider-shaped lot carries no ID, so without it a
+transition notification could not link to the stored row.
+`AuctionWatchlistSyncService` collects lots whose upsert reported
+`Created` and whose status is watching or bidding, plus those whose upsert
+reported a watching → bidding transition, across both providers, and
+notifies once per kind at the end of `SyncUser` — so a user with both NumisBids and CNG
 configured gets a single push, not one per provider. Notification wiring is
 optional (`WithNotifications`), keeping F026's rule that sync never depends on
 notification configuration.
@@ -90,3 +111,7 @@ notification configuration.
   unit-tested (message builder, batching/trim, escaping, sync detection,
   re-sync silence, web deep link). Status left at `backlog` pending Lead triage
   per `_backlog/README.md` — implementation does not self-advance status.
+- 2026-08-26: extended on request to also notify when an already-tracked lot
+  moves watching → bidding; last open question resolved and unit-tested
+  (repository transition reporting, end-to-end sync across the transition,
+  no repeat on later syncs).
