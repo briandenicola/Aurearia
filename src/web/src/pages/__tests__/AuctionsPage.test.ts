@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AuctionsPage from '../AuctionsPage.vue'
-import { getAuctionLotCounts, getAuctionLots, listAlerts, listReminders, syncNumisBidsWatchlist } from '@/api/client'
+import { getAuctionLot, getAuctionLotCounts, getAuctionLots, listAlerts, listReminders, syncNumisBidsWatchlist } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import type { AuctionLot } from '@/types'
 
@@ -40,6 +40,7 @@ function makeLot(overrides: Partial<AuctionLot> = {}): AuctionLot {
 }
 
 vi.mock('@/api/client', () => ({
+  getAuctionLot: vi.fn(),
   getAuctionLots: vi.fn(),
   getAuctionLotCounts: vi.fn(),
   syncNumisBidsWatchlist: vi.fn(),
@@ -53,6 +54,19 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/composables/usePwa', () => ({
   usePwa: () => ({ isPwa: false }),
 }))
+
+// Mutable so a test can arrive on /auctions?lot=<id>, the deep link auction notifications use.
+const route = { query: {} as Record<string, string> }
+const routerReplace = vi.fn()
+
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRoute: () => route,
+    useRouter: () => ({ replace: routerReplace }),
+  }
+})
 
 function mountPage() {
   return mount(AuctionsPage, {
@@ -78,6 +92,9 @@ function mountPage() {
 describe('AuctionsPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    route.query = {}
+    routerReplace.mockReset()
+    vi.mocked(getAuctionLot).mockReset()
     vi.mocked(getAuctionLots).mockReset()
     vi.mocked(getAuctionLotCounts).mockReset()
     vi.mocked(syncNumisBidsWatchlist).mockReset()
@@ -88,6 +105,56 @@ describe('AuctionsPage', () => {
     vi.mocked(syncNumisBidsWatchlist).mockResolvedValue({ data: { synced: 3, lots: [] } } as Awaited<ReturnType<typeof syncNumisBidsWatchlist>>)
     vi.mocked(listAlerts).mockResolvedValue({ data: { alerts: [] } } as Awaited<ReturnType<typeof listAlerts>>)
     vi.mocked(listReminders).mockResolvedValue({ data: { reminders: [] } } as Awaited<ReturnType<typeof listReminders>>)
+    vi.mocked(getAuctionLot).mockResolvedValue({ data: makeLot({ id: 42, title: 'Julia Domna AR Denarius' }) } as Awaited<ReturnType<typeof getAuctionLot>>)
+  })
+
+  // Auction sync notifications (in-app and Pushover) link to /auctions?lot=<id>; the linked
+  // lot is usually filtered out of the default Bidding list, so it has to be fetched directly.
+  describe('lot deep link', () => {
+    it('opens the linked lot even when it is not in the filtered list', async () => {
+      route.query = { lot: '42' }
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(getAuctionLot).toHaveBeenCalledWith(42)
+      const modal = wrapper.findComponent({ name: 'AuctionLotDetailModal' })
+      expect(modal.exists()).toBe(true)
+      expect(modal.props('lot')).toMatchObject({ id: 42, title: 'Julia Domna AR Denarius' })
+    })
+
+    it('leaves the page on the list when the linked lot can no longer be loaded', async () => {
+      vi.mocked(getAuctionLot).mockRejectedValue(new Error('not found'))
+      route.query = { lot: '42' }
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).exists()).toBe(false)
+    })
+
+    it('ignores a malformed lot parameter', async () => {
+      route.query = { lot: 'not-a-lot' }
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(getAuctionLot).not.toHaveBeenCalled()
+      expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).exists()).toBe(false)
+    })
+
+    it('clears the deep link when the lot modal is closed', async () => {
+      route.query = { lot: '42' }
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      wrapper.findComponent({ name: 'AuctionLotDetailModal' }).vm.$emit('close')
+      await flushPromises()
+
+      expect(routerReplace).toHaveBeenCalledWith({ query: {} })
+      expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).exists()).toBe(false)
+    })
   })
 
   it('syncs only CNG when only CNG credentials are configured', async () => {

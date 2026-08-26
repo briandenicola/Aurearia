@@ -233,7 +233,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	nbWatchSyncSvc := services.NewNumisBidsService(logger)
 	cngWatchSyncSvc := services.NewCNGAuctionService(logger)
-	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger)
+	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger).WithNotifications(notifSvc)
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, notifSvc, settingsSvc, logger)
 	auctionWatchBidDigestScheduler := services.NewAuctionWatchBidDigestScheduler(auctionLotRepo, auctionWatchBidDigestRepo, userRepoForVal, pushoverSvc, auctionWatchlistSyncSvc, settingsSvc, logger)
 	auctionAlertEvaluator := services.NewAuctionAlertEvaluator(priceAlertRepo, bidReminderRepo, notifSvc, logger)

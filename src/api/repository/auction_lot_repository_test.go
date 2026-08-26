@@ -512,8 +512,13 @@ func TestAuctionLotRepository_UpsertPromotesWatchingToBidding(t *testing.T) {
 		LotNumber:    14,
 		UserID:       5,
 	}
-	if _, err := repo.Upsert(lot); err != nil {
+	created, err := repo.Upsert(lot)
+	if err != nil {
 		t.Fatalf("initial upsert: %v", err)
+	}
+	// A newly created lot reports no transition — there was no previous status to leave.
+	if created.PreviousStatus != "" {
+		t.Fatalf("PreviousStatus on create = %q, want empty", created.PreviousStatus)
 	}
 
 	// Sync detects autobid — status should advance to bidding.
@@ -522,13 +527,28 @@ func TestAuctionLotRepository_UpsertPromotesWatchingToBidding(t *testing.T) {
 	lot.CurrentBid = &currentBid
 	lot.MaxBid = &maxBid
 	lot.Status = models.AuctionStatusBidding
-	if _, err := repo.Upsert(lot); err != nil {
+	promoted, err := repo.Upsert(lot)
+	if err != nil {
 		t.Fatalf("bidding upsert: %v", err)
 	}
+	// The applied transition is reported so callers can notify on it without re-deriving
+	// the upsert's own transition rules.
+	if promoted.PreviousStatus != models.AuctionStatusWatching {
+		t.Fatalf("PreviousStatus = %q, want watching", promoted.PreviousStatus)
+	}
 
-	found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 5)
+	// Re-syncing an unchanged bidding lot applies no transition, so nothing is reported.
+	unchanged, err := repo.Upsert(lot)
 	if err != nil {
-		t.Fatalf("GetBySourceURL: %v", err)
+		t.Fatalf("repeat upsert: %v", err)
+	}
+	if unchanged.PreviousStatus != "" {
+		t.Fatalf("PreviousStatus on unchanged re-sync = %q, want empty", unchanged.PreviousStatus)
+	}
+
+	found, err2 := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 5)
+	if err2 != nil {
+		t.Fatalf("GetBySourceURL: %v", err2)
 	}
 	if found.Status != models.AuctionStatusBidding {
 		t.Fatalf("Status = %q, want bidding", found.Status)

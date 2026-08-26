@@ -21,7 +21,17 @@ type AuctionWatchlistSyncService struct {
 	nbSvc       *NumisBidsService
 	cngSvc      *CNGAuctionService
 	credentials *CredentialEncryptionService
+	notifSvc    *NotificationService
 	logger      *Logger
+}
+
+// syncProviderResult carries what one provider's sync produced: how many lots were upserted,
+// which of those were not being tracked before this run, and which already-tracked lots the
+// provider now reports a bid on (the ones worth notifying about).
+type syncProviderResult struct {
+	synced       int
+	newlyTracked []models.AuctionLot
+	newlyBidding []models.AuctionLot
 }
 
 func NewAuctionWatchlistSyncService(
@@ -43,6 +53,14 @@ func NewAuctionWatchlistSyncService(
 		credentials: credentials,
 		logger:      logger,
 	}
+}
+
+// WithNotifications enables new-lot notifications for syncs run through this service. It is
+// optional so the sync itself never depends on notification wiring (F026): without it, sync
+// behaves exactly as before and simply notifies no one.
+func (s *AuctionWatchlistSyncService) WithNotifications(notifSvc *NotificationService) *AuctionWatchlistSyncService {
+	s.notifSvc = notifSvc
+	return s
 }
 
 // SyncAllConfiguredUsers refreshes watchlists for every user with auction credentials
@@ -75,39 +93,92 @@ func (s *AuctionWatchlistSyncService) SyncUser(user *models.User) (int, error) {
 	}
 
 	total := 0
+	var newlyTracked []models.AuctionLot
+	var newlyBidding []models.AuctionLot
 	var errs []string
 	if user.NumisBidsUsername != "" && user.NumisBidsPassword != "" {
-		synced, err := s.syncNumisBids(user)
-		total += synced
+		result, err := s.syncNumisBids(user)
+		total += result.synced
+		newlyTracked = append(newlyTracked, result.newlyTracked...)
+		newlyBidding = append(newlyBidding, result.newlyBidding...)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("numisbids: %v", err))
 		}
 	}
 	if user.CNGUsername != "" && user.CNGPassword != "" {
-		synced, err := s.syncCNG(user)
-		total += synced
+		result, err := s.syncCNG(user)
+		total += result.synced
+		newlyTracked = append(newlyTracked, result.newlyTracked...)
+		newlyBidding = append(newlyBidding, result.newlyBidding...)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("cng: %v", err))
 		}
 	}
+
+	// At most one notification per kind per sync run, covering every provider — a user with
+	// both NumisBids and CNG configured gets a single batched push for newly tracked lots and
+	// a single one for lots that moved to bidding, not one per provider or per lot (F031). A
+	// provider that failed part-way still notifies about whatever it did observe before failing.
+	s.notifyNewlyTracked(user, newlyTracked)
+	s.notifyNewlyBidding(user, newlyBidding)
+
 	if len(errs) > 0 {
 		return total, fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return total, nil
 }
 
-func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, error) {
+// notifyNewlyTracked sends the batched new-lot notification for one user. Notification
+// failures are never allowed to fail the sync itself: the refreshed lot data is the primary
+// outcome, the notification is a courtesy on top of it (F026).
+func (s *AuctionWatchlistSyncService) notifyNewlyTracked(user *models.User, lots []models.AuctionLot) {
+	if s.notifSvc == nil || user == nil || len(lots) == 0 {
+		return
+	}
+	s.notifSvc.NotifyAuctionLotsTracked(user.ID, lots)
+}
+
+// notifyNewlyBidding sends the batched watching → bidding notification for one user, on the
+// same best-effort terms as notifyNewlyTracked.
+func (s *AuctionWatchlistSyncService) notifyNewlyBidding(user *models.User, lots []models.AuctionLot) {
+	if s.notifSvc == nil || user == nil || len(lots) == 0 {
+		return
+	}
+	s.notifSvc.NotifyAuctionLotsBidding(user.ID, lots)
+}
+
+// isNewlyTrackedLot reports whether an upsert result represents a lot worth telling the user
+// about: one this sync inserted for the first time and that is actively being tracked
+// (watching or bidding). Lots that arrive already closed (passed/won/lost — e.g. a first sync
+// after a sale ended) are not new tracking activity and are deliberately excluded.
+func isNewlyTrackedLot(result repository.AuctionLotUpsertResult, lot models.AuctionLot) bool {
+	if !result.Created {
+		return false
+	}
+	return lot.Status == models.AuctionStatusWatching || lot.Status == models.AuctionStatusBidding
+}
+
+// startedBidding reports whether this upsert moved an already-tracked lot from watching to
+// bidding — the provider now reports a bid of the user's on a lot they were only watching.
+// PreviousStatus is set by the repository only when it actually applied the transition, so a
+// lot that was already bidding (or that the provider reports unchanged) never re-notifies.
+func startedBidding(result repository.AuctionLotUpsertResult, lot models.AuctionLot) bool {
+	return result.PreviousStatus == models.AuctionStatusWatching && lot.Status == models.AuctionStatusBidding
+}
+
+func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (syncProviderResult, error) {
+	result := syncProviderResult{}
 	password, err := s.decryptStoredCredential(user, "numis_bids_password", user.NumisBidsPassword)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 	client, err := s.nbSvc.Login(user.NumisBidsUsername, password)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 	raw, err := s.nbSvc.FetchWatchlist(client)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 
 	// NumisBids is a reduced-functionality provider: the watchlist page carries
@@ -117,7 +188,6 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, err
 	// remain in Watching until the sale date passes, then flip to Passed. Manual status
 	// override is required to record a Won or Lost result. See F022.
 	now := time.Now()
-	synced := 0
 	for _, wl := range s.nbSvc.ParseWatchlist(raw) {
 		status := models.AuctionStatusWatching
 		saleDate := ParseSaleDate(wl.SaleDate)
@@ -148,24 +218,34 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, err
 			Status:         status,
 			UserID:         user.ID,
 		}
-		if _, err := s.auctionRepo.UpsertWithCalendarEvent(&lot); err != nil {
-			return synced, err
+		upsert, err := s.auctionRepo.UpsertWithCalendarEvent(&lot)
+		if err != nil {
+			return result, err
 		}
-		synced++
+		result.synced++
+		// On the update path the provider-shaped lot has no ID of its own; take the stored
+		// row's so notifications can link to it.
+		lot.ID = upsert.LotID
+		if isNewlyTrackedLot(upsert, lot) {
+			result.newlyTracked = append(result.newlyTracked, lot)
+		} else if startedBidding(upsert, lot) {
+			result.newlyBidding = append(result.newlyBidding, lot)
+		}
 	}
 
 	s.auctionRepo.MarkPastAuctionsAsPassed(user.ID, now)
-	return synced, nil
+	return result, nil
 }
 
-func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
+func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderResult, error) {
+	result := syncProviderResult{}
 	password, err := s.decryptStoredCredential(user, "cng_password", user.CNGPassword)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 	client, err := s.cngSvc.Login(user.CNGUsername, password)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 
 	// Used to detect whether a closed lot was won: compared against each lot's winning
@@ -181,11 +261,10 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
 	// request is needed.
 	lots, err := s.cngSvc.FetchWatchlistLots(client)
 	if err != nil {
-		return 0, err
+		return result, err
 	}
 
 	now := time.Now()
-	synced := 0
 	for _, wl := range lots {
 		auctionEndTime := ParseCNGDate(wl.SaleDate)
 
@@ -237,14 +316,23 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
 			Status:         status,
 			UserID:         user.ID,
 		}
-		if _, err := s.auctionRepo.UpsertWithCalendarEvent(&lot); err != nil {
-			return synced, err
+		upsert, err := s.auctionRepo.UpsertWithCalendarEvent(&lot)
+		if err != nil {
+			return result, err
 		}
-		synced++
+		result.synced++
+		// On the update path the provider-shaped lot has no ID of its own; take the stored
+		// row's so notifications can link to it.
+		lot.ID = upsert.LotID
+		if isNewlyTrackedLot(upsert, lot) {
+			result.newlyTracked = append(result.newlyTracked, lot)
+		} else if startedBidding(upsert, lot) {
+			result.newlyBidding = append(result.newlyBidding, lot)
+		}
 	}
 
 	s.auctionRepo.MarkPastAuctionsAsPassed(user.ID, now)
-	return synced, nil
+	return result, nil
 }
 
 func (s *AuctionWatchlistSyncService) decryptStoredCredential(user *models.User, field string, stored string) (string, error) {

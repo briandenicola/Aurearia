@@ -5,9 +5,38 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/briandenicola/ancient-coins-api/models"
 )
 
 const pushoverAPIURL = "https://api.pushover.net/1/messages.json"
+
+// pushoverMessageLimit is Pushover's hard cap on the message field; exceeding it causes the
+// API to reject the request outright, so any batched message must stay within it even after
+// adding per-lot detail (specs/_backlog/F027).
+const pushoverMessageLimit = 1024
+
+// buildBatchedLotMessage renders one Pushover body listing several auction lots under a
+// header, dropping lots (with a trailing summary line) once the body would exceed
+// pushoverMessageLimit — so a long list can never cause an API rejection. renderLot supplies
+// the per-lot block, which is the only thing that differs between batched auction messages
+// (the watch-bid digest and the newly-tracked-lots push).
+func buildBatchedLotMessage(header string, lots []models.AuctionLot, renderLot func(models.AuctionLot) string) string {
+	var builder strings.Builder
+	builder.WriteString(header)
+
+	for i, lot := range lots {
+		entry := renderLot(lot)
+		omittedNote := fmt.Sprintf("… %d more lot(s) omitted\n", len(lots)-i)
+		if builder.Len()+len(entry) > pushoverMessageLimit-len(omittedNote) {
+			builder.WriteString(omittedNote)
+			break
+		}
+		builder.WriteString(entry)
+	}
+
+	return strings.TrimRight(builder.String(), "\n")
+}
 
 // ErrPushoverNotConfigured is returned when Pushover credentials are not set.
 var ErrPushoverNotConfigured = fmt.Errorf("pushover not configured")
