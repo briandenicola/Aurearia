@@ -1,5 +1,30 @@
 # Squad Decisions
 
+### 2026-08-27T09:49:39-05:00: Availability-run result tables — mobile overflow fix
+**By:** Aurelia (Frontend Developer)
+**Spec:** 353-wishlist-availability-run-observability
+**Commit:** `ca6b459f` (fix(frontend): wrap availability-run tables in overflow-x-auto for PWA mobile)
+**Branch:** `beta`
+**Status:** COMPLETED & APPROVED
+
+**What:** The `WishlistAvailabilityHistoryPage` availability-run detail and inline-expanded result tables overflowed their card container on narrow PWA portrait viewports (~375 px). The four-column table (Coin / URL / Status / Reason) pushed the Status and Reason columns off-screen, making status chips inaccessible.
+
+**Decision:** Wrap both `<table>` elements in `<div class="overflow-x-auto">`. This is the established responsive table pattern already in use throughout the repository (AdminCatalogsSection, AdminSecuritySection, SettingsShipmentsSection, StatsPurchasesPerYear, CoinDetailValuationPage). The pattern creates an intentionally contained horizontal scroller — all data remains readable and navigable; nothing is hidden. Desktop presentation is unchanged.
+
+**Rationale:**
+- Matches the single established local pattern for multi-column tables; no new pattern introduced (Principle IV).
+- All content remains accessible via scroll on narrow viewports (Principle VI).
+- Two regression tests added to lock the overflow-x-auto wrapper in both table contexts.
+- Targeted test suite: 2/2 new tests pass; full frontend: 1276/1276 pass. Production build and type-check pass.
+
+**Alternatives Rejected:**
+- Stacked mobile card layout: no existing row-to-card pattern in codebase for tabular run data.
+- Column hiding: would lose data, not acceptable per requirements.
+
+**Principles:** Principle IV (Simple Complete Changes), Principle VI (Consistent UX, PWA/Mobile), §17 Quality Gate (Targeted Testing), Spec §353 (Wishlist Availability Run Observability).
+
+---
+
 ### 2026-08-21T09:40:08-05:00: User directive
 **By:** Brian DeNicola (via Copilot)
 **What:** Add experimental PWA-only left/right swipe navigation across coin detail menu pages, excluding Sell and Copy Coin. Push the completed experiment to beta and stop there; do not open or merge a main PR.

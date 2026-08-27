@@ -37,29 +37,31 @@
         </div>
 
         <p v-if="!detailRun.results || detailRun.results.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
-        <table v-else class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
-          <thead>
-            <tr>
-              <th>Coin</th>
-              <th>URL</th>
-              <th>Status</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="result in detailRun.results" :key="result.id">
-              <td>{{ result.coinName }}</td>
-              <td>
-                <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline">
-                  {{ truncateUrl(result.url) }}
-                </SafeExternalLink>
-                <span v-else class="text-text-muted">--</span>
-              </td>
-              <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
-              <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
+            <thead>
+              <tr>
+                <th>Coin</th>
+                <th>URL</th>
+                <th>Status</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="result in detailRun.results" :key="result.id">
+                <td>{{ result.coinName }}</td>
+                <td>
+                  <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline">
+                    {{ truncateUrl(result.url) }}
+                  </SafeExternalLink>
+                  <span v-else class="text-text-muted">--</span>
+                </td>
+                <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
+                <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <RouterLink class="btn btn-secondary btn-sm mt-4" to="/wishlist/availability-runs">Back to all runs</RouterLink>
       </section>
@@ -105,29 +107,31 @@
                   <span v-if="run.failMessage" class="text-[var(--color-negative)]">{{ run.failMessage }}</span>
                 </div>
                 <p v-if="expandedResults.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
-                <table v-else class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
-                  <thead>
-                    <tr>
-                      <th>Coin</th>
-                      <th>URL</th>
-                      <th>Status</th>
-                      <th>Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="result in expandedResults" :key="result.id">
-                      <td>{{ result.coinName }}</td>
-                      <td>
-                        <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" @click.stop>
-                          {{ truncateUrl(result.url) }}
-                        </SafeExternalLink>
-                        <span v-else class="text-text-muted">--</span>
-                      </td>
-                      <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
-                      <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div v-else class="overflow-x-auto">
+                  <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
+                    <thead>
+                      <tr>
+                        <th>Coin</th>
+                        <th>URL</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="result in expandedResults" :key="result.id">
+                        <td>{{ result.coinName }}</td>
+                        <td>
+                          <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" @click.stop>
+                            {{ truncateUrl(result.url) }}
+                          </SafeExternalLink>
+                          <span v-else class="text-text-muted">--</span>
+                        </td>
+                        <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
+                        <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </template>
             </div>
           </div>
