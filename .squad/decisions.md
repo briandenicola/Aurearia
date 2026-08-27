@@ -11163,3 +11163,29 @@ They go to Brian separately.
    us from collecting it.
 4. Brian's on-device iOS/Android pass remains the merge gate.
 
+---
+
+### 2026-08-27T10:05:00-05:00: Dependabot batch #658–#666 merge review
+**By:** Maximus (Lead / Architect)
+**Requested by:** Brian DeNicola
+**Status:** REVIEW COMPLETE — advisory, no PRs modified
+
+**Scope:** Nine Dependabot chore PRs (#658–#666) targeting main, plus interaction assessment with #667 (beta → main product fix).
+
+**Key Finding:** All nine PRs are individually CI-green and MERGEABLE against current main (all BEHIND). However, five web PRs overlap `package-lock.json` and three agent PRs overlap `uv.lock`. Individual green checks do NOT prove the combined post-merge state — each successive merge within an overlap group will conflict the remaining PRs, requiring Dependabot rebase + re-run gates.
+
+**Highest-Risk PR:** #663 (langchain-anthropic 1.5.6 → 1.6.1) — minor version jump that transitively pulls langchain-core 1.5.4 → 1.6.0, adding `httpx` as a new core dependency and introducing standard model exception types. CI passed including Python Agent tests, and the version is within pyproject.toml constraints (`>=1.5.4,<2.0`). Risk is medium: the new exception types are additive (not breaking), and the `httpx` dependency is already present transitively via `langsmith`. PR #666 (langchain 1.3.16) pulls in the identical langchain-core bump.
+
+**Security-Positive PR:** #662 (dompurify 3.4.13 → 3.4.14) — fixes possible sanitizer bypass when risky tags are allow-listed. Production dependency. Should be prioritized.
+
+**Decision:** All nine PRs are SAFE to merge with the ordered process below. No PR is redundant, superseded, or blocked by another. No PR should be closed.
+
+**Merge Process:**
+1. Merge #658 first (independent, no lockfile overlap).
+2. Web group serial: #662 → rebase remaining → #659 → rebase → #660 → rebase → #664 → rebase → #665.
+3. Agent group serial (can run parallel to web after #658): #663 → rebase → #666 → rebase → #661.
+4. After each merge, `@dependabot rebase` the remaining PRs in that group and wait for gates to go green before the next merge.
+5. #667 can merge independently before, after, or during the dependency batch — it touches different files.
+
+**Principles:** §17 Quality Gate (CI green required after each rebase), Principle V (security dependency currency).
+
