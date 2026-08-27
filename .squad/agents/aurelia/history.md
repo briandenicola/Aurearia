@@ -1,4 +1,32 @@
-﻿## 2026-08-25 — Background-Removal Worker CSP Isolation
+﻿## 2026-08-27 — Availability-Run Table Mobile Overflow Fix
+
+**Session:** PWA mobile overflow — availability-run detail/expanded table
+**Timestamp:** 2026-08-27T09:41:12Z
+**Status:** ✅ COMPLETE — pushed to beta (commit ca6b459f)
+
+**Task:** Fix 4-column result table overflowing the card container on ~375 px PWA portrait viewports. Status chips and Reason column were clipped off-screen.
+
+**Root Cause:** Both `<table>` elements in `WishlistAvailabilityHistoryPage.vue` lacked the `overflow-x-auto` wrapper required by the established repo pattern. The `.card` class has no `overflow: hidden`, so the table bled past the rounded-corner boundary.
+
+**Fix:** Wrap both tables (deep-linked detail view and inline-expanded view) in `<div class="overflow-x-auto">`, matching AdminCatalogsSection, AdminSecuritySection, SettingsShipmentsSection, and StatsPurchasesPerYear.
+
+**What I Confirmed About The Established Pattern:**
+- `overflow-x-auto` wrapper = intentionally contained horizontal scroller; data stays fully accessible.
+- For tables with many wide columns, `AdminSecuritySection` uses `w-full max-w-full min-w-0 overflow-x-auto` + `min-w-[44rem]` on the table to guarantee minimum column widths.
+- For simpler tables, `AdminCatalogsSection` just uses `overflow-x-auto` wrapper with `w-full` on the table — column width is determined by natural content min-widths.
+- Desktop view is unaffected in both cases.
+
+**Quality Gate Results:**
+- Targeted tests: 7/7 ✅ (5 existing + 2 new regression tests)
+- Full suite: 1276/1276 ✅
+- Type-check: 0 errors ✅
+- Production build: clean ✅
+
+**Decision logged:** `.squad/decisions/inbox/aurelia-availability-run-mobile-overflow.md`
+
+---
+
+## 2026-08-25 — Background-Removal Worker CSP Isolation
 
 **Session:** Background-Removal Worker CSP Isolation & Reminder 404
 **Timestamp:** 2026-08-25T00:21:44Z
