@@ -119,4 +119,46 @@ describe('WishlistAvailabilityHistoryPage', () => {
 
     expect(wrapper.text()).toContain('Sign in required')
   })
+
+  it('wraps the detail-view results table in an overflow-x-auto container (mobile overflow regression)', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 7 }),
+        results: [
+          { id: 1, runId: 7, coinId: 5, coinName: 'Roman Spintria', url: 'https://vcoins.com/en/stores/numiscraft/items/long-lot-id', status: 'available', reason: null, httpStatus: 200, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/7')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    // The table must be a descendant of an overflow-x-auto wrapper, not a direct table child of the card.
+    const scrollWrapper = wrapper.find('.overflow-x-auto')
+    expect(scrollWrapper.exists()).toBe(true)
+    expect(scrollWrapper.find('table').exists()).toBe(true)
+  })
+
+  it('wraps the expanded inline results table in an overflow-x-auto container (mobile overflow regression)', async () => {
+    mocks.listMyAvailabilityRuns.mockResolvedValue({ data: { runs: [run()], total: 1, page: 1, limit: 20 } })
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run(),
+        results: [
+          { id: 1, runId: 1, coinId: 5, coinName: 'Trajan Decius', url: 'https://vcoins.com/en/stores/lucernae/items/denarius', status: 'unknown', reason: 'agent timeout', httpStatus: 0, agentUsed: true, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter()
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const card = wrapper.find('.card')
+    await card.trigger('click')
+    await flushPromises()
+
+    const scrollWrapper = wrapper.find('.overflow-x-auto')
+    expect(scrollWrapper.exists()).toBe(true)
+    expect(scrollWrapper.find('table').exists()).toBe(true)
+  })
 })
