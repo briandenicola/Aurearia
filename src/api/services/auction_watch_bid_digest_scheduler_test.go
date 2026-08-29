@@ -90,7 +90,7 @@ func TestAuctionWatchBidDigestNotifyUserIncludesCurrentHighBids(t *testing.T) {
 	previousTwo := 250.0
 	sent := scheduler.notifyUser(user.ID, []models.AuctionLot{
 		{Title: "Denarius of Trajan", AuctionHouse: "The Coin Cabinet", SaleName: "Ancients Auction 35", LotNumber: 30, CurrentBid: &bidOne, Currency: "GBP"},
-		{Title: "Keystone Tetradrachm", AuctionHouse: "Classical Numismatic Group", SaleName: "Keystone 17", LotNumber: 95, CurrentBid: &bidTwo, LastDigestBid: &previousTwo, Currency: "USD"},
+		{Title: "Keystone Tetradrachm", AuctionHouse: "Classical Numismatic Group", SaleName: "Keystone 17", LotNumber: 95, CurrentBid: &bidTwo, LastDigestBid: &previousTwo, Currency: "USD", SourceURL: "https://cngcoins.com/lot/95"},
 	})
 	if !sent {
 		t.Fatal("notifyUser returned false")
@@ -99,12 +99,15 @@ func TestAuctionWatchBidDigestNotifyUserIncludesCurrentHighBids(t *testing.T) {
 	if got := captured.Get("title"); got != "Auction Watch Bid Digest" {
 		t.Fatalf("title = %q, want Auction Watch Bid Digest", got)
 	}
+	if got := captured.Get("html"); got != "1" {
+		t.Fatalf("html form field = %q, want 1 — the digest body carries markup", got)
+	}
 	message := captured.Get("message")
 	want := "2 watched auction lot(s):\n\n" +
-		"Denarius of Trajan (Lot 30)\n" +
+		"<b>Denarius of Trajan</b> (Lot 30)\n" +
 		"The Coin Cabinet - Ancients Auction 35\n" +
 		"- Current high bid: 125.50 GBP\n\n" +
-		"Keystone Tetradrachm (Lot 95)\n" +
+		"<b>Keystone Tetradrachm</b> (<a href=\"https://cngcoins.com/lot/95\">Lot 95</a>)\n" +
 		"Classical Numismatic Group - Keystone 17\n" +
 		"- Current high bid: 300.00 USD (up from 250.00)"
 	if message != want {
@@ -124,11 +127,11 @@ func TestBuildAuctionWatchBidDigestMessageBlankTitleFallsBackToUntitledLot(t *te
 		{Title: "   ", AuctionHouse: "NumisBids", SaleName: "Sale 12", LotNumber: 7, CurrentBid: &bid, Currency: "EUR"},
 	})
 	want := "1 watched auction lot(s):\n\n" +
-		"Untitled lot (Lot 7)\n" +
+		"<b>Untitled lot</b> (Lot 7)\n" +
 		"NumisBids - Sale 12\n" +
 		"- Current high bid: 42.00 EUR"
-	if message != want {
-		t.Fatalf("message = %q, want %q", message, want)
+	if message.Message != want {
+		t.Fatalf("message = %q, want %q", message.Message, want)
 	}
 }
 
@@ -137,11 +140,11 @@ func TestBuildAuctionWatchBidDigestMessageCurrentBidUnavailable(t *testing.T) {
 		{Title: "Athenian Owl Tetradrachm", AuctionHouse: "NumisBids", SaleName: "Sale 12", LotNumber: 7, CurrentBid: nil, Currency: "EUR"},
 	})
 	want := "1 watched auction lot(s):\n\n" +
-		"Athenian Owl Tetradrachm (Lot 7)\n" +
+		"<b>Athenian Owl Tetradrachm</b> (Lot 7)\n" +
 		"NumisBids - Sale 12\n" +
 		"- Current high bid: unavailable"
-	if message != want {
-		t.Fatalf("message = %q, want %q", message, want)
+	if message.Message != want {
+		t.Fatalf("message = %q, want %q", message.Message, want)
 	}
 }
 
@@ -160,7 +163,8 @@ func TestBuildAuctionWatchBidDigestMessageStaysWithinPushoverLimitAndNotesOmitte
 		})
 	}
 
-	message, included := buildAuctionWatchBidDigestMessage(lots)
+	built, included := buildAuctionWatchBidDigestMessage(lots)
+	message := built.Message
 
 	if len(message) > pushoverMessageLimit {
 		t.Fatalf("message length = %d, want <= %d", len(message), pushoverMessageLimit)
@@ -323,7 +327,7 @@ func TestAuctionWatchBidDigestRecordsReportedBidsAsTheNextBaseline(t *testing.T)
 	if !scheduler.notifyUser(user.ID, []models.AuctionLot{lot}) {
 		t.Fatal("first notifyUser returned false")
 	}
-	if got := captured.Get("message"); !strings.Contains(got, "- Current high bid: 75.00 USD\n") && !strings.HasSuffix(got, "- Current high bid: 75.00 USD") {
+	if got := captured.Get("message"); !strings.HasSuffix(got, "- Current high bid: 75.00 USD") {
 		t.Fatalf("first digest = %q, want an uncompared 75.00 USD bid line", got)
 	}
 
@@ -404,6 +408,7 @@ func TestAuctionWatchBidDigestDoesNotBaselineLotsItNeverReported(t *testing.T) {
 	}
 
 	_, reported := buildAuctionWatchBidDigestMessage(lots)
+
 	if reported == 0 || reported >= len(lots) {
 		t.Fatalf("reported = %d, want the digest to have trimmed some lots", reported)
 	}
@@ -454,5 +459,70 @@ func TestAuctionWatchBidDigestDoesNotBaselineWhenTheSendFails(t *testing.T) {
 	}
 	if stored.LastDigestBid != nil {
 		t.Fatalf("LastDigestBid = %v, want nil — an undelivered digest sets no baseline", *stored.LastDigestBid)
+	}
+}
+
+func TestAuctionWatchBidDigestHeadlineLinksTheLotNumber(t *testing.T) {
+	tests := []struct {
+		name string
+		lot  models.AuctionLot
+		want string
+	}{
+		{
+			name: "source URL becomes the lot number's link",
+			lot:  models.AuctionLot{Title: "Athenian Owl", LotNumber: 337, SourceURL: "https://cngcoins.com/lot/337"},
+			want: "<b>Athenian Owl</b> (<a href=\"https://cngcoins.com/lot/337\">Lot 337</a>)",
+		},
+		{
+			name: "lots with only a NumisBids URL still link",
+			lot:  models.AuctionLot{Title: "Athenian Owl", LotNumber: 337, NumisBidsURL: "https://www.numisbids.com/n.php?p=lot&sid=1&lot=337"},
+			want: "<b>Athenian Owl</b> (<a href=\"https://www.numisbids.com/n.php?p=lot&amp;sid=1&amp;lot=337\">Lot 337</a>)",
+		},
+		{
+			name: "no provider URL leaves the lot number as plain text",
+			lot:  models.AuctionLot{Title: "Athenian Owl", LotNumber: 337},
+			want: "<b>Athenian Owl</b> (Lot 337)",
+		},
+		{
+			name: "a non-http scheme is never rendered as a link",
+			lot:  models.AuctionLot{Title: "Athenian Owl", LotNumber: 337, SourceURL: "javascript:alert(1)"},
+			want: "<b>Athenian Owl</b> (Lot 337)",
+		},
+		{
+			name: "a relative URL is never rendered as a link",
+			lot:  models.AuctionLot{Title: "Athenian Owl", LotNumber: 337, SourceURL: "/lot/337"},
+			want: "<b>Athenian Owl</b> (Lot 337)",
+		},
+		{
+			name: "a scraped title carrying markup is escaped",
+			lot:  models.AuctionLot{Title: "<script>alert(1)</script> Owl", LotNumber: 337, SourceURL: "https://cngcoins.com/lot/337"},
+			want: "<b>&lt;script&gt;alert(1)&lt;/script&gt; Owl</b> (<a href=\"https://cngcoins.com/lot/337\">Lot 337</a>)",
+		},
+		{
+			name: "a lot with no lot number has nothing to link",
+			lot:  models.AuctionLot{Title: "Athenian Owl", SourceURL: "https://cngcoins.com/lot/337"},
+			want: "<b>Athenian Owl</b>",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := auctionWatchBidDigestHeadline(test.lot); got != test.want {
+				t.Fatalf("auctionWatchBidDigestHeadline() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestBuildAuctionWatchBidDigestMessageEscapesScrapedSaleNames(t *testing.T) {
+	bid := 42.0
+	message, _ := buildAuctionWatchBidDigestMessage([]models.AuctionLot{
+		{Title: "Athenian Owl", AuctionHouse: "Ancients & Co", SaleName: "Sale <b>12</b>", LotNumber: 7, CurrentBid: &bid, Currency: "EUR"},
+	})
+	if !message.HTML {
+		t.Fatal("digest message is not flagged as HTML")
+	}
+	if !strings.Contains(message.Message, "Ancients &amp; Co - Sale &lt;b&gt;12&lt;/b&gt;") {
+		t.Fatalf("message = %q, want the scraped sale label escaped", message.Message)
 	}
 }

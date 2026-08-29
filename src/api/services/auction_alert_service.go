@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -302,6 +303,26 @@ func auctionLotURL(lot models.AuctionLot) string {
 		return strings.TrimSpace(lot.SourceURL)
 	}
 	return strings.TrimSpace(lot.NumisBidsURL)
+}
+
+// auctionLotProviderURL returns the lot's URL on the auction site when it is usable as a
+// link. Lot URLs are user-pasted or scraped from provider pages, so anything that is not an
+// absolute http(s) URL — a relative path, a bare sale reference, a javascript: scheme — is
+// dropped rather than rendered into a notification as a link (Principle V, F031's rule for
+// app links applied to provider links).
+func auctionLotProviderURL(lot models.AuctionLot) string {
+	raw := auctionLotURL(lot)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ""
+	}
+	return raw
 }
 
 func auctionCurrency(currency string) string {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"sync"
@@ -210,8 +211,9 @@ func (s *AuctionWatchBidDigestScheduler) notifyUser(userID uint, lots []models.A
 	}
 
 	message, reported := buildAuctionWatchBidDigestMessage(lots)
+	message.UserKey = user.PushoverUserKey
 
-	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Auction Watch Bid Digest", message, ""); err != nil {
+	if err := s.pushoverSvc.SendMessage(message); err != nil {
 		s.logger.Error("scheduler", "Failed to send auction watch bid digest to user %d: %s", userID, err)
 		return false
 	}
@@ -232,37 +234,55 @@ func (s *AuctionWatchBidDigestScheduler) recordDigestedBids(lots []models.Auctio
 	}
 }
 
-// buildAuctionWatchBidDigestMessage renders the multi-lot digest body and reports how many
-// lots it named. Each watched lot gets three lines: a shortened title with its lot number,
-// the sale it belongs to, and its current high bid compared against the bid the previous
-// digest reported ("up from 75.00", "down from 95.00", "no change") so the digest answers
-// "did anything move?" without the user remembering yesterday's numbers (specs/_backlog/F032).
+// buildAuctionWatchBidDigestMessage renders the multi-lot digest as Pushover HTML and reports
+// how many lots it named. Each watched lot gets three lines: a shortened title with its lot
+// number linked to the lot on the auction site, the sale it belongs to, and its current high
+// bid compared against the bid the previous digest reported ("up from 75.00", "down from
+// 95.00", "no change") so the digest answers "did anything move?" without the user
+// remembering yesterday's numbers (specs/_backlog/F032). Every interpolated value is
+// HTML-escaped — lot titles and sale names are scraped from third-party auction sites, so
+// they can carry markup — matching the newly-tracked and now-bidding pushes (F031).
+//
 // Lots are dropped (with a trailing summary line) once the message would exceed Pushover's
 // message length limit, so a long watchlist can never cause an API rejection
-// (specs/_backlog/F027); the returned count is what the caller snapshots.
-func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) (string, int) {
-	return buildBatchedLotMessageWithIncluded(
+// (specs/_backlog/F027); the returned count is what the caller snapshots. The limit counts
+// the markup too, so per-lot links cost lots at the end of a long digest.
+func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) (PushoverMessage, int) {
+	message, included := buildBatchedLotMessageWithIncluded(
 		fmt.Sprintf("%d watched auction lot(s):\n\n", len(lots)),
 		lots,
 		func(lot models.AuctionLot) string {
 			return fmt.Sprintf(
 				"%s\n%s\n- Current high bid: %s\n\n",
 				auctionWatchBidDigestHeadline(lot),
-				auctionLotSaleLabel(lot),
-				formatAuctionDigestBid(lot),
+				html.EscapeString(auctionLotSaleLabel(lot)),
+				html.EscapeString(formatAuctionDigestBid(lot)),
 			)
 		},
 	)
+
+	return PushoverMessage{
+		Title:   "Auction Watch Bid Digest",
+		Message: message,
+		HTML:    true,
+	}, included
 }
 
-// auctionWatchBidDigestHeadline is the lot's leading line: a shortened title plus its lot
-// number. The lot number moves up here because the sale line below it no longer carries one.
+// auctionWatchBidDigestHeadline is the lot's leading line: a shortened title in bold plus its
+// lot number, linked to that lot on the auction site so the digest is one tap from the page
+// that can be bid on. The lot number moves up here because the sale line below it no longer
+// carries one, and it is left unlinked when the lot has no usable provider URL.
 func auctionWatchBidDigestHeadline(lot models.AuctionLot) string {
-	title := auctionLotShortTitle(lot)
-	if lot.LotNumber > 0 {
-		return fmt.Sprintf("%s (Lot %d)", title, lot.LotNumber)
+	headline := fmt.Sprintf("<b>%s</b>", html.EscapeString(auctionLotShortTitle(lot)))
+	if lot.LotNumber <= 0 {
+		return headline
 	}
-	return title
+
+	lotNumber := fmt.Sprintf("Lot %d", lot.LotNumber)
+	if lotURL := auctionLotProviderURL(lot); lotURL != "" {
+		lotNumber = fmt.Sprintf("<a href=\"%s\">%s</a>", html.EscapeString(lotURL), lotNumber)
+	}
+	return fmt.Sprintf("%s (%s)", headline, lotNumber)
 }
 
 // auctionLotShortTitle trims a scraped catalog description down to its leading clause so a
