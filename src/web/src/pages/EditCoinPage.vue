@@ -47,35 +47,47 @@ onMounted(async () => {
 
 async function handleSubmit() {
   saving.value = true
+  // Tracks how far the save got, so a failure reports what actually happened.
+  // The coin's fields and its images are saved by separate requests, and the
+  // image ones can fail on their own — telling the user the whole edit was
+  // lost when only the upload failed sends them back to redo work that saved.
+  let coinSaved = false
   try {
     await updateCoin(form.id!, form)
+    coinSaved = true
 
     const formComp = coinFormRef.value
     const coinId = form.id!
 
-    // Delete removed images
-    if (formComp?.removedObverseId) {
-      await deleteImage(coinId, formComp.removedObverseId)
-    }
-    if (formComp?.removedReverseId) {
-      await deleteImage(coinId, formComp.removedReverseId)
+    // Replace a side by uploading the new image FIRST, then deleting the one
+    // it supersedes. Deleting first means a failed upload leaves the coin with
+    // no image at all, which is how a dropped upload turned into lost data.
+    // There is no unique constraint on (coin_id, image_type), so the coin
+    // holding both briefly is fine, and uploading the obverse as primary
+    // clears the old primary flag before the old row goes away.
+    async function replaceSide(
+      imageType: 'obverse' | 'reverse',
+      file: File,
+      isPrimary: boolean,
+      removedId: number | null,
+    ) {
+      await uploadImage(coinId, file, imageType, isPrimary)
+      const superseded = removedId ?? form.images?.find((i) => i.imageType === imageType)?.id
+      if (superseded) {
+        await deleteImage(coinId, superseded)
+      }
     }
 
-    // Upload new/replacement images
     if (formComp?.obverseFile) {
-      // If replacing, delete the old one first (if not already removed)
-      const existingObverse = form.images?.find((i) => i.imageType === 'obverse')
-      if (existingObverse && !formComp.removedObverseId) {
-        await deleteImage(coinId, existingObverse.id)
-      }
-      await uploadImage(coinId, formComp.obverseFile, 'obverse', true)
+      await replaceSide('obverse', formComp.obverseFile, true, formComp.removedObverseId)
+    } else if (formComp?.removedObverseId) {
+      await deleteImage(coinId, formComp.removedObverseId)
     }
+
     if (formComp?.reverseFile) {
-      const existingReverse = form.images?.find((i) => i.imageType === 'reverse')
-      if (existingReverse && !formComp.removedReverseId) {
-        await deleteImage(coinId, existingReverse.id)
-      }
-      await uploadImage(coinId, formComp.reverseFile, 'reverse', false)
+      await replaceSide('reverse', formComp.reverseFile, false, formComp.removedReverseId)
+    } else if (formComp?.removedReverseId) {
+      await deleteImage(coinId, formComp.removedReverseId)
     }
 
     // Extract text from store card if uploaded
@@ -97,7 +109,12 @@ async function handleSubmit() {
 
     router.back()
   } catch {
-    await showAlert('Failed to update coin', { title: 'Error' })
+    await showAlert(
+      coinSaved
+        ? 'Coin details were saved, but the image could not be uploaded. Try adding the image again.'
+        : 'Failed to update coin',
+      { title: 'Error' },
+    )
   } finally {
     saving.value = false
   }

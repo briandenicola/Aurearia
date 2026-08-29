@@ -84,22 +84,24 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         skipWaiting: false,
         clientsClaim: false,
+        // Only GET routes belong here. Workbox's router ignores non-GET
+        // requests unless a route explicitly opts them in, and an unmatched
+        // request is never passed to `event.respondWith` — the browser issues
+        // it directly, with no service worker in the path.
+        //
+        // There used to be three `NetworkOnly` routes for PUT/POST/DELETE on
+        // /api/. `NetworkOnly` is just `fetch(request)`, so they bought
+        // nothing the browser wasn't already doing, but they did force the
+        // service worker to re-issue every API write. On iOS WebKit (Safari
+        // and Edge alike) that re-issue drops a multipart body: the request
+        // arrived at the API with its multipart/form-data Content-Type intact
+        // and zero bytes behind it, so `c.FormFile("image")` failed with
+        // `multipart: NextPart: EOF` and the coin edit page reported the
+        // upload as a failed save. JSON writes survived because a string body
+        // is unaffected, which is why only image uploads broke, and only in
+        // the installed PWA. Confirmed by iOS private browsing, where service
+        // workers are disabled and the same upload succeeds.
         runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkOnly',
-            method: 'PUT',
-          },
-          {
-            urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkOnly',
-            method: 'POST',
-          },
-          {
-            urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkOnly',
-            method: 'DELETE',
-          },
           {
             // Cache only public showcase reads; all authenticated API reads stay network-only.
             urlPattern: /^https?:\/\/.*\/api\/showcase(?:\/.*)?$/,
