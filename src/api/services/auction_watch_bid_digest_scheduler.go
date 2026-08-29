@@ -217,7 +217,7 @@ func (s *AuctionWatchBidDigestScheduler) notifyUser(userID uint, lots []models.A
 		s.logger.Error("scheduler", "Failed to send auction watch bid digest to user %d: %s", userID, err)
 		return false
 	}
-	s.recordDigestedBids(lots[:reported])
+	s.recordDigestedBids(reported)
 	return true
 }
 
@@ -234,28 +234,38 @@ func (s *AuctionWatchBidDigestScheduler) recordDigestedBids(lots []models.Auctio
 	}
 }
 
-// buildAuctionWatchBidDigestMessage renders the multi-lot digest as Pushover HTML and reports
-// how many lots it named. Each watched lot gets three lines: a shortened title with its lot
-// number linked to the lot on the auction site, the sale it belongs to, and its current high
-// bid compared against the bid the previous digest reported ("up from 75.00", "down from
-// 95.00", "no change") so the digest answers "did anything move?" without the user
-// remembering yesterday's numbers (specs/_backlog/F032). Every interpolated value is
-// HTML-escaped — lot titles and sale names are scraped from third-party auction sites, so
-// they can carry markup — matching the newly-tracked and now-bidding pushes (F031).
+// buildAuctionWatchBidDigestMessage renders the multi-lot digest as Pushover HTML and returns
+// the lots it actually named, in the order it named them. Lots are grouped under the sale
+// they belong to, and each one gets two lines: a shortened title with its lot number linked
+// to the lot on the auction site, then its current high bid compared against the bid the
+// previous digest reported ("up from 75.00", "down from 95.00", "no change") so the digest
+// answers "did anything move?" without the user remembering yesterday's numbers
+// (specs/_backlog/F032). Every interpolated value is HTML-escaped — lot titles and sale names
+// are scraped from third-party auction sites, so they can carry markup — matching the
+// newly-tracked and now-bidding pushes (F031).
 //
 // Lots are dropped (with a trailing summary line) once the message would exceed Pushover's
 // message length limit, so a long watchlist can never cause an API rejection
-// (specs/_backlog/F027); the returned count is what the caller snapshots. The limit counts
-// the markup too, so per-lot links cost lots at the end of a long digest.
-func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) (PushoverMessage, int) {
+// (specs/_backlog/F027). The limit counts markup, so naming each sale once instead of once
+// per lot is what pays for the per-lot links.
+func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) (PushoverMessage, []models.AuctionLot) {
+	grouped := groupAuctionLotsBySale(lots)
+
+	renderedSale := ""
 	message, included := buildBatchedLotMessageWithIncluded(
-		fmt.Sprintf("%d watched auction lot(s):\n\n", len(lots)),
-		lots,
+		fmt.Sprintf("%d watched auction lot(s):\n\n", len(grouped)),
+		grouped,
 		func(lot models.AuctionLot) string {
-			return fmt.Sprintf(
-				"%s\n%s\n- Current high bid: %s\n\n",
+			entry := ""
+			// The heading belongs to the same entry as the first lot under it, so the
+			// length trim can never leave a sale heading with no lots beneath it.
+			if sale := auctionLotSaleLabel(lot); sale != renderedSale {
+				renderedSale = sale
+				entry = fmt.Sprintf("<i>%s</i>\n", html.EscapeString(sale))
+			}
+			return entry + fmt.Sprintf(
+				"%s\n- Current high bid: %s\n\n",
 				auctionWatchBidDigestHeadline(lot),
-				html.EscapeString(auctionLotSaleLabel(lot)),
 				html.EscapeString(formatAuctionDigestBid(lot)),
 			)
 		},
@@ -265,13 +275,37 @@ func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) (PushoverMessag
 		Title:   "Auction Watch Bid Digest",
 		Message: message,
 		HTML:    true,
-	}, included
+	}, grouped[:included]
+}
+
+// groupAuctionLotsBySale reorders lots so every lot in one sale is contiguous, keeping sales
+// in the order they first appear and lots in their original order within a sale. The digest
+// names a sale once and lists its lots under it, which only works if they are adjacent, and
+// the repository's end-time ordering cannot guarantee that: lots in one sale close at
+// staggered times (CNG electronic auctions do), so two sales closing the same evening would
+// otherwise interleave.
+func groupAuctionLotsBySale(lots []models.AuctionLot) []models.AuctionLot {
+	saleOrder := make([]string, 0, len(lots))
+	bySale := make(map[string][]models.AuctionLot, len(lots))
+	for _, lot := range lots {
+		sale := auctionLotSaleLabel(lot)
+		if _, seen := bySale[sale]; !seen {
+			saleOrder = append(saleOrder, sale)
+		}
+		bySale[sale] = append(bySale[sale], lot)
+	}
+
+	grouped := make([]models.AuctionLot, 0, len(lots))
+	for _, sale := range saleOrder {
+		grouped = append(grouped, bySale[sale]...)
+	}
+	return grouped
 }
 
 // auctionWatchBidDigestHeadline is the lot's leading line: a shortened title in bold plus its
 // lot number, linked to that lot on the auction site so the digest is one tap from the page
-// that can be bid on. The lot number moves up here because the sale line below it no longer
-// carries one, and it is left unlinked when the lot has no usable provider URL.
+// that can be bid on. The lot number moves up here because the sale is now a heading above
+// the lot, and it is left unlinked when the lot has no usable provider URL.
 func auctionWatchBidDigestHeadline(lot models.AuctionLot) string {
 	headline := fmt.Sprintf("<b>%s</b>", html.EscapeString(auctionLotShortTitle(lot)))
 	if lot.LotNumber <= 0 {

@@ -8,14 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Watch bid digest bid comparison** — Every lot in the Auction Watch Bid Digest
-  now says how its bid moved since the previous digest — `up from 75.00`,
-  `down from 95.00`, or `no change` — instead of restating the current bid with
-  no context. A lot reported for the first time shows its bid alone. Each lot is
-  laid out as title with lot number, sale, then bid line, and long provider
-  catalog titles are shortened to their identifying clause, so more lots fit
-  before the digest trims itself. The comparison baseline only moves when a
-  digest is actually delivered, so a failed push or a trimmed lot never loses a
+- **Watch bid digest bid comparison and lot links** — Every lot in the Auction
+  Watch Bid Digest now says how its bid moved since the previous digest — `up
+  from 75.00`, `down from 95.00`, or `no change` — instead of restating the
+  current bid with no context. A lot reported for the first time shows its bid
+  alone. The digest is now a rich-HTML Pushover push: lots are grouped under
+  their sale, each lot's title is bold, and its lot number links straight to
+  that lot on the auction site. Long provider catalog titles are shortened to
+  their identifying clause. The comparison baseline only moves when a digest is
+  actually delivered, so a failed push or a lot trimmed for length never loses a
   change. See `specs/_backlog/F032-watch-bid-digest-change-comparison.md`.
 
 - **New auction lot notifications** — The background watchlist sync now sends one

@@ -104,11 +104,11 @@ func TestAuctionWatchBidDigestNotifyUserIncludesCurrentHighBids(t *testing.T) {
 	}
 	message := captured.Get("message")
 	want := "2 watched auction lot(s):\n\n" +
+		"<i>The Coin Cabinet - Ancients Auction 35</i>\n" +
 		"<b>Denarius of Trajan</b> (Lot 30)\n" +
-		"The Coin Cabinet - Ancients Auction 35\n" +
 		"- Current high bid: 125.50 GBP\n\n" +
+		"<i>Classical Numismatic Group - Keystone 17</i>\n" +
 		"<b>Keystone Tetradrachm</b> (<a href=\"https://cngcoins.com/lot/95\">Lot 95</a>)\n" +
-		"Classical Numismatic Group - Keystone 17\n" +
 		"- Current high bid: 300.00 USD (up from 250.00)"
 	if message != want {
 		t.Fatalf("message = %q, want %q", message, want)
@@ -127,8 +127,8 @@ func TestBuildAuctionWatchBidDigestMessageBlankTitleFallsBackToUntitledLot(t *te
 		{Title: "   ", AuctionHouse: "NumisBids", SaleName: "Sale 12", LotNumber: 7, CurrentBid: &bid, Currency: "EUR"},
 	})
 	want := "1 watched auction lot(s):\n\n" +
+		"<i>NumisBids - Sale 12</i>\n" +
 		"<b>Untitled lot</b> (Lot 7)\n" +
-		"NumisBids - Sale 12\n" +
 		"- Current high bid: 42.00 EUR"
 	if message.Message != want {
 		t.Fatalf("message = %q, want %q", message.Message, want)
@@ -140,8 +140,8 @@ func TestBuildAuctionWatchBidDigestMessageCurrentBidUnavailable(t *testing.T) {
 		{Title: "Athenian Owl Tetradrachm", AuctionHouse: "NumisBids", SaleName: "Sale 12", LotNumber: 7, CurrentBid: nil, Currency: "EUR"},
 	})
 	want := "1 watched auction lot(s):\n\n" +
+		"<i>NumisBids - Sale 12</i>\n" +
 		"<b>Athenian Owl Tetradrachm</b> (Lot 7)\n" +
-		"NumisBids - Sale 12\n" +
 		"- Current high bid: unavailable"
 	if message.Message != want {
 		t.Fatalf("message = %q, want %q", message.Message, want)
@@ -163,8 +163,9 @@ func TestBuildAuctionWatchBidDigestMessageStaysWithinPushoverLimitAndNotesOmitte
 		})
 	}
 
-	built, included := buildAuctionWatchBidDigestMessage(lots)
+	built, reported := buildAuctionWatchBidDigestMessage(lots)
 	message := built.Message
+	included := len(reported)
 
 	if len(message) > pushoverMessageLimit {
 		t.Fatalf("message length = %d, want <= %d", len(message), pushoverMessageLimit)
@@ -409,16 +410,16 @@ func TestAuctionWatchBidDigestDoesNotBaselineLotsItNeverReported(t *testing.T) {
 
 	_, reported := buildAuctionWatchBidDigestMessage(lots)
 
-	if reported == 0 || reported >= len(lots) {
-		t.Fatalf("reported = %d, want the digest to have trimmed some lots", reported)
+	if len(reported) == 0 || len(reported) >= len(lots) {
+		t.Fatalf("reported = %d lots, want the digest to have trimmed some", len(reported))
 	}
 
 	var baselined int64
 	if err := db.Model(&models.AuctionLot{}).Where("last_digest_bid IS NOT NULL").Count(&baselined).Error; err != nil {
 		t.Fatalf("failed to count baselined lots: %v", err)
 	}
-	if baselined != int64(reported) {
-		t.Fatalf("%d lots baselined, want %d — only lots the push actually named", baselined, reported)
+	if baselined != int64(len(reported)) {
+		t.Fatalf("%d lots baselined, want %d — only lots the push actually named", baselined, len(reported))
 	}
 }
 
@@ -524,5 +525,41 @@ func TestBuildAuctionWatchBidDigestMessageEscapesScrapedSaleNames(t *testing.T) 
 	}
 	if !strings.Contains(message.Message, "Ancients &amp; Co - Sale &lt;b&gt;12&lt;/b&gt;") {
 		t.Fatalf("message = %q, want the scraped sale label escaped", message.Message)
+	}
+}
+
+func TestBuildAuctionWatchBidDigestMessageGroupsInterleavedSalesUnderOneHeading(t *testing.T) {
+	bid := 50.0
+	lots := []models.AuctionLot{
+		{Title: "Owl", AuctionHouse: "CNG", SaleName: "Electronic Auction 616", LotNumber: 1, CurrentBid: &bid, Currency: "USD"},
+		{Title: "Stater", AuctionHouse: "The Coin Cabinet", SaleName: "Ancients 35", LotNumber: 2, CurrentBid: &bid, Currency: "USD"},
+		{Title: "Denarius", AuctionHouse: "CNG", SaleName: "Electronic Auction 616", LotNumber: 3, CurrentBid: &bid, Currency: "USD"},
+	}
+
+	message, reported := buildAuctionWatchBidDigestMessage(lots)
+
+	want := "3 watched auction lot(s):\n\n" +
+		"<i>CNG - Electronic Auction 616</i>\n" +
+		"<b>Owl</b> (Lot 1)\n" +
+		"- Current high bid: 50.00 USD\n\n" +
+		"<b>Denarius</b> (Lot 3)\n" +
+		"- Current high bid: 50.00 USD\n\n" +
+		"<i>The Coin Cabinet - Ancients 35</i>\n" +
+		"<b>Stater</b> (Lot 2)\n" +
+		"- Current high bid: 50.00 USD"
+	if message.Message != want {
+		t.Fatalf("message = %q, want %q", message.Message, want)
+	}
+
+	// The reported lots follow the order the digest named them, which is what the caller
+	// snapshots — not the order they were passed in.
+	if len(reported) != 3 {
+		t.Fatalf("reported %d lots, want 3", len(reported))
+	}
+	wantLotNumbers := []int{1, 3, 2}
+	for i, lot := range reported {
+		if lot.LotNumber != wantLotNumbers[i] {
+			t.Fatalf("reported[%d] = Lot %d, want Lot %d", i, lot.LotNumber, wantLotNumbers[i])
+		}
 	}
 }

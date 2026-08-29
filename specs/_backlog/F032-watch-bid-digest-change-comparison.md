@@ -36,9 +36,13 @@ eye lands on.
       instead of being lost.
 - [x] A lot whose current bid the provider stops reporting keeps its previous
       baseline rather than having it erased.
-- [x] Each lot renders as a scannable block: title with lot number, the sale,
-      then the bid line — instead of one long title line and one long
-      metadata-plus-bid line.
+- [x] Each lot renders as a scannable block: title with lot number, then the
+      bid line, under a heading naming the sale — instead of one long title line
+      and one long metadata-plus-bid line.
+- [x] Each lot number is a link to that lot on the auction site, and a lot with
+      no usable provider URL still renders (unlinked) rather than being dropped.
+- [x] Scraped titles and sale names are HTML-escaped, and a lot URL that is not
+      an absolute http(s) URL is never rendered as a link.
 - [x] Provider catalog titles are shortened to their identifying clause so a
       digest of many lots stays readable and more lots fit inside Pushover's
       message limit.
@@ -73,6 +77,15 @@ eye lands on.
 - [x] Should the currency be repeated inside the comparison? — No. The
       comparison is always in the lot's own currency, so
       "80.00 USD (up from 75.00)" reads cleanly and keeps the line short.
+- [x] Per-lot links cost message budget — Pushover's 1024-character limit counts
+      markup, and a provider lot URL plus its anchor is roughly 80 characters, so
+      linking every lot number cut a measured 15-lot CNG digest from 8 named lots
+      to 4. Resolved by naming each sale once as a heading over its lots instead
+      of repeating it under every title, which buys back roughly 50 characters
+      per lot and puts the same digest at 6 named lots. Grouping is explicit
+      rather than relying on the repository's ordering: lots in one sale close at
+      staggered times, so two sales closing the same evening would otherwise
+      interleave and repeat their headings.
 
 ## Notes
 
@@ -103,8 +116,19 @@ number moved onto the title line, so `auctionLotLabel` was split: the new
 `auctionLotSaleLabel` is the "house - sale" half without it, and `auctionLotLabel`
 is unchanged for the single-lot alerts that still use it.
 
-Side effect of the shorter blocks: roughly half again as many lots now fit inside
-Pushover's 1024-character limit before the digest starts trimming.
+The digest became a rich-HTML push (`PushoverMessage{HTML: true}`) so the lot
+number could carry a link, which brought F031's escaping rules with it:
+`html.EscapeString` on every interpolated value, and `auctionLotProviderURL`
+dropping any lot URL that is not an absolute http(s) URL rather than rendering it
+as an anchor. `buildAuctionWatchBidDigestMessage` returns the lots it named
+rather than a count, because `groupAuctionLotsBySale` reorders them and the
+caller snapshots exactly the set the user was shown.
+
+Message-budget arithmetic on a 15-lot CNG digest, measured: 8 lots named with the
+original one-line-per-lot layout and no links; 4 once every lot number carried a
+link; 6 with the sale hoisted into a heading. The sale heading is part of the
+same entry as the first lot under it, so the length trim can never leave a
+heading stranded with no lots.
 
 ## History
 
@@ -113,3 +137,8 @@ Pushover's 1024-character limit before the digest starts trimming.
   trim-gated persistence, updated_at guarantee). Status left at `backlog` pending
   Lead triage per `_backlog/README.md` — implementation does not self-advance
   status.
+- 2026-08-29: extended on request to link each lot number to the lot on the
+  auction site, which made the digest a rich-HTML push; sale headings added to
+  pay back the message budget the links cost. Unit-tested (link rendering,
+  scheme rejection, escaping, sale grouping across interleaved sales, and the
+  reported-lot set the snapshot follows).
