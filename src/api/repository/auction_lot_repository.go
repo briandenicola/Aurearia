@@ -500,6 +500,31 @@ func (r *AuctionLotRepository) GetActiveWatchBidDigestLots() ([]models.AuctionLo
 	return lots, err
 }
 
+// SaveWatchBidDigestBids records each lot's current bid as the baseline the next watch-bid
+// digest compares against, so a digest can say "up from 75.00" instead of just restating the
+// bid. It is called only after a digest is actually delivered — the baseline is "what the
+// user was last told", not "what sync last saw" (specs/_backlog/F032).
+//
+// Lots whose current bid is unknown are skipped rather than snapshotted as NULL: a provider
+// that briefly stops reporting a bid should not erase the comparison the next digest makes.
+// last_digest_bid is written with UpdateColumn so this bookkeeping never bumps updated_at,
+// which the UI reads as "when this lot last changed".
+func (r *AuctionLotRepository) SaveWatchBidDigestBids(lots []models.AuctionLot) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, lot := range lots {
+			if lot.ID == 0 || lot.CurrentBid == nil {
+				continue
+			}
+			if err := tx.Model(&models.AuctionLot{}).
+				Where("id = ?", lot.ID).
+				UpdateColumn("last_digest_bid", *lot.CurrentBid).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // AuctionLotDebugInfo holds enriched lot data for debugging date/status issues.
 type AuctionLotDebugInfo struct {
 	ID             uint       `json:"id"`

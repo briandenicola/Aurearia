@@ -91,7 +91,7 @@ Centralized schedule configuration for background jobs:
 - **Wishlist Availability** — Automatic URL availability checks and run history
 - **Wishlist Search Alerts** — Scheduled alert discovery for non-manual alerts
 - **Auction Ending** — Reminders for watched/bidding auction lots ending soon
-- **Auction Watch Bid Digest** — Digest notifications for watched auction bidding activity
+- **Auction Watch Bid Digest** — Digest notifications for watched auction bidding activity, comparing each lot's current high bid with the previous digest
 - **Coin of the Day** — Daily featured coin notifications and manual run
 - **Collection Health** — Daily health snapshots
 - **Collection Valuation** — Scheduled valuation runs, manual trigger, and cancellation

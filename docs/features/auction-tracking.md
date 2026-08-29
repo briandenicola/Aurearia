@@ -25,6 +25,7 @@ NumisBids lots should be treated as tracked watchlist/import records. After the 
 - **Manual Lot Entry** — Paste NumisBids or CNG lot URLs to add lots
 - **Watchlist Sync** — Auto-import configured NumisBids and/or CNG watched lots with one click
 - **New Lot Notifications** — One batched alert when the background sync starts tracking lots you watched or bid on at the provider
+- **Watch Bid Digest** — A scheduled digest of active watched/bidding lots grouped by sale, each showing how its current high bid moved since the previous digest, with its lot number linked to the auction site
 - **Now Bidding Alerts** — A separate batched alert when the sync sees a bid of yours appear on a lot you were only watching
 - **Status Workflow** — Watching → Bidding → Won/Lost/Passed, with CNG outcomes auto-detected where available and NumisBids outcomes updated manually
 - **Price Alerts** — Notify when bidding crosses your threshold

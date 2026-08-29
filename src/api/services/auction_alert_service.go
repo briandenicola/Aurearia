@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -266,7 +267,11 @@ func auctionLotTitle(lot models.AuctionLot) string {
 	return title
 }
 
-func auctionLotLabel(lot models.AuctionLot) string {
+// auctionLotSaleLabel names the sale a lot belongs to ("house - sale"), with placeholders
+// for either half when the provider did not supply it. It carries no lot number, so callers
+// that show the lot number elsewhere (the watch-bid digest puts it on the title line) can
+// use it without repeating themselves.
+func auctionLotSaleLabel(lot models.AuctionLot) string {
 	house := strings.TrimSpace(lot.AuctionHouse)
 	if house == "" {
 		house = "Auction"
@@ -275,8 +280,16 @@ func auctionLotLabel(lot models.AuctionLot) string {
 	if sale == "" {
 		sale = "Sale"
 	}
+	return fmt.Sprintf("%s - %s", house, sale)
+}
+
+func auctionLotLabel(lot models.AuctionLot) string {
 	if lot.LotNumber > 0 {
-		return fmt.Sprintf("%s - %s (Lot %d)", house, sale, lot.LotNumber)
+		return fmt.Sprintf("%s (Lot %d)", auctionLotSaleLabel(lot), lot.LotNumber)
+	}
+	house := strings.TrimSpace(lot.AuctionHouse)
+	if house == "" {
+		house = "Auction"
 	}
 	title := strings.TrimSpace(lot.Title)
 	if title == "" {
@@ -290,6 +303,26 @@ func auctionLotURL(lot models.AuctionLot) string {
 		return strings.TrimSpace(lot.SourceURL)
 	}
 	return strings.TrimSpace(lot.NumisBidsURL)
+}
+
+// auctionLotProviderURL returns the lot's URL on the auction site when it is usable as a
+// link. Lot URLs are user-pasted or scraped from provider pages, so anything that is not an
+// absolute http(s) URL — a relative path, a bare sale reference, a javascript: scheme — is
+// dropped rather than rendered into a notification as a link (Principle V, F031's rule for
+// app links applied to provider links).
+func auctionLotProviderURL(lot models.AuctionLot) string {
+	raw := auctionLotURL(lot)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ""
+	}
+	return raw
 }
 
 func auctionCurrency(currency string) string {
