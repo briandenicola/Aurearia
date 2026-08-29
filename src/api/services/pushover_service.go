@@ -22,9 +22,20 @@ const pushoverMessageLimit = 1024
 // the per-lot block, which is the only thing that differs between batched auction messages
 // (the watch-bid digest and the newly-tracked-lots push).
 func buildBatchedLotMessage(header string, lots []models.AuctionLot, renderLot func(models.AuctionLot) string) string {
+	message, _ := buildBatchedLotMessageWithIncluded(header, lots, renderLot)
+	return message
+}
+
+// buildBatchedLotMessageWithIncluded is buildBatchedLotMessage plus the number of leading
+// lots that survived the length trim. Callers that record per-lot state off the back of a
+// delivered message (the watch-bid digest snapshots the bids it reported) need to know which
+// lots the user was actually told about, so a lot trimmed off the end keeps its old baseline
+// rather than silently losing the change it never reported (specs/_backlog/F032).
+func buildBatchedLotMessageWithIncluded(header string, lots []models.AuctionLot, renderLot func(models.AuctionLot) string) (string, int) {
 	var builder strings.Builder
 	builder.WriteString(header)
 
+	included := 0
 	for i, lot := range lots {
 		entry := renderLot(lot)
 		omittedNote := fmt.Sprintf("… %d more lot(s) omitted\n", len(lots)-i)
@@ -33,9 +44,10 @@ func buildBatchedLotMessage(header string, lots []models.AuctionLot, renderLot f
 			break
 		}
 		builder.WriteString(entry)
+		included++
 	}
 
-	return strings.TrimRight(builder.String(), "\n")
+	return strings.TrimRight(builder.String(), "\n"), included
 }
 
 // ErrPushoverNotConfigured is returned when Pushover credentials are not set.

@@ -3,7 +3,7 @@
 
   <!-- Auction Watch Bid Digest -->
   <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Watch Bid Digest</h3>
-  <p class="mb-4 text-base text-text-secondary">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active.</p>
+  <p class="mb-4 text-base text-text-secondary">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active. Each lot in the digest shows how its bid moved since the previous digest.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Automatic Digests</label>

@@ -1048,3 +1048,49 @@ func TestAuctionLotRepository_ListResolvedByUserAndCategory(t *testing.T) {
 		}
 	}
 }
+
+func TestAuctionLotRepository_SaveWatchBidDigestBids(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	reportedBid := 80.0
+	staleBaseline := 60.0
+	withBid := &models.AuctionLot{
+		NumisBidsURL: "https://example.com/lot1", Title: "Reported lot", Status: models.AuctionStatusWatching,
+		CurrentBid: &reportedBid, UserID: 1,
+	}
+	withoutBid := &models.AuctionLot{
+		NumisBidsURL: "https://example.com/lot2", Title: "Bid unavailable", Status: models.AuctionStatusWatching,
+		CurrentBid: nil, LastDigestBid: &staleBaseline, UserID: 1,
+	}
+	for _, lot := range []*models.AuctionLot{withBid, withoutBid} {
+		if err := db.Create(lot).Error; err != nil {
+			t.Fatalf("failed to seed lot: %v", err)
+		}
+	}
+
+	if err := repo.SaveWatchBidDigestBids([]models.AuctionLot{*withBid, *withoutBid}); err != nil {
+		t.Fatalf("SaveWatchBidDigestBids: %v", err)
+	}
+
+	var reported models.AuctionLot
+	if err := db.First(&reported, withBid.ID).Error; err != nil {
+		t.Fatalf("failed to reload reported lot: %v", err)
+	}
+	if reported.LastDigestBid == nil || *reported.LastDigestBid != reportedBid {
+		t.Fatalf("LastDigestBid = %v, want %v", reported.LastDigestBid, reportedBid)
+	}
+	if !reported.UpdatedAt.Equal(withBid.UpdatedAt) {
+		t.Fatalf("UpdatedAt moved from %v to %v; a digest snapshot is not a change to the lot", withBid.UpdatedAt, reported.UpdatedAt)
+	}
+
+	// A lot whose bid the provider stopped reporting keeps the baseline it already had,
+	// so the next digest that does see a bid can still compare against something.
+	var unavailable models.AuctionLot
+	if err := db.First(&unavailable, withoutBid.ID).Error; err != nil {
+		t.Fatalf("failed to reload lot with no bid: %v", err)
+	}
+	if unavailable.LastDigestBid == nil || *unavailable.LastDigestBid != staleBaseline {
+		t.Fatalf("LastDigestBid = %v, want the previous baseline %v", unavailable.LastDigestBid, staleBaseline)
+	}
+}

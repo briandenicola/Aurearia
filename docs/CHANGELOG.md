@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Watch bid digest bid comparison** — Every lot in the Auction Watch Bid Digest
+  now says how its bid moved since the previous digest — `up from 75.00`,
+  `down from 95.00`, or `no change` — instead of restating the current bid with
+  no context. A lot reported for the first time shows its bid alone. Each lot is
+  laid out as title with lot number, sale, then bid line, and long provider
+  catalog titles are shortened to their identifying clause, so more lots fit
+  before the digest trims itself. The comparison baseline only moves when a
+  digest is actually delivered, so a failed push or a trimmed lot never loses a
+  change. See `specs/_backlog/F032-watch-bid-digest-change-comparison.md`.
+
 - **New auction lot notifications** — The background watchlist sync now sends one
   batched notification when it starts tracking lots you watched or bid on at
   NumisBids or CNG. The Pushover push is rich HTML listing each lot's coin name,

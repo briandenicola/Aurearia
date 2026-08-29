@@ -209,39 +209,118 @@ func (s *AuctionWatchBidDigestScheduler) notifyUser(userID uint, lots []models.A
 		return false
 	}
 
-	message := buildAuctionWatchBidDigestMessage(lots)
+	message, reported := buildAuctionWatchBidDigestMessage(lots)
 
 	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Auction Watch Bid Digest", message, ""); err != nil {
 		s.logger.Error("scheduler", "Failed to send auction watch bid digest to user %d: %s", userID, err)
 		return false
 	}
+	s.recordDigestedBids(lots[:reported])
 	return true
 }
 
-// buildAuctionWatchBidDigestMessage renders the multi-lot digest body. Each watched lot
-// leads with its title (falling back to "Untitled lot" via the shared auctionLotTitle
-// helper), then a separate line with auction metadata and the current bid, reusing
-// auctionLotLabel/formatAuctionBid so this stays consistent with the single-lot alert
-// wording. Lots are dropped (with a trailing summary line) once the message would exceed
-// Pushover's message length limit, so a long watchlist can never cause an API rejection
-// (specs/_backlog/F027).
-func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) string {
-	return buildBatchedLotMessage(
+// recordDigestedBids stores the bids this digest just reported as the baseline the next one
+// compares against. Only lots the delivered message actually named are recorded, and only
+// after a successful send, so a failed push or a lot trimmed for length keeps its previous
+// baseline and its change surfaces in the next digest instead of being lost.
+func (s *AuctionWatchBidDigestScheduler) recordDigestedBids(lots []models.AuctionLot) {
+	if s.auctionRepo == nil || len(lots) == 0 {
+		return
+	}
+	if err := s.auctionRepo.SaveWatchBidDigestBids(lots); err != nil {
+		s.logger.Error("scheduler", "Failed to record digested auction bids: %s", err)
+	}
+}
+
+// buildAuctionWatchBidDigestMessage renders the multi-lot digest body and reports how many
+// lots it named. Each watched lot gets three lines: a shortened title with its lot number,
+// the sale it belongs to, and its current high bid compared against the bid the previous
+// digest reported ("up from 75.00", "down from 95.00", "no change") so the digest answers
+// "did anything move?" without the user remembering yesterday's numbers (specs/_backlog/F032).
+// Lots are dropped (with a trailing summary line) once the message would exceed Pushover's
+// message length limit, so a long watchlist can never cause an API rejection
+// (specs/_backlog/F027); the returned count is what the caller snapshots.
+func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) (string, int) {
+	return buildBatchedLotMessageWithIncluded(
 		fmt.Sprintf("%d watched auction lot(s):\n\n", len(lots)),
 		lots,
 		func(lot models.AuctionLot) string {
-			return fmt.Sprintf("%s\n%s: %s\n\n", auctionLotTitle(lot), auctionLotLabel(lot), formatAuctionBid(lot.CurrentBid, lot.Currency))
+			return fmt.Sprintf(
+				"%s\n%s\n- Current high bid: %s\n\n",
+				auctionWatchBidDigestHeadline(lot),
+				auctionLotSaleLabel(lot),
+				formatAuctionDigestBid(lot),
+			)
 		},
 	)
+}
+
+// auctionWatchBidDigestHeadline is the lot's leading line: a shortened title plus its lot
+// number. The lot number moves up here because the sale line below it no longer carries one.
+func auctionWatchBidDigestHeadline(lot models.AuctionLot) string {
+	title := auctionLotShortTitle(lot)
+	if lot.LotNumber > 0 {
+		return fmt.Sprintf("%s (Lot %d)", title, lot.LotNumber)
+	}
+	return title
+}
+
+// auctionLotShortTitle trims a scraped catalog description down to its leading clause so a
+// digest of a dozen lots stays scannable. Provider titles read
+// "PAMPHYLIA, Aspendos. Circa 380/75-330/25 BC. AR Stater (20mm, 10.85 g, 2h). VF." — the
+// first sentence is the identifying half and the rest is detail the user can look up in the
+// app. Titles with no sentence break are capped instead, so one runaway title cannot crowd
+// every other lot out of the length-limited body.
+func auctionLotShortTitle(lot models.AuctionLot) string {
+	title := auctionLotTitle(lot)
+	if index := strings.Index(title, ". "); index > 0 {
+		title = strings.TrimSpace(title[:index])
+	}
+	title = strings.TrimRight(title, ".")
+	if title == "" {
+		return auctionLotTitle(lot)
+	}
+	return truncateRunes(title, auctionLotShortTitleLimit)
+}
+
+// auctionLotShortTitleLimit caps a digest title line. Chosen so a lot's three lines stay well
+// under a phone notification's readable width while leaving room for several lots inside
+// pushoverMessageLimit.
+const auctionLotShortTitleLimit = 60
+
+// formatAuctionDigestBid renders the bid line's value: the current high bid, followed by how
+// it compares with the bid the last digest reported for this lot. A lot that has never been
+// reported before has nothing to compare against, so it shows the bid alone.
+func formatAuctionDigestBid(lot models.AuctionLot) string {
+	if lot.CurrentBid == nil {
+		return "unavailable"
+	}
+	amount := formatAuctionBidAmount(*lot.CurrentBid, lot.Currency)
+	if lot.LastDigestBid == nil {
+		return amount
+	}
+	switch previous := *lot.LastDigestBid; {
+	case *lot.CurrentBid > previous:
+		return fmt.Sprintf("%s (up from %.2f)", amount, previous)
+	case *lot.CurrentBid < previous:
+		return fmt.Sprintf("%s (down from %.2f)", amount, previous)
+	default:
+		return fmt.Sprintf("%s (no change)", amount)
+	}
 }
 
 func formatAuctionBid(bid *float64, currency string) string {
 	if bid == nil {
 		return "current high bid unavailable"
 	}
+	return fmt.Sprintf("current high bid %s", formatAuctionBidAmount(*bid, currency))
+}
+
+// formatAuctionBidAmount renders a bid as "80.00 USD", defaulting a blank currency to USD.
+func formatAuctionBidAmount(bid float64, currency string) string {
 	currency = strings.TrimSpace(currency)
 	if currency == "" {
 		currency = "USD"
 	}
-	return fmt.Sprintf("current high bid %.2f %s", *bid, currency)
+	return fmt.Sprintf("%.2f %s", bid, currency)
 }

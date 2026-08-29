@@ -266,7 +266,11 @@ func auctionLotTitle(lot models.AuctionLot) string {
 	return title
 }
 
-func auctionLotLabel(lot models.AuctionLot) string {
+// auctionLotSaleLabel names the sale a lot belongs to ("house - sale"), with placeholders
+// for either half when the provider did not supply it. It carries no lot number, so callers
+// that show the lot number elsewhere (the watch-bid digest puts it on the title line) can
+// use it without repeating themselves.
+func auctionLotSaleLabel(lot models.AuctionLot) string {
 	house := strings.TrimSpace(lot.AuctionHouse)
 	if house == "" {
 		house = "Auction"
@@ -275,8 +279,16 @@ func auctionLotLabel(lot models.AuctionLot) string {
 	if sale == "" {
 		sale = "Sale"
 	}
+	return fmt.Sprintf("%s - %s", house, sale)
+}
+
+func auctionLotLabel(lot models.AuctionLot) string {
 	if lot.LotNumber > 0 {
-		return fmt.Sprintf("%s - %s (Lot %d)", house, sale, lot.LotNumber)
+		return fmt.Sprintf("%s (Lot %d)", auctionLotSaleLabel(lot), lot.LotNumber)
+	}
+	house := strings.TrimSpace(lot.AuctionHouse)
+	if house == "" {
+		house = "Auction"
 	}
 	title := strings.TrimSpace(lot.Title)
 	if title == "" {
