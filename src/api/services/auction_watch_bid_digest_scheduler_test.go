@@ -463,7 +463,7 @@ func TestAuctionWatchBidDigestDoesNotBaselineWhenTheSendFails(t *testing.T) {
 	}
 }
 
-func TestAuctionWatchBidDigestHeadlineLinksTheLotNumber(t *testing.T) {
+func TestAuctionLotHeadlineHTMLLinksTheLotNumber(t *testing.T) {
 	tests := []struct {
 		name string
 		lot  models.AuctionLot
@@ -508,8 +508,8 @@ func TestAuctionWatchBidDigestHeadlineLinksTheLotNumber(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := auctionWatchBidDigestHeadline(test.lot); got != test.want {
-				t.Fatalf("auctionWatchBidDigestHeadline() = %q, want %q", got, test.want)
+			if got := auctionLotHeadlineHTML(test.lot); got != test.want {
+				t.Fatalf("auctionLotHeadlineHTML() = %q, want %q", got, test.want)
 			}
 		})
 	}

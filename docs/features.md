@@ -368,7 +368,7 @@ A monthly calendar view showing auction lot end dates and custom events.
 Set target prices on watched auction lots and get notified when bidding crosses your threshold.
 
 - **Target Price** — Set a price threshold and direction (above or below) for any tracked auction lot.
-- **Triggered Notifications** — When bidding crosses the threshold, a notification is generated in your notification inbox.
+- **Triggered Notifications** — When bidding crosses the threshold, a notification is generated in your notification inbox. It leads with the lot title and lot number, names the sale, and states the current high bid against your target (`475.00 USD (275.00 over target)`); the Pushover push links the lot number to the lot on the auction site.
 - **API Endpoints** — `GET/POST /alerts`, `DELETE /alerts/:id`. Each alert tracks the lot ID, target price, direction, and triggered status.
 
 ## Bid Sniping Reminders

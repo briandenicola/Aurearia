@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Auction price alert layout** — The price alert now leads with the lot's title
+  and lot number, names the sale on its own line, and states the current high
+  bid against the target it crossed (`475.00 USD (275.00 over target)`) instead
+  of the stuttering `Current bid: current high bid 475.00 USD`. The Pushover
+  push is rich HTML with the lot number linked straight to the lot on the
+  auction site, matching the watch-bid digest. In-app notification cards now
+  preserve the line breaks their messages are composed with, so every
+  multi-line notification reads as lines rather than one run-on paragraph. See
+  `specs/_backlog/F033-auction-price-alert-lot-block.md`.
+
 ### Added
 
 - **Watch bid digest bid comparison and lot links** — Every lot in the Auction

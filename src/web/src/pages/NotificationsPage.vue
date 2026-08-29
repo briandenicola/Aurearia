@@ -52,7 +52,9 @@
         </div>
         <div class="min-w-0 flex-1">
           <div class="mb-[0.2rem] text-base font-semibold text-text-primary">{{ n.title }}</div>
-          <div class="text-body leading-[1.4] text-text-secondary">{{ n.message }}</div>
+          <!-- Notification bodies are composed line by line server-side (lot headline, sale, bid);
+               without whitespace-pre-line the browser collapses those newlines into one paragraph. -->
+          <div class="whitespace-pre-line text-body leading-[1.4] text-text-secondary">{{ n.message }}</div>
           <div v-if="notificationHint(n)" class="mt-[0.35rem] text-sm leading-[1.4] text-text-muted">
             {{ notificationHint(n) }}
           </div>
