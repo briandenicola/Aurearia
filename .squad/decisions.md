@@ -1,5 +1,31 @@
 # Squad Decisions
 
+### 2026-08-30T02:10:00-05:00: Admin schedule run-history tables — mobile overflow fix
+**By:** Claude (via Claude Code)
+**Spec:** n/a — reported directly from a PWA screenshot
+**Commit:** `eca9a0b0` (fix(frontend): wrap admin schedule tables in overflow-x-auto for PWA mobile)
+**Branch:** `claude/auction-wishlist-bid-comparison-mk569n`
+**Status:** COMPLETED
+
+**What:** The Collection Health Snapshot run-history table overflowed its card on a narrow PWA portrait viewport (~390 px): five visible columns pushed Duration past the card edge, unreachable because nothing scrolled. An audit of `components/admin/schedules/` found the same defect in every section — 11 tables across 7 components, none wrapped, several 8 columns wide.
+
+**Decision:** Wrap every schedule table in `<div class="overflow-x-auto">`, extending the same fix `ca6b459f` applied to the availability-run tables rather than treating the reported table alone. Where a table carried a `v-if`/`v-else-if`, the conditional moved to the wrapper so the surrounding chain still resolves and no empty wrapper renders.
+
+**Rationale:**
+- The established local pattern; no new pattern introduced (Principle IV).
+- All content stays reachable by scrolling on narrow viewports; nothing is hidden (Principle VI).
+- Fixing the family rather than the single reported table: the user scrolls one admin page, and every section below the one they screenshotted broke identically.
+- Regression coverage is directory-wide (`ScheduleTableOverflow.test.ts`) so a new schedule section is covered on arrival, plus a mounted DOM assertion on the reported component. The directory scan was verified to fail with the wrapper removed.
+- Admin pages do not mount the coin-detail swipe navigation, so these scrollers need no `data-swipe-ignore` (see the swipe-gesture entry below).
+
+**Alternatives Rejected:**
+- Fixing only the Collection Health table: leaves six identically broken sections on the same page.
+- Un-hiding the `hidden md:table-cell` Trigger/Failed columns now that the table scrolls: restores data on mobile, but changes these components' deliberate column choices beyond the reported defect. Raised with the user instead.
+
+**Principles:** Principle IV (Simple Complete Changes), Principle VI (Consistent UX, PWA/Mobile), §17 Quality Gate.
+
+---
+
 ### 2026-08-27T09:49:39-05:00: Availability-run result tables — mobile overflow fix
 **By:** Aurelia (Frontend Developer)
 **Spec:** 353-wishlist-availability-run-observability
