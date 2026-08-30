@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **In-app help pointed at the wrong screens** — The Getting Started flow sent
+  new users to Settings → Data for the CSV template and import (both live under
+  **Backups**), auction credentials were listed under Account instead of
+  **Connections**, the Coin Agent was reached through a "Wish List → Find Coins"
+  button that no longer exists, and Quick Capture and Coin Lookup were described
+  without saying that both now live under **Identify Coin**. All corrected, and a
+  "Where Things Live in Settings" table was added so the next reorganisation is
+  one edit. `docs/features/pdf-export.md` and `docs/features/custom-tags.md`
+  carried the same settings-tab drift and were corrected too.
+- **CSV template wrote unusable era values** — The downloadable template put
+  reign dates (`27 BC - 14 AD`) in the `era` column, which is an
+  admin-configured enum, so importing the template as-is produced coins that no
+  era filter matched. The template now ships `ancient` and keeps the reign dates
+  with the ruler, and the help says so explicitly.
+
+### Changed
+
+- **In-app help now covers the whole app** — The feature tour gained the areas it
+  never described: the AI assistants (coin analysis, deep identification,
+  grading, price trends, gap analysis, photography guide, similar lots), tags,
+  bulk operations, storage locations, journals, sold-coin profit and loss,
+  shipment tracking with ParcelApp, purchase reminders, the calendar, backups and
+  PDF export, saved conversations, followers and biometric login. Stats views now
+  list Time Machine, and the Emperor Tracker is placed under Sets where it lives.
+- **Auction price alert layout** — The price alert now leads with the lot's title
+  and lot number, names the sale on its own line, and states the current high
+  bid against the target it crossed (`475.00 USD (275.00 over target)`) instead
+  of the stuttering `Current bid: current high bid 475.00 USD`. The Pushover
+  push is rich HTML with the lot number linked straight to the lot on the
+  auction site, matching the watch-bid digest. In-app notification cards now
+  preserve the line breaks their messages are composed with, so every
+  multi-line notification reads as lines rather than one run-on paragraph. See
+  `specs/_backlog/F033-auction-price-alert-lot-block.md`.
+
 ### Added
 
 - **Watch bid digest bid comparison and lot links** — Every lot in the Auction

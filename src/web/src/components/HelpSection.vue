@@ -12,10 +12,10 @@
 
         <h4>Recommended First Steps</h4>
         <ol>
-          <li>Create your account and open <strong>Settings → Data</strong>.</li>
+          <li>Create your account and open <strong>Settings → Backups</strong>.</li>
           <li>Download the <strong>CSV Template</strong>.</li>
           <li>Fill in your coins in spreadsheet software (Excel, Google Sheets, Numbers), then export as CSV.</li>
-          <li>Import the CSV from <strong>Settings → Data → Import</strong>.</li>
+          <li>Import the CSV from <strong>Settings → Backups → Import</strong>.</li>
           <li>Review imported coins and upload photos from each coin detail page.</li>
         </ol>
 
@@ -30,18 +30,62 @@
             <tr><td><code>category</code></td><td>text</td><td>One of your admin-configured categories (defaults: Roman, Greek, Byzantine, Modern, Other)</td></tr>
             <tr><td><code>material</code></td><td>text</td><td>Gold, Silver, Bronze, Copper, Electrum, Other</td></tr>
             <tr><td><code>denomination</code>, <code>ruler</code>, <code>mint</code>, <code>grade</code></td><td>text</td><td>Free text fields</td></tr>
-            <tr><td><code>era</code></td><td>text</td><td>One of your admin-configured eras (defaults: <code>ancient</code>, <code>medieval</code>, <code>modern</code>)</td></tr>
-            <tr><td><code>weightGrams</code>, <code>diameterMm</code>, <code>purchasePrice</code>, <code>currentValue</code></td><td>number</td><td>Use decimal values</td></tr>
+            <tr><td><code>era</code></td><td>text</td><td>One of your admin-configured eras (defaults: <code>ancient</code>, <code>medieval</code>, <code>modern</code>). Put the coin's actual dates in <code>ruler</code> or <code>notes</code> — an era outside your configured list will not match era filters.</td></tr>
+            <tr><td><code>weightGrams</code>, <code>diameterMm</code>, <code>purchasePrice</code>, <code>currentValue</code>, <code>soldPrice</code></td><td>number</td><td>Use decimal values. <code>currentValue</code> defaults to <code>purchasePrice</code> when left blank.</td></tr>
             <tr><td><code>purchaseDate</code>, <code>soldDate</code></td><td>date</td><td>Use <code>YYYY-MM-DD</code></td></tr>
             <tr><td><code>isWishlist</code>, <code>isSold</code>, <code>isPrivate</code></td><td>boolean</td><td>Use true/false</td></tr>
+            <tr><td><code>purchaseLocation</code>, <code>soldTo</code>, <code>vendorSku</code>, <code>vendorInvoice</code></td><td>text</td><td>Acquisition and sale bookkeeping</td></tr>
+            <tr><td><code>obverseInscription</code>, <code>reverseInscription</code>, <code>obverseDescription</code>, <code>reverseDescription</code>, <code>rarityRating</code></td><td>text</td><td>Attribution detail, if you already have it</td></tr>
             <tr><td><code>notes</code>, <code>referenceUrl</code>, <code>referenceText</code></td><td>text</td><td>Optional metadata (legacy reference fallback fields)</td></tr>
           </tbody>
         </table>
 
+        <h4>Column Aliases</h4>
+        <p>If your spreadsheet already uses different headings, the import accepts these instead of renaming them:</p>
+        <table>
+          <thead>
+            <tr><th>Column</th><th>Also accepted</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>name</code></td><td><code>coinName</code>, <code>title</code></td></tr>
+            <tr><td><code>ruler</code></td><td><code>emperor</code>, <code>issuer</code></td></tr>
+            <tr><td><code>era</code></td><td><code>date</code></td></tr>
+            <tr><td><code>weightGrams</code>, <code>diameterMm</code></td><td><code>weight</code>/<code>weight_g</code>, <code>diameter</code>/<code>diameter_mm</code></td></tr>
+            <tr><td><code>grade</code></td><td><code>condition</code></td></tr>
+            <tr><td><code>purchasePrice</code>, <code>currentValue</code></td><td><code>pricePaid</code>, <code>estimatedValue</code></td></tr>
+            <tr><td><code>purchaseDate</code></td><td><code>acquiredDate</code></td></tr>
+            <tr><td><code>purchaseLocation</code></td><td><code>store</code>, <code>dealer</code></td></tr>
+            <tr><td><code>vendorSku</code>, <code>vendorInvoice</code></td><td><code>sku</code>/<code>vendorCode</code>, <code>invoice</code>/<code>invoiceNumber</code></td></tr>
+            <tr><td><code>rarityRating</code></td><td><code>reference</code>, <code>catalogReference</code></td></tr>
+            <tr><td><code>referenceUrl</code></td><td><code>url</code></td></tr>
+            <tr><td><code>isWishlist</code>, <code>isSold</code>, <code>isPrivate</code></td><td><code>wishlist</code>, <code>sold</code>, <code>private</code></td></tr>
+          </tbody>
+        </table>
+        <p>Rows with no <code>name</code> are skipped, and the import reports how many it skipped.</p>
+
         <h4>CSV Example</h4>
         <pre>name,category,material,denomination,ruler,era,mint,weightGrams,diameterMm,grade,purchasePrice,currentValue,purchaseDate,purchaseLocation,isWishlist
-Augustus Denarius,Roman,Silver,Denarius,Augustus,27 BC - 14 AD,Rome,3.82,19.5,VF,450,600,2024-03-15,Heritage Auctions,false
-Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90,18.1,F,35,45,2025-01-20,Local Show,false</pre>
+Augustus Denarius,Roman,Silver,Denarius,Augustus (27 BC - 14 AD),ancient,Rome,3.82,19.5,VF,450,600,2024-03-15,Heritage Auctions,false
+Constantius II Follis,Roman,Bronze,Follis,Constantius II (337-361 AD),ancient,Antioch,2.90,18.1,F,35,45,2025-01-20,Local Show,false</pre>
+
+        <h4>Where Things Live in Settings</h4>
+        <table>
+          <thead>
+            <tr><th>Tab</th><th>What is there</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Account</strong></td><td>Profile, password, Pushover, Coin of the Day, connected sign-in providers, biometric login</td></tr>
+            <tr><td><strong>Connections</strong></td><td>NumisBids, CNG Auctions, and ParcelApp credentials</td></tr>
+            <tr><td><strong>Appearance</strong></td><td>Theme and display preferences</td></tr>
+            <tr><td><strong>Data</strong></td><td>Tags and open sets, storage locations, custom mint locations, catalog reference migration</td></tr>
+            <tr><td><strong>Keys</strong></td><td>API keys for external AI clients</td></tr>
+            <tr><td><strong>Tools</strong></td><td>Image processor settings and blocked users</td></tr>
+            <tr><td><strong>Conversations</strong></td><td>Saved agent chats</td></tr>
+            <tr><td><strong>Shipments</strong></td><td>Shipments not yet delivered</td></tr>
+            <tr><td><strong>Backups</strong></td><td>Collection import, ZIP export, PDF catalog export, CSV template</td></tr>
+            <tr><td><strong>Help</strong></td><td>This guide</td></tr>
+          </tbody>
+        </table>
       </div>
     </details>
 
@@ -52,14 +96,15 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
 
         <h4>Fast Intake</h4>
         <ul>
+          <li><strong>Where to start</strong> — Both intake flows live under <strong>Identify Coin</strong> in the sidebar; the drafts list is the <strong>All drafts</strong> action on that page.</li>
+          <li><strong>Coin Lookup</strong> — Photograph a coin or NGC Ancients slab, review extracted details, and save the result to your collection or wish list. <strong>Identify Coin → Analysis History</strong> keeps past deep identification jobs, including their artifacts and provider runs.</li>
           <li><strong>Quick Capture</strong> — Save show-floor photos and notes as drafts, resume them later, and promote a completed draft into either your collection or wish list. Drafts stay out of collection, wish list, stats, and health totals until promotion.</li>
-          <li><strong>Coin Lookup</strong> — Photograph a coin or NGC Ancients slab, review extracted details, and save the result to your collection or wish list.</li>
         </ul>
 
         <h4>Auctions</h4>
         <ul>
           <li><strong>Manual import</strong> — Paste a NumisBids or CNG Auctions lot URL from the Auctions page.</li>
-          <li><strong>Watchlist sync</strong> — Add NumisBids and/or CNG credentials in <strong>Settings → Account</strong>, then use <strong>Sync Watchlists</strong> on the Auctions page.</li>
+          <li><strong>Watchlist sync</strong> — Add NumisBids and/or CNG credentials in <strong>Settings → Connections</strong>, then use <strong>Sync Watchlists</strong> on the Auctions page.</li>
           <li><strong>Provider capabilities</strong> — CNG Auctions supports richer hosted-auction sync and can auto-detect won/lost outcomes where CNG provides the data. NumisBids supports watchlist/import tracking only today; check NumisBids after the sale and manually update won/lost, winning bid, and max-bid details.</li>
           <li><strong>Source filters</strong> — Filter auction lots by All, NumisBids, or CNG in addition to status.</li>
           <li><strong>Security</strong> — Stored auction-provider passwords are encrypted on the server. Existing plaintext values are migrated automatically the next time they are saved or used for sync.</li>
@@ -67,18 +112,20 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
 
         <h4>Sharing and Discovery</h4>
         <ul>
-          <li><strong>Public showcases</strong> — Create curated public sets with shareable links. Only public-safe coin fields are exposed; private notes, prices, and AI analysis stay hidden.</li>
+          <li><strong>Public showcases</strong> — Build curated public sets with shareable links from <strong>Showcases</strong> in the sidebar. Only public-safe coin fields are exposed; private notes, prices, and AI analysis stay hidden.</li>
+          <li><strong>Followers</strong> — Follow other collectors from <strong>Followers</strong>, browse their shared galleries, and comment on or rate individual coins. Your own visibility is controlled per coin and by the profile privacy setting in Settings → Account.</li>
           <li><strong>Wishlist search alerts</strong> — Save search criteria, run alerts on a schedule or manually, review candidates, dismiss poor matches, and convert accepted candidates into wish list items.</li>
           <li><strong>Collection health</strong> — Use Stats health views to track score trends, missing images, metadata gaps, AI coverage gaps, and suggested improvements.</li>
           <li><strong>Museum Tray</strong> — Use the Tray view to arrange coins visually with size-aware spacing for a cabinet-style browsing experience. Owned coins show purchase dates in <code>YYYY-MM-DD</code>; wishlist placeholders are more transparent and show <code>TBD</code>.</li>
           <li><strong>Mint Map</strong> — Use Stats → Map to see mint locations and geographic distribution for coins with mapped mint data.</li>
           <li><strong>Coin of the Day</strong> — Enable daily featured coin notifications in Settings → Account to rediscover coins from your own collection.</li>
           <li><strong>Connected sign-in providers</strong> — After signing in locally, open Settings → Account → Connected Sign-in Providers to link Microsoft Entra ID, Pocket ID, or another configured OIDC provider.</li>
+          <li><strong>Biometric login</strong> — Register a passkey under Settings → Account → Biometric Login to sign in with Face ID, Touch ID, Windows Hello, or a security key.</li>
         </ul>
 
         <h4>Coin Agent and Notes</h4>
         <ul>
-          <li><strong>Coin Agent</strong> — Open the chat from Wish List → Find Coins to search listings, find shows, ask portfolio questions, or ask collection cleanup questions such as which coins are missing an era.</li>
+          <li><strong>Coin Agent</strong> — Open the chat from <strong>Agent</strong> in the sidebar (or the draggable launcher in PWA mode) to search listings, find shows, ask portfolio questions, or ask collection cleanup questions such as which coins are missing an era.</li>
           <li><strong>Starter prompts</strong> — The drawer includes acquisition examples plus a collection cleanup starter for missing era metadata.</li>
           <li><strong>Save to Notes</strong> — Completed assistant answers can be reviewed as markdown, edited, previewed, and saved to Notes only after you click Create Note.</li>
         </ul>
@@ -97,7 +144,45 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Timeline and Map</strong> — Chronological collection history plus mint geography for mapped coins.</li>
           <li><strong>Health</strong> — Scorecards for missing images, metadata gaps, AI analysis gaps, stale valuations, and cleanup suggestions.</li>
           <li><strong>Value Details and Investment Breakdown</strong> — Value snapshots, allocation, acquisition-year performance, top increases/drops, and stale valuation rows.</li>
-          <li><strong>Emperor Tracker</strong> — Optional Roman emperor/figure progress with agent search actions for missing or suggested targets.</li>
+          <li><strong>Time Machine</strong> — Scrub back through time to see the collection as it stood on any date.</li>
+          <li><strong>Emperor Tracker</strong> — Optional Roman emperor/figure progress with agent search actions for missing or suggested targets. It lives under <strong>Sets → Emperors</strong>, not Stats, and appears once enabled for your account.</li>
+        </ul>
+
+        <h4>AI Assistants</h4>
+        <ul>
+          <li><strong>Coin analysis</strong> — Run vision-model analysis on a coin's obverse/reverse photos from its detail page for attribution and description help.</li>
+          <li><strong>Deep identification</strong> — Longer-running multi-provider identification, with each job's artifacts and provider runs kept under <strong>Identify Coin → Analysis History</strong>.</li>
+          <li><strong>Grading assistant</strong> — Estimate a grade from photos. Treat it as a second opinion, not a substitute for a third-party grade.</li>
+          <li><strong>Price trends</strong> — Market trend analysis for a coin or type.</li>
+          <li><strong>Gap analysis</strong> — Suggestions for what is missing from the collection, based on what you already own.</li>
+          <li><strong>Photography guide</strong> — Feedback on image quality so a re-shoot fixes the right thing.</li>
+          <li><strong>Similar lots</strong> — Find auction listings matching a coin or wish list entry.</li>
+        </ul>
+
+        <h4>Organizing and Selling</h4>
+        <ul>
+          <li><strong>Custom tags</strong> — Create colour-coded tags in <strong>Settings → Data</strong> under Tags and Open Sets, then filter the collection by them.</li>
+          <li><strong>Bulk operations</strong> — Enter select mode from the collection toolbar to tag, add to sets, or change several coins at once instead of opening each one.</li>
+          <li><strong>Storage locations</strong> — Record where a coin physically lives; managed in <strong>Settings → Data</strong>.</li>
+          <li><strong>Journal and timeline</strong> — Each coin keeps a dated journal and a lifecycle timeline of what happened to it, including external tool writes.</li>
+          <li><strong>Notes</strong> — Standalone research notes live under <strong>Notes</strong>; agent answers can be saved into them.</li>
+          <li><strong>Sold coins</strong> — Sell a coin from its detail page to record the sale price and buyer; <strong>Sold</strong> then tracks profit and loss against what you paid.</li>
+        </ul>
+
+        <h4>Shipments and Reminders</h4>
+        <ul>
+          <li><strong>Shipment tracker</strong> — Track an incoming purchase from the coin's <strong>Shipment Tracker</strong> page. Adding a ParcelApp API key in <strong>Settings → Connections</strong> lets tracking be created from a tracking number and synced automatically when the admin enables it.</li>
+          <li><strong>Shipments overview</strong> — <strong>Settings → Shipments</strong> lists every shipment that has not been delivered yet.</li>
+          <li><strong>Purchase reminders</strong> — Schedule a reminder against a coin you mean to buy, and get notified when it comes due.</li>
+          <li><strong>Calendar</strong> — <strong>Calendar</strong> shows auction sale dates from tracked lots alongside your own events, such as shows and research tasks.</li>
+        </ul>
+
+        <h4>Backups and Export</h4>
+        <ul>
+          <li><strong>Export ZIP</strong> — <strong>Settings → Backups</strong> exports the full collection, images included, as a restorable archive.</li>
+          <li><strong>Export PDF</strong> — Generate an insurance and provenance catalog with photos and structured data from the same tab.</li>
+          <li><strong>Import</strong> — The same tab imports a JSON backup or a CSV, and offers the CSV template described in the Getting Started section above.</li>
+          <li><strong>Saved conversations</strong> — <strong>Settings → Conversations</strong> keeps past agent chats so you can reopen or delete them.</li>
         </ul>
 
         <h4>Capture, Images, and Offline Use</h4>

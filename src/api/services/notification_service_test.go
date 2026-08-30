@@ -139,10 +139,10 @@ func TestNotifyAuctionPriceAlertMessageLeadsWithTitleAndKeepsBidDetails(t *testi
 		t.Fatalf("failed to query notification: %v", err)
 	}
 
-	wantMessage := "Julia Domna AR Denarius\n" +
-		"CNG - Keystone 17 (Lot 95)\n" +
-		"Target: 100.00 USD\n" +
-		"Current bid: current high bid 150.00 USD"
+	wantMessage := "Julia Domna AR Denarius (Lot 95)\n" +
+		"CNG - Keystone 17\n" +
+		"- Target: 100.00 USD\n" +
+		"- Current high bid: 150.00 USD (50.00 over target)"
 	if n.Message != wantMessage {
 		t.Errorf("message = %q, want %q", n.Message, wantMessage)
 	}
@@ -179,10 +179,10 @@ func TestNotifyAuctionPriceAlertBlankTitleFallsBackToUntitledLot(t *testing.T) {
 		t.Fatalf("failed to query notification: %v", err)
 	}
 
-	if !strings.HasPrefix(n.Message, "Untitled lot\n") {
+	if !strings.HasPrefix(n.Message, "Untitled lot (Lot 95)\n") {
 		t.Errorf("message = %q, want it to start with fallback title line", n.Message)
 	}
-	if !strings.Contains(n.Message, "Current bid: current high bid unavailable") {
+	if !strings.Contains(n.Message, "- Current high bid: unavailable") {
 		t.Errorf("message = %q, want unavailable-bid fallback", n.Message)
 	}
 }
@@ -516,5 +516,106 @@ func TestNotifyAvailabilityRunTerminal_PushoverFailureDoesNotBlockInAppNotificat
 	db.Model(&models.Notification{}).Where("user_id = ? AND type = ?", user.ID, NotificationTypeAvailabilityRun).Count(&count)
 	if count != 1 {
 		t.Fatalf("expected in-app notification to persist despite Pushover failure, got count=%d", count)
+	}
+}
+
+func TestFormatAuctionTargetBidStatesTheGapToTheTarget(t *testing.T) {
+	over := 475.0
+	under := 180.0
+	exact := 200.0
+
+	tests := []struct {
+		name string
+		lot  models.AuctionLot
+		want string
+	}{
+		{
+			name: "bid above the target names the overshoot",
+			lot:  models.AuctionLot{CurrentBid: &over, Currency: "USD"},
+			want: "475.00 USD (275.00 over target)",
+		},
+		{
+			name: "bid below the target names the gap",
+			lot:  models.AuctionLot{CurrentBid: &under, Currency: "USD"},
+			want: "180.00 USD (20.00 under target)",
+		},
+		{
+			name: "bid exactly on the target",
+			lot:  models.AuctionLot{CurrentBid: &exact, Currency: "USD"},
+			want: "200.00 USD (at target)",
+		},
+		{
+			name: "blank currency falls back to USD",
+			lot:  models.AuctionLot{CurrentBid: &over},
+			want: "475.00 USD (275.00 over target)",
+		},
+		{
+			name: "no current bid has nothing to compare",
+			lot:  models.AuctionLot{CurrentBid: nil, Currency: "USD"},
+			want: "unavailable",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := formatAuctionTargetBid(test.lot, 200); got != test.want {
+				t.Fatalf("formatAuctionTargetBid() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestBuildAuctionPriceAlertPushoverMessageLinksTheLotAndEscapesScrapedText(t *testing.T) {
+	bid := 475.0
+	lot := models.AuctionLot{
+		Title:        "Vespasian. AD 69-79. AR Denarius (16.5mm, 3.22 g, 6h). Rome mint. Near VF.",
+		AuctionHouse: "Classical Numismatic Group",
+		SaleName:     "Electronic Auction 616",
+		LotNumber:    684,
+		CurrentBid:   &bid,
+		Currency:     "USD",
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-5000000",
+	}
+
+	message := buildAuctionPriceAlertPushoverMessage(lot, 200)
+
+	want := "<b>Vespasian</b> (<a href=\"https://auctions.cngcoins.com/lots/view/4-5000000\">Lot 684</a>)\n" +
+		"Classical Numismatic Group - Electronic Auction 616\n" +
+		"- Target: 200.00 USD\n" +
+		"- Current high bid: 475.00 USD (275.00 over target)"
+	if message.Message != want {
+		t.Fatalf("message = %q, want %q", message.Message, want)
+	}
+	if !message.HTML {
+		t.Fatal("price alert push is not flagged as HTML")
+	}
+	if message.Title != "Auction Price Alert" {
+		t.Fatalf("title = %q, want Auction Price Alert", message.Title)
+	}
+	if message.URL != lot.SourceURL || message.URLTitle != "View auction lot" {
+		t.Fatalf("url = %q / %q, want the lot URL and its action label", message.URL, message.URLTitle)
+	}
+
+	// A scraped sale name carrying markup must not reach the HTML body unescaped.
+	lot.SaleName = "Sale <b>616</b> & friends"
+	if escaped := buildAuctionPriceAlertPushoverMessage(lot, 200); !strings.Contains(escaped.Message, "Sale &lt;b&gt;616&lt;/b&gt; &amp; friends") {
+		t.Fatalf("message = %q, want the scraped sale name escaped", escaped.Message)
+	}
+}
+
+func TestBuildAuctionPriceAlertPushoverMessageOmitsAnUnusableLotURL(t *testing.T) {
+	bid := 475.0
+	lot := models.AuctionLot{
+		Title: "Vespasian AR Denarius", AuctionHouse: "CNG", SaleName: "Electronic Auction 616",
+		LotNumber: 684, CurrentBid: &bid, Currency: "USD", SourceURL: "javascript:alert(1)",
+	}
+
+	message := buildAuctionPriceAlertPushoverMessage(lot, 200)
+
+	if message.URL != "" {
+		t.Fatalf("url = %q, want it dropped — Pushover rejects a malformed url outright", message.URL)
+	}
+	if strings.Contains(message.Message, "<a href") {
+		t.Fatalf("message = %q, want the lot number left unlinked", message.Message)
 	}
 }

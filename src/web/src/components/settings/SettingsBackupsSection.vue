@@ -280,9 +280,11 @@ function downloadCsvTemplate() {
     'grade', 'purchasePrice', 'currentValue', 'purchaseDate', 'purchaseLocation', 'vendorSku', 'vendorInvoice', 'notes',
     'referenceUrl', 'referenceText', 'isWishlist',
   ]
+  // era must be one of the admin-configured eras (ancient/medieval/modern by default) or it
+  // will not match era filters; the reign dates belong with the ruler, not in era.
   const sampleRows = [
-    ['Augustus Denarius', 'Roman', 'Silver', 'Denarius', 'Augustus', '27 BC - 14 AD', 'Rome', '3.82', '19.5', 'VF', '450', '600', '2024-03-15', 'Heritage Auctions', 'CNG-84291', 'INV-2026-0042', 'Strong portrait with clear legend', 'https://www.acsearch.info/', 'ACSearch', 'false'],
-    ['Constantius II Follis', 'Roman', 'Bronze', 'Follis', 'Constantius II', '337-361 AD', 'Antioch', '2.9', '18.1', 'F', '35', '45', '2025-01-20', 'Local show', '', '', 'Entry-level late Roman bronze', '', 'Store Link', 'false'],
+    ['Augustus Denarius', 'Roman', 'Silver', 'Denarius', 'Augustus (27 BC - 14 AD)', 'ancient', 'Rome', '3.82', '19.5', 'VF', '450', '600', '2024-03-15', 'Heritage Auctions', 'CNG-84291', 'INV-2026-0042', 'Strong portrait with clear legend', 'https://www.acsearch.info/', 'ACSearch', 'false'],
+    ['Constantius II Follis', 'Roman', 'Bronze', 'Follis', 'Constantius II (337-361 AD)', 'ancient', 'Antioch', '2.9', '18.1', 'F', '35', '45', '2025-01-20', 'Local show', '', '', 'Entry-level late Roman bronze', '', 'Store Link', 'false'],
   ]
 
   const lines = [

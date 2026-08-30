@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"strings"
 	"time"
@@ -265,6 +266,58 @@ func auctionLotTitle(lot models.AuctionLot) string {
 		return "Untitled lot"
 	}
 	return title
+}
+
+// auctionLotShortTitle trims a scraped catalog description down to its leading clause so a
+// notification stays scannable. Provider titles read
+// "PAMPHYLIA, Aspendos. Circa 380/75-330/25 BC. AR Stater (20mm, 10.85 g, 2h). VF." — the
+// first sentence is the identifying half and the rest is detail the user can look up in the
+// app, one tap away through the notification's own link. Titles with no sentence break are
+// capped instead, so one runaway title cannot crowd a batched message out of its length limit.
+func auctionLotShortTitle(lot models.AuctionLot) string {
+	title := auctionLotTitle(lot)
+	if index := strings.Index(title, ". "); index > 0 {
+		title = strings.TrimSpace(title[:index])
+	}
+	title = strings.TrimRight(title, ".")
+	if title == "" {
+		return auctionLotTitle(lot)
+	}
+	return truncateRunes(title, auctionLotShortTitleLimit)
+}
+
+// auctionLotShortTitleLimit caps a notification's title line. Chosen so a lot's few lines stay
+// well under a phone notification's readable width while leaving room for several lots inside
+// pushoverMessageLimit.
+const auctionLotShortTitleLimit = 60
+
+// auctionLotHeadline is the line a lot leads with in a notification: its shortened title and
+// its lot number. The lot number rides here rather than on the sale line so the sale can be
+// stated once, whether as a group heading (the watch-bid digest) or as its own line under the
+// headline (the single-lot alerts).
+func auctionLotHeadline(lot models.AuctionLot) string {
+	title := auctionLotShortTitle(lot)
+	if lot.LotNumber <= 0 {
+		return title
+	}
+	return fmt.Sprintf("%s (Lot %d)", title, lot.LotNumber)
+}
+
+// auctionLotHeadlineHTML is auctionLotHeadline for a Pushover HTML body: the title in bold and
+// the lot number linked to that lot on the auction site, so a notification is one tap from the
+// page that can be bid on. Scraped titles can carry markup, so the title is escaped, and the
+// lot number is left unlinked when the lot has no usable provider URL.
+func auctionLotHeadlineHTML(lot models.AuctionLot) string {
+	headline := fmt.Sprintf("<b>%s</b>", html.EscapeString(auctionLotShortTitle(lot)))
+	if lot.LotNumber <= 0 {
+		return headline
+	}
+
+	lotNumber := fmt.Sprintf("Lot %d", lot.LotNumber)
+	if lotURL := auctionLotProviderURL(lot); lotURL != "" {
+		lotNumber = fmt.Sprintf("<a href=\"%s\">%s</a>", html.EscapeString(lotURL), lotNumber)
+	}
+	return fmt.Sprintf("%s (%s)", headline, lotNumber)
 }
 
 // auctionLotSaleLabel names the sale a lot belongs to ("house - sale"), with placeholders

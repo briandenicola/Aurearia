@@ -60,6 +60,7 @@ NumisBids lots should be treated as tracked watchlist/import records. After the 
 ### Price Alerts
 - Set target price and direction (above/below)
 - Auto-notify when threshold crossed
+- The notification names the lot and its linked lot number, the sale, your target, and the current high bid against that target
 - Triggered status prevents duplicate notifications
 
 ### Bid Reminders

@@ -287,25 +287,67 @@ func (s *NotificationService) NotifyFollowRequest(followerID, targetID uint) {
 // notification — this fixes a gap where users without Pushover configured got no
 // notification for auction events at all (specs/_backlog/F027).
 func (s *NotificationService) NotifyAuctionPriceAlert(userID uint, lot models.AuctionLot, targetPrice float64) {
-	title := "Auction Price Alert"
-	message := fmt.Sprintf(
-		"%s\n%s\nTarget: %.2f %s\nCurrent bid: %s",
-		auctionLotTitle(lot),
-		auctionLotLabel(lot),
-		targetPrice,
-		auctionCurrency(lot.Currency),
-		formatAuctionBid(lot.CurrentBid, lot.Currency),
-	)
 	refURL := auctionLotURL(lot)
 
 	n := &models.Notification{
-		UserID: userID, Type: NotificationTypeAuctionPriceAlert, Title: title, Message: message,
+		UserID: userID, Type: NotificationTypeAuctionPriceAlert, Title: auctionPriceAlertTitle,
+		Message:     fmt.Sprintf("%s\n%s", auctionLotHeadline(lot), auctionPriceAlertBody(lot, targetPrice)),
 		ReferenceID: lot.ID, ReferenceURL: refURL,
 	}
 	if err := s.notifRepo.Create(n); err != nil {
 		s.logger.Error("notifications", "Failed to create price alert notification for user %d, lot %d: %v", userID, lot.ID, err)
 	}
-	go s.sendPushoverWithURLTitle(userID, title, message, refURL, "View auction lot")
+
+	go s.sendPushoverMessage(userID, buildAuctionPriceAlertPushoverMessage(lot, targetPrice))
+}
+
+const auctionPriceAlertTitle = "Auction Price Alert"
+
+// auctionPriceAlertBody is the part of a price alert that reads the same in both surfaces: the
+// sale the lot belongs to, the target that fired the alert, and the current high bid against
+// that target. Only the headline above it differs, since a push can link the lot number and
+// the in-app card cannot.
+func auctionPriceAlertBody(lot models.AuctionLot, targetPrice float64) string {
+	return fmt.Sprintf(
+		"%s\n- Target: %s\n- Current high bid: %s",
+		auctionLotSaleLabel(lot),
+		formatAuctionBidAmount(targetPrice, lot.Currency),
+		formatAuctionTargetBid(lot, targetPrice),
+	)
+}
+
+// buildAuctionPriceAlertPushoverMessage renders the price alert push: the lot's headline with
+// its lot number linked to the auction site, then the shared body. The body is escaped because
+// it carries scraped sale names, matching the HTML pushes F031 introduced.
+func buildAuctionPriceAlertPushoverMessage(lot models.AuctionLot, targetPrice float64) PushoverMessage {
+	return PushoverMessage{
+		Title:   auctionPriceAlertTitle,
+		Message: fmt.Sprintf("%s\n%s", auctionLotHeadlineHTML(lot), html.EscapeString(auctionPriceAlertBody(lot, targetPrice))),
+		// Only a usable http(s) URL is offered as the push's action button: Pushover
+		// rejects a malformed url outright, which would cost the whole notification.
+		URL:      auctionLotProviderURL(lot),
+		URLTitle: "View auction lot",
+		HTML:     true,
+	}
+}
+
+// formatAuctionTargetBid renders a price alert's bid line: the current high bid, then how far
+// it sits from the target that triggered the alert. The gap is what the alert is actually
+// about — "475.00 USD" alone leaves the user to subtract — and it reads the same for an alert
+// watching for a rise or for a fall, so the direction does not have to be plumbed through.
+func formatAuctionTargetBid(lot models.AuctionLot, targetPrice float64) string {
+	if lot.CurrentBid == nil {
+		return "unavailable"
+	}
+	amount := formatAuctionBidAmount(*lot.CurrentBid, lot.Currency)
+	switch {
+	case *lot.CurrentBid > targetPrice:
+		return fmt.Sprintf("%s (%.2f over target)", amount, *lot.CurrentBid-targetPrice)
+	case *lot.CurrentBid < targetPrice:
+		return fmt.Sprintf("%s (%.2f under target)", amount, targetPrice-*lot.CurrentBid)
+	default:
+		return fmt.Sprintf("%s (at target)", amount)
+	}
 }
 
 // NotifyAuctionBidReminder creates an in-app notification for a bid reminder that has come
