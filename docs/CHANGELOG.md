@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Admin schedule run-history tables overflowed on mobile** — Every run-history
+  table in Admin → Schedules burst its card on a narrow PWA viewport, clipping
+  the right-hand columns (Duration, Errors) with no way to reach them. All
+  eleven tables across the seven schedule sections now sit in an
+  `overflow-x-auto` wrapper, the same pattern the availability-run tables use.
+  Desktop layout is unchanged.
+
+### Fixed
+
 - **In-app help pointed at the wrong screens** — The Getting Started flow sent
   new users to Settings → Data for the CSV template and import (both live under
   **Backups**), auction credentials were listed under Account instead of

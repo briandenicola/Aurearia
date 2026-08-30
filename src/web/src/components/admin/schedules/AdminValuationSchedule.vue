@@ -63,76 +63,80 @@
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No valuation runs recorded yet.</div>
   <template v-else>
-    <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th class="hidden md:table-cell">Trigger</th>
-          <th>Status</th>
-          <th>Checked</th>
-          <th class="hidden md:table-cell">Updated</th>
-          <th class="hidden md:table-cell">Skipped</th>
-          <th class="hidden md:table-cell">Errors</th>
-          <th>Duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        <template v-for="run in runs" :key="run.id">
-          <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
-            <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
-            <td class="hidden md:table-cell">{{ run.triggerType }}</td>
-            <td>
-              <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'running' ? 'bg-[rgba(52,152,219,0.15)] text-[#3498db]' : run.status === 'completed' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : run.status === 'failed' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(243,156,18,0.15)] text-[#f39c12]'">{{ run.status }}</span>
-              <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
-                {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
-              </span>
-              <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-[0.65rem] text-[var(--color-negative)] transition-colors hover:bg-[rgba(231,76,60,0.15)]" @click.stop="cancelRun(run.id)">Cancel</button>
-            </td>
-            <td>{{ run.coinsChecked }}</td>
-            <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.coinsUpdated }}</td>
-            <td class="hidden font-semibold text-warning md:table-cell">{{ run.coinsSkipped }}</td>
-            <td class="hidden font-semibold text-[var(--color-negative)] md:table-cell">{{ run.errors }}</td>
-            <td>{{ formatDuration(run.durationMs) }}</td>
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hidden md:table-cell">Trigger</th>
+            <th>Status</th>
+            <th>Checked</th>
+            <th class="hidden md:table-cell">Updated</th>
+            <th class="hidden md:table-cell">Skipped</th>
+            <th class="hidden md:table-cell">Errors</th>
+            <th>Duration</th>
           </tr>
-          <tr v-if="expandedRunId === run.id && expandedResults" class="bg-surface-secondary">
-            <td :colspan="colspan">
-              <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
-              <table v-else-if="expandedResults.length" class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
-                <thead>
-                  <tr>
-                    <th>Coin</th>
-                    <th>Previous</th>
-                    <th>Estimated</th>
-                    <th>Confidence</th>
-                    <th>Status</th>
-                    <th>Explanation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="result in expandedResults" :key="result.id">
-                    <td>{{ result.coinName }}</td>
-                    <td>{{ result.previousValue != null ? `$${result.previousValue.toFixed(2)}` : '--' }}</td>
-                    <td class="font-semibold text-gold">{{ result.estimatedValue > 0 ? `$${result.estimatedValue.toFixed(2)}` : '--' }}</td>
-                    <td>
-                      <span v-if="result.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="result.confidence === 'high' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--confidence-high)]' : result.confidence === 'medium' ? 'bg-[rgba(241,196,15,0.15)] text-[var(--confidence-medium)]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--confidence-low)]'">{{ result.confidence }}</span>
-                      <span v-else>--</span>
-                    </td>
-                    <td>
-                      <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'skipped' ? 'bg-[rgba(149,165,166,0.15)] text-[#95a5a6]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]'">{{ result.status }}</span>
-                    </td>
-                    <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
-                      <div v-if="result.changeExplanation" class="mb-[0.35rem] font-medium text-gold">{{ result.changeExplanation }}</div>
-                      <div>{{ result.reasoning || result.errorMessage || '--' }}</div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No results for this run.</p>
-            </td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <template v-for="run in runs" :key="run.id">
+            <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
+              <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+              <td class="hidden md:table-cell">{{ run.triggerType }}</td>
+              <td>
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'running' ? 'bg-[rgba(52,152,219,0.15)] text-[#3498db]' : run.status === 'completed' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : run.status === 'failed' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(243,156,18,0.15)] text-[#f39c12]'">{{ run.status }}</span>
+                <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
+                  {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
+                </span>
+                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-[0.65rem] text-[var(--color-negative)] transition-colors hover:bg-[rgba(231,76,60,0.15)]" @click.stop="cancelRun(run.id)">Cancel</button>
+              </td>
+              <td>{{ run.coinsChecked }}</td>
+              <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.coinsUpdated }}</td>
+              <td class="hidden font-semibold text-warning md:table-cell">{{ run.coinsSkipped }}</td>
+              <td class="hidden font-semibold text-[var(--color-negative)] md:table-cell">{{ run.errors }}</td>
+              <td>{{ formatDuration(run.durationMs) }}</td>
+            </tr>
+            <tr v-if="expandedRunId === run.id && expandedResults" class="bg-surface-secondary">
+              <td :colspan="colspan">
+                <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+                <div v-else-if="expandedResults.length" class="overflow-x-auto">
+                  <table class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                    <thead>
+                      <tr>
+                        <th>Coin</th>
+                        <th>Previous</th>
+                        <th>Estimated</th>
+                        <th>Confidence</th>
+                        <th>Status</th>
+                        <th>Explanation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="result in expandedResults" :key="result.id">
+                        <td>{{ result.coinName }}</td>
+                        <td>{{ result.previousValue != null ? `$${result.previousValue.toFixed(2)}` : '--' }}</td>
+                        <td class="font-semibold text-gold">{{ result.estimatedValue > 0 ? `$${result.estimatedValue.toFixed(2)}` : '--' }}</td>
+                        <td>
+                          <span v-if="result.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="result.confidence === 'high' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--confidence-high)]' : result.confidence === 'medium' ? 'bg-[rgba(241,196,15,0.15)] text-[var(--confidence-medium)]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--confidence-low)]'">{{ result.confidence }}</span>
+                          <span v-else>--</span>
+                        </td>
+                        <td>
+                          <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'skipped' ? 'bg-[rgba(149,165,166,0.15)] text-[#95a5a6]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]'">{{ result.status }}</span>
+                        </td>
+                        <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                          <div v-if="result.changeExplanation" class="mb-[0.35rem] font-medium text-gold">{{ result.changeExplanation }}</div>
+                          <div>{{ result.reasoning || result.errorMessage || '--' }}</div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No results for this run.</p>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="prevPage()">Prev</button>

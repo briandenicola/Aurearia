@@ -41,28 +41,30 @@
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No Coin of the Day runs recorded yet.</div>
   <template v-else>
-    <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Status</th>
-          <th>Picked</th>
-          <th>Skipped</th>
-          <th>Errors</th>
-          <th class="hidden md:table-cell">Trigger</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="run in runs" :key="run.id">
-          <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
-          <td>{{ run.status }}</td>
-          <td>{{ run.picked }}</td>
-          <td>{{ run.skipped }}</td>
-          <td>{{ run.errors }}</td>
-          <td class="hidden md:table-cell">{{ run.triggerType }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Picked</th>
+            <th>Skipped</th>
+            <th>Errors</th>
+            <th class="hidden md:table-cell">Trigger</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="run in runs" :key="run.id">
+            <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.picked }}</td>
+            <td>{{ run.skipped }}</td>
+            <td>{{ run.errors }}</td>
+            <td class="hidden md:table-cell">{{ run.triggerType }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="prevPage()">Prev</button>
