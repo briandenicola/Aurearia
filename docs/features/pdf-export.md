@@ -4,7 +4,7 @@
 
 ## Overview
 
-Generate PDF catalog documents from **Settings -> Data** for insurance, provenance packets, or offline review.
+Generate PDF catalog documents from **Settings → Backups** for insurance, provenance packets, or offline review.
 
 ## Key Features
 

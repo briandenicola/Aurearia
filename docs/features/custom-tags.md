@@ -8,7 +8,7 @@ Custom tags provide flexible organization for your coins, allowing you to create
 
 ## Features
 
-- **Create & Manage** — Add, rename, and delete tags from **Settings → Tags**
+- **Create & Manage** — Add, rename, and delete tags from **Settings → Data** under Tags and Open Sets
 - **Color Selection** — Choose a color for each tag for visual organization
 - **Attach to Coins** — Tag coins during creation or from detail page
 - **Multiple Tags** — Any coin can have multiple tags
