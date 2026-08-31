@@ -21417,6 +21417,10 @@ const docTemplate = `{
                 "initialBid": {
                     "type": "number"
                 },
+                "isOutbid": {
+                    "description": "IsOutbid reports whether someone else holds the winning bid on a lot this user is\nbidding on. Set from the provider's own winning-bidder identity, never from a\nmaxBid/currentBid comparison; see outbidByProvider (specs/_backlog/F034).",
+                    "type": "boolean"
+                },
                 "lotNumber": {
                     "type": "integer"
                 },

@@ -55,12 +55,9 @@ type AuctionLot struct {
 	// (specs/_backlog/F032).
 	LastDigestBid *float64 `json:"-"`
 	MaxBid        *float64 `json:"maxBid"`
-	// IsOutbid records whether the provider reports someone else holding the winning bid on
-	// a lot the user has a bid on. It is provider truth (CNG names the winning bidder), not
-	// a maxBid/currentBid comparison, which proxy bidding makes unreliable: a ceiling above
-	// the current bid can still be losing, and one below it can still be leading. Only lots
-	// still open for bidding carry it; a closed lot is won/lost/passed, never outbid
-	// (specs/_backlog/F034).
+	// IsOutbid reports whether someone else holds the winning bid on a lot this user is
+	// bidding on. Set from the provider's own winning-bidder identity, never from a
+	// maxBid/currentBid comparison; see outbidByProvider (specs/_backlog/F034).
 	IsOutbid   bool             `gorm:"default:false" json:"isOutbid"`
 	WinningBid *float64         `json:"winningBid"`
 	Currency   string           `gorm:"default:'USD'" json:"currency"`
