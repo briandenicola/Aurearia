@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Outbid notifications** — Losing the lead on an auction lot you are bidding on
+  now notifies you, in-app and by Pushover. The app showed an `OUTBID` badge but
+  said nothing: the badge was computed in the browser and the server never
+  evaluated the condition. Outbid state now comes from the provider's own
+  winning-bidder identity rather than a max-bid comparison, which proxy bidding
+  makes unreliable in both directions. It fires once per time the lead is lost —
+  not once per sync while you are behind — and re-arms when you retake it. Each
+  lot names where the bidding stands and how long is left to respond, with the
+  lot number linked to the auction site. CNG only; NumisBids exposes no bid
+  signal (F022). Requires a background sync to be enabled in Admin → Schedules.
+  See `specs/_backlog/F034-auction-outbid-notification.md`.
+
 ### Fixed
 
 - **Admin schedule run-history tables overflowed on mobile** — Every run-history

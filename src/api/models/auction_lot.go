@@ -53,11 +53,15 @@ type AuctionLot struct {
 	// 75.00"), so it only moves when a digest is actually delivered — never on sync. Kept
 	// out of the JSON contract: it is digest bookkeeping, not lot data the UI renders
 	// (specs/_backlog/F032).
-	LastDigestBid *float64         `json:"-"`
-	MaxBid        *float64         `json:"maxBid"`
-	WinningBid    *float64         `json:"winningBid"`
-	Currency      string           `gorm:"default:'USD'" json:"currency"`
-	Status        AuctionLotStatus `gorm:"type:varchar(20);default:'watching'" json:"status"`
+	LastDigestBid *float64 `json:"-"`
+	MaxBid        *float64 `json:"maxBid"`
+	// IsOutbid reports whether someone else holds the winning bid on a lot this user is
+	// bidding on. Set from the provider's own winning-bidder identity, never from a
+	// maxBid/currentBid comparison; see outbidByProvider (specs/_backlog/F034).
+	IsOutbid   bool             `gorm:"default:false" json:"isOutbid"`
+	WinningBid *float64         `json:"winningBid"`
+	Currency   string           `gorm:"default:'USD'" json:"currency"`
+	Status     AuctionLotStatus `gorm:"type:varchar(20);default:'watching'" json:"status"`
 	// StatusSource records whether the current Status was set by watchlist sync
 	// auto-detecting a provider-reported outcome, or by an explicit manual override.
 	// Only meaningful once Status is won/lost; see specs/_backlog/F024.
