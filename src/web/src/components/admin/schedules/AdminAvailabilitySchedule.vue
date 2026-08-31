@@ -53,68 +53,72 @@
   <div v-if="cyclesLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="cycles.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No availability cycles recorded yet.</div>
   <template v-else>
-    <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th class="hidden md:table-cell">Trigger</th>
-          <th>Status</th>
-          <th>Total</th>
-          <th class="hidden md:table-cell">Queued</th>
-          <th class="hidden md:table-cell">Running</th>
-          <th>Done</th>
-          <th>Failed</th>
-        </tr>
-      </thead>
-      <tbody>
-        <template v-for="cycle in cycles" :key="cycle.id">
-          <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedCycleId === cycle.id }" @click="toggleCycleDetail(cycle.id)">
-            <td class="text-body text-text-secondary">{{ formatDate(cycle.startedAt) }}</td>
-            <td class="hidden md:table-cell">{{ cycle.triggerType }}</td>
-            <td>
-              <span class="chip-sm" :class="statusClass(cycle.status)">{{ cycle.status === 'completed' ? 'done' : cycle.status }}</span>
-            </td>
-            <td>{{ cycle.totalChildren }}</td>
-            <td class="hidden md:table-cell">{{ cycle.queuedChildren }}</td>
-            <td class="hidden md:table-cell">{{ cycle.runningChildren }}</td>
-            <td class="font-semibold text-[var(--color-positive)]">{{ cycle.completedChildren }}</td>
-            <td class="font-semibold text-[var(--color-negative)]">{{ cycle.failedChildren }}</td>
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hidden md:table-cell">Trigger</th>
+            <th>Status</th>
+            <th>Total</th>
+            <th class="hidden md:table-cell">Queued</th>
+            <th class="hidden md:table-cell">Running</th>
+            <th>Done</th>
+            <th>Failed</th>
           </tr>
-          <tr v-if="expandedCycleId === cycle.id" class="bg-surface-secondary">
-            <td :colspan="cyclesColspan">
-              <div v-if="expandedChildrenLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
-              <table v-else-if="expandedChildren.length" class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Status</th>
-                    <th>Checked</th>
-                    <th>Avail</th>
-                    <th>Unavail</th>
-                    <th>Unknown</th>
-                    <th>Errors</th>
-                    <th>Failure</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="child in expandedChildren" :key="child.id">
-                    <td>{{ child.userName ?? `User #${child.userId}` }}</td>
-                    <td><span class="chip-sm" :class="statusClass(child.status)">{{ child.status === 'completed' ? 'done' : child.status }}</span></td>
-                    <td>{{ child.coinsChecked }}</td>
-                    <td>{{ child.available }}</td>
-                    <td>{{ child.unavailable }}</td>
-                    <td>{{ child.unknown }}</td>
-                    <td>{{ child.errors }}</td>
-                    <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{{ child.failMessage || '--' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No child runs for this cycle.</p>
-            </td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <template v-for="cycle in cycles" :key="cycle.id">
+            <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedCycleId === cycle.id }" @click="toggleCycleDetail(cycle.id)">
+              <td class="text-body text-text-secondary">{{ formatDate(cycle.startedAt) }}</td>
+              <td class="hidden md:table-cell">{{ cycle.triggerType }}</td>
+              <td>
+                <span class="chip-sm" :class="statusClass(cycle.status)">{{ cycle.status === 'completed' ? 'done' : cycle.status }}</span>
+              </td>
+              <td>{{ cycle.totalChildren }}</td>
+              <td class="hidden md:table-cell">{{ cycle.queuedChildren }}</td>
+              <td class="hidden md:table-cell">{{ cycle.runningChildren }}</td>
+              <td class="font-semibold text-[var(--color-positive)]">{{ cycle.completedChildren }}</td>
+              <td class="font-semibold text-[var(--color-negative)]">{{ cycle.failedChildren }}</td>
+            </tr>
+            <tr v-if="expandedCycleId === cycle.id" class="bg-surface-secondary">
+              <td :colspan="cyclesColspan">
+                <div v-if="expandedChildrenLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+                <div v-else-if="expandedChildren.length" class="overflow-x-auto">
+                  <table class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>Checked</th>
+                        <th>Avail</th>
+                        <th>Unavail</th>
+                        <th>Unknown</th>
+                        <th>Errors</th>
+                        <th>Failure</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="child in expandedChildren" :key="child.id">
+                        <td>{{ child.userName ?? `User #${child.userId}` }}</td>
+                        <td><span class="chip-sm" :class="statusClass(child.status)">{{ child.status === 'completed' ? 'done' : child.status }}</span></td>
+                        <td>{{ child.coinsChecked }}</td>
+                        <td>{{ child.available }}</td>
+                        <td>{{ child.unavailable }}</td>
+                        <td>{{ child.unknown }}</td>
+                        <td>{{ child.errors }}</td>
+                        <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{{ child.failMessage || '--' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No child runs for this cycle.</p>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="cyclesPage <= 1" @click="prevCyclesPage()">Prev</button>
@@ -132,83 +136,87 @@
   <div v-if="legacyLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="legacyRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No legacy availability runs recorded.</div>
   <template v-else>
-    <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th class="hidden md:table-cell">Trigger</th>
-          <th class="hidden md:table-cell">Status</th>
-          <th>Checked</th>
-          <th class="hidden md:table-cell">Avail</th>
-          <th>Unavail</th>
-          <th class="hidden md:table-cell">Unknown</th>
-          <th class="hidden md:table-cell">Errors</th>
-          <th>Duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        <template v-for="run in legacyRuns" :key="run.id">
-          <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
-            <td class="text-body text-text-secondary">
-              {{ formatDate(run.startedAt) }}
-              <span class="chip-sm ml-2">Legacy</span>
-            </td>
-            <td class="hidden md:table-cell">{{ run.triggerType }}</td>
-            <td class="hidden md:table-cell">
-              <span class="chip-sm" :class="statusClass(run.status)">{{ run.status === 'completed' ? 'done' : run.status }}</span>
-            </td>
-            <td>{{ run.coinsChecked }}</td>
-            <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.available }}</td>
-            <td class="font-semibold text-[var(--color-negative)]">{{ run.unavailable }}</td>
-            <td class="hidden font-semibold text-warning md:table-cell">{{ run.unknown }}</td>
-            <td class="hidden md:table-cell">{{ run.errors }}</td>
-            <td>{{ formatDuration(run.durationMs) }}</td>
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hidden md:table-cell">Trigger</th>
+            <th class="hidden md:table-cell">Status</th>
+            <th>Checked</th>
+            <th class="hidden md:table-cell">Avail</th>
+            <th>Unavail</th>
+            <th class="hidden md:table-cell">Unknown</th>
+            <th class="hidden md:table-cell">Errors</th>
+            <th>Duration</th>
           </tr>
-          <tr v-if="expandedRunId === run.id && expandedResults" class="bg-surface-secondary">
-            <td :colspan="legacyColspan">
-              <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
-              <table v-else-if="expandedResults.length" class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
-                <thead>
-                  <tr>
-                    <th>Coin</th>
-                    <th>URL</th>
-                    <th>Status</th>
-                    <th>Reason</th>
-                    <th>HTTP</th>
-                    <th>Agent</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="result in expandedResults" :key="result.id">
-                    <td>{{ result.coinName }}</td>
-                    <td>
-                      <SafeExternalLink
-                        v-if="safeRunUrl(result.url)"
-                        :href="result.url"
-                        target="_blank"
-                        rel="noopener"
-                        class="text-gold no-underline hover:underline focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
-                        @click.stop
-                      >
-                        {{ truncateUrl(result.url) }}
-                      </SafeExternalLink>
-                      <span v-else class="text-text-muted">--</span>
-                    </td>
-                    <td>
-                      <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'available' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'unavailable' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ result.status }}</span>
-                    </td>
-                    <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
-                    <td>{{ result.httpStatus ?? '--' }}</td>
-                    <td>{{ result.agentUsed ? 'Yes' : 'No' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No results for this run.</p>
-            </td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <template v-for="run in legacyRuns" :key="run.id">
+            <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
+              <td class="text-body text-text-secondary">
+                {{ formatDate(run.startedAt) }}
+                <span class="chip-sm ml-2">Legacy</span>
+              </td>
+              <td class="hidden md:table-cell">{{ run.triggerType }}</td>
+              <td class="hidden md:table-cell">
+                <span class="chip-sm" :class="statusClass(run.status)">{{ run.status === 'completed' ? 'done' : run.status }}</span>
+              </td>
+              <td>{{ run.coinsChecked }}</td>
+              <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.available }}</td>
+              <td class="font-semibold text-[var(--color-negative)]">{{ run.unavailable }}</td>
+              <td class="hidden font-semibold text-warning md:table-cell">{{ run.unknown }}</td>
+              <td class="hidden md:table-cell">{{ run.errors }}</td>
+              <td>{{ formatDuration(run.durationMs) }}</td>
+            </tr>
+            <tr v-if="expandedRunId === run.id && expandedResults" class="bg-surface-secondary">
+              <td :colspan="legacyColspan">
+                <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+                <div v-else-if="expandedResults.length" class="overflow-x-auto">
+                  <table class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                    <thead>
+                      <tr>
+                        <th>Coin</th>
+                        <th>URL</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                        <th>HTTP</th>
+                        <th>Agent</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="result in expandedResults" :key="result.id">
+                        <td>{{ result.coinName }}</td>
+                        <td>
+                          <SafeExternalLink
+                            v-if="safeRunUrl(result.url)"
+                            :href="result.url"
+                            target="_blank"
+                            rel="noopener"
+                            class="text-gold no-underline hover:underline focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                            @click.stop
+                          >
+                            {{ truncateUrl(result.url) }}
+                          </SafeExternalLink>
+                          <span v-else class="text-text-muted">--</span>
+                        </td>
+                        <td>
+                          <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'available' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'unavailable' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ result.status }}</span>
+                        </td>
+                        <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
+                        <td>{{ result.httpStatus ?? '--' }}</td>
+                        <td>{{ result.agentUsed ? 'Yes' : 'No' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No results for this run.</p>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="legacyPage <= 1" @click="prevLegacyPage()">Prev</button>
