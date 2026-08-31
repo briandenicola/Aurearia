@@ -1094,3 +1094,60 @@ func TestAuctionLotRepository_SaveWatchBidDigestBids(t *testing.T) {
 		t.Fatalf("LastDigestBid = %v, want the previous baseline %v", unavailable.LastDigestBid, staleBaseline)
 	}
 }
+
+func TestAuctionLotRepository_UpsertReportsTheOutbidEdge(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	maxBid := 200.0
+	base := func(isOutbid bool) *models.AuctionLot {
+		return &models.AuctionLot{
+			Source: models.AuctionSourceCNG, SourceURL: "https://auctions.cngcoins.com/lots/view/4-ACTIVE",
+			NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-ACTIVE", Title: "AR Siglos",
+			Status: models.AuctionStatusBidding, MaxBid: &maxBid, IsOutbid: isOutbid, UserID: 1,
+		}
+	}
+
+	// Insert: there is no previous state to have changed, so no edge is reported.
+	created, err := repo.Upsert(base(true))
+	if err != nil {
+		t.Fatalf("Upsert (create): %v", err)
+	}
+	if !created.Created || created.BecameOutbid {
+		t.Fatalf("create reported Created=%v BecameOutbid=%v, want true/false", created.Created, created.BecameOutbid)
+	}
+
+	// Still outbid on the next sync: no edge, so no repeat notification.
+	again, err := repo.Upsert(base(true))
+	if err != nil {
+		t.Fatalf("Upsert (still outbid): %v", err)
+	}
+	if again.BecameOutbid {
+		t.Fatal("BecameOutbid reported while the lot was already outbid")
+	}
+
+	// Retaking the lead clears the stored flag without reporting an edge.
+	retook, err := repo.Upsert(base(false))
+	if err != nil {
+		t.Fatalf("Upsert (retook the lead): %v", err)
+	}
+	if retook.BecameOutbid {
+		t.Fatal("BecameOutbid reported when the user retook the lead")
+	}
+	var stored models.AuctionLot
+	if err := db.First(&stored, retook.LotID).Error; err != nil {
+		t.Fatalf("failed to reload lot: %v", err)
+	}
+	if stored.IsOutbid {
+		t.Fatal("stored lot still outbid after the user retook the lead")
+	}
+
+	// Losing the lead again is a fresh edge.
+	lostAgain, err := repo.Upsert(base(true))
+	if err != nil {
+		t.Fatalf("Upsert (outbid again): %v", err)
+	}
+	if !lostAgain.BecameOutbid {
+		t.Fatal("BecameOutbid not reported when the user lost the lead a second time")
+	}
+}

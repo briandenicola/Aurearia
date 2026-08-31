@@ -582,3 +582,233 @@ func TestAuctionWatchlistSyncService_NotifiesWhenWatchedLotMovesToBidding(t *tes
 		t.Fatalf("bidding notifications after re-sync = %d, want 1 — an unchanged lot must not re-notify", got)
 	}
 }
+
+// cngOutbidFixture serves one lot the user has bid on, with the winning bid attributed to
+// whoever winningCustomer names — "4-OURCUSTOMER" is the authenticated user themselves.
+func cngOutbidFixture(winningCustomer string) string {
+	return `<!doctype html><html><script>
+viewVars = {
+  "currentRouteName":"watched-lots-index",
+  "lots":{
+    "query_info":{"total_num_results":1,"page_size":50},
+    "result_page":[
+      {
+        "row_id":"4-ACTIVE","lot_number":24,"title":"PERSIA, Achaemenid Empire. AR Siglos","starting_price":"60.00",
+        "status":"active","_detail_url":"/lots/view/4-ACTIVE/persia-siglos",
+        "timed_auction_bid":{"amount":"90.00","registration":{"customer":{"row_id":"` + winningCustomer + `"}}},
+        "absentee_bid":{"max_bid":"200.00"},
+        "auction":{"row_id":"4-SALE","title":"Keystone 18","currency_code":"USD","effective_end_time":"2027-01-01T00:00:00Z"}
+      }
+    ]
+  }
+};
+</script></html>`
+}
+
+// newCNGOutbidTestServer lets a test move the winning bid between the user and someone else
+// across syncs, which is the whole point of the outbid edge.
+func newCNGOutbidTestServer(t *testing.T) (*httptest.Server, func(winningCustomer string)) {
+	t.Helper()
+	var loggedIn bool
+	winning := "4-OTHERCUSTOMER"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			w.Write([]byte(`viewVars = {"me":null};`))
+		case "/login":
+			if r.Method == http.MethodPost {
+				loggedIn = true
+				http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "test"})
+				http.Redirect(w, r, "/", http.StatusFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`<form action="/login"><input name="username"><input name="password"></form>`))
+		case "/ajax/refresh-me":
+			if !loggedIn {
+				w.Write([]byte(`null`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"row_id":"4-OURCUSTOMER"}`))
+		case "/watched-lots":
+			if !loggedIn {
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+			w.Write([]byte(cngOutbidFixture(winning)))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return server, func(winningCustomer string) { winning = winningCustomer }
+}
+
+// TestAuctionWatchlistSyncService_NotifiesOnceEachTimeTheLeadIsLost covers F034 end to end:
+// losing the lead notifies, staying behind does not re-notify every sync, and retaking the
+// lead re-arms so the next loss notifies again.
+func TestAuctionWatchlistSyncService_NotifiesOnceEachTimeTheLeadIsLost(t *testing.T) {
+	server, setWinner := newCNGOutbidTestServer(t)
+	defer server.Close()
+	restore := overrideCNGURLs(server.URL)
+	defer restore()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	syncSvc := NewAuctionWatchlistSyncService(
+		repository.NewAuctionLotRepository(db),
+		repository.NewUserRepository(db),
+		nil,
+		NewCNGAuctionService(nil),
+		nil,
+		nil,
+	).WithNotifications(newSyncNotificationService(db))
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", CNGUsername: "user@example.com", CNGPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	countOutbid := func() int64 {
+		t.Helper()
+		var count int64
+		if err := db.Model(&models.Notification{}).Where("type = ?", NotificationTypeAuctionLotsOutbid).Count(&count).Error; err != nil {
+			t.Fatalf("failed to count outbid notifications: %v", err)
+		}
+		return count
+	}
+	storedLot := func() models.AuctionLot {
+		t.Helper()
+		var lot models.AuctionLot
+		if err := db.Where("source_lot_id = ?", "4-ACTIVE").First(&lot).Error; err != nil {
+			t.Fatalf("lot not found: %v", err)
+		}
+		return lot
+	}
+
+	// First sync: the lot is new to us and someone else already holds the winning bid. A lot
+	// picked up already outbid still counts as losing the lead — the user has never been told.
+	setWinner("4-OURCUSTOMER")
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("first SyncUser returned error: %v", err)
+	}
+	if got := countOutbid(); got != 0 {
+		t.Fatalf("outbid notifications while leading = %d, want 0", got)
+	}
+	if storedLot().IsOutbid {
+		t.Fatal("lot stored as outbid while the user holds the winning bid")
+	}
+
+	// Someone outbids us.
+	setWinner("4-OTHERCUSTOMER")
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("second SyncUser returned error: %v", err)
+	}
+	if got := countOutbid(); got != 1 {
+		t.Fatalf("outbid notifications after losing the lead = %d, want 1", got)
+	}
+	if !storedLot().IsOutbid {
+		t.Fatal("lot not stored as outbid after the provider named another winning bidder")
+	}
+
+	var outbid []models.Notification
+	if err := db.Where("type = ?", NotificationTypeAuctionLotsOutbid).Find(&outbid).Error; err != nil {
+		t.Fatalf("failed to load outbid notifications: %v", err)
+	}
+	if outbid[0].Title != "Outbid on an Auction Lot" {
+		t.Errorf("title = %q, want the single-lot outbid title", outbid[0].Title)
+	}
+	if !strings.Contains(outbid[0].Message, "PERSIA, Achaemenid Empire (Lot 24)") {
+		t.Errorf("message does not lead with the lot: %q", outbid[0].Message)
+	}
+	if !strings.Contains(outbid[0].Message, "your max bid 200.00 USD") {
+		t.Errorf("message does not carry the bid state: %q", outbid[0].Message)
+	}
+	if !strings.Contains(outbid[0].Message, "Closes in") {
+		t.Errorf("message does not say how long is left to respond: %q", outbid[0].Message)
+	}
+	if want := fmt.Sprintf("/auctions?lot=%d", storedLot().ID); outbid[0].ReferenceURL != want {
+		t.Errorf("ReferenceURL = %q, want %q", outbid[0].ReferenceURL, want)
+	}
+
+	// Still behind on the next sync: the user already knows, so this must stay silent.
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("third SyncUser returned error: %v", err)
+	}
+	if got := countOutbid(); got != 1 {
+		t.Fatalf("outbid notifications while still behind = %d, want 1 — no repeat per sync", got)
+	}
+
+	// We retake the lead: the stored flag clears, re-arming the next loss.
+	setWinner("4-OURCUSTOMER")
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("fourth SyncUser returned error: %v", err)
+	}
+	if storedLot().IsOutbid {
+		t.Fatal("lot still stored as outbid after the user retook the lead")
+	}
+	if got := countOutbid(); got != 1 {
+		t.Fatalf("outbid notifications after retaking the lead = %d, want 1", got)
+	}
+
+	// Outbid again: a second, separate notification.
+	setWinner("4-OTHERCUSTOMER")
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("fifth SyncUser returned error: %v", err)
+	}
+	if got := countOutbid(); got != 2 {
+		t.Fatalf("outbid notifications after losing the lead again = %d, want 2", got)
+	}
+}
+
+func TestOutbidByProviderUsesTheWinningBidderNotTheBidAmounts(t *testing.T) {
+	maxBid := 200.0
+
+	tests := []struct {
+		name                 string
+		status               models.AuctionLotStatus
+		maxBid               *float64
+		winningCustomerRowID string
+		customerRowID        string
+		want                 bool
+	}{
+		{
+			name: "someone else holds the winning bid", status: models.AuctionStatusBidding, maxBid: &maxBid,
+			winningCustomerRowID: "4-OTHER", customerRowID: "4-OURS", want: true,
+		},
+		{
+			name: "we hold the winning bid", status: models.AuctionStatusBidding, maxBid: &maxBid,
+			winningCustomerRowID: "4-OURS", customerRowID: "4-OURS", want: false,
+		},
+		{
+			// Proxy bidding: a ceiling above the current bid is not proof of leading, and the
+			// provider's own answer is what decides it either way.
+			name: "no bid of ours means there is no lead to lose", status: models.AuctionStatusBidding, maxBid: nil,
+			winningCustomerRowID: "4-OTHER", customerRowID: "4-OURS", want: false,
+		},
+		{
+			name: "watching a lot we never bid on", status: models.AuctionStatusWatching, maxBid: nil,
+			winningCustomerRowID: "4-OTHER", customerRowID: "4-OURS", want: false,
+		},
+		{
+			name: "a closed lot is won, lost or passed — never outbid", status: models.AuctionStatusLost, maxBid: &maxBid,
+			winningCustomerRowID: "4-OTHER", customerRowID: "4-OURS", want: false,
+		},
+		{
+			name: "provider named no winning bidder", status: models.AuctionStatusBidding, maxBid: &maxBid,
+			winningCustomerRowID: "", customerRowID: "4-OURS", want: false,
+		},
+		{
+			name: "our own customer id unavailable", status: models.AuctionStatusBidding, maxBid: &maxBid,
+			winningCustomerRowID: "4-OTHER", customerRowID: "", want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := outbidByProvider(test.status, test.maxBid, test.winningCustomerRowID, test.customerRowID)
+			if got != test.want {
+				t.Fatalf("outbidByProvider() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}

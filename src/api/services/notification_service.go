@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -35,6 +36,11 @@ const (
 	// it already tracks moves from watching to bidding — i.e. the provider now reports a bid
 	// of yours on it. One notification covers every such lot found in a single sync run.
 	NotificationTypeAuctionLotsBidding = "auction_lots_bidding"
+	// NotificationTypeAuctionLotsOutbid is fired by the background watchlist sync the first
+	// time the provider reports someone else holding the winning bid on a lot the user is
+	// bidding on. It fires once per time the lead is lost, not once per sync while behind
+	// (specs/_backlog/F034).
+	NotificationTypeAuctionLotsOutbid = "auction_lots_outbid"
 	NotificationTypeShipmentStatus     = "shipment_status"
 	// NotificationTypeAvailabilityRun is the terminal-outcome notification created for every
 	// terminal child AvailabilityRun (owner/scheduled/admin-triggered), in addition to (never
@@ -493,6 +499,130 @@ func (s *NotificationService) NotifyAuctionLotsBidding(userID uint, lots []model
 	}
 
 	go s.sendPushoverMessage(userID, buildAuctionLotsBiddingPushoverMessage(lots, s.publicAppBaseURL()))
+}
+
+// NotifyAuctionLotsOutbid creates a single in-app notification, plus a single rich-HTML
+// Pushover push, for every lot this sync run found the user newly outbid on — the provider
+// now reports someone else holding the winning bid on a lot they are bidding on. This is the
+// most time-critical of the auction notifications: unlike the others it names a lot the user
+// can still do something about, and only until it closes. Batched and best-effort on the same
+// terms as the newly-tracked and now-bidding pushes (specs/_backlog/F034).
+func (s *NotificationService) NotifyAuctionLotsOutbid(userID uint, lots []models.AuctionLot) {
+	if len(lots) == 0 {
+		return
+	}
+
+	title := auctionLotsOutbidTitle(len(lots))
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("You have been outbid on %d lot(s):\n\n", len(lots)))
+	for i, lot := range lots {
+		if i == auctionLotsTrackedInAppLimit {
+			builder.WriteString(fmt.Sprintf("… and %d more\n", len(lots)-i))
+			break
+		}
+		builder.WriteString(fmt.Sprintf("%s\n%s\n%s\n%s\n\n",
+			auctionLotHeadline(lot),
+			auctionLotSaleLabel(lot),
+			auctionLotBidSummary(lot),
+			auctionLotClosesIn(lot),
+		))
+	}
+
+	refURL := "/auctions"
+	var refID uint
+	if len(lots) == 1 {
+		refURL = auctionLotAppPath(lots[0].ID)
+		refID = lots[0].ID
+	}
+
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypeAuctionLotsOutbid,
+		Title:        title,
+		Message:      strings.TrimRight(builder.String(), "\n"),
+		ReferenceID:  refID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create auction lots outbid notification for user %d: %v", userID, err)
+	}
+
+	go s.sendPushoverMessage(userID, buildAuctionLotsOutbidPushoverMessage(lots, s.publicAppBaseURL()))
+}
+
+// buildAuctionLotsOutbidPushoverMessage renders the outbid push: per lot, the headline with
+// its lot number linked to the auction site, the sale, where the bidding stands, and how long
+// is left to respond. Same escaping and trimming rules as the sibling batched pushes (F031).
+func buildAuctionLotsOutbidPushoverMessage(lots []models.AuctionLot, publicAppBaseURL string) PushoverMessage {
+	message := buildBatchedLotMessage(
+		fmt.Sprintf("You have been outbid on %d lot(s):\n\n", len(lots)),
+		lots,
+		func(lot models.AuctionLot) string {
+			entry := fmt.Sprintf(
+				"%s\n%s\n%s\n%s\n",
+				auctionLotHeadlineHTML(lot),
+				html.EscapeString(auctionLotSaleLabel(lot)),
+				html.EscapeString(auctionLotBidSummary(lot)),
+				html.EscapeString(auctionLotClosesIn(lot)),
+			)
+			if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lot.ID); lotURL != "" {
+				entry += fmt.Sprintf("<a href=\"%s\">View lot in Aurearia</a>\n", html.EscapeString(lotURL))
+			}
+			return entry + "\n"
+		},
+	)
+
+	actionURL := buildPublicAppURL(publicAppBaseURL, "/auctions")
+	urlTitle := "Open auctions"
+	if len(lots) == 1 {
+		if lotURL := buildAuctionLotAppURL(publicAppBaseURL, lots[0].ID); lotURL != "" {
+			actionURL = lotURL
+			urlTitle = "View auction lot"
+		}
+	}
+
+	return PushoverMessage{
+		Title:    auctionLotsOutbidTitle(len(lots)),
+		Message:  message,
+		URL:      actionURL,
+		URLTitle: urlTitle,
+		HTML:     true,
+	}
+}
+
+func auctionLotsOutbidTitle(count int) string {
+	if count == 1 {
+		return "Outbid on an Auction Lot"
+	}
+	return fmt.Sprintf("Outbid on %d Auction Lots", count)
+}
+
+// auctionLotClosesIn states how long is left to respond, which is what makes an outbid
+// notification actionable — the same bid three days out and three minutes out call for very
+// different urgency. Falls back to a plain statement when the provider gave no close time.
+func auctionLotClosesIn(lot models.AuctionLot) string {
+	closesAt := lot.AuctionEndTime
+	if closesAt == nil {
+		closesAt = lot.SaleDate
+	}
+	if closesAt == nil {
+		return "Closing time unknown"
+	}
+	remaining := time.Until(*closesAt)
+	if remaining <= 0 {
+		return "Closed"
+	}
+	days := int(remaining.Hours()) / 24
+	hours := int(remaining.Hours()) % 24
+	minutes := int(remaining.Minutes()) % 60
+	switch {
+	case days > 0:
+		return fmt.Sprintf("Closes in %dd %dh", days, hours)
+	case hours > 0:
+		return fmt.Sprintf("Closes in %dh %dm", hours, minutes)
+	default:
+		return fmt.Sprintf("Closes in %dm", minutes)
+	}
 }
 
 // NotifyCoinOfDay creates an in-app notification and Pushover alert for the

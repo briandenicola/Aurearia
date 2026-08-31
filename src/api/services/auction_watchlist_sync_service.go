@@ -32,6 +32,7 @@ type syncProviderResult struct {
 	synced       int
 	newlyTracked []models.AuctionLot
 	newlyBidding []models.AuctionLot
+	newlyOutbid  []models.AuctionLot
 }
 
 func NewAuctionWatchlistSyncService(
@@ -95,12 +96,14 @@ func (s *AuctionWatchlistSyncService) SyncUser(user *models.User) (int, error) {
 	total := 0
 	var newlyTracked []models.AuctionLot
 	var newlyBidding []models.AuctionLot
+	var newlyOutbid []models.AuctionLot
 	var errs []string
 	if user.NumisBidsUsername != "" && user.NumisBidsPassword != "" {
 		result, err := s.syncNumisBids(user)
 		total += result.synced
 		newlyTracked = append(newlyTracked, result.newlyTracked...)
 		newlyBidding = append(newlyBidding, result.newlyBidding...)
+		newlyOutbid = append(newlyOutbid, result.newlyOutbid...)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("numisbids: %v", err))
 		}
@@ -110,6 +113,7 @@ func (s *AuctionWatchlistSyncService) SyncUser(user *models.User) (int, error) {
 		total += result.synced
 		newlyTracked = append(newlyTracked, result.newlyTracked...)
 		newlyBidding = append(newlyBidding, result.newlyBidding...)
+		newlyOutbid = append(newlyOutbid, result.newlyOutbid...)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("cng: %v", err))
 		}
@@ -121,6 +125,7 @@ func (s *AuctionWatchlistSyncService) SyncUser(user *models.User) (int, error) {
 	// provider that failed part-way still notifies about whatever it did observe before failing.
 	s.notifyNewlyTracked(user, newlyTracked)
 	s.notifyNewlyBidding(user, newlyBidding)
+	s.notifyNewlyOutbid(user, newlyOutbid)
 
 	if len(errs) > 0 {
 		return total, fmt.Errorf("%s", strings.Join(errs, "; "))
@@ -147,6 +152,15 @@ func (s *AuctionWatchlistSyncService) notifyNewlyBidding(user *models.User, lots
 	s.notifSvc.NotifyAuctionLotsBidding(user.ID, lots)
 }
 
+// notifyNewlyOutbid sends the batched outbid notification for one user, on the same
+// best-effort terms as notifyNewlyTracked.
+func (s *AuctionWatchlistSyncService) notifyNewlyOutbid(user *models.User, lots []models.AuctionLot) {
+	if s.notifSvc == nil || user == nil || len(lots) == 0 {
+		return
+	}
+	s.notifSvc.NotifyAuctionLotsOutbid(user.ID, lots)
+}
+
 // isNewlyTrackedLot reports whether an upsert result represents a lot worth telling the user
 // about: one this sync inserted for the first time and that is actively being tracked
 // (watching or bidding). Lots that arrive already closed (passed/won/lost — e.g. a first sync
@@ -164,6 +178,30 @@ func isNewlyTrackedLot(result repository.AuctionLotUpsertResult, lot models.Auct
 // lot that was already bidding (or that the provider reports unchanged) never re-notifies.
 func startedBidding(result repository.AuctionLotUpsertResult, lot models.AuctionLot) bool {
 	return result.PreviousStatus == models.AuctionStatusWatching && lot.Status == models.AuctionStatusBidding
+}
+
+// wasOutbid reports whether this upsert is the moment the user lost the lead on a lot they
+// are bidding on. The repository sets BecameOutbid only on the not-outbid → outbid edge, so a
+// lot that stays outbid across many syncs notifies once, and one where the user retakes the
+// lead re-arms for the next time (specs/_backlog/F034).
+func wasOutbid(result repository.AuctionLotUpsertResult, lot models.AuctionLot) bool {
+	return result.BecameOutbid && lot.Status == models.AuctionStatusBidding
+}
+
+// outbidByProvider reports whether the provider says someone else holds the winning bid on a
+// lot this user is bidding on. It compares the winning bidder's own id with the user's rather
+// than max bid against current bid: under proxy bidding a ceiling above the current bid can
+// still be losing, and one below it can still be leading. Unknown either way (no winning
+// bidder reported, or the user's own id unavailable) means not outbid — silence beats a
+// false alarm on a lot the user may well be winning.
+func outbidByProvider(status models.AuctionLotStatus, maxBid *float64, winningCustomerRowID, customerRowID string) bool {
+	if status != models.AuctionStatusBidding || maxBid == nil {
+		return false
+	}
+	if winningCustomerRowID == "" || customerRowID == "" {
+		return false
+	}
+	return winningCustomerRowID != customerRowID
 }
 
 func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (syncProviderResult, error) {
@@ -314,6 +352,7 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 			SaleName:       wl.SaleName,
 			AuctionEndTime: auctionEndTime,
 			Status:         status,
+			IsOutbid:       outbidByProvider(status, wl.MaxBid, wl.WinningCustomerRowID, customerRowID),
 			UserID:         user.ID,
 		}
 		upsert, err := s.auctionRepo.UpsertWithCalendarEvent(&lot)
@@ -328,6 +367,12 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 			result.newlyTracked = append(result.newlyTracked, lot)
 		} else if startedBidding(upsert, lot) {
 			result.newlyBidding = append(result.newlyBidding, lot)
+		}
+		// Independent of the two above: a first sync can pick a lot up already outbid, and a
+		// lot can move to bidding and be outbid in the same run. Both facts are worth telling
+		// the user, so this is not an else-branch.
+		if wasOutbid(upsert, lot) {
+			result.newlyOutbid = append(result.newlyOutbid, lot)
 		}
 	}
 

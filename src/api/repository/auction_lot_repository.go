@@ -58,6 +58,12 @@ type AuctionLotUpsertResult struct {
 	// callers can react to a real transition (e.g. watching → bidding) without re-deriving
 	// the transition rules below.
 	PreviousStatus models.AuctionLotStatus
+	// BecameOutbid is set only when this upsert flipped the lot from not-outbid to outbid —
+	// the provider now reports someone else holding the winning bid on a lot the user is
+	// bidding on. It stays false on insert, while the lot stays outbid across syncs, and
+	// when the user retakes the lead; retaking the lead clears the stored flag, so a later
+	// loss of the lead notifies again (specs/_backlog/F034).
+	BecameOutbid bool
 }
 
 // List returns a paginated list of auction lots for the given user.
@@ -255,8 +261,12 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 			return nil
 		}
 		result.LotID = existing.ID
+		// Report the not-outbid → outbid edge, so callers notify once per time the user
+		// loses the lead rather than on every sync while they are still behind.
+		result.BecameOutbid = !existing.IsOutbid && lot.IsOutbid
 		// Update fields that may have changed
 		updates := map[string]interface{}{
+			"is_outbid":        lot.IsOutbid,
 			"current_bid":      lot.CurrentBid,
 			"estimate":         lot.Estimate,
 			"title":            lot.Title,

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 )
@@ -370,5 +371,94 @@ func TestBuildAuctionLotsBiddingPushoverMessage_BatchesAndEscapes(t *testing.T) 
 	// No provider bid data at all still reads sensibly, via the shared bid formatter.
 	if !strings.Contains(message.Message, "current high bid unavailable") {
 		t.Errorf("message did not fall back for a missing bid: %q", message.Message)
+	}
+}
+
+func TestBuildAuctionLotsOutbidPushoverMessage(t *testing.T) {
+	closesAt := time.Now().Add(50 * time.Hour)
+	currentBid := 90.0
+	maxBid := 200.0
+	lots := []models.AuctionLot{{
+		ID:             7,
+		Title:          "PERSIA, Achaemenid Empire. temp. Darios I to Xerxes I. Circa 505-480 BC. AR Siglos.",
+		AuctionHouse:   "Classical Numismatic Group",
+		SaleName:       "Keystone Auction 18",
+		LotNumber:      24,
+		CurrentBid:     &currentBid,
+		MaxBid:         &maxBid,
+		Currency:       "USD",
+		AuctionEndTime: &closesAt,
+		SourceURL:      "https://auctions.cngcoins.com/lots/view/4-ACTIVE",
+	}}
+
+	message := buildAuctionLotsOutbidPushoverMessage(lots, "https://coins.example.com")
+
+	if !message.HTML {
+		t.Fatal("outbid push is not flagged as HTML")
+	}
+	if message.Title != "Outbid on an Auction Lot" {
+		t.Fatalf("title = %q, want the single-lot outbid title", message.Title)
+	}
+	if !strings.Contains(message.Message, `<b>PERSIA, Achaemenid Empire</b> (<a href="https://auctions.cngcoins.com/lots/view/4-ACTIVE">Lot 24</a>)`) {
+		t.Fatalf("message does not lead with a linked lot headline: %q", message.Message)
+	}
+	if !strings.Contains(message.Message, "current high bid 90.00 USD · your max bid 200.00 USD") {
+		t.Fatalf("message does not carry the bid state: %q", message.Message)
+	}
+	if !strings.Contains(message.Message, "Closes in 2d 1h") {
+		t.Fatalf("message does not say how long is left: %q", message.Message)
+	}
+	if message.URL != "https://coins.example.com/auctions?lot=7" || message.URLTitle != "View auction lot" {
+		t.Fatalf("action link = %q / %q, want the deep link to the lot", message.URL, message.URLTitle)
+	}
+}
+
+func TestBuildAuctionLotsOutbidPushoverMessageEscapesScrapedTitles(t *testing.T) {
+	lots := []models.AuctionLot{{
+		ID: 7, Title: "<script>alert(1)</script> Siglos", AuctionHouse: "CNG & Co", SaleName: "Keystone 18", LotNumber: 24,
+	}}
+
+	message := buildAuctionLotsOutbidPushoverMessage(lots, "")
+
+	if strings.Contains(message.Message, "<script>") {
+		t.Fatalf("scraped title reached the HTML body unescaped: %q", message.Message)
+	}
+	if !strings.Contains(message.Message, "CNG &amp; Co - Keystone 18") {
+		t.Fatalf("sale label not escaped: %q", message.Message)
+	}
+	// No public app URL configured: the body still renders, just without the app link.
+	if strings.Contains(message.Message, "View lot in Aurearia") {
+		t.Fatalf("app link emitted without a public app URL: %q", message.Message)
+	}
+}
+
+func TestAuctionLotClosesIn(t *testing.T) {
+	inTwoDays := time.Now().Add(50 * time.Hour)
+	inHours := time.Now().Add(3*time.Hour + 30*time.Minute)
+	inMinutes := time.Now().Add(20 * time.Minute)
+	past := time.Now().Add(-time.Hour)
+	saleDate := time.Now().Add(26 * time.Hour)
+
+	tests := []struct {
+		name string
+		lot  models.AuctionLot
+		want string
+	}{
+		// Remaining time truncates rather than rounds, so 50h reads as 2d 1h — the same
+		// convention the on-screen countdown uses.
+		{name: "days out", lot: models.AuctionLot{AuctionEndTime: &inTwoDays}, want: "Closes in 2d 1h"},
+		{name: "hours out", lot: models.AuctionLot{AuctionEndTime: &inHours}, want: "Closes in 3h 29m"},
+		{name: "minutes out", lot: models.AuctionLot{AuctionEndTime: &inMinutes}, want: "Closes in 19m"},
+		{name: "already closed", lot: models.AuctionLot{AuctionEndTime: &past}, want: "Closed"},
+		{name: "falls back to the sale date", lot: models.AuctionLot{SaleDate: &saleDate}, want: "Closes in 1d 1h"},
+		{name: "no close time at all", lot: models.AuctionLot{}, want: "Closing time unknown"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := auctionLotClosesIn(test.lot); got != test.want {
+				t.Fatalf("auctionLotClosesIn() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
