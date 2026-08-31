@@ -812,3 +812,81 @@ func TestOutbidByProviderUsesTheWinningBidderNotTheBidAmounts(t *testing.T) {
 		})
 	}
 }
+
+// TestAuctionWatchlistSyncService_NumisBidsNeverReportsOutbid guards the asymmetry between
+// the two providers (F022): NumisBids exposes no bid signal at all — no max bid, no current
+// bid, no winning bidder — so its lots can never be known to be outbid. The outbid path must
+// stay entirely out of the NumisBids sync rather than inferring a state the provider never
+// reported, and a NumisBids lot must never carry the flag or raise the notification.
+func TestAuctionWatchlistSyncService_NumisBidsNeverReportsOutbid(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/registration/login.php":
+			http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "test"})
+			w.Write([]byte(`{"status":"success"}`))
+		case "/watchlist":
+			w.Write([]byte(`<div class="heading"><b>My Watch List</b></div>
+<div class="togglewatch" id="10749">Test House Sale (20 Apr 2027)</div>
+<div class="browse 10749 watch9900001" style="height: 360px;">
+  <span class="lot"><a href="/sale/10749/lot/10003">Lot 10003</a></span>
+  <span class="summary"><a href="/sale/10749/lot/10003">GREEK Coin</a></span>
+</div>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	originalBase, originalLoginURL, originalWatchlistURL := numisbidsBase, numisbidsLoginURL, numisbidsWatchlistURL
+	numisbidsBase = server.URL
+	numisbidsLoginURL = server.URL + "/registration/login.php"
+	numisbidsWatchlistURL = server.URL + "/watchlist"
+	defer func() {
+		numisbidsBase, numisbidsLoginURL, numisbidsWatchlistURL = originalBase, originalLoginURL, originalWatchlistURL
+	}()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	syncSvc := NewAuctionWatchlistSyncService(
+		repository.NewAuctionLotRepository(db),
+		repository.NewUserRepository(db),
+		NewNumisBidsService(nil),
+		nil,
+		nil,
+		nil,
+	).WithNotifications(newSyncNotificationService(db))
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", NumisBidsUsername: "user@example.com", NumisBidsPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	// Two syncs: the second would be the one to fire a spurious edge if anything inferred
+	// outbid state from the absence of provider data.
+	for i := 0; i < 2; i++ {
+		if _, err := syncSvc.SyncUser(user); err != nil {
+			t.Fatalf("SyncUser %d returned error: %v", i+1, err)
+		}
+	}
+
+	var lot models.AuctionLot
+	if err := db.Where("source = ?", models.AuctionSourceNumisBids).First(&lot).Error; err != nil {
+		t.Fatalf("lot not found: %v", err)
+	}
+	if lot.IsOutbid {
+		t.Error("NumisBids lot stored as outbid — the provider reports no bid data to decide that")
+	}
+	if lot.Status != models.AuctionStatusWatching {
+		t.Errorf("status = %q, want watching — NumisBids has no bid signal to move it", lot.Status)
+	}
+	if lot.MaxBid != nil || lot.CurrentBid != nil {
+		t.Errorf("NumisBids sync invented bid data: maxBid=%v currentBid=%v", lot.MaxBid, lot.CurrentBid)
+	}
+
+	var outbidCount int64
+	if err := db.Model(&models.Notification{}).Where("type = ?", NotificationTypeAuctionLotsOutbid).Count(&outbidCount).Error; err != nil {
+		t.Fatalf("failed to count outbid notifications: %v", err)
+	}
+	if outbidCount != 0 {
+		t.Errorf("NumisBids sync raised %d outbid notification(s), want 0", outbidCount)
+	}
+}
