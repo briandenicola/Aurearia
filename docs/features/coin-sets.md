@@ -67,6 +67,16 @@ A dedicated dashboard shows:
 
 The Sets menu includes **Emperors** at `/sets/emperors` when Emperor Tracker is enabled in **Settings → Account**. This view tracks Roman emperor and figure coverage as a specialized completion set while continuing to use the existing `/api/stats/emperors` backend progress endpoint.
 
+## Pinning Sets to the Sidebar
+
+Any set can be pinned to the sidebar for one-tap access:
+
+- **Where** — Open a set's detail page and use the pin/unpin icon button in the header actions (next to Back), on both the desktop and PWA layouts. The button shows a filled `Pin` icon when unpinned and an outlined `PinOff` icon in gold when pinned, with `aria-pressed` reflecting the current state.
+- **Sidebar placement** — Pinned sets render as additional entries under **Sets → My Sets** (and **Emperors**, when enabled), ordered oldest-pinned-first, then alphabetically. Long names truncate with the full name available via a tooltip.
+- **Cap** — Up to 5 sets can be pinned at a time, enforced by the server. Attempting to pin a 6th set surfaces an error toast and the pin button disables itself once the cap is reached; unpinning is never capped.
+- **Empty state** — With no pinned sets, the Sets submenu is unchanged from its default two entries.
+- **Session behavior** — Pinned sets refresh when the app loads for an authenticated user and clear on logout so the next signed-in user only sees their own pins.
+
 ## Tray View
 
 The Collection menu includes **Gallery** and **Tray** subviews. Tray view renders the collection with the shared museum-tray presentation and the user-selected felt color from **Settings → Appearance**.

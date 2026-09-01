@@ -13467,6 +13467,9 @@ const docTemplate = `{
                                 },
                                 "name": {
                                     "type": "string"
+                                },
+                                "pinned": {
+                                    "type": "boolean"
                                 }
                             }
                         }
@@ -13480,7 +13483,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Includes pin cap rejection: you can pin up to 5 sets",
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -22000,6 +22003,9 @@ const docTemplate = `{
                 },
                 "parentSetId": {
                     "type": "integer"
+                },
+                "pinnedAt": {
+                    "type": "string"
                 },
                 "setType": {
                     "$ref": "#/definitions/models.CoinSetType"

@@ -630,3 +630,85 @@ this PR, and the actual page-vs-worker CSP header split can only be regression-t
 Targeted Vitest (`backgroundRemoval.test.ts` 10/10, `ImageLightbox.test.ts` 2/2, full suite 258/258),
 direct-node `vue-tsc --build --force` (exit 0), direct-node `vite build` (exit 0, worker chunks verified
 under `assets/workers/`).
+
+## Pinned Coin Sets — Sidebar + Set Detail Pin/Unpin (feat/pinned-sets-sidebar)
+
+Design authority: `.squad/decisions/inbox/maximus-pinned-sets-design.md` (Design Review, ACCEPTED).
+
+### What shipped
+- `src/web/src/types/sets.ts`: `CoinSetSummary` gained `pinned?: boolean` and `pinnedAt?: string | null`
+  (inherited by `CoinSetDetail` via `extends`). `UpdateCoinSetRequest` widened to
+  `Partial<CreateCoinSetRequest> & { pinned?: boolean }`. No edit needed to `api/endpoints/sets.ts` --
+  `updateSet`/`getSets` already accept/return the widened types.
+- `src/web/src/composables/usePinnedSets.ts` (new): singleton composable modeled directly on
+  `useNotifications.ts` -- module-level `ref<CoinSetSummary[]>([])`, no Pinia. `refresh()` calls
+  `getSets()`, filters to `pinned`, sorts `pinnedAt` ascending then `name` (locale-aware
+  `localeCompare`), and **swallows all errors** so a failing sidebar fetch never breaks navigation and
+  always preserves the last-known list. `setPinned(id, pinned)` calls `updateSet(id, { pinned })` then
+  `refresh()`, and **rethrows** so the set-detail pin button can surface the server's cap/ownership
+  error as a toast. `pinLimitReached` is a computed `length >= 5`. `clear()` empties the list for logout.
+- `src/web/src/App.vue`: extended the *existing* `orderedNavItems` computed's `sets` branch (did not add
+  a second branch) to append `pinnedSets.value.map(...)` after the existing
+  `child.id !== 'sets-emperors' || auth.user?.emperorTrackerEnabled` filter -- that literal substring
+  survives verbatim (Brutus's `AppNavigation.test.ts` guard). Sidebar child route-links gained `min-w-0`
+  on the link and `truncate` + `:title="child.label"` on the label span (additive, zero visual change
+  when `item.children` has no pinned entries). `refresh()` wired into the existing
+  `onMounted(... if (auth.isAuthenticated) { startPolling(); ... })` block; `clear()` wired into the
+  existing `handleLogout()` alongside `stopPolling()`. `setsExpanded` stays `ref(false)` -- untouched,
+  so pinning a set never auto-expands the parent.
+- `src/web/src/pages/SetDetailPage.vue`: one pin/unpin icon button added to **both** header variants
+  (PWA `pwa-icon-btn`, desktop `btn btn-ghost`), placed before the existing Back button in each group,
+  using `Pin`/`PinOff` from `lucide-vue-next` (`:size="22"` PWA, `:size="16"` desktop, matching Back
+  exactly). Pinned state applies `text-gold` via a class binding (same pattern as the existing
+  `menuOpen` gold-highlight toggle) and carries `aria-pressed`, `aria-label`, `title` all driven by one
+  `pinButtonLabel` computed (`'Pin to sidebar'` / `'Unpin from sidebar'` / `'Pin limit reached (5
+  sets)'` when unpinned-and-at-cap). `pinDisabled` computed only disables the *unpinned* action at cap
+  -- unpinning is never capped. `togglePin()` calls the composable's `setPinned`, then reloads the page
+  via the existing `loadSetDetails()` (same pattern the inline edit-set save already uses) so `set.value
+  .pinned`/`pinnedAt` reflect the server's response, then toasts success via the existing `useToast()`
+  pattern; on rejection it reuses the file's existing `getErrorMessage(error, fallback)` helper (already
+  present for other actions) to surface the exact server message (e.g. the cap's `you can pin up to 5
+  sets`) as an error toast. No changes to `SetDashboardCard.vue` or any route/endpoint, per the design's
+  explicit exclusions.
+- `docs/features/coin-sets.md`: added a "Pinning Sets to the Sidebar" section (cap, ordering, empty
+  state, session lifecycle).
+
+### Test-authoring notes for future pin/PWA-variant work
+- **lucide-vue-next icons have no exposed `name`**, so under `shallowMount` auto-stubbing they render as
+  a generic `<anonymous-stub>` -- `wrapper.findComponent({ name: 'Pin' })` silently returns an empty
+  wrapper (no error) and reads as a false negative. Import the actual icon component and use
+  `wrapper.findComponent(Pin)` / `findComponent(PinOff)` instead; VTU still resolves stubs back to their
+  original component definition for identity-based lookup.
+- Icon **`:size="22"`** does not surface via `.props('size')` on the stub either -- lucide icons take
+  `size` as a passthrough/fallthrough attribute, not a declared prop, so assert with
+  `.attributes('size')` (string `'22'`), not `.props('size')` (which is `undefined` on the stub).
+- To test two variants of an `isPwa`-gated template branch (PWA vs desktop) in one file without
+  `vi.resetModules()` gymnastics, mock `usePwa` with a `vi.hoisted(() => ({ value: false }))` ref object
+  and read `mockIsPwa.value` inside the mock factory (`useCoinDetailSwipeNav.test.ts` already established
+  this pattern) -- flip `.value` per-test in `beforeEach`/inline and remount; each `shallowMount` call
+  re-runs `setup()` and re-reads the current `.value`.
+
+### Concurrency hazard observed during this session -- flag for Maximus/Brian
+This worktree is **not** isolated per-agent (`WORKTREE_MODE: false`, shared `TEAM ROOT`). While Cassius's
+backend agent and this frontend work ran concurrently in the *same* working tree, my edits to
+`src/web/src/App.vue`, `src/web/src/types/sets.ts`, and `src/web/src/pages/SetDetailPage.vue` were
+silently reverted to their pre-edit contents **multiple times** mid-session (confirmed via `git status`
+losing the `M` marker and `grep` finding zero trace of just-applied changes, then reappearing after
+reapplication) -- while untracked new files (`usePinnedSets.ts` and its test) were never touched. One
+round even produced duplicated lines (same import/destructure inserted twice), meaning the wipe raced
+with an in-flight edit rather than cleanly preceding it. `list_agents(scope: "all")` showed a *second*
+background agent literally named "Aurelia" running the identical task ("Build pinned set UX") under the
+same session owner as this conversation, but `read_agent` on its id returned "no agent found" -- so it
+could not be inspected or messaged to coordinate. Net effect: any agent editing files also touched by a
+sibling/duplicate agent in a shared worktree must re-verify file contents with `grep`/`git status`
+immediately after every edit batch, expect to reapply more than once, and flag the duplicate-agent
+condition to the coordinator rather than assuming a single writer. All edits and tests in this session
+were re-verified stable (via `git status` + `grep`) immediately before the final validation pass (lint,
+full Vitest suite, `vue-tsc --noEmit`, `npm run build`) and all four gates passed clean.
+
+### Validation
+`npx eslint` on all seven changed/new files: 0 errors, 0 warnings. Targeted Vitest
+(`usePinnedSets.test.ts` 7/7, `SetDetailPage.test.ts` 13/13 including 8 new pin-button cases,
+`AppNavigation.test.ts` 5/5 unmodified/unweakened, `ui-patterns.test.ts` 11/11 unmodified). Full Vitest
+suite: 164 files / 1312 tests passed. `npx vue-tsc --noEmit`: clean. `npm run build`: succeeded,
+`SetDetailPage-*.js` chunk emitted normally.

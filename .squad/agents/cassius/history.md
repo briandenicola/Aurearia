@@ -1,3 +1,19 @@
+## 2026-09-01 — Pinned Sets Backend (Design Review §D1-D3)
+
+**Session:** feat/pinned-sets-sidebar — persisted pinned coin sets, backend half
+**Timestamp:** 2026-09-01T15:30:00Z
+**Status:** ✅ COMPLETE
+
+**What shipped** (per `.squad/decisions/inbox/maximus-pinned-sets-design.md`, all accepted, no deviations):
+- `models/set.go`: `CoinSet.PinnedAt *time.Time` (`gorm:"index"`, `json:"pinnedAt"`). Purely additive; relies on existing `AutoMigrate`, no hand-written migration.
+- `repository/set_repository.go`: added `CountPinned(userID)` (`WHERE pinned_at IS NOT NULL`, scoped via `OwnedBy`). Confirmed via a throwaway probe program that `Update(set, map[string]interface{}{"pinned_at": nil})` genuinely nulls the column — GORM's map-based `Updates` bypasses the "skip zero value" struct-update behavior, so `nil` in the map is not silently dropped.
+- `services/set_service.go`: `ErrPinLimitReached = errors.New("you can pin up to 5 sets")`, `maxPinnedSets = 5`. In `UpdateSet`, `updates["pinned"]` is deleted unconditionally once inspected (regardless of type-assertion success) and translated to `updates["pinned_at"]`: first pin → `time.Now().UTC()`, already-pinned + `pinned:true` → no-op (preserves order), `pinned:false` → `nil`. Cap check (`CountPinned >= 5`) only fires on the unpinned→pinned transition; unpinning is never capped. `ListSets` and `GetSetDetail` both add `"pinned": set.PinnedAt != nil` and `"pinnedAt": set.PinnedAt` to their response maps.
+- `handlers/sets.go`: swagger-only change on `Update` (`@Param body` gains `pinned=bool`, `@Failure 400` documents the cap message). Zero logic changes — the handler already mapped any non-not-found service error to 400 via `err.Error()`, so `ErrPinLimitReached`'s message flows straight through.
+- `docs/api-reference.md`: `GET /api/sets` example now shows `pinned`/`pinnedAt`; `PUT /api/sets/:id` section documents the pin/unpin/no-op/cap contract.
+- Tests added across all three layers (service, repository, handler) covering: pin, unpin, re-pin timestamp preservation, cap rejection + exact message, cap recovery after unpin, cross-user 404, `pinned`/`pinnedAt` present in both list and detail responses, `CountPinned` user-scoping, and a repository-level `pinned_at` round-trip through the map-update path (the R1 guard the design doc called for). All new + full existing `services`/`repository`/`handlers` suites pass; `go vet` clean.
+
+**Operational incident — do not repeat:** I ran `gofmt -l -w .` from `src/api/` intending to format only my 4 touched files, but `.` recursively reformatted ~494 files across the entire Go tree (CRLF→LF normalization). While reverting the unintended files with a bulk `git checkout -- $_` (restricted to a `$keep` allow-list), the same command silently reverted **two frontend files a concurrent agent (Aurelia) had in-progress at that moment** (`src/web/src/App.vue`, `src/web/src/types/sets.ts`) because they weren't on my allow-list and weren't yet in the excluded "untracked" category. This is a live shared worktree — another agent can be actively saving files at the same wall-clock time. I recovered both files from a `git stash` I'd taken moments earlier (which happened to capture Aurelia's edits at that point in time) via targeted `git checkout "stash@{0}" -- <path>`, and left `SetDetailPage.vue` (which she had since re-edited, mid-refactor, after my stash) untouched since her on-disk copy was newer than the stash's. **Lesson: `gofmt`/formatting commands must always target explicit file paths, never `.` or a directory, in a shared worktree — and any bulk revert loop must diff against a fresh `git status` taken immediately before the revert, not an earlier snapshot, and should never touch files outside the acting agent's own authorized list even indirectly.**
+
 ## 2026-08-25 — Worker CSP Implementation + Reminder 404 Analysis
 
 **Session:** Background-Removal Worker CSP Isolation & Reminder 404

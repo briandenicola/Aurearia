@@ -45,6 +45,7 @@ type CoinSet struct {
 	SmartCriteria        *JSONObject         `gorm:"type:text" json:"smartCriteria"`
 	AgenticPrompt        string              `gorm:"type:text" json:"agenticPrompt,omitempty"`
 	AgenticStatus        string              `gorm:"type:varchar(20);default:'ready'" json:"agenticStatus,omitempty"`
+	PinnedAt             *time.Time          `gorm:"index" json:"pinnedAt"`
 	CreatedAt            time.Time           `json:"createdAt"`
 	UpdatedAt            time.Time           `json:"updatedAt"`
 }

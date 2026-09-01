@@ -1,5 +1,74 @@
 # Squad Decisions
 
+### 2026-09-01T10:55:49-05:00: Pinned Sets in the Sidebar Sets Submenu
+
+**By:** Maximus (Architect, Design Review) → Cassius (Backend) → Aurelia (Frontend) → Brutus (Review Gate)
+**Spec:** Feature Request from Brian
+**Status:** APPROVED — Implementation Complete, Ready for Merge
+
+**What:** Give users the ability to pin their coin sets under the expanded Sets sidebar menu, similar to reference images provided. Pinned sets appear below `My Sets` and `Emperors` in the submenu, ordered by pin time, truncated with full-name tooltips.
+
+**Design Decisions (D1–D7):**
+
+| Decision | Outcome |
+|---|---|
+| **D1 — Persistence** | One nullable `PinnedAt *time.Time` column on `CoinSet`; derived pinned state; additive `AutoMigrate` — no backfill |
+| **D2 — API** | Reuse `PUT /sets/:id` with optional `pinned?` field; snake_case `pinned_at` key for GORM; double-pin is a no-op on timestamp |
+| **D3 — Cap** | 5-set limit, server-enforced in `UpdateSet` service, client mirrors for affordance only |
+| **D4 — UX** | Single icon button on set detail header (PWA + desktop), `Pin`/`PinOff` icon, gold when pinned; no Dashboard card affordance |
+| **D5 — Sidebar** | Pinned sets appended to existing `Sets.children` in `orderedNavItems` computed; order by `pinnedAt ASC` then name ASC |
+| **D6 — Frontend Data** | Singleton `usePinnedSets.ts` (module-level `ref`, no Pinia), `refresh()` on mount, no polling |
+| **D7 — Risks** | 8 mitigated: R1 (GORM key) guard-tested, R2–R8 (cap/scope/order/overflow/tests/failures) architected per design |
+
+**Acceptance Criteria: A1–A15 — All Pass**
+- A1–A7 (backend model, API, cap, scope, response) ✅
+- A8–A13 (sidebar, icon, PWA behavior, collapse, unpin) ✅
+- A14 (logout privacy) ✅ *in-tab login gap is pre-existing pattern*
+- A15 (full gates: go/vue-tsc/vitest/build) ✅
+
+**Files Implemented:**
+
+*Backend (Cassius):*
+- Model: `CoinSet.PinnedAt *time.Time`
+- Service: Pin/unpin logic, cap enforcement, response fields
+- Repository: `CountPinned(userID)`
+- Handler: Swagger annotation
+- Tests: 9 new tests covering pin/unpin/cap/foreign-set/R1 guard
+
+*Frontend (Aurelia):*
+- Composable: `usePinnedSets.ts` (NEW) — singleton, sort-by-pinnedAt
+- Components: Icon button on `SetDetailPage.vue` (PWA + desktop branches), PWA + error toasts
+- Sidebar: Merge pinned children in `App.vue` `orderedNavItems`; truncate+title on long names
+- Tests: 16 new tests covering usePinnedSets behavior, button affordances, sidebar rendering, PWA navigation, logout
+
+*Review & Verification (Brutus):*
+- Mounted DOM assertions in `AppNavigation.test.ts` (9 new tests)
+- Full A1–A15 verification; all gates green
+- **IMPORTANT FINDING:** D2 camelCase-key concern was disproven. Brutus independently tested existing keys (`setType`, `creationMode`, `isPublic`, `parentSetId`, `targetCompletionDate`) against pristine HEAD (gorm v1.31.2, glebarez/sqlite v1.11.0) via real `SetRepository.Update` round-trips. **All five keys persisted correctly.** GORM resolves JSON-tag camelCase names to Go struct fields via case-insensitive matching, not literal SQL names. **No defect exists.** No follow-up ticket filed — the false premise was corrected before propagation. *Recommendation: amend §D2 in design record to document this finding.*
+
+**Constitution Compliance:**
+✅ Principle I (layers preserved; `TestArchitecture` green)
+✅ Principle IV (one column, zero endpoints/routes/components, one affordance)
+✅ Principle V (cap/ownership server-side; `OwnedByID` scope)
+✅ Principle VI (PWA drawer close, collapsed sidebar default)
+✅ §17 Quality Gate (targeted + full suites green)
+✅ §21 Definition of Done (15-item checklist passed)
+
+**Test Results:**
+- Go: 11/11 packages; 9 new tests for pin/unpin/cap/scope/R1; all pass
+- Vue: 1322/1322 tests pass; 16 new tests in usePinnedSets + SetDetailPage + AppNavigation; `vue-tsc --build --force` clean
+- Builds: `go build`, `npm run build` clean
+- Guard files: `AppNavigation.test.ts` source strings, `ui-patterns.test.ts`, `SetDashboardCard.vue` all byte-untouched
+
+**Non-Blocking Observations:**
+1. A9 wording vs. authorized CSS changes (min-w-0/truncate/title) — visually inert for short labels, spec-additive.
+2. In-tab login refresh gap — pre-existing pattern (notifications identical); recommend separate ticket.
+3. Non-boolean `pinned` silently ignored — fail-closed, harmless.
+
+**Verdict: APPROVE** — No blockers, all 15 criteria pass, ready for merge.
+
+---
+
 ### 2026-08-30T02:10:00-05:00: Admin schedule run-history tables — mobile overflow fix
 **By:** Claude (via Claude Code)
 **Spec:** n/a — reported directly from a PWA screenshot

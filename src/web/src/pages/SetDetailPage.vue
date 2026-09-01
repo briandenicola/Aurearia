@@ -14,6 +14,18 @@
           </div>
         </div>
         <div v-if="isPwa" class="pwa-actions">
+          <button
+            class="pwa-icon-btn"
+            :class="{ 'text-gold': set.pinned }"
+            :disabled="pinDisabled"
+            :aria-pressed="Boolean(set.pinned)"
+            :aria-label="pinButtonLabel"
+            :title="pinButtonLabel"
+            @click="togglePin"
+          >
+            <PinOff v-if="set.pinned" :size="22" />
+            <Pin v-else :size="22" />
+          </button>
           <button class="pwa-icon-btn" @click="router.push({ name: 'sets' })" title="Back to Sets">
             <ArrowLeft :size="22" />
           </button>
@@ -28,6 +40,18 @@
           </button>
         </div>
         <div v-else class="header-actions">
+          <button
+            class="btn btn-ghost"
+            :class="{ 'text-gold': set.pinned }"
+            :disabled="pinDisabled"
+            :aria-pressed="Boolean(set.pinned)"
+            :aria-label="pinButtonLabel"
+            :title="pinButtonLabel"
+            @click="togglePin"
+          >
+            <PinOff v-if="set.pinned" :size="16" />
+            <Pin v-else :size="16" />
+          </button>
           <button class="btn btn-ghost" @click="router.push({ name: 'sets' })">
             <ArrowLeft :size="16" /> Back
           </button>
@@ -317,7 +341,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Info, Menu, Pencil, Trash2, X } from 'lucide-vue-next'
+import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Info, Menu, Pencil, Pin, PinOff, Trash2, X } from 'lucide-vue-next'
 import {
   addCoinToSet,
   deleteSet as deleteSetApi,
@@ -334,7 +358,9 @@ import type { CoinSetCompletion, CoinSetDetail, Coin } from '@/types'
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
+import { usePinnedSets } from '@/composables/usePinnedSets'
 import { usePwa } from '@/composables/usePwa'
+import { useToast } from '@/composables/useToast'
 import { useTrayPreference } from '@/composables/useTrayPreference'
 import { getDrawerCoins, getTotalDrawers, type TrayCoin } from '@/utils/trayLayout'
 
@@ -342,6 +368,8 @@ const router = useRouter()
 const route = useRoute()
 const { isPwa } = usePwa()
 const { feltColor } = useTrayPreference()
+const { pinLimitReached, setPinned } = usePinnedSets()
+const { showToast } = useToast()
 const loading = ref(true)
 const set = ref<CoinSetDetail | null>(null)
 const coins = ref<Coin[]>([])
@@ -379,6 +407,12 @@ const canManageMembership = computed(() => {
   if (!set.value) return false
   const normalizedType = normalizeCoinSetType(set.value.setType)
   return normalizedType !== 'smart' && normalizedType !== 'agentic'
+})
+const pinDisabled = computed(() => !set.value?.pinned && pinLimitReached.value)
+const pinButtonLabel = computed(() => {
+  if (!set.value) return ''
+  if (pinDisabled.value) return 'Pin limit reached (5 sets)'
+  return set.value.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'
 })
 const canReorderCoins = computed(() => canManageMembership.value && coins.value.length > 1)
 const normalizedSetType = computed(() => set.value ? normalizeCoinSetType(set.value.setType) : null)
@@ -548,6 +582,18 @@ function openSetInfoPage() {
 function openEditModal() {
   menuOpen.value = false
   showEditModal.value = true
+}
+
+async function togglePin() {
+  if (!set.value || pinDisabled.value) return
+  const nextPinned = !set.value.pinned
+  try {
+    await setPinned(set.value.id, nextPinned)
+    await loadSetDetails()
+    showToast(nextPinned ? 'Pinned to sidebar' : 'Unpinned', 'success')
+  } catch (error) {
+    showToast(getErrorMessage(error, 'Failed to update pin'), 'error')
+  }
 }
 
 async function updateSet() {

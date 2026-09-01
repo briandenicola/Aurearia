@@ -2220,11 +2220,15 @@ List set summaries for the authenticated user. The API migrates legacy tags into
       "setType": "goal",
       "coinCount": 8,
       "totalValue": 1250.0,
-      "completionPercentage": 66.7
+      "completionPercentage": 66.7,
+      "pinned": true,
+      "pinnedAt": "2026-09-01T15:24:56Z"
     }
   ]
 }
 ```
+
+`pinned` is derived from `pinnedAt`: `true` when `pinnedAt` is non-null, `false` when it is `null`.
 
 ### POST /api/sets
 
@@ -2283,6 +2287,26 @@ Get set details, summary value, completion metadata when applicable, and display
 ### PUT /api/sets/:id
 
 Update set metadata and criteria. Smart criteria are validated before persistence.
+
+Also accepts an optional `pinned` boolean to pin or unpin the set in the sidebar's Sets submenu:
+
+```json
+{ "pinned": true }
+```
+
+| Behavior | Result |
+| -------- | ------ |
+| `pinned: true` on an unpinned set | Sets `pinnedAt` to the current UTC time |
+| `pinned: true` on an already-pinned set | No-op — the original `pinnedAt` (and pin order) is preserved |
+| `pinned: false` | Clears `pinnedAt` (`null`) |
+
+A user may pin at most **5 sets**. Pinning a 6th set returns **400** with:
+
+```json
+{ "error": "you can pin up to 5 sets" }
+```
+
+Unpinning is never capped. The response body (same shape as `GET /api/sets/:id`) includes `pinned` and `pinnedAt`.
 
 ### DELETE /api/sets/:id
 

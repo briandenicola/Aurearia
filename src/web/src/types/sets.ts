@@ -48,6 +48,8 @@ export interface CoinSetSummary {
   completionPercentage?: number | null
   valueChangePercent?: number | null
   agenticStatus?: string | null
+  pinned?: boolean
+  pinnedAt?: string | null
 }
 
 export interface CoinSetDetail extends CoinSetSummary {
@@ -191,7 +193,7 @@ export interface SetProposal {
   updatedAt: string
 }
 
-export type UpdateCoinSetRequest = Partial<CreateCoinSetRequest>
+export type UpdateCoinSetRequest = Partial<CreateCoinSetRequest> & { pinned?: boolean }
 
 export interface AddCoinToSetRequest {
   coinId: number
