@@ -13460,6 +13460,9 @@
                                 },
                                 "name": {
                                     "type": "string"
+                                },
+                                "pinned": {
+                                    "type": "boolean"
                                 }
                             }
                         }
@@ -13473,7 +13476,7 @@
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Includes pin cap rejection: you can pin up to 5 sets",
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -21993,6 +21996,9 @@
                 },
                 "parentSetId": {
                     "type": "integer"
+                },
+                "pinnedAt": {
+                    "type": "string"
                 },
                 "setType": {
                     "$ref": "#/definitions/models.CoinSetType"

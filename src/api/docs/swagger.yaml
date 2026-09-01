@@ -2666,6 +2666,8 @@ definitions:
         type: string
       parentSetId:
         type: integer
+      pinnedAt:
+        type: string
       setType:
         $ref: '#/definitions/models.CoinSetType'
       shareToken:
@@ -13081,6 +13083,8 @@ paths:
               type: string
             name:
               type: string
+            pinned:
+              type: boolean
           type: object
       produces:
       - application/json
@@ -13090,7 +13094,7 @@ paths:
           schema:
             type: object
         "400":
-          description: Bad Request
+          description: 'Includes pin cap rejection: you can pin up to 5 sets'
           schema:
             properties:
               error:
