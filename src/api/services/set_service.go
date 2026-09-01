@@ -13,10 +13,12 @@ import (
 
 const maxSetsPerUser = 100
 const maxSetNameLength = 80
+const maxPinnedSets = 5
 
 var (
 	ErrInvalidSetOrder = errors.New("ordered coin IDs must exactly match current set members")
 	ErrSmartSetOrder   = errors.New("cannot manually reorder smart sets")
+	ErrPinLimitReached = errors.New("you can pin up to 5 sets")
 )
 
 // SetService handles business logic for coin sets.
@@ -121,6 +123,8 @@ func (s *SetService) ListSets(userID uint) ([]map[string]interface{}, error) {
 			"completionPercentage": completion,
 			"valueChangePercent":   nil, // Will be populated in US3
 			"agenticStatus":        set.AgenticStatus,
+			"pinned":               set.PinnedAt != nil,
+			"pinnedAt":             set.PinnedAt,
 		}
 		result = append(result, setData)
 	}
@@ -157,6 +161,8 @@ func (s *SetService) GetSetDetail(setID, userID uint) (map[string]interface{}, e
 		"completionPercentage": nil,
 		"agenticPrompt":        set.AgenticPrompt,
 		"agenticStatus":        set.AgenticStatus,
+		"pinned":               set.PinnedAt != nil,
+		"pinnedAt":             set.PinnedAt,
 	}
 	if set.SetType == models.CoinSetTypeGoal || set.SetType == models.CoinSetTypeAgentic {
 		if c, err := s.repo.GetSetCompletion(set.ID, userID); err == nil {
@@ -345,6 +351,28 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 			return nil, fmt.Errorf("dynamic creation mode is only valid for agentic sets")
 		}
 		updates["creationMode"] = string(mode)
+	}
+
+	if pinnedRaw, exists := updates["pinned"]; exists {
+		delete(updates, "pinned")
+		if pinned, ok := pinnedRaw.(bool); ok {
+			if pinned {
+				if set.PinnedAt == nil {
+					count, err := s.repo.CountPinned(userID)
+					if err != nil {
+						return nil, err
+					}
+					if count >= maxPinnedSets {
+						return nil, ErrPinLimitReached
+					}
+					now := time.Now().UTC()
+					updates["pinned_at"] = &now
+				}
+				// Already pinned: no-op so the original pinnedAt (and pin order) is preserved.
+			} else {
+				updates["pinned_at"] = nil
+			}
+		}
 	}
 
 	if err := s.repo.Update(set, updates); err != nil {

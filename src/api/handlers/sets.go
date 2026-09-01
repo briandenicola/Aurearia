@@ -187,10 +187,10 @@ func (h *SetHandler) Get(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			id		path		int													true	"Set ID"
-//	@Param			body	body		object{name=string,description=string,color=string}	true	"Updated fields"
+//	@Param			id		path		int															true	"Set ID"
+//	@Param			body	body		object{name=string,description=string,color=string,pinned=bool}	true	"Updated fields"
 //	@Success		200		{object}	object
-//	@Failure		400		{object}	object{error=string}
+//	@Failure		400		{object}	object{error=string}	"Includes pin cap rejection: you can pin up to 5 sets"
 //	@Failure		401		{object}	object{error=string}
 //	@Failure		404		{object}	object{error=string}
 //	@Failure		500		{object}	object{error=string}

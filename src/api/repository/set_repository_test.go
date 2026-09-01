@@ -427,3 +427,77 @@ func TestSetRepository_MigrateTagsToSets_SyncsNewTaggedCoinMemberships(t *testin
 		t.Fatalf("expected newly tagged coin to be added to set membership, got %d", count)
 	}
 }
+
+func TestSetRepository_CountPinned_ScopesToUser(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	now := time.Now().UTC()
+	userOneSets := []models.CoinSet{
+		{UserID: 1, Name: "Pinned One", SetType: models.CoinSetTypeStandard, PinnedAt: &now},
+		{UserID: 1, Name: "Pinned Two", SetType: models.CoinSetTypeStandard, PinnedAt: &now},
+		{UserID: 1, Name: "Unpinned", SetType: models.CoinSetTypeStandard},
+	}
+	if err := db.Create(&userOneSets).Error; err != nil {
+		t.Fatalf("create user 1 sets: %v", err)
+	}
+	userTwoSets := []models.CoinSet{
+		{UserID: 2, Name: "Other User Pinned", SetType: models.CoinSetTypeStandard, PinnedAt: &now},
+	}
+	if err := db.Create(&userTwoSets).Error; err != nil {
+		t.Fatalf("create user 2 sets: %v", err)
+	}
+
+	count, err := repo.CountPinned(1)
+	if err != nil {
+		t.Fatalf("CountPinned(1) failed: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 pinned sets for user 1, got %d", count)
+	}
+
+	count, err = repo.CountPinned(2)
+	if err != nil {
+		t.Fatalf("CountPinned(2) failed: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 pinned set for user 2, got %d", count)
+	}
+}
+
+func TestSetRepository_Update_PinnedAtRoundTrip(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	set := models.CoinSet{UserID: 1, Name: "Round Trip Set", SetType: models.CoinSetTypeStandard}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if err := repo.Update(&set, map[string]interface{}{"pinned_at": &now}); err != nil {
+		t.Fatalf("update pinned_at: %v", err)
+	}
+
+	fetched, err := repo.GetByID(set.ID, 1)
+	if err != nil {
+		t.Fatalf("get by id after pin: %v", err)
+	}
+	if fetched.PinnedAt == nil {
+		t.Fatalf("expected pinned_at to persist through a map update")
+	}
+	if !fetched.PinnedAt.Equal(now) {
+		t.Fatalf("expected pinned_at %v, got %v", now, *fetched.PinnedAt)
+	}
+
+	if err := repo.Update(fetched, map[string]interface{}{"pinned_at": nil}); err != nil {
+		t.Fatalf("update pinned_at to nil: %v", err)
+	}
+	unpinned, err := repo.GetByID(set.ID, 1)
+	if err != nil {
+		t.Fatalf("get by id after unpin: %v", err)
+	}
+	if unpinned.PinnedAt != nil {
+		t.Fatalf("expected pinned_at to be nulled out, got %v", unpinned.PinnedAt)
+	}
+}

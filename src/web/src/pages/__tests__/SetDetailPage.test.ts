@@ -1,5 +1,6 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Pin, PinOff } from 'lucide-vue-next'
 import SetDetailPage from '@/pages/SetDetailPage.vue'
 import { buildRomanDenariusCore } from '@/test/fixtures/coins'
 
@@ -31,12 +32,30 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mockPush }),
 }))
 
+const mockIsPwa = vi.hoisted(() => ({ value: false }))
+
 vi.mock('@/composables/usePwa', () => ({
-  usePwa: () => ({ isPwa: false }),
+  usePwa: () => ({ isPwa: mockIsPwa.value }),
 }))
 
 vi.mock('@/composables/useTrayPreference', () => ({
   useTrayPreference: () => ({ feltColor: 'navy' }),
+}))
+
+const mockSetPinned = vi.fn()
+const mockPinLimitReached = vi.hoisted(() => ({ value: false }))
+
+vi.mock('@/composables/usePinnedSets', () => ({
+  usePinnedSets: () => ({
+    pinLimitReached: mockPinLimitReached,
+    setPinned: (...args: unknown[]) => mockSetPinned(...args),
+  }),
+}))
+
+const mockShowToast = vi.fn()
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ showToast: mockShowToast }),
 }))
 
 const defaultSet = {
@@ -47,6 +66,8 @@ const defaultSet = {
   coinCount: 13,
   totalValue: 1300,
   totalInvested: 900,
+  pinned: false,
+  pinnedAt: null,
 }
 
 const defaultStubs = {
@@ -58,8 +79,8 @@ const defaultStubs = {
 function mockSetDetailLoad(coins = [
   buildRomanDenariusCore({ id: 1, name: 'Augustus Denarius', diameterMm: 19 }),
   buildRomanDenariusCore({ id: 2, name: 'Tiberius Denarius', diameterMm: null }),
-]) {
-  mockGetSet.mockResolvedValue({ data: defaultSet })
+], setOverrides: Record<string, unknown> = {}) {
+  mockGetSet.mockResolvedValue({ data: { ...defaultSet, ...setOverrides } })
   mockGetCoinsInSet.mockResolvedValue({ data: { coins } })
   mockGetCoins.mockResolvedValue({ data: { coins: [], total: 0 } })
   mockGetSetCompletion.mockResolvedValue({
@@ -70,6 +91,8 @@ function mockSetDetailLoad(coins = [
 describe('SetDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockIsPwa.value = false
+    mockPinLimitReached.value = false
     mockSetDetailLoad()
   })
 
@@ -175,5 +198,109 @@ describe('SetDetailPage', () => {
     await infoAction!.trigger('click')
 
     expect(mockPush).toHaveBeenCalledWith({ name: 'set-insights', params: { id: 7 } })
+  })
+
+  describe('pin/unpin action', () => {
+    it('renders an unpinned Pin button on the desktop header with correct accessibility attributes', async () => {
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="false"]')
+      expect(pinButton.exists()).toBe(true)
+      expect(pinButton.attributes('aria-label')).toBe('Pin to sidebar')
+      expect(pinButton.attributes('title')).toBe('Pin to sidebar')
+      expect(pinButton.findComponent(Pin).exists()).toBe(true)
+      expect(pinButton.findComponent(PinOff).exists()).toBe(false)
+      expect(pinButton.classes()).not.toContain('text-gold')
+    })
+
+    it('renders a pinned PinOff button with gold styling and aria-pressed true', async () => {
+      mockSetDetailLoad(undefined, { pinned: true, pinnedAt: '2026-01-01T00:00:00Z' })
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="true"]')
+      expect(pinButton.exists()).toBe(true)
+      expect(pinButton.attributes('aria-label')).toBe('Unpin from sidebar')
+      expect(pinButton.attributes('title')).toBe('Unpin from sidebar')
+      expect(pinButton.classes()).toContain('text-gold')
+      expect(pinButton.findComponent(PinOff).exists()).toBe(true)
+      expect(pinButton.findComponent(Pin).exists()).toBe(false)
+    })
+
+    it('renders the pin button in the PWA header variant with a 22px icon', async () => {
+      mockIsPwa.value = true
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('.pwa-actions [aria-pressed="false"]')
+      expect(pinButton.exists()).toBe(true)
+      expect(pinButton.findComponent(Pin).attributes('size')).toBe('22')
+    })
+
+    it('clicking the pin button calls setPinned and shows a success toast', async () => {
+      mockSetPinned.mockResolvedValue(undefined)
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="false"]')
+      await pinButton.trigger('click')
+      await flushPromises()
+
+      expect(mockSetPinned).toHaveBeenCalledWith(7, true)
+      expect(mockGetSet).toHaveBeenCalledTimes(2) // initial load + reload after pin
+      expect(mockShowToast).toHaveBeenCalledWith('Pinned to sidebar', 'success')
+    })
+
+    it('clicking unpin calls setPinned(false) and shows the unpinned toast', async () => {
+      mockSetDetailLoad(undefined, { pinned: true, pinnedAt: '2026-01-01T00:00:00Z' })
+      mockSetPinned.mockResolvedValue(undefined)
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="true"]')
+      await pinButton.trigger('click')
+      await flushPromises()
+
+      expect(mockSetPinned).toHaveBeenCalledWith(7, false)
+      expect(mockShowToast).toHaveBeenCalledWith('Unpinned', 'success')
+    })
+
+    it('surfaces a server cap error as an error toast without reloading the set', async () => {
+      mockSetPinned.mockRejectedValue({ response: { data: { error: 'you can pin up to 5 sets' } } })
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="false"]')
+      await pinButton.trigger('click')
+      await flushPromises()
+
+      expect(mockShowToast).toHaveBeenCalledWith('you can pin up to 5 sets', 'error')
+      expect(mockGetSet).toHaveBeenCalledTimes(1) // no reload on failure
+    })
+
+    it('disables the pin action when unpinned and at the five-pin cap', async () => {
+      mockPinLimitReached.value = true
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="false"]')
+      expect(pinButton.attributes('disabled')).toBeDefined()
+      expect(pinButton.attributes('title')).toBe('Pin limit reached (5 sets)')
+
+      await pinButton.trigger('click')
+      await flushPromises()
+      expect(mockSetPinned).not.toHaveBeenCalled()
+    })
+
+    it('does not disable the unpin action even when at the five-pin cap', async () => {
+      mockSetDetailLoad(undefined, { pinned: true, pinnedAt: '2026-01-01T00:00:00Z' })
+      mockPinLimitReached.value = true
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="true"]')
+      expect(pinButton.attributes('disabled')).toBeUndefined()
+    })
   })
 })

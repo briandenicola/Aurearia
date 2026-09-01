@@ -87,12 +87,12 @@
                 v-for="child in item.children"
                 :key="child.id"
                 :to="child.to"
-                class="flex items-center gap-[0.35rem] py-[0.45rem] pr-5 pl-[3.25rem] text-body text-text-muted no-underline transition-colors hover:bg-gold-glow hover:text-gold"
+                class="flex min-w-0 items-center gap-[0.35rem] py-[0.45rem] pr-5 pl-[3.25rem] text-body text-text-muted no-underline transition-colors hover:bg-gold-glow hover:text-gold"
                 active-class="bg-gold-glow text-gold"
                 @click="sidebarOpen = false"
               >
                 <ChevronRight :size="14" class="shrink-0" />
-                <span>{{ child.label }}</span>
+                <span class="truncate" :title="child.label">{{ child.label }}</span>
               </router-link>
             </div>
           </div>
@@ -182,6 +182,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown, CheckSquare } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
+import { usePinnedSets } from '@/composables/usePinnedSets'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
@@ -224,6 +225,7 @@ const editMode = ref(false)
 const navRef = ref<HTMLElement | null>(null)
 let sortableInstance: Sortable | null = null
 const { unreadCount, startPolling, stopPolling } = useNotifications()
+const { pinnedSets, refresh: refreshPinnedSets, clear: clearPinnedSets } = usePinnedSets()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
@@ -347,7 +349,10 @@ const orderedNavItems = computed(() => {
       if (item.id !== 'sets' || !item.children) return item
       return {
         ...item,
-        children: item.children.filter(child => child.id !== 'sets-emperors' || auth.user?.emperorTrackerEnabled),
+        children: [
+          ...item.children.filter(child => child.id !== 'sets-emperors' || auth.user?.emperorTrackerEnabled),
+          ...pinnedSets.value.map(s => ({ id: `sets-pinned-${s.id}`, label: s.name, to: `/sets/${s.id}` })),
+        ],
       }
     })
 })
@@ -547,6 +552,7 @@ onMounted(async () => {
   window.addEventListener('open-agent-chat', handleOpenAgentChat)
   if (auth.isAuthenticated) {
     startPolling()
+    void refreshPinnedSets()
     try {
       const res = await getMe()
       const data = res.data
@@ -618,6 +624,7 @@ function openOnboardingGuide() {
 
 function handleLogout() {
   stopPolling()
+  clearPinnedSets()
   auth.logout()
   router.push('/login')
 }

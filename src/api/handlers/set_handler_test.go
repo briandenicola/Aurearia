@@ -31,6 +31,7 @@ func setupSetHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected := r.Group("/api")
 	protected.Use(coinTestAuthMiddleware())
 	protected.PUT("/sets/:id/coins/order", handler.ReorderCoins)
+	protected.PUT("/sets/:id", handler.Update)
 	return r, db
 }
 
@@ -184,4 +185,91 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func performSetUpdateRequest(t *testing.T, router *gin.Engine, setID, userID uint, body map[string]interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPut, "/api/sets/"+strconvUint(setID), bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(userID))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func TestSetHandler_Update_PinReturnsPinnedFields(t *testing.T) {
+	router, db := setupSetHandlerRouter(t)
+	createTestUser(t, db, 1, "owner")
+	set := models.CoinSet{UserID: 1, Name: "Twelve Caesars", SetType: models.CoinSetTypeStandard}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+
+	w := performSetUpdateRequest(t, router, set.ID, 1, map[string]interface{}{"pinned": true})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if pinned, ok := body["pinned"].(bool); !ok || !pinned {
+		t.Fatalf("expected pinned=true in response, got %v", body["pinned"])
+	}
+	if body["pinnedAt"] == nil {
+		t.Fatalf("expected non-nil pinnedAt in response")
+	}
+}
+
+func TestSetHandler_Update_PinCap_Returns400(t *testing.T) {
+	router, db := setupSetHandlerRouter(t)
+	createTestUser(t, db, 1, "owner")
+
+	var setIDs []uint
+	for i := 0; i < 6; i++ {
+		set := models.CoinSet{UserID: 1, Name: "Set " + strconvUint(uint(i)), SetType: models.CoinSetTypeStandard}
+		if err := db.Create(&set).Error; err != nil {
+			t.Fatalf("create set %d: %v", i, err)
+		}
+		setIDs = append(setIDs, set.ID)
+	}
+
+	for i := 0; i < 5; i++ {
+		w := performSetUpdateRequest(t, router, setIDs[i], 1, map[string]interface{}{"pinned": true})
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 pinning set %d, got %d: %s", i, w.Code, w.Body.String())
+		}
+	}
+
+	w := performSetUpdateRequest(t, router, setIDs[5], 1, map[string]interface{}{"pinned": true})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 at pin cap, got %d: %s", w.Code, w.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body["error"] != "you can pin up to 5 sets" {
+		t.Fatalf("expected cap error message, got %v", body["error"])
+	}
+}
+
+func TestSetHandler_Update_PinForeignSet_Returns404(t *testing.T) {
+	router, db := setupSetHandlerRouter(t)
+	createTestUser(t, db, 1, "owner")
+	createTestUser(t, db, 2, "other")
+	set := models.CoinSet{UserID: 1, Name: "Owner's Set", SetType: models.CoinSetTypeStandard}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+
+	w := performSetUpdateRequest(t, router, set.ID, 2, map[string]interface{}{"pinned": true})
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for foreign set pin, got %d: %s", w.Code, w.Body.String())
+	}
 }

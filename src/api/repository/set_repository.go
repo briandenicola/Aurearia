@@ -406,6 +406,13 @@ func (r *SetRepository) CountByUser(userID uint) (int64, error) {
 	return count, err
 }
 
+// CountPinned returns the number of sets currently pinned by a user.
+func (r *SetRepository) CountPinned(userID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.CoinSet{}).Scopes(OwnedBy(userID)).Where("pinned_at IS NOT NULL").Count(&count).Error
+	return count, err
+}
+
 // ExistsByName checks if a set with the given name already exists for the user (case-insensitive).
 func (r *SetRepository) ExistsByName(userID uint, name string) (bool, error) {
 	var count int64
