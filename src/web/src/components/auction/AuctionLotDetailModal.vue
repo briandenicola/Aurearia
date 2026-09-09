@@ -53,8 +53,8 @@
           <span class="min-w-0 text-right font-semibold text-gold/80 [overflow-wrap:anywhere]">{{ formatCurrency(lot.maxBid, lot.currency) }}</span>
         </div>
         <div v-if="lot.winningBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Winning Bid</span>
-          <span class="min-w-0 text-right font-semibold text-[#4ade80] [overflow-wrap:anywhere]">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
+          <span class="text-[0.82rem] text-text-secondary">{{ lot.status === 'lost' ? 'Sold For' : 'Winning Bid' }}</span>
+          <span class="min-w-0 text-right font-semibold [overflow-wrap:anywhere]" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-[#4ade80]'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
         </div>
         <div v-if="biddingIndicator" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
           <span class="text-[0.82rem] text-text-secondary">Bid Status</span>
@@ -287,13 +287,13 @@
             <span v-if="marketSignalError" class="ml-1 text-text-muted">Couldn't check the market right now.</span>
           </template>
         </div>
-        <div v-if="newStatus === 'won'" class="grid gap-1.5">
-          <label class="text-[0.82rem] text-text-secondary">Winning Bid</label>
+        <div v-if="newStatus === 'won' || newStatus === 'lost'" class="grid gap-1.5">
+          <label class="text-[0.82rem] text-text-secondary">{{ winningBidLabel }}</label>
           <input
             v-model.number="winningBidInput"
             type="number"
             class="form-input winning-bid-input control-input control-number"
-            aria-label="Winning bid"
+            :aria-label="winningBidLabel"
             :placeholder="lot.currency || 'USD'"
             min="0"
             step="0.01"
@@ -388,7 +388,8 @@ const externalUrl = computed(() => props.lot.sourceUrl || props.lot.numisBidsUrl
 const normalizedMaxBidInput = computed(() => typeof maxBidInput.value === 'number' && !Number.isNaN(maxBidInput.value) ? maxBidInput.value : null)
 const normalizedWinningBidInput = computed(() => typeof winningBidInput.value === 'number' && !Number.isNaN(winningBidInput.value) ? winningBidInput.value : null)
 const maxBidChanged = computed(() => newStatus.value === 'bidding' && normalizedMaxBidInput.value !== null && normalizedMaxBidInput.value !== (props.lot.maxBid ?? null))
-const winningBidChanged = computed(() => newStatus.value === 'won' && normalizedWinningBidInput.value !== null && normalizedWinningBidInput.value !== (props.lot.winningBid ?? null))
+const winningBidChanged = computed(() => (newStatus.value === 'won' || newStatus.value === 'lost') && normalizedWinningBidInput.value !== null && normalizedWinningBidInput.value !== (props.lot.winningBid ?? null))
+const winningBidLabel = computed(() => newStatus.value === 'lost' ? 'Winning Bid (what it sold for)' : 'Winning Bid')
 const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value || winningBidChanged.value)
 const priceAlerts = computed(() => props.priceAlerts ?? [])
 const bidReminders = computed(() => props.bidReminders ?? [])

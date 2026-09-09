@@ -86,6 +86,19 @@ describe('AuctionLotCard', () => {
     expect(wrapper.text()).toContain('Manually set')
   })
 
+  it('shows the recorded winning bid on a lost lot as "Sold For" alongside the max bid', () => {
+    const wrapper = mount(AuctionLotCard, {
+      props: { lot: buildAuctionLot({ status: 'lost', maxBid: 250, winningBid: 410 }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    const text = wrapper.text()
+    expect(text).toContain('Max Bid')
+    expect(text).toContain('Sold For')
+    expect(text).not.toContain('Won')
+    expect(text).toContain('410')
+    expect(text).toContain('250')
+  })
+
   it('does not show a status-source label for non-terminal statuses', () => {
     const wrapper = mount(AuctionLotCard, {
       props: { lot: buildAuctionLot({ status: 'bidding', statusSource: 'sync' }) },

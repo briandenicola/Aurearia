@@ -228,6 +228,7 @@ const minComparableLotsForRecommendation = 2
 
 // Recommend suggests a maximum bid for the given lot based on the user's own won/lost lots
 // in the same category. Won lots contribute winningBid/estimate; lost lots contribute
+// winningBid/estimate when the user recorded the price the lot sold for, otherwise
 // currentBid/estimate — currentBid on an already-closed, lost lot reflects the final bid
 // that beat the user as of the last sync (verified true for CNG post-F022-rebuild; NumisBids
 // accuracy here depends on F021/F022, since its CurrentBid refresh is not yet re-verified).
@@ -262,8 +263,8 @@ func (s *AuctionLotService) Recommend(lotID, userID uint) (BidRecommendation, er
 				wonCount++
 			}
 		case models.AuctionStatusLost:
-			if h.CurrentBid != nil {
-				ratios = append(ratios, *h.CurrentBid / *h.Estimate)
+			if final := firstNonNilFloat(h.WinningBid, h.CurrentBid); final != nil {
+				ratios = append(ratios, *final / *h.Estimate)
 				lostCount++
 			}
 		}

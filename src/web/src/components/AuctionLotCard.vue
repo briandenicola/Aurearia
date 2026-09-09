@@ -76,13 +76,13 @@
           <span class="text-text-secondary">Bid</span>
           <span class="font-semibold text-gold">{{ formatCurrency(lot.currentBid, lot.currency) }}</span>
         </div>
-        <div v-if="lot.maxBid && lot.status !== 'won'" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]">
+        <div v-if="lot.maxBid && lot.status !== 'won'" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]" :class="{ 'border-b border-border-subtle': lot.winningBid }">
           <span class="text-text-secondary">Max Bid</span>
           <span class="font-semibold text-text-primary">{{ formatCurrency(lot.maxBid, lot.currency) }}</span>
         </div>
-        <div v-else-if="lot.winningBid" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]">
-          <span class="text-text-secondary">Won</span>
-          <span class="font-semibold text-[#4ade80]">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
+        <div v-if="lot.winningBid" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]">
+          <span class="text-text-secondary">{{ lot.status === 'lost' ? 'Sold For' : 'Won' }}</span>
+          <span class="font-semibold" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-[#4ade80]'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
         </div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">

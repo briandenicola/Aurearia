@@ -409,7 +409,7 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 		}
 	}
 
-	if req.WinningBid != nil && newStatus == models.AuctionStatusWon {
+	if req.WinningBid != nil && (newStatus == models.AuctionStatusWon || newStatus == models.AuctionStatusLost) {
 		lot, err = h.repo.GetByID(uint(id), userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})

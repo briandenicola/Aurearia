@@ -136,6 +136,36 @@ func TestAuctionLotService_RecommendUsesOwnWonAndLostHistory(t *testing.T) {
 	}
 }
 
+func TestAuctionLotService_RecommendPrefersRecordedWinningBidOnLostLots(t *testing.T) {
+	db := setupAuctionLotServiceDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	svc := NewAuctionLotService(auctionRepo, repository.NewCoinRepository(db))
+
+	// Both lost lots have a stale CurrentBid; the user recorded the actual winning bid
+	// when marking them lost, so the recommendation must use that instead.
+	lost1 := &models.AuctionLot{Source: models.AuctionSourceCNG, SourceURL: "https://auctions.cngcoins.com/lots/view/4-LB1/test", Title: "Lost 1", Category: models.CategoryRoman, Estimate: float64Ptr(100), CurrentBid: float64Ptr(120), WinningBid: float64Ptr(200), Status: models.AuctionStatusLost, UserID: 1}
+	lost2 := &models.AuctionLot{Source: models.AuctionSourceCNG, SourceURL: "https://auctions.cngcoins.com/lots/view/4-LB2/test", Title: "Lost 2", Category: models.CategoryRoman, Estimate: float64Ptr(200), CurrentBid: float64Ptr(210), WinningBid: float64Ptr(400), Status: models.AuctionStatusLost, UserID: 1}
+	target := &models.AuctionLot{Source: models.AuctionSourceCNG, SourceURL: "https://auctions.cngcoins.com/lots/view/4-LBTARGET/test", Title: "Target lot", Category: models.CategoryRoman, Estimate: float64Ptr(500), Status: models.AuctionStatusWatching, UserID: 1}
+
+	for _, lot := range []*models.AuctionLot{lost1, lost2, target} {
+		if err := auctionRepo.Create(lot); err != nil {
+			t.Fatalf("failed to create lot %s: %v", lot.Title, err)
+		}
+	}
+
+	rec, err := svc.Recommend(target.ID, 1)
+	if err != nil {
+		t.Fatalf("Recommend returned error: %v", err)
+	}
+	if rec.SuggestedMaxBid == nil {
+		t.Fatal("SuggestedMaxBid was nil, want a value")
+	}
+	// avg ratio = (2.0 + 2.0) / 2 = 2.0; applied to estimate 500 = 1000
+	if diff := *rec.SuggestedMaxBid - 1000; diff > 0.01 || diff < -0.01 {
+		t.Fatalf("SuggestedMaxBid = %v, want ~1000", *rec.SuggestedMaxBid)
+	}
+}
+
 func TestAuctionLotService_RecommendExcludesTargetLotFromItsOwnHistory(t *testing.T) {
 	db := setupAuctionLotServiceDB(t)
 	auctionRepo := repository.NewAuctionLotRepository(db)
