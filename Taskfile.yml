@@ -29,7 +29,13 @@ tasks:
       # file (single canonical source, F9/T096) before swag bakes it into
       # docs.go/swagger.json — prevents the 4.0/4.0.0 drift that undermined
       # diagnosing a prior failed run.
-      - cmd: perl -0777 -pi -e 'my $v = do { local @ARGV = ("../../VERSION"); local $/; <> }; chomp $v; s{(?m)^(//\t\@version\s+)\S+}{$1$v}' main.go
+      # NOTE (Linux/macOS): the VERSION file must be read inside a BEGIN block.
+      # A previous form read it in the body with `local @ARGV = ("../../VERSION")`,
+      # which hijacked the `-i` in-place machinery mid-loop: main.go was truncated
+      # to 0 bytes and its source was written into VERSION. Reading in BEGIN keeps
+      # @ARGV/ARGVOUT pointing at main.go. Trailing whitespace is stripped with a
+      # regex rather than chomp, since `-0777` sets `$/ = undef` and chomp is a no-op.
+      - cmd: perl -0777 -pi -e 'BEGIN { open my $vf, "<", "../../VERSION" or die "cannot read VERSION - $!"; $v = do { local $/; <$vf> }; close $vf; $v =~ s/\A\s+|\s+\z//g } s{(?m)^(//\t\@version\s+)\S+}{$1$v}' main.go
         platforms: [linux, darwin]
       # NOTE (Windows, two compounding bugs):
       # 1. Task parses `cmd:` lines with its own POSIX-like shell (mvdan.cc/sh)
