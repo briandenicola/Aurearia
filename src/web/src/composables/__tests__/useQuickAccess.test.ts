@@ -111,6 +111,40 @@ describe('useQuickAccess', () => {
     expect(state.isBusy('coin', 42).value).toBe(false)
   })
 
+  it('does not let an older refresh restore an item after unpinning it', async () => {
+    let resolveRefresh!: (value: Awaited<ReturnType<typeof getQuickAccess>>) => void
+    vi.mocked(getQuickAccess).mockReturnValue(new Promise((done) => { resolveRefresh = done }))
+    vi.mocked(unpinQuickAccess).mockResolvedValue({ data: undefined } as Awaited<ReturnType<typeof unpinQuickAccess>>)
+    const state = useQuickAccess()
+    state.items.value = [coinItem]
+
+    const staleRefresh = state.refresh()
+    await state.unpin('coin', 42)
+    resolveRefresh({ data: { items: [coinItem] } } as Awaited<ReturnType<typeof getQuickAccess>>)
+    await staleRefresh
+
+    expect(state.items.value).toEqual([])
+  })
+
+  it('allows a fresh reload while a pre-mutation refresh is still pending', async () => {
+    let resolveStale!: (value: Awaited<ReturnType<typeof getQuickAccess>>) => void
+    vi.mocked(getQuickAccess)
+      .mockReturnValueOnce(new Promise((done) => { resolveStale = done }))
+      .mockResolvedValueOnce({ data: { items: [] } } as Awaited<ReturnType<typeof getQuickAccess>>)
+    vi.mocked(unpinQuickAccess).mockResolvedValue({ data: undefined } as Awaited<ReturnType<typeof unpinQuickAccess>>)
+    const state = useQuickAccess()
+    state.items.value = [coinItem]
+
+    const staleRefresh = state.refresh()
+    await state.unpin('coin', 42)
+    await state.refresh()
+    resolveStale({ data: { items: [coinItem] } } as Awaited<ReturnType<typeof getQuickAccess>>)
+    await staleRefresh
+
+    expect(getQuickAccess).toHaveBeenCalledTimes(2)
+    expect(state.items.value).toEqual([])
+  })
+
   it('clear invalidates a delayed response so prior-user data cannot return', async () => {
     let resolve!: (value: Awaited<ReturnType<typeof getQuickAccess>>) => void
     vi.mocked(getQuickAccess).mockReturnValue(new Promise((done) => { resolve = done }))

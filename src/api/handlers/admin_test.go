@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -39,6 +40,7 @@ func setupAdminHandlerRecoveryTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 		&models.ApiKey{},
 		&models.RefreshToken{},
 		&models.WebAuthnCredential{},
+		&models.QuickAccessPin{},
 		&models.ExternalIdentity{},
 		&models.OIDCAuthState{},
 		&models.Follow{},
@@ -105,6 +107,15 @@ func TestAdminHandlerDeleteUserAllowsNonFinalLocalAdmin(t *testing.T) {
 	router, db := setupAdminHandlerRecoveryTest(t)
 	actor := createAdminHandlerTestUser(t, db, "actor-admin", models.RoleAdmin, "local-password-hash")
 	target := createAdminHandlerTestUser(t, db, "target-admin", models.RoleAdmin, "local-password-hash")
+	pin := models.QuickAccessPin{
+		UserID:     target.ID,
+		TargetType: models.QuickAccessTargetCoin,
+		TargetID:   999,
+		PinnedAt:   time.Now().UTC(),
+	}
+	if err := db.Create(&pin).Error; err != nil {
+		t.Fatalf("failed to create target quick access pin: %v", err)
+	}
 
 	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/admin/users/%d", target.ID), nil)
 	req.Header.Set("X-Test-User-ID", fmt.Sprint(actor.ID))
@@ -116,6 +127,9 @@ func TestAdminHandlerDeleteUserAllowsNonFinalLocalAdmin(t *testing.T) {
 	}
 	if err := db.First(&models.User{}, target.ID).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected target admin to be deleted, got %v", err)
+	}
+	if err := db.First(&models.QuickAccessPin{}, pin.ID).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected target quick access pin to be deleted, got %v", err)
 	}
 }
 
