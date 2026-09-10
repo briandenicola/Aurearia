@@ -23,7 +23,7 @@
     "dompurify": "^3.4.14",
     "leaflet": "^1.9.4",
     "lucide-vue-next": "^0.577.0",
-    "markdown-it": "^15.0.0",
+    "markdown-it": "^15.0.1",
     "pinia": "^4.0.3",
     "sortablejs": "^1.15.7",
     "tailwindcss": "^4.3.3",
