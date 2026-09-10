@@ -171,6 +171,9 @@ func deleteUserCascadeInTx(tx *gorm.DB, userID uint) (*gorm.DB, error) {
 	if err := tx.Where("user_id = ?", userID).Delete(&models.WebAuthnCredential{}).Error; err != nil {
 		return nil, err
 	}
+	if err := tx.Where("user_id = ?", userID).Delete(&models.QuickAccessPin{}).Error; err != nil {
+		return nil, err
+	}
 	if tx.Migrator().HasTable(&models.ExternalIdentity{}) {
 		if err := tx.Where("user_id = ?", userID).Delete(&models.ExternalIdentity{}).Error; err != nil {
 			return nil, err

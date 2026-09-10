@@ -7,8 +7,9 @@ const loading = ref(false)
 const error = ref('')
 const busyKeys = ref(new Set<string>())
 let generation = 0
+let stateRevision = 0
 let refreshPromise: Promise<void> | null = null
-let refreshGeneration = -1
+let refreshRequestId = 0
 
 function key(type: QuickAccessTargetType, id: number) {
   return `${type}:${id}`
@@ -23,31 +24,37 @@ function setBusy(type: QuickAccessTargetType, id: number, busy: boolean) {
 
 function refresh() {
   const requestGeneration = generation
-  if (refreshPromise && refreshGeneration === requestGeneration) return refreshPromise
+  const requestRevision = stateRevision
+  if (refreshPromise) return refreshPromise
 
   loading.value = true
   error.value = ''
-  refreshGeneration = requestGeneration
+  const requestId = ++refreshRequestId
   const request = (async () => {
     try {
       const response = await getQuickAccess()
-      if (requestGeneration === generation) {
+      if (requestGeneration === generation && requestRevision === stateRevision) {
         items.value = response.data.items ?? []
       }
     } catch (cause) {
-      if (requestGeneration === generation) {
+      if (requestGeneration === generation && requestRevision === stateRevision) {
         error.value = getApiErrorMessage(cause) || 'Unable to load Quick Access.'
       }
     } finally {
       if (requestGeneration === generation) loading.value = false
-      if (refreshGeneration === requestGeneration) {
+      if (requestId === refreshRequestId) {
         refreshPromise = null
-        refreshGeneration = -1
       }
     }
   })()
   refreshPromise = request
   return request
+}
+
+function invalidateRefresh() {
+  stateRevision += 1
+  refreshRequestId += 1
+  refreshPromise = null
 }
 
 async function pin(type: QuickAccessTargetType, id: number) {
@@ -57,6 +64,7 @@ async function pin(type: QuickAccessTargetType, id: number) {
     const response = await pinQuickAccess(type, id)
     if (requestGeneration !== generation) return response.data
 
+    invalidateRefresh()
     const index = items.value.findIndex((item) => item.type === type && item.id === id)
     if (response.status === 201 || index < 0) {
       items.value = [response.data, ...items.value.filter((item) => item.type !== type || item.id !== id)]
@@ -81,6 +89,7 @@ async function unpin(type: QuickAccessTargetType, id: number) {
   try {
     await unpinQuickAccess(type, id)
     if (requestGeneration === generation) {
+      invalidateRefresh()
       items.value = items.value.filter((item) => item.type !== type || item.id !== id)
       error.value = ''
     }
@@ -95,13 +104,13 @@ async function unpin(type: QuickAccessTargetType, id: number) {
 }
 
 function forget(type: QuickAccessTargetType, id: number) {
+  invalidateRefresh()
   items.value = items.value.filter((item) => item.type !== type || item.id !== id)
 }
 
 function clear() {
   generation += 1
-  refreshPromise = null
-  refreshGeneration = -1
+  invalidateRefresh()
   items.value = []
   loading.value = false
   error.value = ''
