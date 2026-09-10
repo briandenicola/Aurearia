@@ -117,6 +117,7 @@ import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
 import { useCollectionFilters } from '@/composables/useCollectionFilters'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 import PwaCollectionHeader from '@/components/collection/PwaCollectionHeader.vue'
 import DesktopCollectionHeader from '@/components/collection/DesktopCollectionHeader.vue'
 import CollectionContent from '@/components/collection/CollectionContent.vue'
@@ -128,6 +129,7 @@ import NeedsAttentionQueue from '@/components/collection/NeedsAttentionQueue.vue
 
 const store = useCoinsStore()
 const router = useRouter()
+const { refresh: refreshQuickAccess } = useQuickAccess()
 
 const {
   selectedCategory, search, page, sortKey, selectedTag, userTags,
@@ -267,6 +269,7 @@ async function bulkDelete() {
   if (!confirm(`Delete ${count} coin${count === 1 ? '' : 's'}? This cannot be undone.`)) return
   try {
     await bulkAction([...selectedCoinIds.value], 'delete')
+    await refreshQuickAccess()
     selectedCoinIds.value = new Set()
     selectMode.value = false
     bulkSelectActive.value = false
@@ -281,6 +284,7 @@ async function bulkSell() {
   if (!confirm(`Mark ${count} coin${count === 1 ? '' : 's'} as sold?`)) return
   try {
     await bulkAction([...selectedCoinIds.value], 'sell')
+    await refreshQuickAccess()
     selectedCoinIds.value = new Set()
     selectMode.value = false
     bulkSelectActive.value = false

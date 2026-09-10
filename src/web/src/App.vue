@@ -18,10 +18,16 @@
             >
               <CheckSquare :size="20" />
             </button>
+            <router-link to="/quick-access" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" active-class="bg-gold-glow text-gold" aria-label="Quick Access" title="Quick Access">
+              <Pin :size="20" />
+            </router-link>
             <router-link to="/add" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" aria-label="Add Coin" title="Add Coin">
               <CirclePlus :size="20" />
             </router-link>
           </template>
+          <router-link v-if="isPwa || !isCollectionPage" to="/quick-access" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" active-class="bg-gold-glow text-gold" aria-label="Quick Access" title="Quick Access">
+            <Pin :size="20" />
+          </router-link>
           <router-link v-if="isPwa" to="/add" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" aria-label="Add Coin">
             <Plus :size="20" />
           </router-link>
@@ -179,10 +185,11 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown, CheckSquare } from 'lucide-vue-next'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown, CheckSquare, Pin } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { usePinnedSets } from '@/composables/usePinnedSets'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
@@ -226,6 +233,7 @@ const navRef = ref<HTMLElement | null>(null)
 let sortableInstance: Sortable | null = null
 const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { pinnedSets, refresh: refreshPinnedSets, clear: clearPinnedSets } = usePinnedSets()
+const { refresh: refreshQuickAccess, clear: clearQuickAccess } = useQuickAccess()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
@@ -275,6 +283,7 @@ const defaultNavItems: NavItem[] = [
     ],
   },
   { id: 'wishlist', label: 'Wishlist', icon: markRaw(Bookmark), to: '/wishlist', visible: true },
+  { id: 'quick-access', label: 'Quick Access', icon: markRaw(Pin), to: '/quick-access', visible: true },
   { id: 'sold', label: 'Sold', icon: markRaw(BadgeDollarSign), to: '/sold', visible: true },
   { id: 'auctions', label: 'Auctions', icon: markRaw(Gavel), to: '/auctions', visible: true },
   { id: 'followers', label: 'Followers', icon: markRaw(UsersIcon), to: '/followers', visible: true },
@@ -547,12 +556,24 @@ watch(sidebarOpen, (open) => {
   if (!open) editMode.value = false
 })
 
+watch(() => auth.user?.id, (userId, previousUserId) => {
+  if (userId === previousUserId) return
+  clearQuickAccess()
+  clearPinnedSets()
+  navOrder.value = loadSavedOrder()
+  if (userId && auth.isAuthenticated) {
+    void refreshQuickAccess()
+    void refreshPinnedSets()
+  }
+})
+
 onMounted(async () => {
   window.addEventListener('resize', handleAgentFabViewportResize)
   window.addEventListener('open-agent-chat', handleOpenAgentChat)
   if (auth.isAuthenticated) {
     startPolling()
     void refreshPinnedSets()
+    void refreshQuickAccess()
     try {
       const res = await getMe()
       const data = res.data
@@ -624,6 +645,7 @@ function openOnboardingGuide() {
 
 function handleLogout() {
   stopPolling()
+  clearQuickAccess()
   clearPinnedSets()
   auth.logout()
   router.push('/login')

@@ -161,9 +161,11 @@ import { purchaseCoin, checkWishlistAvailability, updateListingStatus, listPurch
 import type { Coin, AvailabilityRunSummary, PurchaseReminder } from '@/types'
 import { CirclePlus, Bot, ShieldCheck, CalendarClock, History } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 
 const store = useCoinsStore()
 const { isPwa } = usePwa()
+const { refresh: refreshQuickAccess } = useQuickAccess()
 const showChat = ref(false)
 const purchaseTarget = ref<Coin | null>(null)
 const checking = ref(false)
@@ -227,6 +229,7 @@ async function handlePurchaseConfirm(data: { purchasePrice?: number; purchaseDat
   if (!purchaseTarget.value) return
   try {
     await purchaseCoin(purchaseTarget.value.id, data)
+    await refreshQuickAccess()
     purchaseTarget.value = null
     loadCoins()
   } catch {

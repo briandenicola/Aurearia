@@ -6,6 +6,19 @@
     </button>
     <div class="flex min-w-0 items-center justify-end gap-[0.45rem]">
       <AppIconButton
+        v-if="!isSold"
+        :disabled="pinBusy"
+        :title="pinBusy ? 'Updating coin Quick Access pin' : pinLabel"
+        :aria-label="pinBusy ? 'Updating coin Quick Access pin' : pinLabel"
+        :aria-busy="pinBusy"
+        :active="coinPinned"
+        :aria-pressed="coinPinned"
+        @click="togglePin"
+      >
+        <PinOff v-if="coinPinned" :size="24" />
+        <Pin v-else :size="24" />
+      </AppIconButton>
+      <AppIconButton
         v-if="showReminderAction"
         :title="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
         :aria-label="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
@@ -43,9 +56,11 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { ArrowLeft, BellRing, Pencil, Share2, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, BellRing, Pencil, Pin, PinOff, Share2, Trash2 } from 'lucide-vue-next'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
+import { useQuickAccess } from '@/composables/useQuickAccess'
+import { useToast } from '@/composables/useToast'
 
 const props = withDefaults(defineProps<{
   isWishlist: boolean
@@ -73,4 +88,21 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const backTarget = computed(() => props.isWishlist ? '/wishlist' : '/')
+const { error, pin, unpin, isPinned, isBusy } = useQuickAccess()
+const { showToast } = useToast()
+const pinned = isPinned('coin', props.coinId)
+const busy = isBusy('coin', props.coinId)
+const coinPinned = computed(() => pinned.value)
+const pinBusy = computed(() => busy.value)
+const pinLabel = computed(() => coinPinned.value ? 'Unpin coin from Quick Access' : 'Pin coin to Quick Access')
+
+async function togglePin() {
+  if (pinBusy.value) return
+  try {
+    if (coinPinned.value) await unpin('coin', props.coinId)
+    else await pin('coin', props.coinId)
+  } catch {
+    showToast(error.value || 'Unable to update Quick Access.', 'error')
+  }
+}
 </script>

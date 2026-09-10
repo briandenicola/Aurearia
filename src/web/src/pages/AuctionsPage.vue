@@ -170,12 +170,14 @@ import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink, AlertTriangle }
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { usePwa } from '@/composables/usePwa'
 import { useAuthStore } from '@/stores/auth'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 import { auctionLotNeedsAttention } from '@/utils/auctionLot'
 
 const { isPwa } = usePwa()
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const { refresh: refreshQuickAccess } = useQuickAccess()
 
 const lots = ref<AuctionLot[]>([])
 const statusCounts = ref<Record<string, number>>({})
@@ -189,6 +191,7 @@ const syncMessage = ref('')
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 const priceAlerts = ref<PriceAlert[]>([])
 const bidReminders = ref<BidReminder[]>([])
+let lotRequestId = 0
 
 const selectMode = ref(false)
 const selectedLotIds = ref(new Set<number>())
@@ -283,10 +286,12 @@ async function handleRefresh() {
 }
 
 function openLot(lot: AuctionLot) {
+  lotRequestId += 1
   selectedLot.value = lot
 }
 
 function closeLot() {
+  lotRequestId += 1
   selectedLot.value = null
   // Drop the deep-link parameter so the lot does not reopen on the next navigation back here.
   if (route.query.lot !== undefined) {
@@ -301,10 +306,12 @@ function closeLot() {
 // filtered (Bidding by default) and usually will not contain the linked lot.
 async function openLotFromRoute(rawLotId: unknown) {
   const lotId = Number(rawLotId)
+  const requestId = ++lotRequestId
+  selectedLot.value = null
   if (!Number.isInteger(lotId) || lotId <= 0) return
   try {
     const res = await getAuctionLot(lotId)
-    if (res.data) selectedLot.value = res.data
+    if (requestId === lotRequestId && res.data) selectedLot.value = res.data
   } catch {
     // Lot was deleted, or belongs to someone else — leave the page on the plain list.
   }
@@ -321,6 +328,7 @@ function handleImported() {
 function handleLotUpdated() {
   fetchLots()
   fetchAllCounts()
+  void refreshQuickAccess()
 }
 
 async function fetchAlertState() {
@@ -345,6 +353,7 @@ async function syncWatchlist() {
       return
     }
     const results = await Promise.allSettled(providers.map((source) => syncNumisBidsWatchlist(source)))
+    await refreshQuickAccess()
     const synced = results.reduce((total, result) => total + (result.status === 'fulfilled' ? result.value.data?.synced ?? 0 : 0), 0)
     const failed = results.filter((result) => result.status === 'rejected')
     const providerLabel = providers.length > 1 ? 'watchlists' : providerName(providers[0] ?? 'numisbids')

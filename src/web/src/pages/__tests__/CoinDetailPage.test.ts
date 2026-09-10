@@ -10,6 +10,12 @@ const fetchCoin = vi.fn()
 const routerPush = vi.fn()
 const shareCoinCard = vi.fn()
 const sharing = ref(false)
+const quickPinned = ref(false)
+const quickBusy = ref(false)
+const quickError = ref('')
+const quickRefresh = vi.fn()
+const quickForget = vi.fn()
+const showConfirm = vi.fn()
 
 vi.mock('@/stores/coins', () => ({
   useCoinsStore: () => ({
@@ -39,12 +45,24 @@ vi.mock('@/api/client', () => ({
   updateCoinReference: vi.fn(),
 }))
 
-import { duplicateCoin } from '@/api/client'
+import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
 
 vi.mock('@/composables/useDialog', () => ({
   useDialog: () => ({
-    showConfirm: vi.fn(),
+    showConfirm,
     showAlert: vi.fn(),
+  }),
+}))
+
+vi.mock('@/composables/useQuickAccess', () => ({
+  useQuickAccess: () => ({
+    error: quickError,
+    refresh: quickRefresh,
+    forget: quickForget,
+    pin: vi.fn(),
+    unpin: vi.fn(),
+    isPinned: () => quickPinned,
+    isBusy: () => quickBusy,
   }),
 }))
 
@@ -67,7 +85,20 @@ describe('CoinDetailPage', () => {
     shareCoinCard.mockReset()
     shareCoinCard.mockResolvedValue({ mode: 'downloaded' })
     vi.mocked(duplicateCoin).mockReset()
+    vi.mocked(deleteCoin).mockReset()
+    vi.mocked(purchaseCoin).mockReset()
+    vi.mocked(sellCoin).mockReset()
     vi.mocked(duplicateCoin).mockResolvedValue({ data: { ...coin, id: 314 } })
+    vi.mocked(deleteCoin).mockResolvedValue({ data: {} })
+    vi.mocked(purchaseCoin).mockResolvedValue({ data: coin })
+    vi.mocked(sellCoin).mockResolvedValue({ data: coin })
+    quickRefresh.mockReset()
+    quickRefresh.mockResolvedValue(undefined)
+    quickForget.mockReset()
+    showConfirm.mockReset()
+    showConfirm.mockResolvedValue(true)
+    coin.isWishlist = false
+    coin.isSold = false
     sharing.value = false
   })
 
@@ -129,6 +160,40 @@ describe('CoinDetailPage', () => {
       /numista/i.test(`${route.path} ${String(route.name ?? '')}`),
     )
     expect(numistaRoutes).toHaveLength(0)
+  })
+
+  it('refreshes Quick Access after purchasing a pinned wishlist coin', async () => {
+    coin.isWishlist = true
+    const stubs = pageStubs()
+    stubs.PurchaseModal = {
+      template: '<button aria-label="Confirm purchase" @click="$emit(\'confirm\', {})">Confirm</button>',
+    }
+    const wrapper = mount(CoinDetailPage, { global: { stubs } })
+    await wrapper.findAll('button').find((button) => button.text().includes('Mark as Purchased'))!.trigger('click')
+    await wrapper.get('button[aria-label="Confirm purchase"]').trigger('click')
+    await flushPromises()
+
+    expect(purchaseCoin).toHaveBeenCalledWith(coin.id, {})
+    expect(quickRefresh).toHaveBeenCalled()
+  })
+
+  it('removes Quick Access state after successful delete and sell workflows', async () => {
+    const stubs = pageStubs()
+    stubs.SellModal = {
+      template: '<button aria-label="Confirm sale" @click="$emit(\'confirm\', 100, \'Buyer\')">Confirm</button>',
+    }
+    const wrapper = mount(CoinDetailPage, { global: { stubs } })
+
+    await wrapper.get('button[aria-label="Delete"]').trigger('click')
+    await flushPromises()
+    expect(quickForget).toHaveBeenCalledWith('coin', coin.id)
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    await wrapper.get('button[aria-label="Sell Coin"]').trigger('click')
+    await wrapper.get('button[aria-label="Confirm sale"]').trigger('click')
+    await flushPromises()
+    expect(sellCoin).toHaveBeenCalledWith(coin.id, 100, 'Buyer')
+    expect(quickForget).toHaveBeenCalledWith('coin', coin.id)
   })
 })
 
