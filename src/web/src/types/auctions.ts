@@ -102,6 +102,7 @@ export interface CalendarEventDetail {
   endDate: string | null
   url: string
   notes: string
+  origin: 'manual' | 'auction'
   createdAt: string
   updatedAt: string
 }

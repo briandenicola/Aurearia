@@ -712,3 +712,13 @@ full Vitest suite, `vue-tsc --noEmit`, `npm run build`) and all four gates passe
 `AppNavigation.test.ts` 5/5 unmodified/unweakened, `ui-patterns.test.ts` 11/11 unmodified). Full Vitest
 suite: 164 files / 1312 tests passed. `npx vue-tsc --noEmit`: clean. `npm run build`: succeeded,
 `SetDetailPage-*.js` chunk emitted normally.
+
+## 2026-09-10 — Feature 357 Unified Quick Access Frontend
+
+- Implemented the strict four-variant Quick Access DTO, endpoint module, and generation-guarded singleton state.
+- Added the responsive mixed-list page, authenticated route, reorderable sidebar entry, and desktop/PWA title-bar access.
+- Unified pin controls across eligible coin, set, auction-lot, and manual calendar-event surfaces while retaining the five-set sidebar projection.
+- Calendar query deep links now fetch by ID and remove only their own query key on close; lifecycle mutations reconcile shared state.
+- Logout and account changes clear cached pins before any refresh, preventing delayed prior-user responses from repopulating state.
+- Reusable lesson: authenticated module-level state should pair an explicit `clear()` with a monotonically increasing generation checked by every async state write.
+- Validation: type-check, lint, and production build passed; Feature 357 targeted Vitest passed 91/91; full Vitest passed 1351/1351 plus 8/8 background-removal asset tests.

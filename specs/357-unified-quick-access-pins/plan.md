@@ -2,44 +2,46 @@
 
 **Branch**: `357-unified-quick-access-pins` | **Date**: 2026-09-10 | **Spec**: `./spec.md`
 **Input**: Feature specification from `specs/357-unified-quick-access-pins/spec.md`
-**Phase boundary**: Backend implementation only. Frontend is deferred and `src/web/` MUST NOT be modified.
+**Phase boundary**: Backend commit `4d3b6a06` is complete and frozen. This revision authorizes the Vue/TypeScript frontend phase only; `src/api/` MUST NOT be modified.
 
 ## 1. Summary
 
-Create one `quick_access_pins` table keyed by authenticated user, typed target, and target ID. A `QuickAccessService` validates ownership/eligibility, preserves original pin time on idempotent PUT, hydrates explicit display DTOs in bounded batches, and coordinates the Coin Set compatibility mirror. Existing coin, set, auction, sync, and calendar lifecycle services remove pins when targets become ineligible or are deleted.
+Consume the completed `quick_access_pins` backend through a strict TypeScript discriminated union, one shared Quick Access composable, a responsive `/quick-access` page, one global navigation entry, and eligible detail-surface controls. Preserve existing Coin Set sidebar behavior while adding canonical deep links and explicit client-state cleanup across lifecycle mutations, logout, and user switches.
 
-The migration also adds `AuctionEvent.Origin` so only manual events are pinnable. `QuickAccessPin` is authoritative after migration; `CoinSet.PinnedAt` remains a transactionally synchronized legacy projection.
+The backend remains authoritative: pin eligibility, timestamps, ownership, set cap, lifecycle cleanup, and `AuctionEvent.Origin` are not reimplemented in Vue.
 
 ## 2. Technical Context
 
-**Language/Version**: Go 1.26.6
-**Primary Dependencies**: Gin, GORM, `github.com/glebarez/sqlite`
-**Storage**: SQLite via GORM `AutoMigrate`; one new table and one additive event-origin column
-**Testing**: `go test`, `go vet`, existing architecture and route/OpenAPI drift tests
-**Target Platform**: Self-hosted single-node Linux API
-**Project Type**: Go REST API within the existing full-stack repository
-**Performance Goals**: One pin query plus at most one batch hydration query per target type; no N+1 queries
-**Constraints**: Additive migration; preserve Coin Set timestamps/cap/sidebar contract; owner isolation; no frontend edits
-**Scale/Scope**: Personal-scale, normally fewer than 100 Quick Access pins per user
+**Language/Version**: Vue 3, TypeScript 5.9
+**Primary Dependencies**: Vue Router, shared Axios client, lucide-vue-next
+**Storage**: No new browser persistence; authenticated server state held in memory only
+**Testing**: Vitest/Vue Test Utils, `vue-tsc --build`, ESLint, Vite production build
+**Target Platform**: Desktop browser and installed PWA/mobile viewport
+**Project Type**: Vue SPA consuming the existing Go REST API
+**Performance Goals**: One bootstrap/list request, no polling, no per-card target hydration
+**Constraints**: Preserve backend FR-001-FR-036 and D1-D12; preserve existing pinned Sets submenu; no Go edits
+**Scale/Scope**: Personal-scale, normally fewer than 100 Quick Access items
 
 ## 3. Constitution Check
 
 *Gate evaluated before design and re-checked after the data/API design below.*
 
-- **Principle I — Clear Layered Architecture**: New flow is Handler -> QuickAccessService -> repositories -> SQLite. Lifecycle business rules remain in services. Multi-step mutations are transactional. Calendar mutations touched by this feature move behind a `CalendarService`; auction delete/status paths move fully behind `AuctionLotService`.
-- **Principle II — Service Boundaries**: Go-only feature; no Python agent or direct Vue/Python coupling.
-- **Principle III — Strict Types and Explicit Contracts**: Typed target/status/origin enums, explicit DTOs, Swagger on all public methods, regenerated OpenAPI.
-- **Principle IV — Simple Complete Changes**: One polymorphic table rather than four pin columns; complete lifecycle coverage across sibling mutation paths; no frontend scope.
-- **Principle V — Security/Auth/Privacy**: JWT-protected routes, owner-scoped queries, foreign/missing/ineligible pin attempts share a generic 404, no full models serialized.
-- **Principle VIII — Documented Decisions**: Contract and migration truth are captured in this plan and `.squad/decisions/inbox/maximus-quick-access-design.md`.
-- **Principle IX — Automated Enforcement**: Migration-order, ownership, idempotency, lifecycle, architecture, and route/OpenAPI drift tests are required.
-- **§17 / §21**: Backend build, vet, tests, Swagger sync, workflow-contract coverage, and exact lifecycle regression paths are merge gates.
+- **Principle II — Service Boundaries**: Vue calls only the existing Go `/api/quick-access` contract.
+- **Principle III — Strict Types and Explicit Contracts**: The API response becomes a compile-time discriminated union; Docker-equivalent `vue-tsc --build` is blocking.
+- **Principle IV — Simple Complete Changes**: One shared composable and one page serve all types; existing resource surfaces receive narrow controls rather than parallel pin systems.
+- **Principle V — Security/Auth/Privacy**: No pin state is persisted in localStorage. Logout/user switch clears state and invalidates pending responses.
+- **Principle VI — Consistent UX**: Existing button, page-header, card, design-token, icon, PWA, and sidebar-reorder patterns are reused.
+- **Principle VIII — Documented Decisions**: Frontend authorization and architecture are recorded in this plan and `.squad/decisions/inbox/maximus-quick-access-frontend.md`.
+- **Principle IX — Automated Enforcement**: Contract, lifecycle, deep-link, logout, accessibility, and responsive behavior receive targeted tests.
+- **§17 / §21**: Type-check, lint, targeted/full tests, production build, workflow-contract coverage, and exact-path regression tests are merge gates.
 
 **Result**: PASS. No constitutional waiver and no ADR required.
 
 ## 4. Before-Work Design Review
 
-**Verdict**: APPROVED TO IMPLEMENT — BACKEND ONLY, subject to the contracts in spec §4 and decisions D1-D12 below.
+**Verdict**: APPROVED TO IMPLEMENT — FRONTEND ONLY, consuming backend commit `4d3b6a06`, subject to spec FR-037-FR-054 and decisions D13-D19 below.
+
+The earlier backend-only verdict and D12 remain the historical authorization boundary for commit `4d3b6a06`. The repository owner's later explicit frontend authorization is reconciled under Constitution §0 by updating the active spec, then this plan, then `tasks.md`; it does not amend locked backend requirements or decisions.
 
 ### Reviewed current-state facts
 
@@ -158,6 +160,39 @@ Only Coin Sets retain their established five-item cap. Adding a mixed/global cap
 
 The Go DTO is intentionally shaped for a later TypeScript discriminated union. No `src/web` file, frontend task, navigation control, or sidebar merge is part of this feature phase.
 
+### D13. Frontend phase consumes the frozen backend
+
+D12 remains true for the completed backend phase. The newly authorized frontend phase starts from commit `4d3b6a06` and may edit only `src/web/` plus feature/team documentation. No Go, migration, route, DTO, or OpenAPI change is permitted.
+
+### D14. One strict union and endpoint module
+
+Add `src/web/src/types/quick-access.ts` with literal target types and four item variants whose nonmatching payload keys are absent/optional-never as needed for safe narrowing. Add `src/web/src/api/endpoints/quickAccess.ts` using the shared Axios instance and re-export both modules through existing barrels.
+
+### D15. Shared state is a lifecycle-managed singleton
+
+Use `useQuickAccess.ts` as module-level authenticated state because App navigation, the page, and multiple detail surfaces must coordinate immediately. It exposes typed `refresh`, `pin`, `unpin`, `isPinned`, and `clear`. A `201` PUT prepends the returned new item, a `200` PUT replaces the existing item in place, and successful DELETE removes it; this preserves server ordering without inventing the backend's hidden tie-break ID. `clear` increments a request generation so late pre-logout/pre-switch responses are ignored. No localStorage and no polling.
+
+### D16. Quick Access is a top-level destination
+
+Add one reorderable `Quick Access` sidebar item and `/quick-access` route/page. The page preserves backend order, uses existing page-header/card/empty-state patterns, and renders directly from DTO payloads without N+1 target fetches. Existing pinned sets stay under Sets as a compatibility affordance; they are not moved or duplicated into another submenu.
+
+### D17. Existing detail surfaces own controls
+
+- Coin: `CoinDetailHeaderActions.vue`, shown only for authenticated unsold owner/wishlist detail; never follower detail.
+- Coin Set: migrate the existing `SetDetailPage.vue` button to unified PUT/DELETE, then refresh both set detail and `usePinnedSets`.
+- Auction lot: `AuctionLotDetailModal.vue`, shown only for `watching|bidding`.
+- Calendar event: existing event drawer in `CalendarPage.vue`, shown only for `origin=manual`.
+
+All use the same Pin/PinOff semantics, `aria-pressed`, busy protection, active gold styling, and error toast/message. Backend eligibility remains final.
+
+### D18. Canonical deep links follow existing parent surfaces
+
+Cards navigate with `router.push` to `/coin/:id`, `/sets/:id`, `/auctions?lot=:id`, and `/calendar?event=:id`. Auctions retain their existing fetch-by-ID query handling. Calendar gains the same fetch-by-ID behavior, independent of active month, and removes only `event` with `router.replace` on close. Invalid/foreign targets leave the parent page usable.
+
+### D19. Lifecycle reconciliation is explicit
+
+Bootstrap refreshes once when authenticated, and App watches the authenticated user ID so an in-tab identity change clears old state before refreshing the new account. Detail mutations update or refresh Quick Access after success: purchase and watching/bidding transitions retain and rehydrate; sold, terminal, and delete paths remove/refresh. Logout clears both `useQuickAccess` and existing `usePinnedSets`; request-generation invalidation prevents delayed user-A data from appearing for user B.
+
 ## 6. Data Migration Order
 
 1. Enable existing SQLite pragmas as current startup does.
@@ -249,6 +284,30 @@ docs/
 └── swagger.yaml                               # regenerated
 
 openapi.yaml                                   # regenerated/synchronized by repository task
+
+src/web/src/
+├── api/
+│   ├── client.ts                             # MOD: endpoint barrel export
+│   └── endpoints/quickAccess.ts              # NEW: typed GET/PUT/DELETE
+├── types/
+│   ├── index.ts                              # MOD: type barrel export
+│   ├── quick-access.ts                       # NEW: discriminated union
+│   └── auctions.ts                           # MOD: calendar origin contract
+├── composables/
+│   ├── useQuickAccess.ts                     # NEW: shared state + invalidation
+│   └── __tests__/useQuickAccess.test.ts       # NEW
+├── pages/
+│   ├── QuickAccessPage.vue                   # NEW
+│   ├── CoinDetailPage.vue                    # MOD: pin + lifecycle sync
+│   ├── SetDetailPage.vue                     # MOD: unified endpoint + projections
+│   ├── AuctionsPage.vue                      # MOD: lifecycle refresh, deep-link regression
+│   └── CalendarPage.vue                      # MOD: manual pin + event deep link
+├── components/
+│   ├── coin/CoinDetailHeaderActions.vue      # MOD: pin affordance
+│   └── auction/AuctionLotDetailModal.vue     # MOD: eligible pin affordance
+├── router/index.ts                           # MOD: /quick-access
+├── App.vue                                   # MOD: nav/bootstrap/logout
+└── relevant __tests__/                       # MOD/NEW: exact workflow coverage
 ```
 
 Exact generated Swagger paths are determined by the existing `task openapi` workflow; do not hand-edit generated files unless that workflow already does so.
@@ -304,7 +363,17 @@ go test ./...
 go test -v -run TestRegisteredAPIRoutesAreDocumentedInOpenAPI .
 ```
 
-No frontend command is required because `src/web` is out of scope and must remain untouched.
+Frontend gate from `src/web`:
+
+```powershell
+npm run type-check
+npx vitest run <feature-targeted-test-files>
+npm test
+npm run lint
+npm run build
+```
+
+Also run `git diff --name-only` and fail the frontend review if any `src/api/` path changed.
 
 ## 10. Risks and Mitigations
 
@@ -319,8 +388,14 @@ No frontend command is required because `src/web` is out of scope and must remai
 | R7 | Hydration leaks full private models | Purpose-built DTO projections only; response contract tests |
 | R8 | Startup backfill silently fails | Helpers return errors; startup fails; migration-order test calls real helpers |
 | R9 | New route drifts from Swagger | Mandatory route/OpenAPI drift test and `task openapi` |
-| R10 | Scope expands into frontend | Explicit phase boundary and no tasks under `src/web` |
+| R10 | Frontend accidentally changes frozen backend | Frontend-only phase guard; fail review on any `src/api/` diff |
+| R11 | Module-level state leaks across users | Explicit clear + request generation invalidation + logout/user-switch tests |
+| R12 | Existing pinned Sets sidebar drifts | Unified set control refreshes both Quick Access and `usePinnedSets`; regression tests preserve submenu |
+| R13 | Modal/drawer targets are not route-addressable | Canonical query deep links with fetch-by-ID and safe close semantics |
+| R14 | Lifecycle cleanup succeeds server-side but UI stays stale | Successful sibling mutations explicitly reconcile shared state |
+| R15 | Detail controls expose ineligible targets | Typed eligibility checks plus backend final validation and negative rendering tests |
+| R16 | Mobile header/control crowding | Reuse compact icon-button patterns and test narrow viewport rendering |
 
 ## 11. Complexity Tracking
 
-No constitution violation. The new `CalendarService` and sync transaction refactor are required to keep lifecycle cleanup out of handlers/repositories and satisfy Principle I; they are not optional architectural expansion.
+No constitution violation. The shared singleton is justified by cross-route coordination and is bounded by an explicit security lifecycle; a new Pinia store would add migration cost without improving this feature's ownership model. No ADR is required because this remains inside the existing Vue SPA boundary and established module-level composable pattern.

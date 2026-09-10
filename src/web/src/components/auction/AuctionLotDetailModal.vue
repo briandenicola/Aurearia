@@ -4,6 +4,20 @@
       <div class="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
         <h2 class="min-w-0 text-[1.1rem] leading-[1.35] [overflow-wrap:anywhere]">{{ lot.title }}</h2>
         <div class="header-actions shrink-0 gap-1">
+          <button
+            v-if="canPin"
+            class="flex h-11 w-11 items-center justify-center rounded-sm text-text-secondary transition hover:bg-gold-glow hover:text-gold disabled:opacity-55"
+            :class="{ 'text-gold': lotPinned }"
+            :disabled="pinBusy"
+            :aria-busy="pinBusy"
+            :aria-label="pinBusy ? 'Updating auction lot Quick Access pin' : pinLabel"
+            :title="pinLabel"
+            :aria-pressed="lotPinned"
+            @click="togglePin"
+          >
+            <PinOff v-if="lotPinned" :size="16" />
+            <Pin v-else :size="16" />
+          </button>
           <button v-if="!isEditing" class="flex items-center rounded-sm p-[0.35rem] text-text-secondary transition hover:bg-gold-glow hover:text-gold" title="Edit details" @click="startEdit">
             <Pencil :size="16" />
           </button>
@@ -65,14 +79,14 @@
           <span
             class="rounded-full px-[0.55rem] py-[0.15rem] text-sm font-semibold uppercase"
             :class="{
-              'bg-[rgba(100,150,255,0.2)] text-[#6496ff]': lot.status === 'watching',
-              'bg-gold-glow text-gold': lot.status === 'bidding',
-              'bg-[rgba(74,222,128,0.15)] text-[#4ade80]': lot.status === 'won',
-              'bg-[rgba(248,113,113,0.15)] text-[#f87171]': lot.status === 'lost',
-              'bg-[rgba(120,120,120,0.15)] text-[#999999]': lot.status === 'passed',
+              'bg-[rgba(100,150,255,0.2)] text-[#6496ff]': currentStatus === 'watching',
+              'bg-gold-glow text-gold': currentStatus === 'bidding',
+              'bg-[rgba(74,222,128,0.15)] text-[#4ade80]': currentStatus === 'won',
+              'bg-[rgba(248,113,113,0.15)] text-[#f87171]': currentStatus === 'lost',
+              'bg-[rgba(120,120,120,0.15)] text-[#999999]': currentStatus === 'passed',
             }"
           >
-            {{ lot.status }}
+            {{ currentStatus }}
           </span>
         </div>
         <div v-if="statusSourceLabel" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.82rem] text-text-muted" :title="statusSourceLabel.title">
@@ -230,7 +244,16 @@
             {{ statusBusy ? 'Updating...' : 'Update Status' }}
           </button>
         </div>
-        <p v-if="statusMessage" class="m-0 text-chip" :class="statusError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ statusMessage }}</p>
+        <p
+          v-if="statusMessage"
+          class="m-0 text-chip"
+          :class="statusError ? 'text-[var(--color-negative)]' : 'text-gold'"
+          :role="statusError ? 'alert' : 'status'"
+          :aria-live="statusError ? 'assertive' : 'polite'"
+          aria-atomic="true"
+        >
+          {{ statusMessage }}
+        </p>
         <div v-if="newStatus === 'bidding'" class="grid gap-1.5">
           <label class="text-[0.82rem] text-text-secondary">Max Bid</label>
           <input
@@ -349,8 +372,9 @@ import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation, getAuctionLotMarketSignal, getAgentStatus } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, MarketSignal, PriceAlert, PriceAlertDirection, ShipmentUpsertInput } from '@/types'
-import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle } from 'lucide-vue-next'
+import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle, Pin, PinOff } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
@@ -368,8 +392,18 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const {
+  error: quickAccessError,
+  refresh: refreshQuickAccess,
+  pin: pinQuickAccessItem,
+  unpin: unpinQuickAccessItem,
+  forget: forgetQuickAccess,
+  isPinned,
+  isBusy,
+} = useQuickAccess()
 
 const newStatus = ref<AuctionLotStatus>(props.lot.status)
+const currentStatus = ref<AuctionLotStatus>(props.lot.status)
 const maxBidInput = ref<number | null>(props.lot.maxBid ?? null)
 const winningBidInput = ref<number | null>(props.lot.winningBid ?? null)
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
@@ -390,10 +424,16 @@ const normalizedWinningBidInput = computed(() => typeof winningBidInput.value ==
 const maxBidChanged = computed(() => newStatus.value === 'bidding' && normalizedMaxBidInput.value !== null && normalizedMaxBidInput.value !== (props.lot.maxBid ?? null))
 const winningBidChanged = computed(() => (newStatus.value === 'won' || newStatus.value === 'lost') && normalizedWinningBidInput.value !== null && normalizedWinningBidInput.value !== (props.lot.winningBid ?? null))
 const winningBidLabel = computed(() => newStatus.value === 'lost' ? 'Winning Bid (what it sold for)' : 'Winning Bid')
-const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value || winningBidChanged.value)
+const hasPendingStatusUpdate = computed(() => newStatus.value !== currentStatus.value || maxBidChanged.value || winningBidChanged.value)
 const priceAlerts = computed(() => props.priceAlerts ?? [])
 const bidReminders = computed(() => props.bidReminders ?? [])
-const canManageAlerts = computed(() => props.lot.status === 'watching' || props.lot.status === 'bidding')
+const canManageAlerts = computed(() => currentStatus.value === 'watching' || currentStatus.value === 'bidding')
+const canPin = computed(() => currentStatus.value === 'watching' || currentStatus.value === 'bidding')
+const pinnedState = isPinned('auction_lot', props.lot.id)
+const busyState = isBusy('auction_lot', props.lot.id)
+const lotPinned = computed(() => pinnedState.value)
+const pinBusy = computed(() => busyState.value)
+const pinLabel = computed(() => lotPinned.value ? 'Unpin auction lot from Quick Access' : 'Pin auction lot to Quick Access')
 const biddingIndicator = computed(() => {
   if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
   if (props.lot.maxBid >= props.lot.currentBid) {
@@ -455,6 +495,17 @@ function setStatusMessage(message: string, isError = false) {
 function errorMessageFrom(err: unknown, fallback: string): string {
   const maybeAxiosError = err as { response?: { data?: { error?: string } } }
   return maybeAxiosError?.response?.data?.error || fallback
+}
+
+async function togglePin() {
+  if (pinBusy.value) return
+  setStatusMessage('')
+  try {
+    if (lotPinned.value) await unpinQuickAccessItem('auction_lot', props.lot.id)
+    else await pinQuickAccessItem('auction_lot', props.lot.id)
+  } catch {
+    setStatusMessage(quickAccessError.value || 'Failed to update Quick Access', true)
+  }
 }
 
 // Edit mode
@@ -561,6 +612,7 @@ async function saveEdit() {
       notes: editForm.notes,
       estimate: editForm.estimate,
     })
+    await refreshQuickAccess()
     isEditing.value = false
     emit('updated')
   } catch {
@@ -609,6 +661,11 @@ watch(newStatus, status => {
     getAgentStatus().then(res => { providerConfigured.value = res.data.configured }).catch(() => { providerConfigured.value = true })
   }
 }, { immediate: true })
+
+watch(() => props.lot.status, (status) => {
+  currentStatus.value = status
+  newStatus.value = status
+})
 
 async function linkEvent() {
   const eventId = selectedEventId.value === '' ? null : Number(selectedEventId.value)
@@ -693,6 +750,12 @@ async function changeStatus() {
     const bid = maxBidChanged.value ? normalizedMaxBidInput.value : undefined
     const winBid = winningBidChanged.value ? normalizedWinningBidInput.value : undefined
     await updateAuctionLotStatus(props.lot.id, newStatus.value, bid, winBid)
+    currentStatus.value = newStatus.value
+    if (newStatus.value === 'watching' || newStatus.value === 'bidding') {
+      await refreshQuickAccess()
+    } else {
+      forgetQuickAccess('auction_lot', props.lot.id)
+    }
 
     if (newStatus.value === 'won') {
       const shipment = buildShipmentInput()
@@ -743,6 +806,7 @@ async function removeLot() {
   setStatusMessage('')
   try {
     await deleteAuctionLot(props.lot.id)
+    forgetQuickAccess('auction_lot', props.lot.id)
     emit('close')
     emit('updated')
   } catch (err) {

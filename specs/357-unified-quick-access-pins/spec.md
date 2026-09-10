@@ -2,7 +2,7 @@
 
 **Feature Branch**: `357-unified-quick-access-pins`
 **Created**: 2026-09-10
-**Status**: Draft — design approved for backend implementation
+**Status**: Active — backend complete; frontend implementation approved
 **Owner**: Maximus (Lead / Architect)
 **Requested by**: Brian DeNicola
 **Input**: Unify existing pinned Coin Sets with pinnable coins, auction lots, and manual calendar events behind one authenticated Quick Access contract.
@@ -15,7 +15,7 @@ This feature defines a user-owned polymorphic pin record, a typed hydration cont
 
 ### In scope
 
-- Go API persistence, migration, repository, service, handler, route, Swagger/OpenAPI, and tests.
+- Completed Go API persistence, migration, repository, service, handler, route, Swagger/OpenAPI, and tests from backend commit `4d3b6a06`.
 - Pinnable targets:
   - owned coins;
   - wishlist coins;
@@ -26,13 +26,18 @@ This feature defines a user-owned polymorphic pin record, a typed hydration cont
 - Idempotent `PUT /api/quick-access/:type/:id` and `DELETE /api/quick-access/:type/:id`.
 - Lifecycle cleanup and state-preserving transitions.
 - Compatibility with `CoinSet.PinnedAt`, the existing `PUT /sets/:id` pin contract, sidebar data, and the five-set cap.
+- Vue/TypeScript API types and endpoint functions for the committed backend contract.
+- One authenticated `/quick-access` page and one top-level sidebar navigation entry.
+- Shared client state for list, pin, unpin, eligibility lookup, lifecycle reconciliation, and logout cleanup.
+- Pin controls on owned/wishlist coin detail, Coin Set detail, eligible auction-lot detail, and manual calendar-event detail.
+- Deep links from mixed Quick Access items to the existing resource surfaces.
 
 ### Explicitly deferred
 
-- All frontend work, including sidebar rendering, detail/header controls, API client changes, Vue types, stores/composables, and PWA behavior.
 - Pin controls outside resource detail/header surfaces.
 - Reordering, folders, labels, notes, sharing, pagination, or a global cap for non-set targets.
 - Sold coins, terminal auction lots, auto-generated auction calendar events, and public/follower resources.
+- Any Go/API contract change beyond consuming backend commit `4d3b6a06`.
 
 ## 2. User Scenarios & Testing
 
@@ -120,6 +125,54 @@ As a collector already using pinned sets, I want the unified feature to retain m
 4. **Given** five Coin Sets are pinned, **When** a sixth is pinned through either endpoint, **Then** the request fails with the existing set-cap client message and other target types do not count toward the cap.
 5. **Given** a legacy database already contains more than five pinned sets, **When** backfill runs, **Then** all existing pins are preserved, but no additional set may be pinned until the count falls below five.
 
+---
+
+### User Story 6 — Navigate one mixed Quick Access page (Priority: P1)
+
+As an authenticated collector, I want a single responsive page for every pinned resource, so I can open important coins, sets, lots, and events without searching their source pages.
+
+**Independent Test**: Mock one item of each discriminator, open `/quick-access`, and verify newest-first rendering, resource-specific metadata, and the exact target navigation for each card.
+
+**Acceptance Scenarios**:
+
+1. **Given** a mixed Quick Access response, **When** the page loads, **Then** all four variants render in server order using their typed payload and no unsafe type assertions.
+2. **Given** no pins, **When** the page loads, **Then** it shows a useful empty state rather than a blank list.
+3. **Given** a list request fails, **When** the page renders, **Then** it shows a recoverable error and retry action without discarding a previously loaded list.
+4. **Given** a user selects a coin, set, auction lot, or calendar event, **When** navigation occurs, **Then** the client opens `/coin/:id`, `/sets/:id`, `/auctions?lot=:id`, or `/calendar?event=:id` respectively.
+5. **Given** desktop or installed-PWA layout, **When** the sidebar opens, **Then** one top-level `Quick Access` item navigates to `/quick-access`.
+
+---
+
+### User Story 7 — Pin from existing detail surfaces (Priority: P1)
+
+As a collector, I want a consistent pin affordance where I am already reviewing an eligible resource, so I can update Quick Access without leaving that workflow.
+
+**Independent Test**: Mount each detail surface with eligible and ineligible fixtures, toggle the control, and verify the unified PUT/DELETE endpoint, pressed state, shared-list update, and error behavior.
+
+**Acceptance Scenarios**:
+
+1. **Given** an unsold owned or wishlist coin, **When** its header renders, **Then** a labeled pin control reflects shared Quick Access state; sold coins and follower detail do not expose it.
+2. **Given** a Coin Set, **When** its existing pin control is toggled, **Then** it uses the unified endpoint while preserving the five-set message and refreshing the legacy pinned-set sidebar projection.
+3. **Given** a watching or bidding lot, **When** its detail modal renders, **Then** a pin control is available; won, lost, and passed lots do not expose it.
+4. **Given** a manual calendar event, **When** its detail drawer renders, **Then** a pin control is available; auction-origin events do not expose it.
+5. **Given** a pin/unpin request fails, **When** the error is shown, **Then** the prior pressed state and shared list remain intact.
+
+---
+
+### User Story 8 — Keep client state correct across lifecycle and identity changes (Priority: P1)
+
+As a collector, I want Quick Access to remain user-scoped and current as targets change or I sign out, so stale or cross-account pins never remain visible.
+
+**Independent Test**: Exercise purchase, sold/terminal/delete mutations, deep links, logout, user switch, and a delayed list response; verify preserved pins remain, removed pins disappear, and stale async results cannot repopulate cleared state.
+
+**Acceptance Scenarios**:
+
+1. **Given** a pinned wishlist coin is purchased or a pinned lot moves between watching and bidding, **When** the mutation succeeds, **Then** the same item remains and its displayed classification/status refreshes.
+2. **Given** a pinned target is sold, becomes terminal, or is deleted, **When** the mutation succeeds, **Then** it disappears from shared Quick Access state without requiring a full application reload.
+3. **Given** `/auctions?lot=:id` or `/calendar?event=:id`, **When** the target is owned and available, **Then** its existing detail modal/drawer opens even if it is absent from the currently filtered list/month.
+4. **Given** an invalid, missing, or foreign deep-link target, **When** loading fails, **Then** the parent page remains usable and reveals no target details.
+5. **Given** logout or an account switch while a refresh is pending, **When** the old request resolves, **Then** cleared state remains empty and cannot leak the prior user's pins.
+
 ## 3. Edge Cases
 
 - Pin timestamps that tie are ordered deterministically by pin row ID descending.
@@ -132,6 +185,9 @@ As a collector already using pinned sets, I want the unified feature to retain m
 - A manual event linked to an auction lot before this migration may be conservatively classified as `auction`; this migration ambiguity is recorded as Risk R6 in `plan.md`.
 - Polymorphic targets cannot use one database foreign key. All deletion and eligibility transitions therefore require explicit service-layer cleanup and regression tests.
 - A malformed/stale pin discovered during hydration is omitted and logged; `GET` does not mutate data. Repair belongs to lifecycle paths or startup reconciliation, avoiding a side-effecting read.
+- Quick Access is global authenticated state. Its module-level state requires an explicit `clear()` that also invalidates pending refreshes; component unmount alone is not a security boundary.
+- Existing auction-lot query deep links remain canonical. Calendar event deep links use the same query-driven modal/drawer pattern rather than adding resource-detail routes.
+- Closing a query-opened lot/event removes only its own query parameter with `router.replace`, preserving unrelated query state and avoiding a reopen loop.
 
 ## 4. Requirements
 
@@ -173,6 +229,24 @@ As a collector already using pinned sets, I want the unified feature to retain m
 - **FR-034**: Routes MUST be registered under the existing JWT-protected API group.
 - **FR-035**: Implementation MUST follow Handler -> Service -> Repository -> Database with constructor injection and composition-root wiring.
 - **FR-036**: All lifecycle hooks MUST be covered across direct update, dedicated action, deletion, and provider-sync sibling paths; testing only the new endpoints is insufficient.
+- **FR-037**: The frontend MUST define an exact `QuickAccessTargetType` union and a discriminated `QuickAccessItem` union matching §4.2; each variant MUST require exactly its matching payload at compile time.
+- **FR-038**: Quick Access API calls MUST live in a dedicated frontend endpoint module, use the shared authenticated Axios client, and expose typed list, pin, and unpin functions without changing the backend contract.
+- **FR-039**: The authenticated router MUST provide `/quick-access`, and the page MUST render loading, recoverable error/retry, empty, and populated states on desktop and PWA viewports.
+- **FR-040**: The populated page MUST preserve server order and render resource-specific labels and metadata from the DTO without fetching every target again.
+- **FR-041**: Quick Access item navigation MUST map exactly to `/coin/:id`, `/sets/:id`, `/auctions?lot=:id`, and `/calendar?event=:id`.
+- **FR-042**: The global sidebar MUST include one reorderable top-level `Quick Access` entry linked to `/quick-access`; existing Sets submenu pins MUST remain unchanged.
+- **FR-043**: A shared `useQuickAccess` composable MUST own module-level items/loading/error state and typed `refresh`, `pin`, `unpin`, `isPinned`, and `clear` operations. Pin/unpin state MUST update only after a successful server response.
+- **FR-044**: `clear()` MUST empty all user-specific Quick Access state and invalidate in-flight refreshes so a late response cannot repopulate state after logout or account switch.
+- **FR-045**: Authenticated application bootstrap MUST refresh Quick Access once, the Quick Access page MAY explicitly retry/refresh, and the feature MUST NOT poll.
+- **FR-046**: Unsold owned and wishlist coin detail headers MUST expose an accessible pin control. Sold and follower coin detail surfaces MUST NOT expose the control.
+- **FR-047**: Coin Set detail MUST migrate its existing pin control to the unified endpoint while preserving its current UX, five-set error, compatibility mirror refresh, and pinned Sets submenu behavior.
+- **FR-048**: Auction-lot detail MUST expose the control only for `watching|bidding`; calendar-event detail MUST expose it only for `origin=manual`.
+- **FR-049**: Every pin control MUST provide a stable accessible name, `aria-pressed`, disabled/busy protection, gold active state, and a user-visible error while retaining the prior state on failure.
+- **FR-050**: Successful frontend mutations that preserve eligibility (wishlist purchase; watching/bidding transition) MUST refresh the affected Quick Access DTO, while sold, terminal, and delete mutations MUST remove or refresh the affected item before the workflow is considered complete.
+- **FR-051**: `/calendar?event=:id` MUST fetch the event by ID and open its detail drawer independently of the loaded month; closing it MUST remove only `event` from the query.
+- **FR-052**: Existing `/auctions?lot=:id` behavior MUST remain canonical and MUST be covered as the auction Quick Access destination.
+- **FR-053**: Missing, invalid, foreign, or ineligible deep-link targets MUST fail safely on the parent page without leaking details or entering a navigation loop.
+- **FR-054**: Frontend delivery MUST include endpoint, composable, page, navigation, control, lifecycle, logout/user-switch, deep-link, accessibility, and PWA-responsive regression coverage and pass the frontend Quality Gate; no Go file may change.
 
 ### 4.2 Typed API Contract
 
@@ -263,11 +337,16 @@ As a collector already using pinned sets, I want the unified feature to retain m
 - **SC-005**: Every sold/terminal/deletion path leaves zero matching pin rows.
 - **SC-006**: Both Coin Set pin entry points reject a sixth set while allowing unlimited eligible pins of other types.
 - **SC-007**: Targeted model, migration, repository, service, handler, lifecycle, route/OpenAPI drift, architecture, and full Go tests pass.
+- **SC-008**: A typed four-item fixture renders in server order and each item opens its canonical resource destination.
+- **SC-009**: All four eligible detail surfaces toggle through the unified endpoint, retain state on failure, and reflect successful changes without a full reload.
+- **SC-010**: Logout, account switch, and a delayed pre-logout refresh leave shared Quick Access state empty.
+- **SC-011**: Calendar and auction query deep links open the requested owned target outside the active month/filter and fail safely for unavailable targets.
+- **SC-012**: `npm run type-check`, targeted Vitest suites, full `npm test`, `npm run lint`, and `npm run build` pass with no `src/api/` changes.
 
 ## 6. Assumptions
 
 - Personal-scale use means an unpaginated list is acceptable for v1.
 - Timestamps are UTC.
 - The existing `CoinSet.PinnedAt` field cannot be removed in this feature because the current sidebar contract consumes it.
-- The frontend will later map the response to a TypeScript discriminated union keyed by `type`; no frontend file is part of this feature phase.
+- The frontend maps the committed response to a TypeScript discriminated union keyed by `type`; the backend contract remains frozen for this phase.
 - No ADR is required: this is an additive data model inside the existing Go service boundary, with no new external service or security posture change.

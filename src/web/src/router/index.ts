@@ -128,6 +128,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/quick-access',
+      name: 'quick-access',
+      component: () => import('@/pages/QuickAccessPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/wishlist/search-alerts',
       name: 'wishlist-search-alerts',
       component: () => import('@/pages/WishlistAlertsPage.vue'),

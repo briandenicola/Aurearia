@@ -16,14 +16,15 @@
         <div v-if="isPwa" class="pwa-actions">
           <button
             class="pwa-icon-btn"
-            :class="{ 'text-gold': set.pinned }"
+            :class="{ 'text-gold': setPinned }"
             :disabled="pinDisabled"
-            :aria-pressed="Boolean(set.pinned)"
+            :aria-busy="setPinBusy"
+            :aria-pressed="setPinned"
             :aria-label="pinButtonLabel"
             :title="pinButtonLabel"
             @click="togglePin"
           >
-            <PinOff v-if="set.pinned" :size="22" />
+            <PinOff v-if="setPinned" :size="22" />
             <Pin v-else :size="22" />
           </button>
           <button class="pwa-icon-btn" @click="router.push({ name: 'sets' })" title="Back to Sets">
@@ -42,14 +43,15 @@
         <div v-else class="header-actions">
           <button
             class="btn btn-ghost"
-            :class="{ 'text-gold': set.pinned }"
+            :class="{ 'text-gold': setPinned }"
             :disabled="pinDisabled"
-            :aria-pressed="Boolean(set.pinned)"
+            :aria-busy="setPinBusy"
+            :aria-pressed="setPinned"
             :aria-label="pinButtonLabel"
             :title="pinButtonLabel"
             @click="togglePin"
           >
-            <PinOff v-if="set.pinned" :size="16" />
+            <PinOff v-if="setPinned" :size="16" />
             <Pin v-else :size="16" />
           </button>
           <button class="btn btn-ghost" @click="router.push({ name: 'sets' })">
@@ -359,6 +361,7 @@ import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue
 import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
 import { usePinnedSets } from '@/composables/usePinnedSets'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 import { usePwa } from '@/composables/usePwa'
 import { useToast } from '@/composables/useToast'
 import { useTrayPreference } from '@/composables/useTrayPreference'
@@ -368,7 +371,16 @@ const router = useRouter()
 const route = useRoute()
 const { isPwa } = usePwa()
 const { feltColor } = useTrayPreference()
-const { pinLimitReached, setPinned } = usePinnedSets()
+const { pinLimitReached, refresh: refreshPinnedSets } = usePinnedSets()
+const {
+  error: quickAccessError,
+  refresh: refreshQuickAccess,
+  pin: pinQuickAccessItem,
+  unpin: unpinQuickAccessItem,
+  forget: forgetQuickAccess,
+  isPinned,
+  isBusy,
+} = useQuickAccess()
 const { showToast } = useToast()
 const loading = ref(true)
 const set = ref<CoinSetDetail | null>(null)
@@ -408,11 +420,16 @@ const canManageMembership = computed(() => {
   const normalizedType = normalizeCoinSetType(set.value.setType)
   return normalizedType !== 'smart' && normalizedType !== 'agentic'
 })
-const pinDisabled = computed(() => !set.value?.pinned && pinLimitReached.value)
+const unifiedSetPinned = isPinned('coin_set', setId)
+const unifiedSetBusy = isBusy('coin_set', setId)
+const setPinned = computed(() => unifiedSetPinned.value)
+const setPinBusy = computed(() => unifiedSetBusy.value)
+const pinDisabled = computed(() => setPinBusy.value || (!setPinned.value && pinLimitReached.value))
 const pinButtonLabel = computed(() => {
   if (!set.value) return ''
-  if (pinDisabled.value) return 'Pin limit reached (5 sets)'
-  return set.value.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'
+  if (setPinBusy.value) return 'Updating set Quick Access pin'
+  if (!setPinned.value && pinLimitReached.value) return 'Pin limit reached (5 sets)'
+  return setPinned.value ? 'Unpin set from Quick Access' : 'Pin set to Quick Access'
 })
 const canReorderCoins = computed(() => canManageMembership.value && coins.value.length > 1)
 const normalizedSetType = computed(() => set.value ? normalizeCoinSetType(set.value.setType) : null)
@@ -539,7 +556,7 @@ onMounted(async () => {
       traySizeScale.value = Math.min(2.5, Math.max(0.75, parsedScale))
     }
   }
-  await loadSetDetails()
+  await Promise.all([loadSetDetails(), refreshQuickAccess()])
 })
 
 async function loadSetDetails() {
@@ -586,13 +603,14 @@ function openEditModal() {
 
 async function togglePin() {
   if (!set.value || pinDisabled.value) return
-  const nextPinned = !set.value.pinned
+  const nextPinned = !setPinned.value
   try {
-    await setPinned(set.value.id, nextPinned)
-    await loadSetDetails()
-    showToast(nextPinned ? 'Pinned to sidebar' : 'Unpinned', 'success')
+    if (nextPinned) await pinQuickAccessItem('coin_set', set.value.id)
+    else await unpinQuickAccessItem('coin_set', set.value.id)
+    await Promise.all([loadSetDetails(), refreshPinnedSets()])
+    showToast(nextPinned ? 'Pinned to Quick Access' : 'Unpinned', 'success')
   } catch (error) {
-    showToast(getErrorMessage(error, 'Failed to update pin'), 'error')
+    showToast(quickAccessError.value || getErrorMessage(error, 'Failed to update pin'), 'error')
   }
 }
 
@@ -600,7 +618,7 @@ async function updateSet() {
   try {
     await updateSetApi(setId, editForm.value)
     showEditModal.value = false
-    await loadSetDetails()
+    await Promise.all([loadSetDetails(), refreshQuickAccess(), refreshPinnedSets()])
   } catch (error) {
     console.error('Failed to update set:', error)
     alert('Failed to update set')
@@ -674,6 +692,8 @@ async function deleteSet() {
   if (!confirm('Are you sure you want to delete this set?')) return
   try {
     await deleteSetApi(setId)
+    forgetQuickAccess('coin_set', setId)
+    await refreshPinnedSets()
     router.push({ name: 'sets' })
   } catch (error) {
     console.error('Failed to delete set:', error)

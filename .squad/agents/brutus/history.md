@@ -831,3 +831,54 @@ pm run build (worker chunks confirmed under dist/assets/workers/).
 **Validation:** Exact set regressions PASS; exact calendar layering/error-classification regressions PASS; `TestQuickAccessLifecycleCleanupAndPreservation -count=2` PASS; focused Feature 357 handler/service/repository/database suites `-count=2` PASS; `go build ./...` PASS; `go vet ./...` PASS; complete architecture and route/OpenAPI gates PASS; generated OpenAPI JSON hashes match; no `src/web/` diff. Full `go test ./... -count=1` has only the previously reproduced unrelated clock/DST failures in `TestBuildAuctionLotsOutbidPushoverMessage` and `TestAuctionLotClosesIn`.
 
 **Verdict:** APPROVE. Strict lockout is cleared for the reviewed Feature 357 backend phase. No commit or push.
+## 2026-09-10 — Feature 357 Frontend Review: REJECT
+
+Reviewed T061-T094 against spec FR-037-FR-054, plan D13-D19, frozen backend
+commit `4d3b6a06`, and the complete uncommitted `src/web` diff.
+
+### QA additions
+
+- Expanded `api/__tests__/quickAccess.test.ts` to prove both 200 and 201 PUT
+  responses preserve the typed DTO while sending no request body.
+- Expanded `useQuickAccess.test.ts` to prove `clear()` invalidates delayed pin
+  and unpin responses as well as delayed refreshes.
+- Marked only T064, T068, T093, and T094 complete.
+
+### Blocking findings
+
+1. Direct authenticated startup on `/quick-access` issues two GETs: the child
+   page refreshes while items are empty, then App's parent `onMounted` refreshes
+   again. This violates FR-045's one-bootstrap-request behavior and permits
+   same-generation response races.
+2. Calendar and auction numeric deep-link failures do not clear the previously
+   selected target. Switching from a valid `?event=`/`?lot=` to a missing or
+   foreign positive ID can leave the old private drawer/modal visible, violating
+   FR-053.
+3. Auction terminal status changes remove shared pin state but leave the modal's
+   `props.lot.status` unchanged. The pin control therefore remains visible and
+   changes to an unpressed “Pin” action for a now-ineligible target, violating
+   FR-048/FR-050.
+4. Set edits reload set detail but do not refresh Quick Access, so a pinned
+   set's renamed display metadata remains stale. The DTO's set `icon` and
+   `color` are also ignored by the mixed page despite the requested
+   images/icons/metadata rendering.
+5. Pin controls expose disabled state but no accessible busy state; the auction
+   inline pin error is not in an `aria-live`/alert region. Pending/error
+   accessibility is incomplete.
+
+### Gates
+
+- lint: PASS, zero warnings
+- `vue-tsc --build`: PASS
+- Feature 357 focused: 10 files, 93 tests PASS
+- T064-T067 isolation: 2 files, 11 tests PASS in each of two clean runs
+- Full Vitest: 168 files, 1353 tests PASS
+- Asset integrity: 8 tests PASS
+- Design/UI checks: 2 files, 19 tests PASS
+- Production build/PWA generation: PASS
+- `git diff --check`: PASS
+- Scope: no `src/api/` changes; backend task states unchanged
+
+**Verdict: REJECT.** Under Strict Lockout, Aurelia must not revise the rejected
+frontend artifacts. Reassign to Livia or another independent Vue/PWA specialist,
+then return to Brutus for explicit clearance.

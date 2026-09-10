@@ -19,8 +19,10 @@ import CoinForm from '@/components/CoinForm.vue'
 import { getCoin, updateCoin, uploadImage, deleteImage, extractText } from '@/api/client'
 import type { Coin } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 
 const { showAlert } = useDialog()
+const { refresh: refreshQuickAccess } = useQuickAccess()
 const route = useRoute()
 const router = useRouter()
 const loading = ref(true)
@@ -107,6 +109,7 @@ async function handleSubmit() {
       }
     }
 
+    await refreshQuickAccess()
     router.back()
   } catch {
     await showAlert(

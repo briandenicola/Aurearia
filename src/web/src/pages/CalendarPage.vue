@@ -123,11 +123,27 @@
     </div>
 
     <!-- Event Detail Drawer -->
-    <div v-if="selectedEvent" class="fixed inset-0 z-[100] flex items-center justify-center bg-overlay px-4" @click.self="selectedEvent = null">
+    <div v-if="selectedEvent" class="fixed inset-0 z-[100] flex items-center justify-center bg-overlay px-4" @click.self="closeEvent">
       <div class="max-h-[90vh] w-[90%] max-w-[520px] overflow-y-auto rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)]">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="m-0 text-xl text-text-primary">Edit Event</h2>
-          <button class="rounded-sm p-1 text-text-secondary transition-colors hover:text-gold" @click="selectedEvent = null"><X :size="18" /></button>
+          <div class="flex items-center gap-1">
+            <button
+              v-if="selectedEvent.origin === 'manual'"
+              class="inline-flex h-11 w-11 items-center justify-center rounded-sm text-text-secondary transition-colors hover:bg-gold-glow hover:text-gold disabled:opacity-55"
+              :class="{ 'text-gold': eventPinned }"
+              :disabled="eventPinBusy"
+              :aria-busy="eventPinBusy"
+              :aria-label="eventPinBusy ? 'Updating calendar event Quick Access pin' : eventPinLabel"
+              :title="eventPinLabel"
+              :aria-pressed="eventPinned"
+              @click="toggleEventPin"
+            >
+              <PinOff v-if="eventPinned" :size="18" />
+              <Pin v-else :size="18" />
+            </button>
+            <button class="rounded-sm p-1 text-text-secondary transition-colors hover:text-gold" aria-label="Close event" @click="closeEvent"><X :size="18" /></button>
+          </div>
         </div>
         <form @submit.prevent="handleUpdateEvent">
           <div class="form-group">
@@ -157,7 +173,7 @@
             <textarea id="edit-notes" v-model="editEvent.notes" class="form-textarea" rows="3"></textarea>
           </div>
           <div class="mt-5 flex justify-end gap-2">
-            <button type="button" class="btn btn-secondary" @click="selectedEvent = null">Cancel</button>
+            <button type="button" class="btn btn-secondary" @click="closeEvent">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="savingEvent">
               {{ savingEvent ? 'Saving...' : 'Save' }}
             </button>
@@ -238,15 +254,18 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   CirclePlus, Plus, ChevronLeft, ChevronRight, X, Trash2,
-  ExternalLink, Building, Calendar as CalendarIcon
+  ExternalLink, Building, Calendar as CalendarIcon, Pin, PinOff
 } from 'lucide-vue-next'
 import { getCalendar, getCalendarEvent, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, proxyImage } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { usePwa } from '@/composables/usePwa'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import { useQuickAccess } from '@/composables/useQuickAccess'
+import { useToast } from '@/composables/useToast'
 
 interface CalendarLot {
   id: number
@@ -281,6 +300,7 @@ interface CalendarEvent {
   endDate?: string
   url?: string
   notes?: string
+  origin: 'manual' | 'auction'
 }
 
 interface CalendarCell {
@@ -295,6 +315,18 @@ interface CalendarCell {
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const { isPwa } = usePwa()
+const route = useRoute()
+const router = useRouter()
+const { showToast } = useToast()
+const {
+  error: quickAccessError,
+  refresh: refreshQuickAccess,
+  pin: pinQuickAccessItem,
+  unpin: unpinQuickAccessItem,
+  forget: forgetQuickAccess,
+  isPinned,
+  isBusy,
+} = useQuickAccess()
 
 const loading = ref(true)
 const currentYear = ref(new Date().getFullYear())
@@ -310,6 +342,7 @@ const editEvent = ref({ title: '', auctionHouse: '', startDate: '', endDate: '',
 const proxiedImageBySource = ref<Map<string, string>>(new Map())
 const pendingProxyLoads = new Set<string>()
 const objectUrls = new Set<string>()
+let eventRequestId = 0
 
 const newEvent = ref({
   title: '',
@@ -321,6 +354,9 @@ const newEvent = ref({
 })
 
 const monthLabel = computed(() => `${monthNames[currentMonth.value] ?? ''} ${currentYear.value}`)
+const eventPinned = computed(() => selectedEvent.value ? isPinned('calendar_event', selectedEvent.value.id).value : false)
+const eventPinBusy = computed(() => selectedEvent.value ? isBusy('calendar_event', selectedEvent.value.id).value : false)
+const eventPinLabel = computed(() => eventPinned.value ? 'Unpin calendar event from Quick Access' : 'Pin calendar event to Quick Access')
 
 const rangeStart = computed(() => {
   const d = new Date(currentYear.value, currentMonth.value, 1)
@@ -459,7 +495,9 @@ async function handleCreateEvent() {
 async function handleDeleteEvent(id: number) {
   try {
     await deleteCalendarEvent(id)
+    forgetQuickAccess('calendar_event', id)
     events.value = events.value.filter(e => e.id !== id)
+    if (selectedEvent.value?.id === id) closeEvent()
   } catch {
     // silently fail
   }
@@ -503,11 +541,15 @@ function toDateInput(dateStr?: string | null): string {
 }
 
 async function openEvent(eventId: number) {
+  const requestId = ++eventRequestId
+  selectedEvent.value = null
+  linkedLots.value = []
   try {
     const res = await getCalendarEvent(eventId)
+    if (requestId !== eventRequestId) return
     const ev = res.data?.event
     if (!ev) return
-    selectedEvent.value = { id: ev.id, type: 'event', title: ev.title, auctionHouse: ev.auctionHouse, startDate: ev.startDate ?? undefined, endDate: ev.endDate ?? undefined, url: ev.url, notes: ev.notes }
+    selectedEvent.value = { id: ev.id, type: 'event', title: ev.title, auctionHouse: ev.auctionHouse, startDate: ev.startDate ?? undefined, endDate: ev.endDate ?? undefined, url: ev.url, notes: ev.notes, origin: ev.origin }
     linkedLots.value = res.data?.lots ?? []
     editEvent.value = {
       title: ev.title,
@@ -517,7 +559,28 @@ async function openEvent(eventId: number) {
       url: ev.url ?? '',
       notes: ev.notes ?? ''
     }
-  } catch { /* ignore */ }
+  } catch { /* keep the parent calendar clear and usable */ }
+}
+
+function closeEvent() {
+  eventRequestId += 1
+  selectedEvent.value = null
+  linkedLots.value = []
+  if (route.query.event !== undefined) {
+    const { event: _removed, ...rest } = route.query
+    void router.replace({ query: rest })
+  }
+}
+
+async function toggleEventPin() {
+  const event = selectedEvent.value
+  if (!event || event.origin !== 'manual' || eventPinBusy.value) return
+  try {
+    if (eventPinned.value) await unpinQuickAccessItem('calendar_event', event.id)
+    else await pinQuickAccessItem('calendar_event', event.id)
+  } catch {
+    showToast(quickAccessError.value || 'Unable to update Quick Access.', 'error')
+  }
 }
 
 async function handleUpdateEvent() {
@@ -533,7 +596,8 @@ async function handleUpdateEvent() {
       notes: editEvent.value.notes.trim()
     }
     await updateCalendarEvent(selectedEvent.value.id, data)
-    selectedEvent.value = null
+    await refreshQuickAccess()
+    closeEvent()
     await loadCalendar()
   } finally {
     savingEvent.value = false
@@ -541,8 +605,22 @@ async function handleUpdateEvent() {
 }
 
 watch([currentYear, currentMonth], () => loadCalendar())
+watch(() => route.query.event, (rawEventId) => {
+  const eventId = Number(rawEventId)
+  if (Number.isInteger(eventId) && eventId > 0) {
+    void openEvent(eventId)
+  } else {
+    eventRequestId += 1
+    selectedEvent.value = null
+    linkedLots.value = []
+  }
+})
 
-onMounted(loadCalendar)
+onMounted(() => {
+  void loadCalendar()
+  const eventId = Number(route.query.event)
+  if (Number.isInteger(eventId) && eventId > 0) void openEvent(eventId)
+})
 
 onBeforeUnmount(() => {
   for (const objectUrl of objectUrls) {

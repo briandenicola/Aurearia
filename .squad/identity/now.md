@@ -1,39 +1,43 @@
 ---
-updated_at: 2026-09-10T13:00:00Z
-focus_area: Unified Quick Access Pins — Backend Specification and Design
+updated_at: 2026-09-10T13:57:20Z
+focus_area: Unified Quick Access Pins — Vue/TypeScript Frontend Phase
 active_issues:
-  - Backend implementation pending against specs/357-unified-quick-access-pins
-handoff_commit: none
+  - Frontend implementation pending against backend commit 4d3b6a06 and spec FR-037-FR-054
+handoff_commit: 4d3b6a06cf4f4d8602e746d9591775e17e2a5268
 ---
 
 # What We're Focused On
 
-**Unified Quick Access Pins — Backend Phase**
+**Unified Quick Access Pins — Frontend Phase**
 
 ## Current Status
 
-Specification/design and before-work architecture review are complete in
-`specs/357-unified-quick-access-pins/`. Backend implementation is approved
-subject to spec §4 (FR-001-FR-036) and plan D1-D12. Frontend work is deferred
-and `src/web/` is out of scope.
+Backend commit `4d3b6a06` is complete. The repository owner has explicitly
+authorized the Vue/TypeScript phase. The active spec, plan, and tasks now
+reconcile that authorization under Constitution §0 without changing backend
+FR-001-FR-036, D1-D12, completed backend tasks, or any Go file.
 
 ### Current Contract
 
-- One authoritative `quick_access_pins` polymorphic table.
-- Types: `coin`, `coin_set`, `auction_lot`, `calendar_event`.
-- Mixed authenticated list, newest pin first.
-- Wishlist purchase and watching/bidding transitions preserve identity/time.
-- Sold coins, terminal lots, and deleted targets lose pins.
-- Existing `CoinSet.PinnedAt` remains a synchronized compatibility mirror;
-  the five-set cap remains set-specific.
-- Manual calendar events require an explicit origin discriminator.
-- Required API: `GET /quick-access`, `PUT/DELETE /quick-access/:type/:id`.
+- Consume the frozen four-variant DTO through strict frontend types and a
+  dedicated endpoint module.
+- Use one lifecycle-managed `useQuickAccess` singleton: no polling, no
+  localStorage, and stale in-flight responses invalidated by `clear()`.
+- Add `/quick-access` plus one top-level reorderable sidebar item.
+- Preserve existing pinned Coin Sets under the Sets submenu.
+- Add eligible controls to coin header, Set detail, auction-lot modal, and
+  manual calendar-event drawer.
+- Canonical links: `/coin/:id`, `/sets/:id`, `/auctions?lot=:id`,
+  `/calendar?event=:id`.
+- Reconcile shared state after purchase/status/delete workflows; clear it on
+  logout and account switch.
 
 ### Next Phase
 
-Cassius implements Go backend tasks in `tasks.md`; Brutus owns targeted
-contract/lifecycle verification; Maximus performs the post-implementation
-architecture gate. No frontend work starts in this phase.
+Aurelia owns the frontend implementation tasks through T092 under `src/web/`
+only. Brutus owns T064/T068/T093-T094 contract and regression verification.
+Maximus owns T095-T096 architecture and release review. Any `src/api/` diff
+blocks this phase.
 
 ## Previous Focus
 

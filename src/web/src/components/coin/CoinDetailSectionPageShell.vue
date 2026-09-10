@@ -82,6 +82,7 @@ import { duplicateCoin, sellCoin } from '@/api/client'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import SellModal from '@/components/SellModal.vue'
 import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 
 defineProps<{
   sectionTitle: string
@@ -100,6 +101,7 @@ const swipeEnabled = computed(() => !showSellModal.value)
 useCoinDetailSwipeNav(containerRef, { enabled: swipeEnabled })
 const router = useRouter()
 const { showAlert } = useDialog()
+const { forget: forgetQuickAccess } = useQuickAccess()
 
 async function handleDuplicate() {
   if (!coin.value || duplicating.value) return
@@ -118,6 +120,7 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   if (!coin.value) return
   try {
     await sellCoin(coin.value.id, soldPrice, soldTo)
+    forgetQuickAccess('coin', coin.value.id)
     showSellModal.value = false
     await router.push('/sold')
   } catch {
