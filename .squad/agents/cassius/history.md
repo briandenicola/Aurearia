@@ -383,3 +383,12 @@ When a CSP violation names a directive, check whether *sibling* directives that 
 **Validation**: `go build ./...`, `go vet ./...`, `go test ./...` all green from `src/api` (11 packages, no regressions). Targeted run of `TestContentSecurityPolicy*` (5 tests) and the two static-routing tests pass individually.
 
 **Scope discipline**: No frontend files touched, no ADR touched. `appCSP` diff is empty (only additive `workerScriptCSP` + the routing switch). Committed to `beta` only.
+## 2026-09-10 — Feature 357 Unified Quick Access Pins Backend
+
+- Added the authoritative polymorphic `QuickAccessPin` store for `coin`, `coin_set`, `auction_lot`, and `calendar_event`, with owner-scoped hydration DTOs and authenticated GET/PUT/DELETE routes.
+- Preserved legacy Coin Set behavior by backfilling `CoinSet.PinnedAt`, transactionally mirroring it after migration, retaining original timestamps, preserving over-cap legacy data, and enforcing the existing five-set message for new pins.
+- Lifecycle cleanup must cover every sibling mutation path, not just the new endpoint: generic/dedicated/bulk coin mutations, manual auction updates/deletes, direct and scheduled provider sync, set deletion, and calendar deletion.
+- Architecture tests reject new GORM imports in ordinary service files. A repository-owned `Transaction` wrapper allows services to coordinate cross-repository atomic work without exposing `*gorm.DB`.
+- SQLite `BEFORE DELETE ... RAISE(ABORT)` triggers are effective regression fixtures for proving target mutations roll back when pin cleanup fails.
+- GORM uses separate Query and Row callbacks; bounded hydration query-count tests must observe both to count `Find` and `Scan` operations accurately.
+- Windows clock resolution can return identical timestamps for immediate unpin/re-pin operations; timing assertions need a small delay while identity assertions should also verify the new pin row ID.

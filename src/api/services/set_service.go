@@ -21,11 +21,29 @@ var (
 	ErrPinLimitReached = errors.New("you can pin up to 5 sets")
 )
 
+type SetValidationError struct {
+	Message string
+}
+
+func (e *SetValidationError) Error() string {
+	return e.Message
+}
+
+func newSetValidationError(message string) error {
+	return &SetValidationError{Message: message}
+}
+
 // SetService handles business logic for coin sets.
 type SetService struct {
-	repo      *repository.SetRepository
-	tagRepo   *repository.TagRepository
-	notifRepo *repository.NotificationRepository
+	repo        *repository.SetRepository
+	tagRepo     *repository.TagRepository
+	notifRepo   *repository.NotificationRepository
+	quickAccess *QuickAccessService
+}
+
+func (s *SetService) WithQuickAccessSupport(quickAccess *QuickAccessService) *SetService {
+	s.quickAccess = quickAccess
+	return s
 }
 
 // NewSetService creates a new SetService.
@@ -313,10 +331,10 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 	if name, ok := updates["name"].(string); ok {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			return nil, fmt.Errorf("name cannot be empty")
+			return nil, newSetValidationError("name cannot be empty")
 		}
 		if len(name) > maxSetNameLength {
-			return nil, fmt.Errorf("name must be %d characters or less", maxSetNameLength)
+			return nil, newSetValidationError(fmt.Sprintf("name must be %d characters or less", maxSetNameLength))
 		}
 		// Check uniqueness (excluding current set)
 		exists, err := s.repo.ExistsByName(userID, name)
@@ -324,14 +342,14 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 			return nil, err
 		}
 		if exists && strings.ToLower(name) != strings.ToLower(set.Name) {
-			return nil, fmt.Errorf("a set with this name already exists")
+			return nil, newSetValidationError("a set with this name already exists")
 		}
 		updates["name"] = name
 	}
 	if setTypeRaw, ok := updates["setType"].(string); ok {
 		normalizedType, err := normalizeSetType(setTypeRaw)
 		if err != nil {
-			return nil, fmt.Errorf("invalid set type")
+			return nil, newSetValidationError("invalid set type")
 		}
 		updates["setType"] = normalizedType
 		if normalizedType != string(models.CoinSetTypeAgentic) && set.CreationMode == models.CoinSetCreationModeDynamic {
@@ -341,38 +359,59 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 	if modeRaw, ok := updates["creationMode"].(string); ok {
 		mode, err := normalizeCreationMode(modeRaw)
 		if err != nil {
-			return nil, fmt.Errorf("invalid creation mode")
+			return nil, newSetValidationError("invalid creation mode")
 		}
 		targetType := set.SetType
 		if updatedType, ok := updates["setType"].(string); ok {
 			targetType = models.CoinSetType(updatedType)
 		}
 		if mode == models.CoinSetCreationModeDynamic && targetType != models.CoinSetTypeAgentic {
-			return nil, fmt.Errorf("dynamic creation mode is only valid for agentic sets")
+			return nil, newSetValidationError("dynamic creation mode is only valid for agentic sets")
 		}
 		updates["creationMode"] = string(mode)
 	}
 
-	if pinnedRaw, exists := updates["pinned"]; exists {
+	pinnedRaw, pinRequested := updates["pinned"]
+	if pinRequested {
 		delete(updates, "pinned")
-		if pinned, ok := pinnedRaw.(bool); ok {
-			if pinned {
-				if set.PinnedAt == nil {
-					count, err := s.repo.CountPinned(userID)
-					if err != nil {
-						return nil, err
+		if s.quickAccess == nil {
+			if pinned, ok := pinnedRaw.(bool); ok {
+				if pinned {
+					if set.PinnedAt == nil {
+						count, err := s.repo.CountPinned(userID)
+						if err != nil {
+							return nil, err
+						}
+						if count >= maxPinnedSets {
+							return nil, ErrPinLimitReached
+						}
+						now := time.Now().UTC()
+						updates["pinned_at"] = &now
 					}
-					if count >= maxPinnedSets {
-						return nil, ErrPinLimitReached
-					}
-					now := time.Now().UTC()
-					updates["pinned_at"] = &now
+				} else {
+					updates["pinned_at"] = nil
 				}
-				// Already pinned: no-op so the original pinnedAt (and pin order) is preserved.
-			} else {
-				updates["pinned_at"] = nil
 			}
 		}
+	}
+
+	if s.quickAccess != nil {
+		err := s.repo.RunInTransaction(func(tx *repository.Transaction) error {
+			txRepo := s.repo.WithTransaction(tx)
+			if len(updates) > 0 {
+				if err := txRepo.Update(set, updates); err != nil {
+					return err
+				}
+			}
+			if pinned, ok := pinnedRaw.(bool); pinRequested && ok {
+				return s.quickAccess.SetCoinSetPinnedInTx(tx, setID, userID, pinned)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return s.repo.GetByID(setID, userID)
 	}
 
 	if err := s.repo.Update(set, updates); err != nil {
@@ -384,7 +423,15 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 
 // DeleteSet deletes a set and its memberships.
 func (s *SetService) DeleteSet(setID, userID uint) error {
-	return s.repo.Delete(setID, userID)
+	if s.quickAccess == nil {
+		return s.repo.Delete(setID, userID)
+	}
+	return s.repo.RunInTransaction(func(tx *repository.Transaction) error {
+		if err := s.quickAccess.RemoveTargetInTx(tx, userID, models.QuickAccessTargetCoinSet, setID); err != nil {
+			return err
+		}
+		return s.repo.WithTransaction(tx).DeleteInTx(setID, userID)
+	})
 }
 
 // AddCoinToSet adds a coin to a set with validation.

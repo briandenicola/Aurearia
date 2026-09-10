@@ -592,74 +592,74 @@ func (r *CoinRepository) UpdateStorageLocationID(coin *models.Coin, storageLocat
 func (r *CoinRepository) Delete(id uint, userID uint) (int64, error) {
 	var rowsAffected int64
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Scopes(OwnedByID(id, userID)).Delete(&models.Coin{})
-		if result.Error != nil {
-			return result.Error
-		}
-		rowsAffected = result.RowsAffected
-		if rowsAffected == 0 {
-			return nil
-		}
-		if err := tx.Where("coin_id = ?", id).Delete(&models.CoinImage{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id = ?", id).Delete(&models.CoinJournal{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id = ?", id).Delete(&models.CoinValueHistory{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id = ?", id).Delete(&models.CoinComment{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id = ?", id).Delete(&models.AvailabilityResult{}).Error; err != nil {
-			return err
-		}
-		// Nullify auction lot references (lot survives, just unlinked)
-		if err := tx.Model(&models.AuctionLot{}).Where("coin_id = ?", id).Update("coin_id", nil).Error; err != nil {
-			return err
-		}
-		return nil
+		var err error
+		rowsAffected, err = r.WithTx(tx).DeleteInTx(id, userID)
+		return err
 	})
 	return rowsAffected, err
+}
+
+func (r *CoinRepository) DeleteInTx(id uint, userID uint) (int64, error) {
+	result := r.db.Scopes(OwnedByID(id, userID)).Delete(&models.Coin{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return 0, nil
+	}
+	if err := r.db.Where("coin_id = ?", id).Delete(&models.CoinImage{}).Error; err != nil {
+		return 0, err
+	}
+	if err := r.db.Where("coin_id = ?", id).Delete(&models.CoinJournal{}).Error; err != nil {
+		return 0, err
+	}
+	if err := r.db.Where("coin_id = ?", id).Delete(&models.CoinValueHistory{}).Error; err != nil {
+		return 0, err
+	}
+	if err := r.db.Where("coin_id = ?", id).Delete(&models.CoinComment{}).Error; err != nil {
+		return 0, err
+	}
+	if err := r.db.Where("coin_id = ?", id).Delete(&models.AvailabilityResult{}).Error; err != nil {
+		return 0, err
+	}
+	if err := r.db.Model(&models.AuctionLot{}).Where("coin_id = ?", id).Update("coin_id", nil).Error; err != nil {
+		return 0, err
+	}
+	return result.RowsAffected, nil
 }
 
 // BulkDelete removes multiple coins and all associated data in a single transaction.
 func (r *CoinRepository) BulkDelete(coinIDs []uint, userID uint) (int64, error) {
 	var rowsAffected int64
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Where("id IN ? AND user_id = ?", coinIDs, userID).Delete(&models.Coin{})
-		if result.Error != nil {
-			return result.Error
-		}
-		rowsAffected = result.RowsAffected
-		if rowsAffected == 0 {
-			return nil
-		}
-		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinImage{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinJournal{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinValueHistory{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinComment{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.AvailabilityResult{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinTag{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&models.AuctionLot{}).Where("coin_id IN ?", coinIDs).Update("coin_id", nil).Error; err != nil {
-			return err
-		}
-		return nil
+		var err error
+		rowsAffected, err = r.WithTx(tx).BulkDeleteInTx(coinIDs, userID)
+		return err
 	})
 	return rowsAffected, err
+}
+
+func (r *CoinRepository) BulkDeleteInTx(coinIDs []uint, userID uint) (int64, error) {
+	var ownedIDs []uint
+	if err := r.db.Model(&models.Coin{}).Where("id IN ? AND user_id = ?", coinIDs, userID).Pluck("id", &ownedIDs).Error; err != nil {
+		return 0, err
+	}
+	if len(ownedIDs) == 0 {
+		return 0, nil
+	}
+	result := r.db.Where("id IN ? AND user_id = ?", ownedIDs, userID).Delete(&models.Coin{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	for _, model := range []interface{}{&models.CoinImage{}, &models.CoinJournal{}, &models.CoinValueHistory{}, &models.CoinComment{}, &models.AvailabilityResult{}, &models.CoinTag{}} {
+		if err := r.db.Where("coin_id IN ?", ownedIDs).Delete(model).Error; err != nil {
+			return 0, err
+		}
+	}
+	if err := r.db.Model(&models.AuctionLot{}).Where("coin_id IN ?", ownedIDs).Update("coin_id", nil).Error; err != nil {
+		return 0, err
+	}
+	return result.RowsAffected, nil
 }
 
 // BulkMarkSold marks multiple coins as sold in a single transaction.
@@ -671,6 +671,14 @@ func (r *CoinRepository) BulkMarkSold(coinIDs []uint, userID uint) (int64, error
 			"sold_date": time.Now(),
 		})
 	return result.RowsAffected, result.Error
+}
+
+func (r *CoinRepository) OwnedActiveIDs(coinIDs []uint, userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&models.Coin{}).
+		Where("id IN ? AND user_id = ? AND is_sold = ?", coinIDs, userID, false).
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 // BulkAssignLocation assigns a storage location to multiple coins. A nil storageLocationID clears the location.

@@ -61,6 +61,7 @@ type CoinService struct {
 	catalogRegistryRepo *repository.CatalogRegistryRepository
 	settingsSvc         *SettingsService
 	reminderRepo        *repository.PurchaseReminderRepository
+	quickAccess         *QuickAccessService
 }
 
 type preparedCoinCreator struct {
@@ -118,6 +119,11 @@ func (s *CoinService) WithSettingsSupport(settingsSvc *SettingsService) *CoinSer
 // transitions automatically cancel any active purchase reminder (FR-011, FR-012).
 func (s *CoinService) WithReminderSupport(reminderRepo *repository.PurchaseReminderRepository) *CoinService {
 	s.reminderRepo = reminderRepo
+	return s
+}
+
+func (s *CoinService) WithQuickAccessSupport(quickAccess *QuickAccessService) *CoinService {
+	s.quickAccess = quickAccess
 	return s
 }
 
@@ -223,6 +229,7 @@ func (s *CoinService) UpdateCoinWithFields(existing *models.Coin, updates *model
 func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, updateStorageLocation bool) error {
 	oldValue := existing.CurrentValue
 	wasWishlist := existing.IsWishlist
+	wasSold := existing.IsSold
 	if updateStorageLocation {
 		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
 			return err
@@ -274,6 +281,13 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 			(updateFields == nil || containsString(updateFields, "IsWishlist"))
 		if wishlistExiting && s.reminderRepo != nil {
 			if err := s.reminderRepo.WithTx(tx).CancelActiveForCoin(existing.ID, userID); err != nil {
+				return err
+			}
+		}
+		soldEntering := !wasSold && updates.IsSold &&
+			(updateFields == nil || containsString(updateFields, "IsSold"))
+		if soldEntering && s.quickAccess != nil {
+			if err := s.quickAccess.RemoveTargetInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetCoin, existing.ID); err != nil {
 				return err
 			}
 		}
@@ -368,7 +382,12 @@ func (s *CoinService) DeleteCoin(id, userID uint) (int64, error) {
 		}
 		txRepo := s.repo.WithTx(tx)
 		var err error
-		rows, err = txRepo.Delete(id, userID)
+		if s.quickAccess != nil {
+			if err := s.quickAccess.RemoveTargetInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetCoin, id); err != nil {
+				return err
+			}
+		}
+		rows, err = txRepo.DeleteInTx(id, userID)
 		if err != nil {
 			return err
 		}
@@ -430,8 +449,50 @@ func (s *CoinService) SellCoin(coin *models.Coin, updates map[string]interface{}
 		if err := txRepo.UpdateFields(coin, updates); err != nil {
 			return err
 		}
+		if s.quickAccess != nil {
+			if err := s.quickAccess.RemoveTargetInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetCoin, coin.ID); err != nil {
+				return err
+			}
+		}
 		return txRepo.RecordValueSnapshot(userID)
 	})
+}
+
+func (s *CoinService) BulkDeleteCoins(coinIDs []uint, userID uint) (int64, error) {
+	var affected int64
+	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		var err error
+		affected, err = txRepo.BulkDeleteInTx(coinIDs, userID)
+		if err != nil {
+			return err
+		}
+		if s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetsInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetCoin, coinIDs)
+		}
+		return nil
+	})
+	return affected, err
+}
+
+func (s *CoinService) BulkMarkSold(coinIDs []uint, userID uint) (int64, error) {
+	var affected int64
+	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		activeIDs, err := txRepo.OwnedActiveIDs(coinIDs, userID)
+		if err != nil {
+			return err
+		}
+		affected, err = txRepo.BulkMarkSold(activeIDs, userID)
+		if err != nil {
+			return err
+		}
+		if s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetsInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetCoin, activeIDs)
+		}
+		return nil
+	})
+	return affected, err
 }
 
 func (s *CoinService) validateStorageLocation(storageLocationID *uint, userID uint) error {

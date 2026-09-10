@@ -32,6 +32,24 @@ func NewSetRepository(db *gorm.DB) *SetRepository {
 	return &SetRepository{db: db}
 }
 
+func (r *SetRepository) WithTx(tx *gorm.DB) *SetRepository {
+	return &SetRepository{db: tx}
+}
+
+func (r *SetRepository) Transaction(fn func(tx *gorm.DB) error) error {
+	return r.db.Transaction(fn)
+}
+
+func (r *SetRepository) RunInTransaction(fn func(tx *Transaction) error) error {
+	return r.db.Transaction(func(db *gorm.DB) error {
+		return fn(NewTransaction(db))
+	})
+}
+
+func (r *SetRepository) WithTransaction(tx *Transaction) *SetRepository {
+	return &SetRepository{db: tx.db}
+}
+
 // List returns all sets belonging to the given user.
 func (r *SetRepository) List(userID uint) ([]models.CoinSet, error) {
 	var sets []models.CoinSet
@@ -77,19 +95,19 @@ func (r *SetRepository) Update(set *models.CoinSet, updates map[string]interface
 // Delete removes a set and its memberships.
 func (r *SetRepository) Delete(id, userID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete memberships first
-		if err := tx.Where("set_id = ?", id).Delete(&models.CoinSetMembership{}).Error; err != nil {
-			return err
-		}
-		result := tx.Scopes(OwnedByID(id, userID)).Delete(&models.CoinSet{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
-		return nil
+		return r.WithTx(tx).DeleteInTx(id, userID)
 	})
+}
+
+func (r *SetRepository) DeleteInTx(id, userID uint) error {
+	var set models.CoinSet
+	if err := r.db.Scopes(OwnedByID(id, userID)).Select("id").First(&set).Error; err != nil {
+		return err
+	}
+	if err := r.db.Where("set_id = ?", id).Delete(&models.CoinSetMembership{}).Error; err != nil {
+		return err
+	}
+	return r.db.Scopes(OwnedByID(id, userID)).Delete(&models.CoinSet{}).Error
 }
 
 // AddCoinToSet adds a coin to a set. Agentic sets require a target ID assignment.

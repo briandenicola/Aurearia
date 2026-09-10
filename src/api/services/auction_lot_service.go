@@ -31,6 +31,12 @@ type AuctionLotService struct {
 	imageService         *ImageService
 	marketSignalAgent    MarketSignalAgent
 	marketSignalSettings *SettingsService
+	quickAccess          *QuickAccessService
+}
+
+func (s *AuctionLotService) WithQuickAccessSupport(quickAccess *QuickAccessService) *AuctionLotService {
+	s.quickAccess = quickAccess
+	return s
 }
 
 // NewAuctionLotService creates a new AuctionLotService.
@@ -67,18 +73,89 @@ var validAuctionStatuses = map[models.AuctionLotStatus]bool{
 // since only the user (or a synced provider signal, applied separately by the watchlist
 // sync path) actually knows a lot's real-world outcome.
 func (s *AuctionLotService) UpdateStatus(id, userID uint, newStatus models.AuctionLotStatus) error {
-	lot, err := s.repo.GetByID(id, userID)
-	if err != nil {
-		return ErrAuctionLotNotFound
-	}
+	return s.UpdateStatusWithBids(id, userID, newStatus, nil, nil)
+}
 
+func (s *AuctionLotService) UpdateStatusWithBids(id, userID uint, newStatus models.AuctionLotStatus, maxBid, winningBid *float64) error {
 	if !validAuctionStatuses[newStatus] {
 		return ErrInvalidStatus
 	}
+	return s.repo.Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		lot, err := txRepo.GetByID(id, userID)
+		if err != nil {
+			return ErrAuctionLotNotFound
+		}
+		updates := map[string]interface{}{
+			"status":        newStatus,
+			"status_source": string(models.AuctionLotStatusSourceManual),
+		}
+		if maxBid != nil {
+			updates["max_bid"] = *maxBid
+		}
+		if winningBid != nil && newStatus == models.AuctionStatusWon {
+			updates["winning_bid"] = *winningBid
+		}
+		if err := txRepo.UpdateFields(lot, updates); err != nil {
+			return err
+		}
+		if !auctionLotIsQuickAccessEligible(newStatus) && s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetAuctionLot, id)
+		}
+		return nil
+	})
+}
 
-	return s.repo.UpdateFields(lot, map[string]interface{}{
-		"status":        newStatus,
-		"status_source": string(models.AuctionLotStatusSourceManual),
+func (s *AuctionLotService) Delete(id, userID uint) (int64, error) {
+	var rows int64
+	err := s.repo.Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		if _, err := txRepo.GetByID(id, userID); err != nil {
+			return ErrAuctionLotNotFound
+		}
+
+		if s.quickAccess != nil {
+			if err := s.quickAccess.RemoveTargetInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetAuctionLot, id); err != nil {
+				return err
+			}
+		}
+		var err error
+		rows, err = txRepo.DeleteInTx(id, userID)
+		return err
+	})
+	return rows, err
+}
+
+func (s *AuctionLotService) UpsertSyncedLot(lot *models.AuctionLot) (repository.AuctionLotUpsertResult, error) {
+	var result repository.AuctionLotUpsertResult
+	err := s.repo.Transaction(func(tx *gorm.DB) error {
+		var err error
+		result, err = s.repo.WithTx(tx).UpsertInTx(lot, true)
+		if err != nil {
+			return err
+		}
+		if result.PreviousStatus != "" && !auctionLotIsQuickAccessEligible(lot.Status) && s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetInTx(repository.NewTransaction(tx), lot.UserID, models.QuickAccessTargetAuctionLot, result.LotID)
+		}
+		return nil
+	})
+	return result, err
+}
+
+func (s *AuctionLotService) MarkPastAuctionsPassed(userID uint, now time.Time) error {
+	return s.repo.Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		ids, err := txRepo.ListPastWatchingIDs(userID, now)
+		if err != nil {
+			return err
+		}
+		if err := txRepo.MarkIDsPassed(ids, userID); err != nil {
+			return err
+		}
+		if s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetsInTx(repository.NewTransaction(tx), userID, models.QuickAccessTargetAuctionLot, ids)
+		}
+		return nil
 	})
 }
 

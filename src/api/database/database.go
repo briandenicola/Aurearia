@@ -84,9 +84,12 @@ func Connect(dbPath string) {
 	// optional columns (343-nomisma-mint-authority-linking). SQLite
 	// AutoMigrate adds them additively with no backfill and no destructive
 	// migration - every existing row simply starts unlinked.
-	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.Shipment{}, &models.ShipmentEvent{}, &models.AuctionLot{}, &models.AvailabilityCycle{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.CoinRecommendation{}, &models.RecommendationFeedback{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}, &models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{}, &models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{}, &models.PurchaseReminder{})
+	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.Shipment{}, &models.ShipmentEvent{}, &models.AuctionLot{}, &models.AvailabilityCycle{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.CoinRecommendation{}, &models.RecommendationFeedback{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.QuickAccessPin{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}, &models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{}, &models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{}, &models.PurchaseReminder{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
+	}
+	if err := migrateQuickAccessPins(DB); err != nil {
+		log.Fatalf("Failed to migrate quick access pins: %v", err)
 	}
 	// 353-wishlist-availability-run-observability: AvailabilityCycle is a brand-new table and
 	// AvailabilityRun.CycleID is a brand-new nullable column. This AutoMigrate call is the
@@ -154,6 +157,74 @@ func Connect(dbPath string) {
 	}
 
 	log.Println("Database connected and migrated")
+}
+
+func migrateQuickAccessPins(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(
+			"UPDATE auction_events SET origin = ? WHERE id IN (SELECT DISTINCT event_id FROM auction_lots WHERE event_id IS NOT NULL)",
+			models.AuctionEventOriginAuction,
+		).Error; err != nil {
+			return fmt.Errorf("backfill auction event origins: %w", err)
+		}
+		if err := tx.Exec(
+			"UPDATE auction_events SET origin = ? WHERE origin IS NULL OR origin = '' OR origin NOT IN (?, ?)",
+			models.AuctionEventOriginManual,
+			models.AuctionEventOriginManual,
+			models.AuctionEventOriginAuction,
+		).Error; err != nil {
+			return fmt.Errorf("backfill manual event origins: %w", err)
+		}
+		if err := tx.Exec(`
+			INSERT INTO quick_access_pins (user_id, target_type, target_id, pinned_at, created_at)
+			SELECT user_id, ?, id, pinned_at, pinned_at
+			FROM coin_sets
+			WHERE pinned_at IS NOT NULL
+			  AND NOT EXISTS (
+				SELECT 1 FROM quick_access_pins
+				WHERE quick_access_pins.user_id = coin_sets.user_id
+				  AND quick_access_pins.target_type = ?
+				  AND quick_access_pins.target_id = coin_sets.id
+			  )`,
+			models.QuickAccessTargetCoinSet,
+			models.QuickAccessTargetCoinSet,
+		).Error; err != nil {
+			return fmt.Errorf("backfill coin set pins: %w", err)
+		}
+		if err := tx.Exec(`
+			UPDATE coin_sets
+			SET pinned_at = (
+				SELECT pinned_at FROM quick_access_pins
+				WHERE quick_access_pins.user_id = coin_sets.user_id
+				  AND quick_access_pins.target_type = ?
+				  AND quick_access_pins.target_id = coin_sets.id
+			)
+			WHERE EXISTS (
+				SELECT 1 FROM quick_access_pins
+				WHERE quick_access_pins.user_id = coin_sets.user_id
+				  AND quick_access_pins.target_type = ?
+				  AND quick_access_pins.target_id = coin_sets.id
+			)`,
+			models.QuickAccessTargetCoinSet,
+			models.QuickAccessTargetCoinSet,
+		).Error; err != nil {
+			return fmt.Errorf("reconcile pinned set mirrors: %w", err)
+		}
+		if err := tx.Exec(`
+			UPDATE coin_sets SET pinned_at = NULL
+			WHERE pinned_at IS NOT NULL
+			  AND NOT EXISTS (
+				SELECT 1 FROM quick_access_pins
+				WHERE quick_access_pins.user_id = coin_sets.user_id
+				  AND quick_access_pins.target_type = ?
+				  AND quick_access_pins.target_id = coin_sets.id
+			)`,
+			models.QuickAccessTargetCoinSet,
+		).Error; err != nil {
+			return fmt.Errorf("clear stale pinned set mirrors: %w", err)
+		}
+		return nil
+	})
 }
 
 // logLegacyAvailabilityRunCount logs an informational (non-fatal) count of pre-existing legacy

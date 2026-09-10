@@ -1,11 +1,41 @@
 ---
-updated_at: 2026-09-01T10:55:49Z
-focus_area: Pinned Sets Implementation (Approved, Ready for Merge)
-active_issues: []
-handoff_commit: pending
+updated_at: 2026-09-10T13:00:00Z
+focus_area: Unified Quick Access Pins — Backend Specification and Design
+active_issues:
+  - Backend implementation pending against specs/357-unified-quick-access-pins
+handoff_commit: none
 ---
 
 # What We're Focused On
+
+**Unified Quick Access Pins — Backend Phase**
+
+## Current Status
+
+Specification/design and before-work architecture review are complete in
+`specs/357-unified-quick-access-pins/`. Backend implementation is approved
+subject to spec §4 (FR-001-FR-036) and plan D1-D12. Frontend work is deferred
+and `src/web/` is out of scope.
+
+### Current Contract
+
+- One authoritative `quick_access_pins` polymorphic table.
+- Types: `coin`, `coin_set`, `auction_lot`, `calendar_event`.
+- Mixed authenticated list, newest pin first.
+- Wishlist purchase and watching/bidding transitions preserve identity/time.
+- Sold coins, terminal lots, and deleted targets lose pins.
+- Existing `CoinSet.PinnedAt` remains a synchronized compatibility mirror;
+  the five-set cap remains set-specific.
+- Manual calendar events require an explicit origin discriminator.
+- Required API: `GET /quick-access`, `PUT/DELETE /quick-access/:type/:id`.
+
+### Next Phase
+
+Cassius implements Go backend tasks in `tasks.md`; Brutus owns targeted
+contract/lifecycle verification; Maximus performs the post-implementation
+architecture gate. No frontend work starts in this phase.
+
+## Previous Focus
 
 **Pinned Sets in the Sidebar Sets Submenu (Approved, Ready for Merge)**
 
