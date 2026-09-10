@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AuctionsPage from '../AuctionsPage.vue'
 import { getAuctionLot, getAuctionLotCounts, getAuctionLots, listAlerts, listReminders, syncNumisBidsWatchlist } from '@/api/client'
@@ -55,8 +56,12 @@ vi.mock('@/composables/usePwa', () => ({
   usePwa: () => ({ isPwa: false }),
 }))
 
+vi.mock('@/composables/useQuickAccess', () => ({
+  useQuickAccess: () => ({ refresh: vi.fn(async () => undefined) }),
+}))
+
 // Mutable so a test can arrive on /auctions?lot=<id>, the deep link auction notifications use.
-const route = { query: {} as Record<string, string> }
+const route = reactive({ query: {} as Record<string, string> })
 const routerReplace = vi.fn()
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -131,6 +136,24 @@ describe('AuctionsPage', () => {
       await flushPromises()
 
       expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).exists()).toBe(false)
+    })
+
+    it('clears the previous lot before a new numeric deep link fails', async () => {
+      route.query = { lot: '42' }
+      const wrapper = mountPage()
+      await flushPromises()
+      expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).props('lot')).toMatchObject({ id: 42 })
+
+      vi.mocked(getAuctionLot).mockImplementation(async (id) => {
+        if (id === 999) throw new Error('not found')
+        return { data: makeLot({ id: 42, title: 'Julia Domna AR Denarius' }) } as Awaited<ReturnType<typeof getAuctionLot>>
+      })
+      route.query.lot = '999'
+      await vi.waitFor(() => expect(getAuctionLot).toHaveBeenCalledWith(999))
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).exists()).toBe(false)
+      expect(routerReplace).not.toHaveBeenCalled()
     })
 
     it('ignores a malformed lot parameter', async () => {

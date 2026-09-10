@@ -1,12 +1,12 @@
 ---
-description: "Backend task list for feature 357 — Unified Quick Access Pins"
+description: "Backend and frontend task list for feature 357 — Unified Quick Access Pins"
 ---
 
 # Tasks: Unified Quick Access Pins
 
 **Input**: `specs/357-unified-quick-access-pins/spec.md`, `plan.md`
 **Tests**: Required and tests-first under Constitution §17/§21.
-**Scope lock**: Go backend and generated API documentation only. Do not modify any file under `src/web/`.
+**Scope lock**: Phases 1-10 record the completed backend phase and remain unchanged. Phases 11-17 authorize Vue/TypeScript frontend work only against backend commit `4d3b6a06`; do not modify `src/api/`.
 
 ## Format
 
@@ -187,4 +187,107 @@ description: "Backend task list for feature 357 — Unified Quick Access Pins"
 
 ## Deferred Frontend Handoff
 
-A separate future feature/task set must implement controls and mixed-list UI under `src/web/`. It must consume the exact DTO in spec §4.2 and must not reintroduce resource-specific pin persistence.
+Superseded by the repository owner's explicit frontend authorization on 2026-09-10. The authorized work is defined below; backend tasks and completion states above remain historical and MUST NOT be reopened.
+
+---
+
+## Phase 11: Frontend Contract and Baseline (BLOCKING)
+
+- [x] **T061** [X] [Aurelia] Record a clean frontend baseline from `src/web`: `npm run type-check`, `npm test`, `npm run lint`, and `npm run build`; do not edit source during this task.
+- [x] **T062** [P] [US6] [Aurelia] Add `src/web/src/types/quick-access.ts` with exact target literals, payload DTOs, and a four-variant discriminated union matching spec §4.2 / FR-037; re-export it from `types/index.ts`.
+- [x] **T063** [P] [US6, US7] [Aurelia] Add `src/web/src/api/endpoints/quickAccess.ts` with typed list, pin, and unpin functions using the shared Axios instance; re-export it from `api/client.ts`.
+- [x] **T064** [X] [Brutus] Add endpoint contract tests proving exact paths/methods, empty-body PUT, 200/201 response typing, 204 unpin handling, and no direct Python/external request.
+
+**Checkpoint**: The committed backend contract is represented exactly before shared state or UI work.
+
+---
+
+## Phase 12: Shared Quick Access State and Security Lifecycle
+
+### Tests first
+
+- [x] **T065** [US6, US7, US8] [Aurelia] Create `composables/__tests__/useQuickAccess.test.ts` covering server-order refresh, empty response, recoverable refresh failure retaining prior items, successful PUT upsert, successful DELETE removal, request failure preserving state, and typed `isPinned`.
+- [x] **T066** [US8] [Aurelia] Add delayed-response tests proving `clear()` invalidates an in-flight refresh and a user-A response cannot repopulate state after logout/user switch.
+
+### Implementation
+
+- [x] **T067** [US6, US7, US8] [Aurelia] Implement `useQuickAccess.ts` per D15 with module-level items/loading/error, generation-guarded refresh, successful-response-only mutation, 201 prepend, 200 in-place replacement, DELETE removal, `isPinned`, and `clear`; no localStorage or polling.
+- [x] **T068** [X] [Brutus] Run T064-T067 targeted tests twice and verify no shared-state leakage between tests.
+
+---
+
+## Phase 13: Quick Access Page, Route, and Global Navigation
+
+### Tests first
+
+- [x] **T069** [P] [US6] [Aurelia] Add `QuickAccessPage` tests for loading, retained-list error/retry, empty state, all four DTO variants, server order, null optional dates/images, and desktop/PWA-safe responsive structure.
+- [x] **T070** [P] [US6] [Aurelia] Extend router/App navigation tests for authenticated `/quick-access`, one reorderable top-level `Quick Access` item, active styling, sidebar close behavior, and preservation of the existing Sets submenu pins.
+- [x] **T071** [US6] [Aurelia] Add navigation tests asserting exact destinations: coin `/coin/:id`, set `/sets/:id`, lot `/auctions?lot=:id`, event `/calendar?event=:id`.
+
+### Implementation
+
+- [x] **T072** [US6] [Aurelia] Create `pages/QuickAccessPage.vue` using existing page-header, card, chip/badge, empty-state, design-token, lucide icon, and mobile patterns; render directly from DTOs without target refetches.
+- [x] **T073** [US6] [Aurelia] Register `/quick-access` in `router/index.ts` and add the top-level nav item in `App.vue` without creating a submenu or changing pinned Sets placement.
+- [x] **T074** [US6, US8] [Aurelia] Wire authenticated App bootstrap and an authenticated-user-ID watcher that clears before account-switch refresh; wire page retry/refresh to the same composable and confirm no polling.
+
+---
+
+## Phase 14: Detail Pin Controls
+
+### Tests first
+
+- [x] **T075** [P] [US7] [Aurelia] Extend coin-detail/header tests for unsold owned and wishlist eligibility, sold/follower exclusion, `aria-pressed`, busy state, active icon styling, successful toggle, and retained state plus toast on failure.
+- [x] **T076** [P] [US7] [Aurelia] Extend Set detail and App navigation tests proving the existing control calls unified PUT/DELETE, preserves the five-set message, refreshes set detail and `usePinnedSets`, and updates both Quick Access and the Sets submenu.
+- [x] **T077** [P] [US7] [Aurelia] Extend auction modal tests for watching/bidding controls, terminal exclusion, accessibility, successful toggle, and failure preservation.
+- [x] **T078** [P] [US7] [Aurelia] Extend calendar tests for `origin=manual` controls, `origin=auction` exclusion, accessibility, successful toggle, and failure preservation.
+
+### Implementation
+
+- [x] **T079** [US7] [Aurelia] Add the shared-state pin affordance to `CoinDetailHeaderActions.vue`/`CoinDetailPage.vue` without changing follower detail.
+- [x] **T080** [US7] [Aurelia] Migrate `SetDetailPage.vue` from legacy `updateSet({pinned})` to unified pin/unpin, then refresh set detail and the existing pinned-set projection.
+- [x] **T081** [US7] [Aurelia] Add eligible pin/unpin handling to `AuctionLotDetailModal.vue`.
+- [x] **T082** [US7] [Aurelia] Type calendar event origin and add eligible pin/unpin handling to the existing `CalendarPage.vue` event drawer.
+
+---
+
+## Phase 15: Deep Links and Lifecycle Reconciliation
+
+### Tests first
+
+- [x] **T083** [P] [US6, US8] [Aurelia] Preserve/extend Auctions tests proving `/auctions?lot=:id` fetches by ID outside the active filter, opens the modal, removes only `lot` on close, and fails safely for invalid/foreign/missing IDs.
+- [x] **T084** [P] [US6, US8] [Aurelia] Add Calendar tests proving `/calendar?event=:id` fetches by ID outside the active month, opens the drawer, removes only `event` on close, preserves unrelated query parameters, and fails safely.
+- [x] **T085** [P] [US8] [Aurelia] Add coin lifecycle tests: wishlist purchase refreshes classification while preserving the pin; sell and delete remove/refresh the pin.
+- [x] **T086** [P] [US8] [Aurelia] Add auction/calendar/set lifecycle tests: watching/bidding refreshes status; terminal and all target deletes remove/refresh the corresponding item.
+
+### Implementation
+
+- [x] **T087** [US6, US8] [Aurelia] Implement calendar event query deep links using fetch-by-ID, route watch plus initial route handling, and query-local `router.replace` close behavior; retain the existing auction implementation.
+- [x] **T088** [US8] [Aurelia] Reconcile Quick Access after successful purchase, sold/terminal status, and delete mutations on every touched detail sibling path; do not mutate shared state before server success.
+
+---
+
+## Phase 16: Logout, User Switch, and Integration
+
+- [x] **T089** [US8] [Aurelia] Update `App.vue` logout to clear `useQuickAccess` alongside notifications/pinned sets before routing to login.
+- [x] **T090** [US8] [Aurelia] Extend mounted App/auth tests for logout, in-tab account switch, delayed refresh invalidation, and fresh bootstrap for the next authenticated user.
+- [x] **T091** [X] [Aurelia] Run the complete feature-targeted Vitest set and fix only Feature 357 regressions.
+
+---
+
+## Phase 17: Frontend Quality Gate and Review
+
+- [x] **T092** [X] [Aurelia] Run from `src/web`: `npm run type-check`, targeted Vitest files, `npm test`, `npm run lint`, and `npm run build`; record exact results.
+- [x] **T093** [X] [Brutus] Independently verify FR-037-FR-054 and SC-008-SC-012, including keyboard/accessible names, 375px PWA layout, deep-link history behavior, lifecycle freshness, logout race safety, and existing pinned Sets regression.
+- [x] **T094** [X] [Brutus] Inspect `git diff --name-only` and BLOCK if any `src/api/` file changed or any completed backend task was reopened.
+- [ ] **T095** [X] [Maximus] Perform post-implementation architecture review against D13-D19, module-level lifecycle rules, router parent/query patterns, Principle III/IV/V/VI/IX, §17, and §21.
+- [ ] **T096** [X] [Maximus] Reconcile frontend task checkboxes and require the PR description to cite backend dependency `4d3b6a06`, spec FR-037-FR-054, Constitution Principles II/III/IV/V/VI/IX, §17, and §21.
+
+## Frontend Dependencies and Execution Order
+
+1. Phase 11 blocks all frontend implementation.
+2. Phase 12 blocks page, navigation, and controls because all consumers share one state contract.
+3. Phase 13 may start after Phase 12.
+4. Phase 14 control tasks may proceed in parallel by resource surface after Phase 12.
+5. Phase 15 depends on the corresponding Phase 14 surface and must cover the exact sibling mutations it changes.
+6. Phase 16 depends on App integration from Phase 13 and the generation guard from Phase 12.
+7. Phase 17 is the frontend release gate.

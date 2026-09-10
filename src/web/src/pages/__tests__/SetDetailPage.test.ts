@@ -43,12 +43,34 @@ vi.mock('@/composables/useTrayPreference', () => ({
 }))
 
 const mockSetPinned = vi.fn()
+const mockRefreshPinnedSets = vi.fn()
 const mockPinLimitReached = vi.hoisted(() => ({ value: false }))
 
 vi.mock('@/composables/usePinnedSets', () => ({
   usePinnedSets: () => ({
     pinLimitReached: mockPinLimitReached,
     setPinned: (...args: unknown[]) => mockSetPinned(...args),
+    refresh: (...args: unknown[]) => mockRefreshPinnedSets(...args),
+  }),
+}))
+
+const mockQuickAccessPinned = vi.hoisted(() => ({ value: false }))
+const mockQuickAccessBusy = vi.hoisted(() => ({ value: false }))
+const mockQuickAccessError = vi.hoisted(() => ({ value: '' }))
+const mockPinQuickAccess = vi.fn()
+const mockUnpinQuickAccess = vi.fn()
+const mockRefreshQuickAccess = vi.fn()
+const mockForgetQuickAccess = vi.fn()
+
+vi.mock('@/composables/useQuickAccess', () => ({
+  useQuickAccess: () => ({
+    error: mockQuickAccessError,
+    refresh: mockRefreshQuickAccess,
+    pin: mockPinQuickAccess,
+    unpin: mockUnpinQuickAccess,
+    forget: mockForgetQuickAccess,
+    isPinned: () => mockQuickAccessPinned,
+    isBusy: () => mockQuickAccessBusy,
   }),
 }))
 
@@ -93,6 +115,12 @@ describe('SetDetailPage', () => {
     vi.clearAllMocks()
     mockIsPwa.value = false
     mockPinLimitReached.value = false
+    mockQuickAccessPinned.value = false
+    mockQuickAccessBusy.value = false
+    mockQuickAccessError.value = ''
+    mockRefreshQuickAccess.mockResolvedValue(undefined)
+    mockRefreshPinnedSets.mockResolvedValue(undefined)
+    vi.stubGlobal('confirm', vi.fn(() => true))
     mockSetDetailLoad()
   })
 
@@ -207,22 +235,22 @@ describe('SetDetailPage', () => {
 
       const pinButton = wrapper.find('[aria-pressed="false"]')
       expect(pinButton.exists()).toBe(true)
-      expect(pinButton.attributes('aria-label')).toBe('Pin to sidebar')
-      expect(pinButton.attributes('title')).toBe('Pin to sidebar')
+      expect(pinButton.attributes('aria-label')).toBe('Pin set to Quick Access')
+      expect(pinButton.attributes('title')).toBe('Pin set to Quick Access')
       expect(pinButton.findComponent(Pin).exists()).toBe(true)
       expect(pinButton.findComponent(PinOff).exists()).toBe(false)
       expect(pinButton.classes()).not.toContain('text-gold')
     })
 
     it('renders a pinned PinOff button with gold styling and aria-pressed true', async () => {
-      mockSetDetailLoad(undefined, { pinned: true, pinnedAt: '2026-01-01T00:00:00Z' })
+      mockQuickAccessPinned.value = true
       const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
       await flushPromises()
 
       const pinButton = wrapper.find('[aria-pressed="true"]')
       expect(pinButton.exists()).toBe(true)
-      expect(pinButton.attributes('aria-label')).toBe('Unpin from sidebar')
-      expect(pinButton.attributes('title')).toBe('Unpin from sidebar')
+      expect(pinButton.attributes('aria-label')).toBe('Unpin set from Quick Access')
+      expect(pinButton.attributes('title')).toBe('Unpin set from Quick Access')
       expect(pinButton.classes()).toContain('text-gold')
       expect(pinButton.findComponent(PinOff).exists()).toBe(true)
       expect(pinButton.findComponent(Pin).exists()).toBe(false)
@@ -238,8 +266,8 @@ describe('SetDetailPage', () => {
       expect(pinButton.findComponent(Pin).attributes('size')).toBe('22')
     })
 
-    it('clicking the pin button calls setPinned and shows a success toast', async () => {
-      mockSetPinned.mockResolvedValue(undefined)
+    it('clicking the pin button calls unified pin and refreshes both projections', async () => {
+      mockPinQuickAccess.mockResolvedValue(undefined)
       const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
       await flushPromises()
 
@@ -247,14 +275,15 @@ describe('SetDetailPage', () => {
       await pinButton.trigger('click')
       await flushPromises()
 
-      expect(mockSetPinned).toHaveBeenCalledWith(7, true)
+      expect(mockPinQuickAccess).toHaveBeenCalledWith('coin_set', 7)
+      expect(mockRefreshPinnedSets).toHaveBeenCalled()
       expect(mockGetSet).toHaveBeenCalledTimes(2) // initial load + reload after pin
-      expect(mockShowToast).toHaveBeenCalledWith('Pinned to sidebar', 'success')
+      expect(mockShowToast).toHaveBeenCalledWith('Pinned to Quick Access', 'success')
     })
 
     it('clicking unpin calls setPinned(false) and shows the unpinned toast', async () => {
-      mockSetDetailLoad(undefined, { pinned: true, pinnedAt: '2026-01-01T00:00:00Z' })
-      mockSetPinned.mockResolvedValue(undefined)
+      mockQuickAccessPinned.value = true
+      mockUnpinQuickAccess.mockResolvedValue(undefined)
       const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
       await flushPromises()
 
@@ -262,12 +291,13 @@ describe('SetDetailPage', () => {
       await pinButton.trigger('click')
       await flushPromises()
 
-      expect(mockSetPinned).toHaveBeenCalledWith(7, false)
+      expect(mockUnpinQuickAccess).toHaveBeenCalledWith('coin_set', 7)
       expect(mockShowToast).toHaveBeenCalledWith('Unpinned', 'success')
     })
 
     it('surfaces a server cap error as an error toast without reloading the set', async () => {
-      mockSetPinned.mockRejectedValue({ response: { data: { error: 'you can pin up to 5 sets' } } })
+      mockQuickAccessError.value = 'you can pin up to 5 sets'
+      mockPinQuickAccess.mockRejectedValue({ response: { data: { error: 'you can pin up to 5 sets' } } })
       const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
       await flushPromises()
 
@@ -290,17 +320,57 @@ describe('SetDetailPage', () => {
 
       await pinButton.trigger('click')
       await flushPromises()
-      expect(mockSetPinned).not.toHaveBeenCalled()
+      expect(mockPinQuickAccess).not.toHaveBeenCalled()
+    })
+
+    it('exposes disabled busy semantics without misreporting the pin cap', async () => {
+      mockQuickAccessBusy.value = true
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      const pinButton = wrapper.find('[aria-pressed="false"]')
+      expect(pinButton.attributes('disabled')).toBeDefined()
+      expect(pinButton.attributes('aria-busy')).toBe('true')
+      expect(pinButton.attributes('aria-label')).toBe('Updating set Quick Access pin')
     })
 
     it('does not disable the unpin action even when at the five-pin cap', async () => {
-      mockSetDetailLoad(undefined, { pinned: true, pinnedAt: '2026-01-01T00:00:00Z' })
+      mockQuickAccessPinned.value = true
       mockPinLimitReached.value = true
       const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
       await flushPromises()
 
       const pinButton = wrapper.find('[aria-pressed="true"]')
       expect(pinButton.attributes('disabled')).toBeUndefined()
+    })
+
+    it('removes deleted sets from both Quick Access and the sidebar projection', async () => {
+      mockDeleteSet.mockResolvedValue({ data: undefined })
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+      await wrapper.findAll('button').find((button) => button.text().includes('Actions'))!.trigger('click')
+      await wrapper.findAll('button').find((button) => button.text().includes('Delete Set'))!.trigger('click')
+      await flushPromises()
+
+      expect(mockForgetQuickAccess).toHaveBeenCalledWith('coin_set', 7)
+      expect(mockRefreshPinnedSets).toHaveBeenCalled()
+    })
+
+    it('refreshes Quick Access and the pinned-set projection after visible set edits', async () => {
+      mockUpdateSet.mockResolvedValue({ data: { ...defaultSet, name: 'Renamed Set', color: '#6b7280' } })
+      const wrapper = shallowMount(SetDetailPage, { global: { stubs: defaultStubs } })
+      await flushPromises()
+
+      await wrapper.findAll('button').find((button) => button.text().includes('Actions'))!.trigger('click')
+      await wrapper.findAll('button').find((button) => button.text().includes('Edit Set'))!.trigger('click')
+      await wrapper.get('#editName').setValue('Renamed Set')
+      await wrapper.get('#editColor').setValue('#6b7280')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(7, expect.objectContaining({ name: 'Renamed Set', color: '#6b7280' }))
+      expect(mockRefreshQuickAccess).toHaveBeenCalledTimes(2)
+      expect(mockRefreshPinnedSets).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import AuctionLotDetailModal from '../AuctionLotDetailModal.vue'
 import type { AuctionLot } from '@/types'
 
@@ -18,7 +19,14 @@ const mocks = vi.hoisted(() => ({
   getAuctionLotMarketSignal: vi.fn(),
   getAgentStatus: vi.fn(),
   push: vi.fn(),
+  quickPin: vi.fn(),
+  quickUnpin: vi.fn(),
+  quickRefresh: vi.fn(),
+  quickForget: vi.fn(),
 }))
+const quickPinned = ref(false)
+const quickBusy = ref(false)
+const quickError = ref('')
 
 vi.mock('@/api/client', () => ({
   updateAuctionLotStatus: mocks.updateAuctionLotStatus,
@@ -44,6 +52,18 @@ vi.mock('@/composables/useProxiedImage', () => ({
   useProxiedImage: () => ({ proxiedImageUrl: { value: '' } }),
 }))
 
+vi.mock('@/composables/useQuickAccess', () => ({
+  useQuickAccess: () => ({
+    error: quickError,
+    pin: mocks.quickPin,
+    unpin: mocks.quickUnpin,
+    refresh: mocks.quickRefresh,
+    forget: mocks.quickForget,
+    isPinned: () => quickPinned,
+    isBusy: () => quickBusy,
+  }),
+}))
+
 const safeExternalLinkStub = {
   props: ['href'],
   template: '<a :href="href"><slot /></a>',
@@ -65,6 +85,13 @@ describe('AuctionLotDetailModal', () => {
     mocks.getAuctionLotMarketSignal.mockResolvedValue({
       data: { status: 'unavailable', rationale: 'Market data lookup is not available on this server.' },
     })
+    quickPinned.value = false
+    quickBusy.value = false
+    quickError.value = ''
+    mocks.quickPin.mockResolvedValue(undefined)
+    mocks.quickUnpin.mockResolvedValue(undefined)
+    mocks.quickRefresh.mockResolvedValue(undefined)
+    mocks.deleteAuctionLot.mockResolvedValue({ data: undefined })
   })
 
   it('centers the detail card in the desktop overlay', () => {
@@ -74,6 +101,61 @@ describe('AuctionLotDetailModal', () => {
     })
 
     expect(wrapper.get('.card').classes()).toContain('mx-auto')
+  })
+
+  it('offers an accessible Quick Access toggle only for active lots', async () => {
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'watching' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    const pinButton = wrapper.get('button[aria-label="Pin auction lot to Quick Access"]')
+    expect(pinButton.attributes('aria-pressed')).toBe('false')
+    expect(pinButton.classes()).toEqual(expect.arrayContaining(['h-11', 'w-11']))
+    await pinButton.trigger('click')
+    expect(mocks.quickPin).toHaveBeenCalledWith('auction_lot', 7)
+
+    await wrapper.setProps({ lot: buildAuctionLot({ status: 'lost' }) })
+    expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
+  })
+
+  it('keeps pin state and surfaces an error when unpin fails', async () => {
+    quickPinned.value = true
+    quickError.value = 'Unable to unpin'
+    mocks.quickUnpin.mockRejectedValue(new Error('failed'))
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await wrapper.get('button[aria-label="Unpin auction lot from Quick Access"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Unable to unpin')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to unpin')
+    expect(quickPinned.value).toBe(true)
+  })
+
+  it('exposes disabled busy semantics for the lot pin control', () => {
+    quickBusy.value = true
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'watching' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+
+    const pinButton = wrapper.get('button[aria-label="Updating auction lot Quick Access pin"]')
+    expect(pinButton.attributes('disabled')).toBeDefined()
+    expect(pinButton.attributes('aria-busy')).toBe('true')
+  })
+
+  it('removes deleted lots from Quick Access after the server succeeds', async () => {
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'watching' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await wrapper.findAll('button').find((button) => button.text().includes('Remove'))!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.deleteAuctionLot).toHaveBeenCalledWith(7)
+    expect(mocks.quickForget).toHaveBeenCalledWith('auction_lot', 7)
   })
 
   it('persists a max bid change when the status stays bidding', async () => {
@@ -94,6 +176,7 @@ describe('AuctionLotDetailModal', () => {
     await updateButton!.trigger('click')
 
     expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'bidding', 150, undefined)
+    expect(mocks.quickRefresh).toHaveBeenCalled()
   })
 
   it('persists a winning bid when the status changes to won', async () => {
@@ -113,6 +196,9 @@ describe('AuctionLotDetailModal', () => {
     await wrapper.findAll('button').find(button => button.text().includes('Update Status'))!.trigger('click')
 
     expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'won', undefined, 175.5)
+    expect(mocks.quickForget).toHaveBeenCalledWith('auction_lot', 7)
+    expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('won')
   })
 
   it('persists the winning bid when the status changes to lost', async () => {

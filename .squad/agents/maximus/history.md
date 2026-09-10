@@ -918,3 +918,57 @@ No PR opened, no merge, no deploy. This history entry itself is not part of a se
 
 **Status**: ADR 0014 Accepted and pushed. Ready for Brutus/Brian's own review of the ADR text itself
 if further governance sign-off is desired; nothing further blocks this scope from my side.
+
+## 2026-09-10 — Feature 357 Frontend Design Review and Authority Reconciliation
+
+Resolved the active-artifact conflict under Constitution §0 after Brian
+explicitly authorized the Vue/TypeScript phase against backend commit
+`4d3b6a06`. Updated `spec.md`, `plan.md`, and `tasks.md` in authority order
+without changing backend FR-001-FR-036, D1-D12, completed backend tasks, or Go
+files.
+
+Approved frontend architecture:
+- strict four-variant Quick Access discriminated union and dedicated endpoint;
+- lifecycle-managed module singleton with `clear()` request invalidation;
+- `/quick-access` page plus one top-level reorderable sidebar entry;
+- existing pinned Sets submenu preserved;
+- eligible controls on coin, set, auction-lot, and manual-event detail surfaces;
+- canonical auction/calendar query deep links;
+- explicit reconciliation after purchase/status/delete and cleanup on
+  logout/account switch.
+
+Added frontend tasks T061-T096 with dependency order, Aurelia implementation
+ownership, Brutus contract/regression gates, and Maximus final architecture
+review. Decision recorded in
+`.squad/decisions/inbox/maximus-quick-access-frontend.md`.
+
+Learning: when an approved phase boundary becomes stale because the owner
+authorizes the next phase, preserve the earlier decision as historical truth
+and add a new scoped decision rather than rewriting locked requirements. For
+module-level authenticated state, logout cleanup is insufficient unless it
+also invalidates pending async responses.
+
+## 2026-09-10 — Feature 357 Frontend Final QC Audit: REJECT
+
+Completed the mandatory post-major-work audit of all 37 uncommitted artifacts
+against backend commit `4d3b6a06`, FR-037-FR-054, D13-D19, T061-T096, and
+Constitution Principles II/III/IV/V/VI/IX plus §§0/17/18/21.
+
+Blocking results:
+- Brutus's prior frontend REJECT has no explicit clearance after Livia's
+  revision, so §18.2 strict lockout remains active.
+- `EditCoinPage.vue` refreshes Quick Access before primary-image mutations,
+  leaving the DTO image stale after successful replace/removal.
+- Required mounted regression evidence is incomplete for Retry/PWA behavior,
+  calendar failure retention, delayed App identity transitions, and changed
+  lifecycle sibling paths.
+- New auction and calendar pin controls are smaller than the required 44px
+  mobile touch target.
+
+Focused validation passed: `vue-tsc --build`, 10 Feature 357 test files /
+102 tests, `git diff --check`, no root `src/api/` changes, and no detected
+secrets. Revision is assigned to a new independent Vue/PWA specialist,
+**Marcus**; Brutus must explicitly clear the lock afterward.
+
+Decision record:
+`.squad/decisions/inbox/maximus-quick-access-final-audit.md`.

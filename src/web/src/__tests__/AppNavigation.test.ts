@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -12,6 +13,7 @@ const appPath = path.resolve(__dirname, '../App.vue')
 
 const mockIsPwa = vi.hoisted(() => ({ value: false }))
 const mockGetSets = vi.hoisted(() => vi.fn())
+const mockGetQuickAccess = vi.hoisted(() => vi.fn())
 
 vi.mock('@/composables/usePwa', () => ({
   usePwa: () => ({ isPwa: mockIsPwa.value }),
@@ -34,6 +36,7 @@ vi.mock('@/api/client', async (importOriginal) => {
   return {
     ...actual,
     getSets: (...args: unknown[]) => mockGetSets(...args),
+    getQuickAccess: (...args: unknown[]) => mockGetQuickAccess(...args),
     getMe: vi.fn(async () => ({ data: { id: 1, emailMissing: false, createdAt: '2020-01-01T00:00:00Z' } })),
     getUnreadNotificationCount: vi.fn(async () => ({ data: { count: 0 } })),
     updateProfile: vi.fn(async () => ({ data: {} })),
@@ -138,7 +141,8 @@ describe('App sidebar pinned sets', () => {
     }
   }
 
-  async function mountApp() {
+  async function mountApp(initialPath = '/') {
+    const QuickAccessPage = (await import('../pages/QuickAccessPage.vue')).default
     router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -146,11 +150,13 @@ describe('App sidebar pinned sets', () => {
         { path: '/sets', name: 'sets', component: { template: '<div />' } },
         { path: '/sets/emperors', name: 'emperors', component: { template: '<div />' } },
         { path: '/sets/:id', name: 'set-detail', component: { template: '<div />' } },
+        { path: '/quick-access', name: 'quick-access', component: QuickAccessPage },
+        { path: '/notes', name: 'notes', component: { template: '<div />' } },
         { path: '/login', name: 'login', component: { template: '<div />' } },
         { path: '/:pathMatch(.*)*', name: 'catch-all', component: { template: '<div />' } },
       ],
     })
-    await router.push('/')
+    await router.push(initialPath)
     await router.isReady()
 
     const App = (await import('../App.vue')).default
@@ -196,8 +202,11 @@ describe('App sidebar pinned sets', () => {
     setActivePinia(createPinia())
     const { usePinnedSets } = await import('@/composables/usePinnedSets')
     usePinnedSets().clear()
+    const { useQuickAccess } = await import('@/composables/useQuickAccess')
+    useQuickAccess().clear()
     mockIsPwa.value = false
     mockGetSets.mockResolvedValue(pinnedSetPayload([]))
+    mockGetQuickAccess.mockResolvedValue({ data: { items: [] } })
   })
 
   afterEach(() => {
@@ -333,5 +342,94 @@ describe('App sidebar pinned sets', () => {
 
     const { usePinnedSets } = await import('@/composables/usePinnedSets')
     expect(usePinnedSets().pinnedSets.value).toEqual([])
+  })
+
+  it('renders Quick Access in the desktop collection title bar and sidebar', async () => {
+    await mountApp()
+    expect(wrapper!.find('nav a[aria-label="Quick Access"]').attributes('href')).toBe('/quick-access')
+
+    await wrapper!.find('nav button').trigger('click')
+    await flushPromises()
+    const sidebarLink = wrapper!.findAll('.sidebar-link').find((el) => el.text() === 'Quick Access')
+    expect(sidebarLink?.attributes('href')).toBe('/quick-access')
+    await sidebarLink!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/quick-access')
+    expect(wrapper!.find('aside').exists()).toBe(false)
+  })
+
+  it('performs one authoritative Quick Access bootstrap on a direct route load', async () => {
+    await mountApp('/quick-access')
+
+    expect(router.currentRoute.value.path).toBe('/quick-access')
+    expect(mockGetQuickAccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps Quick Access beside Add Coin in PWA and available on non-collection pages', async () => {
+    mockIsPwa.value = true
+    await mountApp()
+    const pwaActions = wrapper!.findAll('nav a').filter((link) => ['Quick Access', 'Add Coin'].includes(link.attributes('aria-label')))
+    expect(pwaActions.map((link) => link.attributes('aria-label'))).toEqual(['Quick Access', 'Add Coin'])
+
+    mockIsPwa.value = false
+    await router.push('/notes')
+    await flushPromises()
+    expect(wrapper!.find('nav a[aria-label="Quick Access"]').exists()).toBe(true)
+  })
+
+  it('clears Quick Access before logout navigation', async () => {
+    const { useQuickAccess } = await import('@/composables/useQuickAccess')
+    mockGetQuickAccess.mockResolvedValue({
+      data: {
+        items: [{
+          type: 'coin',
+          id: 42,
+          pinnedAt: '2026-09-10T00:00:00Z',
+          coin: { name: 'Private coin', classification: 'owned', primaryImageUrl: null },
+        }],
+      },
+    })
+    await mountApp()
+    await useQuickAccess().refresh()
+    expect(useQuickAccess().items.value).toHaveLength(1)
+
+    await wrapper!.find('nav button').trigger('click')
+    const logoutButton = wrapper!.findAll('.sidebar-link').find((el) => el.text() === 'Logout')
+    await logoutButton!.trigger('click')
+    await flushPromises()
+
+    expect(useQuickAccess().items.value).toEqual([])
+    expect(router.currentRoute.value.path).toBe('/login')
+  })
+
+  it('clears and reloads Quick Access when the authenticated account changes', async () => {
+    const firstItem = {
+      type: 'coin' as const,
+      id: 42,
+      pinnedAt: '2026-09-10T00:00:00Z',
+      coin: { name: 'User A coin', classification: 'owned' as const, primaryImageUrl: null },
+    }
+    const secondItem = {
+      type: 'coin_set' as const,
+      id: 7,
+      pinnedAt: '2026-09-10T01:00:00Z',
+      coinSet: { name: 'User B set', setType: 'goal' as const, color: '', icon: '' },
+    }
+    mockGetQuickAccess.mockResolvedValueOnce({ data: { items: [firstItem] } })
+    await mountApp()
+    const { useQuickAccess } = await import('@/composables/useQuickAccess')
+    await flushPromises()
+    expect(useQuickAccess().items.value).toEqual([firstItem])
+
+    mockGetQuickAccess.mockResolvedValueOnce({ data: { items: [secondItem] } })
+    const auth = useAuthStore()
+    await auth.applyAuthResponse({
+      token: 'user-b-token',
+      refreshToken: 'user-b-refresh',
+      user: { ...(auth.user!), id: 2, username: 'user-b' },
+    })
+    await flushPromises()
+
+    expect(useQuickAccess().items.value).toEqual([secondItem])
   })
 })

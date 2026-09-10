@@ -188,6 +188,7 @@ import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
 import { usePurchaseReminder, formatReminderDateValue } from '@/composables/usePurchaseReminder'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useCoinDetailSwipeNav } from '@/composables/useCoinDetailSwipeNav'
 import type { CoinDetailMetadataRow, CoinImage, ShipmentUpsertInput } from '@/types'
 
@@ -231,6 +232,7 @@ const metadataRows = computed(() => {
   if (!coin.value) return []
   return useCoinDetailMetadataRows(coin.value).rows.value
 })
+const { refresh: refreshQuickAccess, forget: forgetQuickAccess } = useQuickAccess()
 
 // Feature 355: inject reminder row into detail table after purchasePrice
 const displayRows = computed<CoinDetailMetadataRow[]>(() => {
@@ -297,7 +299,7 @@ async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: st
   try {
     await purchaseCoin(coin.value.id, data)
     showPurchaseModal.value = false
-    store.fetchCoin(coin.value.id)
+    await Promise.all([store.fetchCoin(coin.value.id), refreshQuickAccess()])
   } catch {
     showPurchaseModal.value = false
   }
@@ -305,7 +307,9 @@ async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: st
 
 async function handleDelete() {
   if (!coin.value || !await showConfirm('Delete this coin from your collection?', { title: 'Delete Coin', variant: 'danger' })) return
-  await deleteCoin(coin.value.id)
+  const coinId = coin.value.id
+  await deleteCoin(coinId)
+  forgetQuickAccess('coin', coinId)
   router.push('/')
 }
 
@@ -331,6 +335,7 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   if (!coin.value) return
   try {
     await sellCoin(coin.value.id, soldPrice, soldTo)
+    forgetQuickAccess('coin', coin.value.id)
     showSellModal.value = false
     router.push('/sold')
   } catch {

@@ -1,11 +1,32 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import CoinDetailHeaderActions from '../CoinDetailHeaderActions.vue'
 
 const pushMock = vi.fn()
+const pinned = ref(false)
+const busy = ref(false)
+const quickAccessError = ref('')
+const pin = vi.fn()
+const unpin = vi.fn()
+const showToast = vi.fn()
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushMock }),
+}))
+
+vi.mock('@/composables/useQuickAccess', () => ({
+  useQuickAccess: () => ({
+    error: quickAccessError,
+    pin,
+    unpin,
+    isPinned: () => pinned,
+    isBusy: () => busy,
+  }),
+}))
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ showToast }),
 }))
 
 const routerLinkStub = {
@@ -14,6 +35,17 @@ const routerLinkStub = {
 }
 
 describe('CoinDetailHeaderActions', () => {
+  beforeEach(() => {
+    pinned.value = false
+    busy.value = false
+    quickAccessError.value = ''
+    pin.mockReset()
+    unpin.mockReset()
+    showToast.mockReset()
+    pin.mockResolvedValue(undefined)
+    unpin.mockResolvedValue(undefined)
+  })
+
   it('routes back to wishlist gallery for wishlist items', async () => {
     pushMock.mockReset()
     const wrapper = mount(CoinDetailHeaderActions, {
@@ -198,5 +230,39 @@ describe('CoinDetailHeaderActions', () => {
 
     await wrapper.find('button[aria-label="Edit"]').trigger('click')
     expect(wrapper.emitted('edit')).toHaveLength(1)
+  })
+
+  it('renders an accessible Quick Access toggle for eligible coins only', async () => {
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: { isWishlist: true, isSold: false, coinId: 42 },
+    })
+    const button = wrapper.find('button[aria-label="Pin coin to Quick Access"]')
+    expect(button.attributes('aria-pressed')).toBe('false')
+
+    await button.trigger('click')
+    expect(pin).toHaveBeenCalledWith('coin', 42)
+
+    await wrapper.setProps({ isSold: true })
+    expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
+  })
+
+  it('reflects pinned and pending state and reports failures without changing state', async () => {
+    pinned.value = true
+    busy.value = true
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: { isWishlist: false, isSold: false, coinId: 42 },
+    })
+    const button = wrapper.find('button[aria-label="Updating coin Quick Access pin"]')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.attributes('aria-busy')).toBe('true')
+
+    busy.value = false
+    await wrapper.vm.$nextTick()
+    quickAccessError.value = 'Server rejected pin'
+    unpin.mockRejectedValue(new Error('failed'))
+    await wrapper.get('button[aria-label="Unpin coin from Quick Access"]').trigger('click')
+    expect(showToast).toHaveBeenCalledWith('Server rejected pin', 'error')
+    expect(pinned.value).toBe(true)
   })
 })

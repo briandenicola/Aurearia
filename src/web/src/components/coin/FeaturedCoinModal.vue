@@ -89,6 +89,7 @@ import type { FeaturedCoin } from '@/types'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
+import { useQuickAccess } from '@/composables/useQuickAccess'
 
 const props = defineProps<{ featuredCoinId: number }>()
 const emit = defineEmits<{ close: [] }>()
@@ -100,6 +101,7 @@ const { sharing, shareCoinCard } = useCoinShareCard()
 const moving = ref(false)
 const moved = ref(false)
 const moveError = ref('')
+const { refresh: refreshQuickAccess } = useQuickAccess()
 
 // Spec 354 D9: reuses the existing coin-update contract — no new backend
 // endpoint. Only offered while the pick is still wishlist-sourced AND the
@@ -164,6 +166,7 @@ async function handleMoveToCollection() {
   moveError.value = ''
   try {
     await updateCoin(coin.id, { isWishlist: false })
+    await refreshQuickAccess()
     if (featured.value?.coin) {
       featured.value.coin.isWishlist = false
     }
