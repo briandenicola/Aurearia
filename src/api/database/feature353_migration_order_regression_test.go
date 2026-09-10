@@ -1,4 +1,4 @@
-﻿package database
+package database
 
 import (
 	"os"
@@ -428,6 +428,7 @@ var productionModelConstructors = map[string]func() any{
 	"DeepIdentificationProviderRun": func() any { return &models.DeepIdentificationProviderRun{} },
 	"DeepIdentificationArtifact":    func() any { return &models.DeepIdentificationArtifact{} },
 	"PurchaseReminder":              func() any { return &models.PurchaseReminder{} },
+	"QuickAccessPin":                func() any { return &models.QuickAccessPin{} },
 }
 
 // readProductionAutoMigrateModelNames parses database.go's REAL, CURRENT source text and

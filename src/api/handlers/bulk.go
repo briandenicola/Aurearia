@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +23,12 @@ type BulkHandler struct {
 	tagRepo             *repository.TagRepository
 	storageLocationRepo *repository.StorageLocationRepository
 	setRepo             *repository.SetRepository
+	coinService         *services.CoinService
+}
+
+func (h *BulkHandler) WithCoinService(coinService *services.CoinService) *BulkHandler {
+	h.coinService = coinService
+	return h
 }
 
 // NewBulkHandler creates a new BulkHandler.
@@ -61,7 +68,13 @@ func (h *BulkHandler) BulkAction(c *gin.Context) {
 
 	switch req.Action {
 	case "delete":
-		affected, err := h.coinRepo.BulkDelete(req.CoinIDs, userID)
+		var affected int64
+		var err error
+		if h.coinService != nil {
+			affected, err = h.coinService.BulkDeleteCoins(req.CoinIDs, userID)
+		} else {
+			affected, err = h.coinRepo.BulkDelete(req.CoinIDs, userID)
+		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete coins"})
 			return
@@ -69,7 +82,13 @@ func (h *BulkHandler) BulkAction(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Coins deleted", "affected": affected})
 
 	case "sell":
-		affected, err := h.coinRepo.BulkMarkSold(req.CoinIDs, userID)
+		var affected int64
+		var err error
+		if h.coinService != nil {
+			affected, err = h.coinService.BulkMarkSold(req.CoinIDs, userID)
+		} else {
+			affected, err = h.coinRepo.BulkMarkSold(req.CoinIDs, userID)
+		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark coins as sold"})
 			return

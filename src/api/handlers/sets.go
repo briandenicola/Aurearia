@@ -211,18 +211,24 @@ func (h *SetHandler) Update(c *gin.Context) {
 
 	_, err = h.service.UpdateSet(uint(id), userID, updates)
 	if err != nil {
-		if repository.IsRecordNotFound(err) {
+		var validationErr *services.SetValidationError
+		switch {
+		case repository.IsRecordNotFound(err), errors.Is(err, services.ErrQuickAccessTargetNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
-			return
+		case errors.Is(err, services.ErrPinLimitReached):
+			c.JSON(http.StatusBadRequest, gin.H{"error": services.ErrPinLimitReached.Error()})
+		case errors.As(err, &validationErr):
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message})
+		default:
+			respondError(c, http.StatusInternalServerError, "Failed to update set", err)
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Get updated details with summary
 	detail, err := h.service.GetSetDetail(uint(id), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get set details"})
+		respondError(c, http.StatusInternalServerError, "Failed to get set details", err)
 		return
 	}
 

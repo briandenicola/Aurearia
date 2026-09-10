@@ -28,6 +28,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		catalogRegistryHandler := handlers.NewCatalogRegistryHandler(catalogRegistrySvc)
 		coinSvc := services.NewCoinService(d.coinRepo, d.notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo).WithMintLocationSupport(mintLocationRepo).WithCatalogRegistrySupport(catalogRegistryRepo).WithSettingsSupport(d.settingsSvc)
 		coinSvc.WithReminderSupport(d.purchaseReminderRepo)
+		coinSvc.WithQuickAccessSupport(d.quickAccessSvc)
 		shipmentHandler := handlers.NewShipmentHandler(d.shipmentSvc)
 		d.wishlistSearchAlertSvc.WithCoinCreation(coinSvc)
 		coinHandler := handlers.NewCoinHandler(d.coinRepo, coinSvc, d.logger).WithSettingsSupport(d.settingsSvc).WithShipmentSupport(d.shipmentSvc)
@@ -121,7 +122,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		protected.POST("/tags", tagHandler.Create)
 		protected.PUT("/tags/:id", tagHandler.Update)
 		protected.DELETE("/tags/:id", tagHandler.Delete)
-		bulkHandler := handlers.NewBulkHandler(d.coinRepo, tagRepo, storageLocationRepo, setRepo)
+		bulkHandler := handlers.NewBulkHandler(d.coinRepo, tagRepo, storageLocationRepo, setRepo).WithCoinService(coinSvc)
 		protected.POST("/coins/bulk", bulkHandler.BulkAction)
 
 		protected.POST("/coins/:id/tags", tagHandler.AttachToCoin)
@@ -131,7 +132,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		protected.POST("/coins/:id/recommendations/:recommendationId/reject", recommendationHandler.Reject)
 
 		// Sets - new endpoints for coin sets
-		setService := services.NewSetService(setRepo, tagRepo, d.notifRepo)
+		setService := services.NewSetService(setRepo, tagRepo, d.notifRepo).WithQuickAccessSupport(d.quickAccessSvc)
 		setHandler := handlers.NewSetHandler(setRepo, setService).WithSettingsSupport(d.settingsSvc)
 		setBuilderRepo := repository.NewSetBuilderRepository(database.DB)
 		setBuilderService := services.NewSetBuilderService(setBuilderRepo, d.notifRepo).
@@ -234,7 +235,8 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 
 		auctionLotSvc := services.NewAuctionLotService(d.auctionLotRepo, d.coinRepo).
 			WithImageService(d.imageSvc).
-			WithMarketSignal(d.agentProxy, d.settingsSvc)
+			WithMarketSignal(d.agentProxy, d.settingsSvc).
+			WithQuickAccessSupport(d.quickAccessSvc)
 		nbSvc := services.NewNumisBidsService(d.logger)
 		cngSvc := services.NewCNGAuctionService(d.logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
@@ -366,14 +368,19 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		protected.PUT("/showcases/:id/coins", showcaseHandler.SetShowcaseCoins)
 
 		// Calendar / Auction Event routes
-		eventRepo := repository.NewAuctionEventRepository(database.DB)
-		calendarHandler := handlers.NewCalendarHandler(eventRepo, d.auctionLotRepo)
+		calendarSvc := services.NewCalendarService(d.auctionEventRepo, d.quickAccessSvc)
+		calendarHandler := handlers.NewCalendarHandler(d.auctionEventRepo, d.auctionLotRepo, calendarSvc)
 		protected.GET("/calendar", calendarHandler.GetCalendar)
 		protected.GET("/calendar/events", calendarHandler.ListEvents)
 		protected.GET("/calendar/events/:id", calendarHandler.GetEvent)
 		protected.POST("/calendar/events", calendarHandler.CreateEvent)
 		protected.PUT("/calendar/events/:id", calendarHandler.UpdateEvent)
 		protected.DELETE("/calendar/events/:id", calendarHandler.DeleteEvent)
+
+		quickAccessHandler := handlers.NewQuickAccessHandler(d.quickAccessSvc, d.logger)
+		protected.GET("/quick-access", quickAccessHandler.List)
+		protected.PUT("/quick-access/:type/:id", d.writeRateLimit, quickAccessHandler.Pin)
+		protected.DELETE("/quick-access/:type/:id", d.writeRateLimit, quickAccessHandler.Unpin)
 
 		// Price Alerts & Bid Reminders
 		alertSvc := services.NewAuctionAlertService(d.priceAlertRepo, d.bidReminderRepo, d.auctionLotRepo)

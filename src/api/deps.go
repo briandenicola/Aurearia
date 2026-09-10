@@ -69,6 +69,8 @@ type appDeps struct {
 	shipmentSvc                    *services.ShipmentService
 	wishlistSearchAlertSvc         *services.WishlistSearchAlertService
 	auctionLotRepo                 *repository.AuctionLotRepository
+	auctionEventRepo               *repository.AuctionEventRepository
+	quickAccessSvc                 *services.QuickAccessService
 	auctionEndingRepo              *repository.AuctionEndingRepository
 	auctionEndingScheduler         *services.AuctionEndingScheduler
 	auctionWatchBidDigestRepo      *repository.AuctionWatchBidDigestRepository
@@ -186,6 +188,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	auctionEndingRepo := repository.NewAuctionEndingRepository(database.DB)
 	userRepoForVal := repository.NewUserRepository(database.DB)
 	auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
+	auctionEventRepo := repository.NewAuctionEventRepository(database.DB)
+	quickAccessRepo := repository.NewQuickAccessRepository(database.DB)
+	quickAccessSvc := services.NewQuickAccessService(quickAccessRepo, logger)
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
 	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
 	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger).WithCycleRepo(availCycleRepo)
@@ -233,7 +238,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	nbWatchSyncSvc := services.NewNumisBidsService(logger)
 	cngWatchSyncSvc := services.NewCNGAuctionService(logger)
-	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger).WithNotifications(notifSvc)
+	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger).
+		WithNotifications(notifSvc).
+		WithQuickAccessSupport(quickAccessSvc)
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, notifSvc, settingsSvc, logger)
 	auctionWatchBidDigestScheduler := services.NewAuctionWatchBidDigestScheduler(auctionLotRepo, auctionWatchBidDigestRepo, userRepoForVal, pushoverSvc, auctionWatchlistSyncSvc, settingsSvc, logger)
 	auctionAlertEvaluator := services.NewAuctionAlertEvaluator(priceAlertRepo, bidReminderRepo, notifSvc, logger)
@@ -313,6 +320,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		shipmentSvc:                    shipmentSvc,
 		wishlistSearchAlertSvc:         wishlistSearchAlertSvc,
 		auctionLotRepo:                 auctionLotRepo,
+		auctionEventRepo:               auctionEventRepo,
+		quickAccessSvc:                 quickAccessSvc,
 		auctionEndingRepo:              auctionEndingRepo,
 		auctionEndingScheduler:         auctionEndingScheduler,
 		auctionWatchBidDigestRepo:      auctionWatchBidDigestRepo,

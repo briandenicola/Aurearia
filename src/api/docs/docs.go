@@ -11318,6 +11318,165 @@ const docTemplate = `{
                 }
             }
         },
+        "/quick-access": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns eligible user-owned pins newest first as a typed discriminated union.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Access"
+                ],
+                "summary": "List Quick Access pins",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.QuickAccessListDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-access/{type}/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Idempotently pins one eligible user-owned target while preserving its original pin time.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Access"
+                ],
+                "summary": "Pin a Quick Access target",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target type: coin, coin_set, auction_lot, calendar_event",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Target ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.QuickAccessItemDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/services.QuickAccessItemDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Idempotently removes one target from the authenticated user's Quick Access list.",
+                "tags": [
+                    "Quick Access"
+                ],
+                "summary": "Unpin a Quick Access target",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target type: coin, coin_set, auction_lot, calendar_event",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Target ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/quick-capture/drafts": {
             "get": {
                 "security": [
@@ -21355,6 +21514,9 @@ const docTemplate = `{
                 "notes": {
                     "type": "string"
                 },
+                "origin": {
+                    "$ref": "#/definitions/models.AuctionEventOrigin"
+                },
                 "startDate": {
                     "type": "string"
                 },
@@ -21371,6 +21533,17 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "models.AuctionEventOrigin": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "auction"
+            ],
+            "x-enum-varnames": [
+                "AuctionEventOriginManual",
+                "AuctionEventOriginAuction"
+            ]
         },
         "models.AuctionLot": {
             "type": "object",
@@ -22930,6 +23103,21 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "models.QuickAccessTargetType": {
+            "type": "string",
+            "enum": [
+                "coin",
+                "coin_set",
+                "auction_lot",
+                "calendar_event"
+            ],
+            "x-enum-varnames": [
+                "QuickAccessTargetCoin",
+                "QuickAccessTargetCoinSet",
+                "QuickAccessTargetAuctionLot",
+                "QuickAccessTargetCalendarEvent"
+            ]
         },
         "models.QuickCaptureDraft": {
             "type": "object",
@@ -24597,6 +24785,114 @@ const docTemplate = `{
                 },
                 "targetPrice": {
                     "type": "number"
+                }
+            }
+        },
+        "services.QuickAccessAuctionLotDTO": {
+            "type": "object",
+            "properties": {
+                "auctionEndTime": {
+                    "type": "string"
+                },
+                "auctionHouse": {
+                    "type": "string"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "saleDate": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.AuctionLotStatus"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.QuickAccessCalendarEventDTO": {
+            "type": "object",
+            "properties": {
+                "auctionHouse": {
+                    "type": "string"
+                },
+                "endDate": {
+                    "type": "string"
+                },
+                "startDate": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.QuickAccessCoinDTO": {
+            "type": "object",
+            "properties": {
+                "classification": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "primaryImageUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.QuickAccessCoinSetDTO": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "setType": {
+                    "$ref": "#/definitions/models.CoinSetType"
+                }
+            }
+        },
+        "services.QuickAccessItemDTO": {
+            "type": "object",
+            "properties": {
+                "auctionLot": {
+                    "$ref": "#/definitions/services.QuickAccessAuctionLotDTO"
+                },
+                "calendarEvent": {
+                    "$ref": "#/definitions/services.QuickAccessCalendarEventDTO"
+                },
+                "coin": {
+                    "$ref": "#/definitions/services.QuickAccessCoinDTO"
+                },
+                "coinSet": {
+                    "$ref": "#/definitions/services.QuickAccessCoinSetDTO"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "pinnedAt": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/models.QuickAccessTargetType"
+                }
+            }
+        },
+        "services.QuickAccessListDTO": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.QuickAccessItemDTO"
+                    }
                 }
             }
         },

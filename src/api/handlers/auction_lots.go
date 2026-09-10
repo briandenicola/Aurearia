@@ -372,56 +372,20 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 	}
 
 	newStatus := models.AuctionLotStatus(req.Status)
-	lot, err := h.repo.GetByID(uint(id), userID)
-	if err != nil {
-		if repository.IsRecordNotFound(err) {
+	if err := h.svc.UpdateStatusWithBids(uint(id), userID, newStatus, req.MaxBid, req.WinningBid); err != nil {
+		if errors.Is(err, services.ErrAuctionLotNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidStatus) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status transition"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
 		return
 	}
 
-	if lot.Status != newStatus {
-		if err := h.svc.UpdateStatus(uint(id), userID, newStatus); err != nil {
-			if errors.Is(err, services.ErrAuctionLotNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
-				return
-			}
-			if errors.Is(err, services.ErrInvalidStatus) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status transition"})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
-			return
-		}
-	}
-
-	if req.MaxBid != nil {
-		lot, err = h.repo.GetByID(uint(id), userID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
-			return
-		}
-		if err := h.repo.UpdateFields(lot, map[string]interface{}{"max_bid": *req.MaxBid}); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update max bid"})
-			return
-		}
-	}
-
-	if req.WinningBid != nil && (newStatus == models.AuctionStatusWon || newStatus == models.AuctionStatusLost) {
-		lot, err = h.repo.GetByID(uint(id), userID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
-			return
-		}
-		if err := h.repo.UpdateFields(lot, map[string]interface{}{"winning_bid": *req.WinningBid}); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update winning bid"})
-			return
-		}
-	}
-
-	lot, _ = h.repo.GetByID(uint(id), userID)
+	lot, _ := h.repo.GetByID(uint(id), userID)
 	c.JSON(http.StatusOK, lot)
 }
 
@@ -668,8 +632,12 @@ func (h *AuctionLotHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	rows, err := h.repo.Delete(uint(id), userID)
+	rows, err := h.svc.Delete(uint(id), userID)
 	if err != nil {
+		if errors.Is(err, services.ErrAuctionLotNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete auction lot"})
 		return
 	}
@@ -898,7 +866,7 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 			lot.Currency = "USD"
 		}
 
-		if _, err := h.repo.UpsertWithCalendarEvent(&lot); err != nil {
+		if _, err := h.svc.UpsertSyncedLot(&lot); err != nil {
 			h.warn("Failed to upsert NumisBids lot for user %d url=%s: %v", userID, wl.URL, err)
 			continue
 		}
@@ -911,7 +879,9 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 	}
 
 	// Also mark any existing watching lots whose sale date has passed
-	h.repo.MarkPastAuctionsAsPassed(userID, now)
+	if err := h.svc.MarkPastAuctionsPassed(userID, now); err != nil {
+		h.warn("Failed to mark past NumisBids lots for user %d: %v", userID, err)
+	}
 	h.info("NumisBids sync completed for user %d: parsed=%d synced=%d", userID, len(parsed), len(synced))
 
 	c.JSON(http.StatusOK, gin.H{"synced": len(synced), "lots": synced})
@@ -979,7 +949,7 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 		}
 
 		lot := auctionLotFromWatchlist(models.AuctionSourceCNG, userID, wl, status, auctionEndTime)
-		if _, err := h.repo.UpsertWithCalendarEvent(&lot); err != nil {
+		if _, err := h.svc.UpsertSyncedLot(&lot); err != nil {
 			h.warn("Failed to upsert CNG lot for user %d url=%s: %v", userID, wl.URL, err)
 			continue
 		}
@@ -991,7 +961,9 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 		}
 	}
 
-	h.repo.MarkPastAuctionsAsPassed(userID, now)
+	if err := h.svc.MarkPastAuctionsPassed(userID, now); err != nil {
+		h.warn("Failed to mark past CNG lots for user %d: %v", userID, err)
+	}
 	h.info("CNG sync completed for user %d: parsed=%d synced=%d", userID, len(parsed), len(synced))
 	c.JSON(http.StatusOK, gin.H{"synced": len(synced), "lots": synced})
 }

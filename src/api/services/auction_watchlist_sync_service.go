@@ -23,6 +23,12 @@ type AuctionWatchlistSyncService struct {
 	credentials *CredentialEncryptionService
 	notifSvc    *NotificationService
 	logger      *Logger
+	quickAccess *QuickAccessService
+}
+
+func (s *AuctionWatchlistSyncService) WithQuickAccessSupport(quickAccess *QuickAccessService) *AuctionWatchlistSyncService {
+	s.quickAccess = quickAccess
+	return s
 }
 
 // syncProviderResult carries what one provider's sync produced: how many lots were upserted,
@@ -256,7 +262,7 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (syncProv
 			Status:         status,
 			UserID:         user.ID,
 		}
-		upsert, err := s.auctionRepo.UpsertWithCalendarEvent(&lot)
+		upsert, err := s.upsertWithQuickAccessCleanup(&lot)
 		if err != nil {
 			return result, err
 		}
@@ -271,7 +277,9 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (syncProv
 		}
 	}
 
-	s.auctionRepo.MarkPastAuctionsAsPassed(user.ID, now)
+	if err := s.markPastAuctionsPassed(user.ID, now); err != nil {
+		return result, err
+	}
 	return result, nil
 }
 
@@ -355,7 +363,7 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 			IsOutbid:       outbidByProvider(status, wl.MaxBid, wl.WinningCustomerRowID, customerRowID),
 			UserID:         user.ID,
 		}
-		upsert, err := s.auctionRepo.UpsertWithCalendarEvent(&lot)
+		upsert, err := s.upsertWithQuickAccessCleanup(&lot)
 		if err != nil {
 			return result, err
 		}
@@ -376,8 +384,43 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 		}
 	}
 
-	s.auctionRepo.MarkPastAuctionsAsPassed(user.ID, now)
+	if err := s.markPastAuctionsPassed(user.ID, now); err != nil {
+		return result, err
+	}
 	return result, nil
+}
+
+func (s *AuctionWatchlistSyncService) upsertWithQuickAccessCleanup(lot *models.AuctionLot) (repository.AuctionLotUpsertResult, error) {
+	var result repository.AuctionLotUpsertResult
+	err := s.auctionRepo.RunInTransaction(func(tx *repository.Transaction) error {
+		var err error
+		result, err = s.auctionRepo.WithTransaction(tx).UpsertInTx(lot, true)
+		if err != nil {
+			return err
+		}
+		if result.PreviousStatus != "" && !auctionLotIsQuickAccessEligible(lot.Status) && s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetInTx(tx, lot.UserID, models.QuickAccessTargetAuctionLot, result.LotID)
+		}
+		return nil
+	})
+	return result, err
+}
+
+func (s *AuctionWatchlistSyncService) markPastAuctionsPassed(userID uint, now time.Time) error {
+	return s.auctionRepo.RunInTransaction(func(tx *repository.Transaction) error {
+		txRepo := s.auctionRepo.WithTransaction(tx)
+		ids, err := txRepo.ListPastWatchingIDs(userID, now)
+		if err != nil {
+			return err
+		}
+		if err := txRepo.MarkIDsPassed(ids, userID); err != nil {
+			return err
+		}
+		if s.quickAccess != nil {
+			return s.quickAccess.RemoveTargetsInTx(tx, userID, models.QuickAccessTargetAuctionLot, ids)
+		}
+		return nil
+	})
 }
 
 func (s *AuctionWatchlistSyncService) decryptStoredCredential(user *models.User, field string, stored string) (string, error) {

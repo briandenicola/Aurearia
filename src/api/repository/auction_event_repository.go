@@ -15,6 +15,24 @@ func NewAuctionEventRepository(db *gorm.DB) *AuctionEventRepository {
 	return &AuctionEventRepository{db: db}
 }
 
+func (r *AuctionEventRepository) WithTx(tx *gorm.DB) *AuctionEventRepository {
+	return &AuctionEventRepository{db: tx}
+}
+
+func (r *AuctionEventRepository) Transaction(fn func(tx *gorm.DB) error) error {
+	return r.db.Transaction(fn)
+}
+
+func (r *AuctionEventRepository) RunInTransaction(fn func(tx *Transaction) error) error {
+	return r.db.Transaction(func(db *gorm.DB) error {
+		return fn(NewTransaction(db))
+	})
+}
+
+func (r *AuctionEventRepository) WithTransaction(tx *Transaction) *AuctionEventRepository {
+	return &AuctionEventRepository{db: tx.db}
+}
+
 func (r *AuctionEventRepository) Create(event *models.AuctionEvent) error {
 	return r.db.Create(event).Error
 }
@@ -24,18 +42,25 @@ func (r *AuctionEventRepository) Update(event *models.AuctionEvent) error {
 }
 
 func (r *AuctionEventRepository) Delete(id uint, userID uint) error {
-	return r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.AuctionEvent{}).Error
+	result := r.db.Scopes(OwnedByID(id, userID)).Delete(&models.AuctionEvent{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *AuctionEventRepository) GetByID(id uint, userID uint) (*models.AuctionEvent, error) {
 	var event models.AuctionEvent
-	err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&event).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).First(&event).Error
 	return &event, err
 }
 
 func (r *AuctionEventRepository) ListByUser(userID uint) ([]models.AuctionEvent, error) {
 	var events []models.AuctionEvent
-	err := r.db.Where("user_id = ?", userID).Order("start_date ASC").Find(&events).Error
+	err := r.db.Scopes(OwnedBy(userID)).Order("start_date ASC").Find(&events).Error
 	return events, err
 }
 

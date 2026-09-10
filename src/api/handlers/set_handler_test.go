@@ -3,9 +3,12 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var setHandlerDBCounter uint64
+
 func setupSetHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -24,7 +29,8 @@ func setupSetHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	db := setupSetHandlerTestDB(t)
 	setRepo := repository.NewSetRepository(db)
 	tagRepo := repository.NewTagRepository(db)
-	setService := services.NewSetService(setRepo, tagRepo)
+	quickAccess := services.NewQuickAccessService(repository.NewQuickAccessRepository(db))
+	setService := services.NewSetService(setRepo, tagRepo).WithQuickAccessSupport(quickAccess)
 	handler := NewSetHandler(setRepo, setService)
 
 	r := gin.New()
@@ -37,7 +43,9 @@ func setupSetHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 func setupSetHandlerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:set_handler_%d_%d?mode=memory&cache=shared",
+		time.Now().UnixNano(), atomic.AddUint64(&setHandlerDBCounter, 1))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
@@ -45,6 +53,7 @@ func setupSetHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.User{}, &models.Coin{}, &models.CoinImage{},
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
+		&models.QuickAccessPin{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -271,5 +280,30 @@ func TestSetHandler_Update_PinForeignSet_Returns404(t *testing.T) {
 	w := performSetUpdateRequest(t, router, set.ID, 2, map[string]interface{}{"pinned": true})
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for foreign set pin, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetHandler_Update_InternalErrorReturnsGeneric500(t *testing.T) {
+	router, db := setupSetHandlerRouter(t)
+	createTestUser(t, db, 1, "owner")
+	set := models.CoinSet{UserID: 1, Name: "Twelve Caesars", SetType: models.CoinSetTypeStandard}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+	if err := db.Migrator().DropTable(&models.QuickAccessPin{}); err != nil {
+		t.Fatalf("drop quick_access_pins: %v", err)
+	}
+
+	w := performSetUpdateRequest(t, router, set.ID, 1, map[string]interface{}{"pinned": true})
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if body != "{\"error\":\"Failed to update set\"}" {
+		t.Fatalf("unexpected error body: %s", body)
+	}
+	if strings.Contains(strings.ToLower(body), "sql") || strings.Contains(strings.ToLower(body), "table") {
+		t.Fatalf("response leaked internal database details: %s", body)
 	}
 }

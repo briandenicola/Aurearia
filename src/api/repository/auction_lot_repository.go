@@ -30,6 +30,16 @@ func (r *AuctionLotRepository) Transaction(fn func(tx *gorm.DB) error) error {
 	return r.db.Transaction(fn)
 }
 
+func (r *AuctionLotRepository) RunInTransaction(fn func(tx *Transaction) error) error {
+	return r.db.Transaction(func(db *gorm.DB) error {
+		return fn(NewTransaction(db))
+	})
+}
+
+func (r *AuctionLotRepository) WithTransaction(tx *Transaction) *AuctionLotRepository {
+	return &AuctionLotRepository{db: tx.db}
+}
+
 // AuctionLotListFilters holds filtering/sorting options for listing auction lots.
 type AuctionLotListFilters struct {
 	Status    string
@@ -170,6 +180,10 @@ func (r *AuctionLotRepository) Delete(id, userID uint) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+func (r *AuctionLotRepository) DeleteInTx(id, userID uint) (int64, error) {
+	return r.Delete(id, userID)
+}
+
 // StatusCount holds a status label and its count.
 type StatusCount struct {
 	Status string
@@ -216,106 +230,118 @@ func (r *AuctionLotRepository) countByStatus(db *gorm.DB) (map[string]int64, err
 
 // Upsert creates or updates an auction lot by its source URL for the given user.
 func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) (AuctionLotUpsertResult, error) {
-	return r.upsert(lot, false)
+	var result AuctionLotUpsertResult
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		result, err = r.WithTx(tx).UpsertInTx(lot, false)
+		return err
+	})
+	return result, err
 }
 
 // UpsertWithCalendarEvent creates or updates an auction lot and auto-links a calendar
 // event only when the lot is newly tracked with a watchable status.
 func (r *AuctionLotRepository) UpsertWithCalendarEvent(lot *models.AuctionLot) (AuctionLotUpsertResult, error) {
-	return r.upsert(lot, true)
-}
-
-func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bool) (AuctionLotUpsertResult, error) {
-	normalizeAuctionLotSource(lot)
-	result := AuctionLotUpsertResult{}
+	var result AuctionLotUpsertResult
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		txRepo := &AuctionLotRepository{db: tx}
-		existing, err := txRepo.GetBySourceURL(lot.Source, lot.SourceURL, lot.UserID)
-		if err != nil {
-			if !IsRecordNotFound(err) {
-				return err
-			}
-			// Set InitialBid from CurrentBid on first creation so the opening
-			// bid is preserved even as CurrentBid advances during the auction.
-			if lot.InitialBid == nil && lot.CurrentBid != nil {
-				initialBid := *lot.CurrentBid
-				lot.InitialBid = &initialBid
-			}
-			if err := tx.Create(lot).Error; err != nil {
-				return err
-			}
-			result.Created = true
-			result.LotID = lot.ID
-			if autoCreateEvent && shouldAutoCreateCalendarEvent(lot) {
-				event, created, err := txRepo.findOrCreateCalendarEventForLot(lot)
-				if err != nil {
-					return err
-				}
-				if err := tx.Model(lot).Update("event_id", event.ID).Error; err != nil {
-					return err
-				}
-				lot.EventID = &event.ID
-				result.EventCreated = created
-				result.EventID = &event.ID
-			}
-			return nil
-		}
-		result.LotID = existing.ID
-		// Report the not-outbid → outbid edge, so callers notify once per time the user
-		// loses the lead rather than on every sync while they are still behind.
-		result.BecameOutbid = !existing.IsOutbid && lot.IsOutbid
-		// Update fields that may have changed
-		updates := map[string]interface{}{
-			"is_outbid":        lot.IsOutbid,
-			"current_bid":      lot.CurrentBid,
-			"estimate":         lot.Estimate,
-			"title":            lot.Title,
-			"description":      lot.Description,
-			"image_url":        lot.ImageURL,
-			"auction_house":    lot.AuctionHouse,
-			"sale_name":        lot.SaleName,
-			"sale_date":        lot.SaleDate,
-			"currency":         lot.Currency,
-			"lot_number":       lot.LotNumber,
-			"auction_end_time": lot.AuctionEndTime,
-			"source":           lot.Source,
-			"source_url":       lot.SourceURL,
-			"source_lot_id":    lot.SourceLotID,
-			"source_sale_id":   lot.SourceSaleID,
-			"numis_bids_url":   lot.NumisBidsURL,
-		}
-		// Only sync max_bid from the provider when the provider supplies a value;
-		// this preserves a user-entered max bid when the provider does not return one.
-		if lot.MaxBid != nil {
-			updates["max_bid"] = lot.MaxBid
-		}
-		// Only update status based on provider signals; never overwrite a lot that is already
-		// terminal (won/lost) — once set, only a manual override can change it.
-		// Allow: watching → passed (auction ended), watching → bidding (autobid detected),
-		// (watching or bidding) → won/lost (provider reports the lot closed with a known
-		// outcome — this can jump straight from watching if a sync is missed while the lot
-		// was actively being bid on and it closes before the next sync observes "bidding").
-		isTerminal := existing.Status == models.AuctionStatusWon || existing.Status == models.AuctionStatusLost
-		switch {
-		case lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching:
-			updates["status"] = string(models.AuctionStatusPassed)
-			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
-			result.PreviousStatus = existing.Status
-		case lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching:
-			updates["status"] = string(models.AuctionStatusBidding)
-			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
-			result.PreviousStatus = existing.Status
-		case (lot.Status == models.AuctionStatusWon || lot.Status == models.AuctionStatusLost) && !isTerminal:
-			updates["status"] = string(lot.Status)
-			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
-			result.PreviousStatus = existing.Status
-			if lot.Status == models.AuctionStatusWon && lot.WinningBid != nil {
-				updates["winning_bid"] = lot.WinningBid
-			}
-		}
-		return txRepo.UpdateFields(existing, updates)
+		var err error
+		result, err = r.WithTx(tx).UpsertInTx(lot, true)
+		return err
 	})
 	return result, err
+}
+
+func (r *AuctionLotRepository) UpsertInTx(lot *models.AuctionLot, autoCreateEvent bool) (AuctionLotUpsertResult, error) {
+	normalizeAuctionLotSource(lot)
+	result := AuctionLotUpsertResult{}
+	txRepo := r
+	existing, err := txRepo.GetBySourceURL(lot.Source, lot.SourceURL, lot.UserID)
+	if err != nil {
+		if !IsRecordNotFound(err) {
+			return result, err
+		}
+		// Set InitialBid from CurrentBid on first creation so the opening
+		// bid is preserved even as CurrentBid advances during the auction.
+		if lot.InitialBid == nil && lot.CurrentBid != nil {
+			initialBid := *lot.CurrentBid
+			lot.InitialBid = &initialBid
+		}
+		if err := r.db.Create(lot).Error; err != nil {
+			return result, err
+		}
+		result.Created = true
+		result.LotID = lot.ID
+		if autoCreateEvent && shouldAutoCreateCalendarEvent(lot) {
+			event, created, err := txRepo.findOrCreateCalendarEventForLot(lot)
+			if err != nil {
+				return result, err
+			}
+			if err := r.db.Model(lot).Update("event_id", event.ID).Error; err != nil {
+				return result, err
+			}
+			lot.EventID = &event.ID
+			result.EventCreated = created
+			result.EventID = &event.ID
+		}
+		return result, nil
+	}
+	result.LotID = existing.ID
+	// Report the not-outbid → outbid edge, so callers notify once per time the user
+	// loses the lead rather than on every sync while they are still behind.
+	result.BecameOutbid = !existing.IsOutbid && lot.IsOutbid
+	// Update fields that may have changed
+	updates := map[string]interface{}{
+		"is_outbid":        lot.IsOutbid,
+		"current_bid":      lot.CurrentBid,
+		"estimate":         lot.Estimate,
+		"title":            lot.Title,
+		"description":      lot.Description,
+		"image_url":        lot.ImageURL,
+		"auction_house":    lot.AuctionHouse,
+		"sale_name":        lot.SaleName,
+		"sale_date":        lot.SaleDate,
+		"currency":         lot.Currency,
+		"lot_number":       lot.LotNumber,
+		"auction_end_time": lot.AuctionEndTime,
+		"source":           lot.Source,
+		"source_url":       lot.SourceURL,
+		"source_lot_id":    lot.SourceLotID,
+		"source_sale_id":   lot.SourceSaleID,
+		"numis_bids_url":   lot.NumisBidsURL,
+	}
+	// Only sync max_bid from the provider when the provider supplies a value;
+	// this preserves a user-entered max bid when the provider does not return one.
+	if lot.MaxBid != nil {
+		updates["max_bid"] = lot.MaxBid
+	}
+	// Only update status based on provider signals; never overwrite a lot that is already
+	// terminal (won/lost) — once set, only a manual override can change it.
+	// Allow: watching → passed (auction ended), watching → bidding (autobid detected),
+	// (watching or bidding) → won/lost (provider reports the lot closed with a known
+	// outcome — this can jump straight from watching if a sync is missed while the lot
+	// was actively being bid on and it closes before the next sync observes "bidding").
+	isTerminal := existing.Status == models.AuctionStatusWon || existing.Status == models.AuctionStatusLost
+	switch {
+	case lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching:
+		updates["status"] = string(models.AuctionStatusPassed)
+		updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+		result.PreviousStatus = existing.Status
+	case lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching:
+		updates["status"] = string(models.AuctionStatusBidding)
+		updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+		result.PreviousStatus = existing.Status
+	case (lot.Status == models.AuctionStatusWon || lot.Status == models.AuctionStatusLost) && !isTerminal:
+		updates["status"] = string(lot.Status)
+		updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+		result.PreviousStatus = existing.Status
+		if lot.Status == models.AuctionStatusWon && lot.WinningBid != nil {
+			updates["winning_bid"] = lot.WinningBid
+		}
+	}
+	if err := txRepo.UpdateFields(existing, updates); err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 func shouldAutoCreateCalendarEvent(lot *models.AuctionLot) bool {
@@ -363,6 +389,7 @@ func auctionEventFromLot(lot *models.AuctionLot) models.AuctionEvent {
 		EndDate:      endDate,
 		URL:          firstNonBlank(lot.SourceURL, lot.NumisBidsURL),
 		Notes:        auctionEventNotes(lot),
+		Origin:       models.AuctionEventOriginAuction,
 	}
 }
 
@@ -455,6 +482,26 @@ func (r *AuctionLotRepository) MarkPastAuctionsAsPassed(userID uint, now time.Ti
 			"status":        string(models.AuctionStatusPassed),
 			"status_source": string(models.AuctionLotStatusSourceSync),
 		})
+}
+
+func (r *AuctionLotRepository) ListPastWatchingIDs(userID uint, now time.Time) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&models.AuctionLot{}).
+		Where("user_id = ? AND status = ? AND sale_date IS NOT NULL AND sale_date < ?", userID, models.AuctionStatusWatching, now).
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *AuctionLotRepository) MarkIDsPassed(ids []uint, userID uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.db.Model(&models.AuctionLot{}).
+		Where("id IN ? AND user_id = ? AND status = ?", ids, userID, models.AuctionStatusWatching).
+		Updates(map[string]interface{}{
+			"status":        string(models.AuctionStatusPassed),
+			"status_source": string(models.AuctionLotStatusSourceSync),
+		}).Error
 }
 
 // ListByEventID returns all auction lots linked to a specific calendar event.

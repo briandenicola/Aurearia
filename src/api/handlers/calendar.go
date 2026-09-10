@@ -1,22 +1,35 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 )
 
 type CalendarHandler struct {
 	eventRepo   *repository.AuctionEventRepository
 	auctionRepo *repository.AuctionLotRepository
+	service     calendarMutationService
 }
 
-func NewCalendarHandler(eventRepo *repository.AuctionEventRepository, auctionRepo *repository.AuctionLotRepository) *CalendarHandler {
-	return &CalendarHandler{eventRepo: eventRepo, auctionRepo: auctionRepo}
+type calendarMutationService interface {
+	Create(event *models.AuctionEvent) error
+	Update(id, userID uint, apply func(*models.AuctionEvent)) error
+	Delete(id, userID uint) error
+}
+
+func NewCalendarHandler(
+	eventRepo *repository.AuctionEventRepository,
+	auctionRepo *repository.AuctionLotRepository,
+	service calendarMutationService,
+) *CalendarHandler {
+	return &CalendarHandler{eventRepo: eventRepo, auctionRepo: auctionRepo, service: service}
 }
 
 // GetCalendar returns auction lots and events in a date range.
@@ -171,8 +184,8 @@ func (h *CalendarHandler) CreateEvent(c *gin.Context) {
 		Notes:        req.Notes,
 	}
 
-	if err := h.eventRepo.Create(&event); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
+	if err := h.service.Create(&event); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to create event", err)
 		return
 	}
 
@@ -202,12 +215,6 @@ func (h *CalendarHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
-	event, err := h.eventRepo.GetByID(uint(id), userID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
-		return
-	}
-
 	var req struct {
 		Title        *string    `json:"title"`
 		AuctionHouse *string    `json:"auctionHouse"`
@@ -221,27 +228,33 @@ func (h *CalendarHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
-	if req.Title != nil {
-		event.Title = *req.Title
+	apply := func(event *models.AuctionEvent) {
+		if req.Title != nil {
+			event.Title = *req.Title
+		}
+		if req.AuctionHouse != nil {
+			event.AuctionHouse = *req.AuctionHouse
+		}
+		if req.StartDate != nil {
+			event.StartDate = req.StartDate
+		}
+		if req.EndDate != nil {
+			event.EndDate = req.EndDate
+		}
+		if req.URL != nil {
+			event.URL = *req.URL
+		}
+		if req.Notes != nil {
+			event.Notes = *req.Notes
+		}
 	}
-	if req.AuctionHouse != nil {
-		event.AuctionHouse = *req.AuctionHouse
-	}
-	if req.StartDate != nil {
-		event.StartDate = req.StartDate
-	}
-	if req.EndDate != nil {
-		event.EndDate = req.EndDate
-	}
-	if req.URL != nil {
-		event.URL = *req.URL
-	}
-	if req.Notes != nil {
-		event.Notes = *req.Notes
-	}
-
-	if err := h.eventRepo.Update(event); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update event"})
+	err = h.service.Update(uint(id), userID, apply)
+	if err != nil {
+		if errors.Is(err, services.ErrCalendarEventNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "Failed to update event", err)
 		return
 	}
 
@@ -302,8 +315,13 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 		return
 	}
 
-	if err := h.eventRepo.Delete(uint(id), userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete event"})
+	err = h.service.Delete(uint(id), userID)
+	if err != nil {
+		if errors.Is(err, services.ErrCalendarEventNotFound) || repository.IsRecordNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "Failed to delete event", err)
 		return
 	}
 
