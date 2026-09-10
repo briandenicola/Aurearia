@@ -93,7 +93,7 @@ func (s *AuctionLotService) UpdateStatusWithBids(id, userID uint, newStatus mode
 		if maxBid != nil {
 			updates["max_bid"] = *maxBid
 		}
-		if winningBid != nil && newStatus == models.AuctionStatusWon {
+		if winningBid != nil && (newStatus == models.AuctionStatusWon || newStatus == models.AuctionStatusLost) {
 			updates["winning_bid"] = *winningBid
 		}
 		if err := txRepo.UpdateFields(lot, updates); err != nil {
