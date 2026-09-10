@@ -800,3 +800,34 @@ pm run build (worker chunks confirmed under dist/assets/workers/).
 - **Non-blocking gap worth remembering:** pinned sets (and, pre-existing, notification polling) only hydrate in `onMounted`; `LoginPage` navigates with `router.push('/')` so root `App.vue` never remounts, and there is no `watch` on `auth.isAuthenticated`. After an in-tab login the sidebar shows no pins until a reload. Matches the accepted D6 wiring and the existing `startPolling()` pattern, so not a regression -- but it is the right shape for a future "hydrate session state on login" ticket covering both.
 
 **Validation run (final state):** `go build/vet ./...` clean; `go test ./...` 9/10 packages ok (only the two pre-existing auction failures); cache-busted `-count=1` re-run of handlers/repository/services set+pin tests all ok; `TestArchitecture` (5 subtests) + `TestNoDirectDatabaseImports` PASS; `npm run lint` exit 0; `npx vue-tsc --build --force` exit 0; full `npx vitest run` **164 files / 1322 tests all passing**; `npm run build` exit 0. All scratch artifacts (`.qa-head-baseline` worktree, `.qa-gofmt` scratch dir, 3 throwaway Go probes) deleted. No commit, no push.
+
+---
+
+## 2026-09-10 -- Feature 357 Unified Quick Access Pins backend: REJECT
+
+**Scope:** Independent reviewer gate for `specs/357-unified-quick-access-pins/`; Go backend only. Read the constitution, PRD, decisions, Brutus charter/history, all Feature 357 artifacts, Cassius history/diff, and the SQLite isolation, route/OpenAPI drift, and GORM timestamp skills. No `src/web/` path changed.
+
+**Blocking finding:** The legacy `PUT /api/sets/:id` pin path now delegates to `QuickAccessService`, but `SetHandler.Update` still maps every non-not-found service error to HTTP 400 with `err.Error()`. A temporary real-handler probe dropped `quick_access_pins` and pinned a set; the response was `400 {"error":"SQL logic error: no such table: quick_access_pins (1)"}`. This leaks repository/database details and violates Constitution Principles I/V, spec FR-010, plan D10, and the documented 500 contract. Revision must distinguish expected validation/cap errors from unexpected failures, log unexpected errors server-side, and return a generic 500. Cassius is locked out; a different revision agent is required.
+
+**Architecture finding:** `CalendarHandler.UpdateEvent` still calls `eventRepo.GetByID` before invoking `CalendarService.Update`, causing a duplicate repository read and mapping any pre-service repository failure to 404. This does not satisfy plan T048/D9's mutation boundary ("retain only parsing/response mapping"). The revision should make the service the sole mutation-path repository caller while retaining repositories for read-only handlers.
+
+**Positive evidence:** Quick Access routes are JWT-protected and rate-limited on writes; DTOs serialize exactly one matching payload; owner/ineligible/missing pin attempts share the generic 404; PUT/DELETE idempotency, newest-first ordering, derived coin/lot state, stale omission, set backfill/mirror/cap, coin/lot/event/set lifecycle cleanup, and rollback cases passed focused tests. Added `TestQuickAccessHandlerListUsesExactDiscriminatedPayloads` to cover T050.
+
+**Validation:** `go build ./...` PASS; `go vet ./...` PASS; Feature 357 database/repository/service/handler suites with `-count=2` PASS; route/OpenAPI drift PASS; architecture gate PASS (5/5 subtests); generated `src/api/docs/swagger.json` and `docs/openapi.json` SHA-256 match. Full `go test ./...`: 10 packages PASS, 1 package FAIL (`services`); the failing `TestAuctionLotClosesIn` clock-boundary expectations reproduce on pristine HEAD and are unrelated to Feature 357. A broader `-count=2` service run additionally exposes pre-existing shared-DB leakage in `collection_tools_service_test.go`.
+
+**Reviewer changes:** Added one Go contract test in `src/api/handlers/quick_access_test.go`; appended this history entry. No commit or push.
+
+
+---
+
+## 2026-09-10 -- Feature 357 Unified Quick Access Pins backend re-review: APPROVE
+
+**Scope:** Strict-lockout re-review after Livia's independent revision of the two prior blockers. Reviewed current Feature 357 backend/spec/plan/tasks, constructor call sites, set compatibility flow, calendar mutation boundary, lifecycle integrations, migration, routes, and generated contracts. No implementation or `src/web/` files were edited.
+
+**Blockers cleared:** `SetHandler.Update` now maps only typed validation/cap/not-found errors to client responses and uses `respondError(..., 500, "Failed to update set", err)` for unexpected failures. `TestSetHandler_Update_InternalErrorReturnsGeneric500` proves a dropped `quick_access_pins` table returns only the generic 500 body; cap and foreign-set compatibility regressions also pass. `CalendarHandler.UpdateEvent` performs no repository read and delegates once to the injected mutation service; repository failures remain distinct from missing rows and map to a generic 500.
+
+**Calendar and wiring evidence:** Every `NewCalendarHandler` production/test call site supplies the mutation service. Production wires `CalendarService` with the owner-scoped event repository and Quick Access service. Create forces `origin=manual`; update does not accept or mutate origin; Quick Access rejects `origin=auction`; update/delete repository access is owner-scoped; delete cleanup is transactional.
+
+**Validation:** Exact set regressions PASS; exact calendar layering/error-classification regressions PASS; `TestQuickAccessLifecycleCleanupAndPreservation -count=2` PASS; focused Feature 357 handler/service/repository/database suites `-count=2` PASS; `go build ./...` PASS; `go vet ./...` PASS; complete architecture and route/OpenAPI gates PASS; generated OpenAPI JSON hashes match; no `src/web/` diff. Full `go test ./... -count=1` has only the previously reproduced unrelated clock/DST failures in `TestBuildAuctionLotsOutbidPushoverMessage` and `TestAuctionLotClosesIn`.
+
+**Verdict:** APPROVE. Strict lockout is cleared for the reviewed Feature 357 backend phase. No commit or push.

@@ -1,22 +1,31 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
+var calendarHandlerDBCounter uint64
+
 func setupCalendarHandlerDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:calendar_handler_%d_%d?mode=memory&cache=shared",
+		time.Now().UnixNano(), atomic.AddUint64(&calendarHandlerDBCounter, 1))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
@@ -24,6 +33,15 @@ func setupCalendarHandlerDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
+}
+
+func newCalendarHandler(db *gorm.DB) *CalendarHandler {
+	eventRepo := repository.NewAuctionEventRepository(db)
+	return NewCalendarHandler(
+		eventRepo,
+		repository.NewAuctionLotRepository(db),
+		services.NewCalendarService(eventRepo, nil),
+	)
 }
 
 func calendarRequest(t *testing.T, handler *CalendarHandler, query string) (int, map[string]interface{}) {
@@ -48,7 +66,7 @@ func calendarRequest(t *testing.T, handler *CalendarHandler, query string) (int,
 
 func TestCalendarDefaultDateRangeSpansStartOfMonthToThreeMonthsOut(t *testing.T) {
 	db := setupCalendarHandlerDB(t)
-	handler := NewCalendarHandler(repository.NewAuctionEventRepository(db), repository.NewAuctionLotRepository(db))
+	handler := newCalendarHandler(db)
 
 	code, body := calendarRequest(t, handler, "")
 	if code != http.StatusOK {
@@ -92,7 +110,8 @@ func TestCalendarCustomDateRangeIsEchoedBackAndFiltersResults(t *testing.T) {
 		t.Fatalf("failed to create out-of-range lot: %v", err)
 	}
 
-	handler := NewCalendarHandler(repository.NewAuctionEventRepository(db), auctionRepo)
+	eventRepo := repository.NewAuctionEventRepository(db)
+	handler := NewCalendarHandler(eventRepo, auctionRepo, services.NewCalendarService(eventRepo, nil))
 	code, body := calendarRequest(t, handler, "?start=2026-08-01&end=2026-08-31")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -115,7 +134,7 @@ func TestCalendarCustomDateRangeIsEchoedBackAndFiltersResults(t *testing.T) {
 
 func TestCalendarRejectsInvalidStartDate(t *testing.T) {
 	db := setupCalendarHandlerDB(t)
-	handler := NewCalendarHandler(repository.NewAuctionEventRepository(db), repository.NewAuctionLotRepository(db))
+	handler := newCalendarHandler(db)
 
 	code, _ := calendarRequest(t, handler, "?start=not-a-date")
 	if code != http.StatusBadRequest {
@@ -125,7 +144,7 @@ func TestCalendarRejectsInvalidStartDate(t *testing.T) {
 
 func TestCalendarRejectsInvalidEndDate(t *testing.T) {
 	db := setupCalendarHandlerDB(t)
-	handler := NewCalendarHandler(repository.NewAuctionEventRepository(db), repository.NewAuctionLotRepository(db))
+	handler := newCalendarHandler(db)
 
 	code, _ := calendarRequest(t, handler, "?start=2026-08-01&end=not-a-date")
 	if code != http.StatusBadRequest {
@@ -153,7 +172,7 @@ func TestCalendarReturnsMixedLotAndEventShape(t *testing.T) {
 		t.Fatalf("failed to create event: %v", err)
 	}
 
-	handler := NewCalendarHandler(eventRepo, auctionRepo)
+	handler := NewCalendarHandler(eventRepo, auctionRepo, services.NewCalendarService(eventRepo, nil))
 	code, body := calendarRequest(t, handler, "?start=2026-08-01&end=2026-08-31")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -182,5 +201,76 @@ func TestCalendarReturnsMixedLotAndEventShape(t *testing.T) {
 	}
 	if event["title"] != "Mixed shape event" {
 		t.Errorf("event title = %v, want 'Mixed shape event'", event["title"])
+	}
+}
+
+type calendarMutationServiceStub struct {
+	updateCalls int
+	updateErr   error
+}
+
+func (s *calendarMutationServiceStub) Create(*models.AuctionEvent) error {
+	return nil
+}
+
+func (s *calendarMutationServiceStub) Update(_ uint, _ uint, apply func(*models.AuctionEvent)) error {
+	s.updateCalls++
+	event := &models.AuctionEvent{}
+	apply(event)
+	if event.Title != "Updated title" {
+		return errors.New("update callback was not applied")
+	}
+	return s.updateErr
+}
+
+func (s *calendarMutationServiceStub) Delete(uint, uint) error {
+	return nil
+}
+
+func TestCalendarUpdateUsesServiceWithoutHandlerRepositoryRead(t *testing.T) {
+	service := &calendarMutationServiceStub{}
+	handler := NewCalendarHandler(nil, nil, service)
+	body := bytes.NewBufferString(`{"title":"Updated title"}`)
+	req := httptest.NewRequest(http.MethodPut, "/calendar/events/7", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "7"}}
+	c.Set("userId", uint(3))
+
+	handler.UpdateEvent(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if service.updateCalls != 1 {
+		t.Fatalf("service update calls=%d, want 1", service.updateCalls)
+	}
+}
+
+func TestCalendarUpdateRepositoryFailureReturnsGeneric500(t *testing.T) {
+	db := setupCalendarHandlerDB(t)
+	handler := newCalendarHandler(db)
+	if err := db.Migrator().DropTable(&models.AuctionEvent{}); err != nil {
+		t.Fatalf("drop auction_events: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{"title":"Updated title"}`)
+	req := httptest.NewRequest(http.MethodPut, "/calendar/events/7", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "7"}}
+	c.Set("userId", uint(3))
+
+	handler.UpdateEvent(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if w.Body.String() != "{\"error\":\"Failed to update event\"}" {
+		t.Fatalf("unexpected error body: %s", w.Body.String())
 	}
 }

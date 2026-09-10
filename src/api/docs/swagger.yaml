@@ -2216,6 +2216,8 @@ definitions:
         type: integer
       notes:
         type: string
+      origin:
+        $ref: '#/definitions/models.AuctionEventOrigin'
       startDate:
         type: string
       title:
@@ -2227,6 +2229,14 @@ definitions:
       userId:
         type: integer
     type: object
+  models.AuctionEventOrigin:
+    enum:
+    - manual
+    - auction
+    type: string
+    x-enum-varnames:
+    - AuctionEventOriginManual
+    - AuctionEventOriginAuction
   models.AuctionLot:
     properties:
       auctionEndTime:
@@ -3332,6 +3342,18 @@ definitions:
       userId:
         type: integer
     type: object
+  models.QuickAccessTargetType:
+    enum:
+    - coin
+    - coin_set
+    - auction_lot
+    - calendar_event
+    type: string
+    x-enum-varnames:
+    - QuickAccessTargetCoin
+    - QuickAccessTargetCoinSet
+    - QuickAccessTargetAuctionLot
+    - QuickAccessTargetCalendarEvent
   models.QuickCaptureDraft:
     properties:
       acquisitionSource:
@@ -4463,6 +4485,76 @@ definitions:
     required:
     - auctionLotId
     - targetPrice
+    type: object
+  services.QuickAccessAuctionLotDTO:
+    properties:
+      auctionEndTime:
+        type: string
+      auctionHouse:
+        type: string
+      imageUrl:
+        type: string
+      saleDate:
+        type: string
+      status:
+        $ref: '#/definitions/models.AuctionLotStatus'
+      title:
+        type: string
+    type: object
+  services.QuickAccessCalendarEventDTO:
+    properties:
+      auctionHouse:
+        type: string
+      endDate:
+        type: string
+      startDate:
+        type: string
+      title:
+        type: string
+    type: object
+  services.QuickAccessCoinDTO:
+    properties:
+      classification:
+        type: string
+      name:
+        type: string
+      primaryImageUrl:
+        type: string
+    type: object
+  services.QuickAccessCoinSetDTO:
+    properties:
+      color:
+        type: string
+      icon:
+        type: string
+      name:
+        type: string
+      setType:
+        $ref: '#/definitions/models.CoinSetType'
+    type: object
+  services.QuickAccessItemDTO:
+    properties:
+      auctionLot:
+        $ref: '#/definitions/services.QuickAccessAuctionLotDTO'
+      calendarEvent:
+        $ref: '#/definitions/services.QuickAccessCalendarEventDTO'
+      coin:
+        $ref: '#/definitions/services.QuickAccessCoinDTO'
+      coinSet:
+        $ref: '#/definitions/services.QuickAccessCoinSetDTO'
+      id:
+        type: integer
+      pinnedAt:
+        type: string
+      type:
+        $ref: '#/definitions/models.QuickAccessTargetType'
+    type: object
+  services.QuickAccessListDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/services.QuickAccessItemDTO'
+        type: array
     type: object
   services.SchedulerStatus:
     properties:
@@ -11939,6 +12031,111 @@ paths:
       summary: List purchase reminders
       tags:
       - Purchase Reminders
+  /quick-access:
+    get:
+      description: Returns eligible user-owned pins newest first as a typed discriminated
+        union.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.QuickAccessListDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Quick Access pins
+      tags:
+      - Quick Access
+  /quick-access/{type}/{id}:
+    delete:
+      description: Idempotently removes one target from the authenticated user's Quick
+        Access list.
+      parameters:
+      - description: 'Target type: coin, coin_set, auction_lot, calendar_event'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Target ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unpin a Quick Access target
+      tags:
+      - Quick Access
+    put:
+      description: Idempotently pins one eligible user-owned target while preserving
+        its original pin time.
+      parameters:
+      - description: 'Target type: coin, coin_set, auction_lot, calendar_event'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Target ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.QuickAccessItemDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/services.QuickAccessItemDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pin a Quick Access target
+      tags:
+      - Quick Access
   /quick-capture/drafts:
     get:
       description: Lists owner-scoped Quick Capture drafts, defaulting to active drafts.

@@ -2,6 +2,13 @@ package models
 
 import "time"
 
+type AuctionEventOrigin string
+
+const (
+	AuctionEventOriginManual  AuctionEventOrigin = "manual"
+	AuctionEventOriginAuction AuctionEventOrigin = "auction"
+)
+
 type Showcase struct {
 	ID          uint           `gorm:"primaryKey" json:"id"`
 	UserID      uint           `gorm:"not null;index" json:"userId"`
@@ -24,15 +31,16 @@ type ShowcaseCoin struct {
 }
 
 type AuctionEvent struct {
-	ID           uint       `gorm:"primaryKey" json:"id"`
-	UserID       uint       `gorm:"not null;index" json:"userId"`
-	User         User       `gorm:"foreignKey:UserID" json:"-"`
-	Title        string     `gorm:"size:300;not null" json:"title"`
-	AuctionHouse string     `gorm:"size:200" json:"auctionHouse"`
-	StartDate    *time.Time `json:"startDate"`
-	EndDate      *time.Time `json:"endDate"`
-	URL          string     `gorm:"size:500" json:"url"`
-	Notes        string     `gorm:"type:text" json:"notes"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID           uint               `gorm:"primaryKey" json:"id"`
+	UserID       uint               `gorm:"not null;index" json:"userId"`
+	User         User               `gorm:"foreignKey:UserID" json:"-"`
+	Title        string             `gorm:"size:300;not null" json:"title"`
+	AuctionHouse string             `gorm:"size:200" json:"auctionHouse"`
+	StartDate    *time.Time         `json:"startDate"`
+	EndDate      *time.Time         `json:"endDate"`
+	URL          string             `gorm:"size:500" json:"url"`
+	Notes        string             `gorm:"type:text" json:"notes"`
+	Origin       AuctionEventOrigin `gorm:"type:varchar(10);not null;default:'manual';index" json:"origin"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	UpdatedAt    time.Time          `json:"updatedAt"`
 }
