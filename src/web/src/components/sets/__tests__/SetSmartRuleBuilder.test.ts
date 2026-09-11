@@ -7,6 +7,7 @@ const mockGetSuggestedCriteria = vi.fn()
 const mockListCriteriaTemplates = vi.fn()
 const mockSaveCriteriaTemplate = vi.fn()
 const mockGetMintLocations = vi.fn()
+const mockGetStorageLocations = vi.fn()
 
 vi.mock('@/api/client', () => ({
   previewSmartSet: (...args: unknown[]) => mockPreviewSmartSet(...args),
@@ -14,6 +15,7 @@ vi.mock('@/api/client', () => ({
   listCriteriaTemplates: (...args: unknown[]) => mockListCriteriaTemplates(...args),
   saveCriteriaTemplate: (...args: unknown[]) => mockSaveCriteriaTemplate(...args),
   getMintLocations: (...args: unknown[]) => mockGetMintLocations(...args),
+  getStorageLocations: (...args: unknown[]) => mockGetStorageLocations(...args),
 }))
 
 function defaultMount() {
@@ -47,6 +49,14 @@ describe('SetSmartRuleBuilder', () => {
         mintLocations: [
           { id: 1, displayName: 'Rome', lat: 41.9, lng: 12.5, region: '', aliases: [], createdAt: '', updatedAt: '' },
           { id: 2, userId: 7, displayName: 'My Custom Mint', lat: 1, lng: 1, region: '', aliases: [], createdAt: '', updatedAt: '' },
+        ],
+      },
+    })
+    mockGetStorageLocations.mockResolvedValue({
+      data: {
+        storageLocations: [
+          { id: 10, name: 'Cabinet A', type: 'standard', rows: null, columns: null, occupied: 2, capacity: 0 },
+          { id: 11, name: 'Roman Tray', type: 'tray', rows: 4, columns: 5, occupied: 3, capacity: 20 },
         ],
       },
     })
@@ -137,6 +147,41 @@ describe('SetSmartRuleBuilder', () => {
 
     const valueInput = wrapper.find('.rule-row input.rule-input--value')
     expect(valueInput.exists()).toBe(true)
+  })
+
+  it('offers owner storage locations and emits the stable location id', async () => {
+    const wrapper = defaultMount()
+    await flushPromises()
+
+    await wrapper.find('.rule-row select').setValue('storageLocationId')
+    await wrapper.vm.$nextTick()
+
+    const selects = wrapper.findAll('.rule-row select')
+    const opSelect = selects[1]
+    const locationSelect = selects[2]
+    expect(opSelect.findAll('option').map(option => option.text())).toEqual([
+      'Equals',
+      'Not equals',
+      'Is empty',
+      'Is not empty',
+    ])
+    expect(locationSelect.findAll('option').map(option => option.text())).toEqual([
+      'Select location',
+      'Cabinet A',
+      'Roman Tray',
+    ])
+
+    await locationSelect.setValue(11)
+
+    const emitted = wrapper.emitted('update') as unknown[][]
+    const criteria = emitted.at(-1)?.[0] as {
+      rules: Array<{ field: string; op: string; value: unknown }>
+    }
+    expect(criteria.rules[0]).toEqual({
+      field: 'storageLocationId',
+      op: 'eq',
+      value: 11,
+    })
   })
 
   it('shows suggestions after loading', async () => {

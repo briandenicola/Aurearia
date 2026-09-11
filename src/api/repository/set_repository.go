@@ -884,20 +884,21 @@ func (r *SetRepository) applyCriteria(query *gorm.DB, node map[string]interface{
 }
 
 var criteriaFieldColumns = map[string]string{
-	"material":      "material",
-	"category":      "category",
-	"denomination":  "denomination",
-	"ruler":         "ruler",
-	"era":           "era",
-	"mint":          "mint",
-	"grade":         "grade",
-	"currentValue":  "current_value",
-	"purchasePrice": "purchase_price",
-	"purchaseDate":  "purchase_date",
-	"createdAt":     "created_at",
-	"isWishlist":    "is_wishlist",
-	"isSold":        "is_sold",
-	"isPrivate":     "is_private",
+	"material":          "material",
+	"category":          "category",
+	"denomination":      "denomination",
+	"ruler":             "ruler",
+	"era":               "era",
+	"mint":              "mint",
+	"grade":             "grade",
+	"currentValue":      "current_value",
+	"purchasePrice":     "purchase_price",
+	"purchaseDate":      "purchase_date",
+	"createdAt":         "created_at",
+	"isWishlist":        "is_wishlist",
+	"isSold":            "is_sold",
+	"isPrivate":         "is_private",
+	"storageLocationId": "storage_location_id",
 }
 
 func nextSetSortOrder(tx *gorm.DB, setID uint) (int, error) {

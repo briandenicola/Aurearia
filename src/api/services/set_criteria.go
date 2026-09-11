@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 )
@@ -9,7 +10,7 @@ import (
 var allowedCriteriaFields = []string{
 	"material", "category", "denomination", "ruler", "era", "mint", "grade",
 	"currentValue", "purchasePrice", "purchaseDate", "createdAt", "isWishlist",
-	"isSold", "isPrivate",
+	"isSold", "isPrivate", "storageLocationId",
 }
 
 var allowedCriteriaOps = []string{
@@ -52,6 +53,17 @@ func validateCriteriaNode(node map[string]interface{}) error {
 	}
 	if !slices.Contains(allowedCriteriaOps, ruleOp) {
 		return fmt.Errorf("criteria operator %q is not allowed", ruleOp)
+	}
+	if field == "storageLocationId" {
+		if !slices.Contains([]string{"eq", "neq", "isNull", "isNotNull"}, ruleOp) {
+			return fmt.Errorf("criteria operator %q is not allowed for storageLocationId", ruleOp)
+		}
+		if ruleOp == "eq" || ruleOp == "neq" {
+			value, ok := node["value"].(float64)
+			if !ok || value < 1 || value != math.Trunc(value) {
+				return fmt.Errorf("storageLocationId criteria value must be a positive integer")
+			}
+		}
 	}
 	return nil
 }

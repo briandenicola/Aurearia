@@ -29,6 +29,7 @@ Coin Sets provides flexible organization beyond tags, allowing collectors to cre
   - Grade range
   - Acquisition date range
   - Mint location
+  - Storage location, using the saved location identity so renaming it does not change the rule
   - Wishlist / Sold status
   - AND/OR logic for complex rules
 - **Automatic Updates** — Membership recalculates when coins change
