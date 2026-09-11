@@ -4144,8 +4144,10 @@ definitions:
         type: number
       id:
         type: integer
-      image:
-        $ref: '#/definitions/repository.TrayImage'
+      images:
+        items:
+          $ref: '#/definitions/repository.TrayImage'
+        type: array
       name:
         type: string
       storageSlot:

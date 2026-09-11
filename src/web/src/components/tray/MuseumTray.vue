@@ -1,17 +1,7 @@
 <template>
   <TraySurface :felt-theme="feltTheme">
     <div v-if="hasAnyFaceImage" class="tray-actions">
-      <button
-        class="tray-face-toggle"
-        :class="{ 'is-reverse': activeFace === 'reverse' }"
-        type="button"
-        :aria-pressed="activeFace === 'reverse'"
-        :aria-label="`Show ${activeFace === 'obverse' ? 'reverse' : 'obverse'} side for all coins`"
-        :title="`Show ${activeFace === 'obverse' ? 'reverse' : 'obverse'} side`"
-        @click="toggleFace"
-      >
-        <RotateCcw :size="16" />
-      </button>
+      <TrayFaceToggle :active-face="activeFace" @toggle="toggleFace" />
     </div>
     <div class="tray-grid">
       <MuseumTrayWell
@@ -19,6 +9,7 @@
         :key="`${coin.placeholder ? 'slot' : 'coin'}-${coin.id}`"
         :coin="coin"
         :render-size-px="getRenderSize(coin)"
+        :well-stage-size-px="maxRenderSize"
         :image-src-resolver="imageSrcResolver"
         :interactive="interactive"
         :show-captions="showCaptions"
@@ -32,8 +23,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RotateCcw } from 'lucide-vue-next'
 import MuseumTrayWell from './MuseumTrayWell.vue'
+import TrayFaceToggle from './TrayFaceToggle.vue'
 import TraySurface from './TraySurface.vue'
 import { getScaledCoinRenderSizePx, normalizeDiameterMm, type TrayCoin, type TrayCoinFace } from '@/utils/trayLayout'
 import type { FeltColor } from '@/composables/useTrayPreference'
@@ -79,6 +70,11 @@ const hasAnyFaceImage = computed(() => {
   )
 })
 
+const maxRenderSize = computed(() => {
+  if (props.coins.length === 0) return layoutOptions.minCoinPx
+  return Math.max(...props.coins.map(getRenderSize))
+})
+
 function getRenderSize(coin: TrayCoin): number {
   const diameter = normalizeDiameterMm(coin.diameterMm, layoutOptions.defaultDiameterMm)
   return getScaledCoinRenderSizePx(diameter, allDiameters.value, layoutOptions, props.sizeScale)
@@ -102,45 +98,6 @@ function toggleFace() {
   top: 0.85rem;
   right: 0.85rem;
   z-index: 2;
-}
-
-.tray-face-toggle {
-  width: 2.2rem;
-  height: 2.2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
-  color: var(--text-secondary);
-  box-shadow: var(--shadow-card);
-  transition: all var(--transition-fast);
-}
-
-.tray-face-toggle:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  transform: translateY(-1px);
-}
-
-.tray-face-toggle:focus-visible {
-  outline: 2px solid var(--accent-gold);
-  outline-offset: 2px;
-}
-
-.tray-face-toggle svg {
-  transition: transform var(--transition-fast);
-}
-
-.tray-face-toggle.is-reverse {
-  border-color: var(--accent-gold);
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.tray-face-toggle.is-reverse svg {
-  transform: rotate(-180deg);
 }
 
 /* Felt texture backgrounds with design tokens */
@@ -194,7 +151,7 @@ function toggleFace() {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
   justify-items: center;
-  align-items: center;
+  align-items: start;
   padding: 1rem;
 }
 
