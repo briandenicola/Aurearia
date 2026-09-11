@@ -111,7 +111,13 @@ async function handleSubmit() {
 
     await refreshQuickAccess()
     router.back()
-  } catch {
+  } catch (error: unknown) {
+    const code = (error as { response?: { data?: { code?: string } } })?.response?.data?.code
+    if (!coinSaved && code === 'slot_occupied') {
+      await coinFormRef.value?.refreshStorageOccupancy()
+      await showAlert('That tray slot was just taken. Choose another available slot; your form has been preserved.', { title: 'Slot unavailable' })
+      return
+    }
     await showAlert(
       coinSaved
         ? 'Coin details were saved, but the image could not be uploaded. Try adding the image again.'

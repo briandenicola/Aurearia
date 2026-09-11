@@ -420,7 +420,7 @@ func TestDeepIdentificationProposal_WishlistApplyFallsBackToHonestNameWhenHypoth
 // proposed field (FR-028). A proposal document that somehow contains an
 // "isWishlist" key must be rejected by the allowlist, not honored, and no
 // coin is created as a side effect of the rejected apply attempt.
-func TestDeepIdentificationProposal_WishlistApplyRejectsIsWishlistAsProposedField(t *testing.T) {
+func TestDeepIdentificationProposal_WishlistApplyRejectsForbiddenFields(t *testing.T) {
 	svc, _, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)
 	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, map[string]any{
@@ -433,6 +433,33 @@ func TestDeepIdentificationProposal_WishlistApplyRejectsIsWishlistAsProposedFiel
 	}); err != nil {
 		t.Fatalf("update proposal: %v", err)
 	}
+
+	t.Run("wishlist cannot propose tray assignment", func(t *testing.T) {
+		svc, _, db := newDeepProposalTestDeps(t)
+		userID := seedDeepProposalUser(t, db)
+		jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, map[string]any{
+			"workingTitle":      "Injected tray coin",
+			"storageLocationId": 42,
+			"storageSlot":       1,
+		})
+		if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+			"storageLocationId": {Accepted: acceptTrue()},
+			"storageSlot":       {Accepted: acceptTrue()},
+		}); err != nil {
+			t.Fatalf("update proposal: %v", err)
+		}
+
+		if _, err := svc.Apply(jobID, userID, "wishlist", []string{"storageLocationId", "storageSlot"}); !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
+			t.Fatalf("expected storage assignment fields to be rejected, got %v", err)
+		}
+		var count int64
+		if err := db.Model(&models.Coin{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("invalid tray proposal created %d coins", count)
+		}
+	})
 
 	var coinCountBefore int64
 	if err := db.Model(&models.Coin{}).Count(&coinCountBefore).Error; err != nil {

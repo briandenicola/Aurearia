@@ -33,7 +33,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		d.wishlistSearchAlertSvc.WithCoinCreation(coinSvc)
 		coinHandler := handlers.NewCoinHandler(d.coinRepo, coinSvc, d.logger).WithSettingsSupport(d.settingsSvc).WithShipmentSupport(d.shipmentSvc)
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, referenceMigrationSvc)
-		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, d.coinRepo, d.agentProxy, d.settingsSvc)
+		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, d.coinRepo, d.agentProxy, d.settingsSvc).WithCoinService(coinSvc)
 		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, d.logger)
 		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, d.cfg.UploadDir).
 			WithCoinValidation(coinSvc).
@@ -87,6 +87,8 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
 		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)
 		protected.GET("/storage-locations", storageLocationHandler.List)
+		protected.GET("/storage-locations/:id/occupancy", storageLocationHandler.Occupancy)
+		protected.GET("/storage-trays", storageLocationHandler.ListTrays)
 		protected.POST("/storage-locations", storageLocationHandler.Create)
 		protected.PUT("/storage-locations/:id", storageLocationHandler.Update)
 		protected.DELETE("/storage-locations/:id", storageLocationHandler.Delete)

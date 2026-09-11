@@ -6178,7 +6178,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new coin record for the authenticated user.",
+                "description": "Creates a new coin record for the authenticated user. storageSlot is nullable and one-based; a tray assignment requires an available slot within the tray's persisted capacity.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6217,6 +6217,18 @@ const docTemplate = `{
                         "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SlotOccupiedErrorResponse"
                         }
                     },
                     "500": {
@@ -6652,7 +6664,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates an existing coin record. Only the coin owner can update it.",
+                "description": "Updates an existing coin record. Only the coin owner can update it. storageSlot is nullable and one-based; omitted storage fields preserve the current assignment. Explicit null is accepted only when the resulting location/slot combination is valid, such as clearing the location and slot together.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6704,6 +6716,12 @@ const docTemplate = `{
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SlotOccupiedErrorResponse"
                         }
                     },
                     "500": {
@@ -15840,7 +15858,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a user-owned storage location.",
+                "description": "Creates a user-owned Standard Location or Coin Tray. Type defaults to standard; trays require rows and columns from 1 through 20, with at most 400 slots.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15858,7 +15876,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.storageLocationCreateRequest"
+                            "$ref": "#/definitions/handlers.StorageLocationCreateRequest"
                         }
                     }
                 ],
@@ -15872,7 +15890,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/handlers.ValidationErrorResponse"
                         }
                     },
                     "401": {
@@ -15884,7 +15902,7 @@ const docTemplate = `{
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/handlers.StorageLocationConflictErrorResponse"
                         }
                     },
                     "500": {
@@ -15903,7 +15921,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates a user-owned storage location.",
+                "description": "Renames a user-owned location or resizes an empty tray. Nullable dimensions are validated against the persisted location type.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15928,7 +15946,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.storageLocationUpdateRequest"
+                            "$ref": "#/definitions/handlers.StorageLocationUpdateRequest"
                         }
                     }
                 ],
@@ -15942,7 +15960,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/handlers.ValidationErrorResponse"
                         }
                     },
                     "401": {
@@ -15960,7 +15978,7 @@ const docTemplate = `{
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/handlers.ErrorResponse"
+                            "$ref": "#/definitions/handlers.StorageLocationConflictErrorResponse"
                         }
                     },
                     "500": {
@@ -16021,6 +16039,108 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LocationReferencedErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-locations/{id}/occupancy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one-based occupied slot numbers for an owned Coin Tray. coinId may identify the current owned coin whose slot remains selectable.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "Get tray occupancy",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Storage location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Current owned coin ID",
+                        "name": "coinId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.TrayOccupancy"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ValidationErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-trays": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage Locations"
+                ],
+                "summary": "List physical storage trays",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.storageTrayListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -18589,7 +18709,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "storageLocationId": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "storageSlot": {
+                    "description": "StorageSlot is a nullable, one-based row-major tray position.",
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1,
+                    "x-nullable": true
                 },
                 "vendorInvoice": {
                     "type": "string",
@@ -18922,7 +19051,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "storageLocationId": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "storageSlot": {
+                    "description": "StorageSlot is a nullable, one-based row-major tray position.",
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1,
+                    "x-nullable": true
                 },
                 "vendorInvoice": {
                     "type": "string",
@@ -19006,9 +19144,26 @@ const docTemplate = `{
         "handlers.ErrorResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "validation_error"
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "x-nullable": true
+                },
                 "error": {
                     "type": "string",
                     "example": "Something went wrong"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "storageSlot"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Choose another slot and try again."
                 }
             }
         },
@@ -19285,6 +19440,31 @@ const docTemplate = `{
             "properties": {
                 "eventId": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.LocationReferencedErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "enum": [
+                        "location_referenced"
+                    ],
+                    "example": "location_referenced"
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 2
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Storage location is used by 2 coin(s); reassign those coins before deleting it"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Storage location is used by 2 coin(s); reassign those coins before deleting it"
                 }
             }
         },
@@ -19929,6 +20109,26 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.SlotOccupiedErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "enum": [
+                        "slot_occupied"
+                    ],
+                    "example": "slot_occupied"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Storage slot is occupied"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Storage slot is occupied"
+                }
+            }
+        },
         "handlers.StatsResponse": {
             "type": "object",
             "properties": {
@@ -19954,6 +20154,89 @@ const docTemplate = `{
                 },
                 "values": {
                     "$ref": "#/definitions/handlers.ValueSummary"
+                }
+            }
+        },
+        "handlers.StorageLocationConflictErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "enum": [
+                        "duplicate_location",
+                        "location_limit",
+                        "tray_occupied"
+                    ],
+                    "example": "duplicate_location"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "a storage location with this name already exists"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Choose a different storage location name."
+                }
+            }
+        },
+        "handlers.StorageLocationCreateRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "columns": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "rows": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string",
+                    "default": "standard",
+                    "enum": [
+                        "standard",
+                        "tray"
+                    ]
+                }
+            }
+        },
+        "handlers.StorageLocationUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "rows": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "sortOrder": {
+                    "type": "integer"
                 }
             }
         },
@@ -20134,6 +20417,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ValidationErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "enum": [
+                        "validation_error"
+                    ],
+                    "example": "validation_error"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "tray rows and columns must each be between 1 and 20"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "rows"
+                },
+                "message": {
                     "type": "string"
                 }
             }
@@ -21051,20 +21357,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handlers.storageLocationCreateRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "sortOrder": {
-                    "type": "integer"
-                }
-            }
-        },
         "handlers.storageLocationListResponse": {
             "type": "object",
             "properties": {
@@ -21076,14 +21368,14 @@ const docTemplate = `{
                 }
             }
         },
-        "handlers.storageLocationUpdateRequest": {
+        "handlers.storageTrayListResponse": {
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "sortOrder": {
-                    "type": "integer"
+                "trays": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.TrayAggregate"
+                    }
                 }
             }
         },
@@ -21967,7 +22259,16 @@ const docTemplate = `{
                     "$ref": "#/definitions/models.StorageLocation"
                 },
                 "storageLocationId": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "storageSlot": {
+                    "description": "StorageSlot is the nullable, one-based row-major position within a Coin Tray.",
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1,
+                    "x-nullable": true
                 },
                 "tags": {
                     "type": "array",
@@ -23686,6 +23987,17 @@ const docTemplate = `{
         "models.StorageLocation": {
             "type": "object",
             "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 0
+                },
+                "columns": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "x-nullable": true
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -23693,10 +24005,31 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "occupied": {
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 0
+                },
+                "rows": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "x-nullable": true
                 },
                 "sortOrder": {
                     "type": "integer"
+                },
+                "type": {
+                    "type": "string",
+                    "default": "standard",
+                    "enum": [
+                        "standard",
+                        "tray"
+                    ]
                 },
                 "updatedAt": {
                     "type": "string"
@@ -23973,6 +24306,115 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "repository.TrayAggregate": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1
+                },
+                "coins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.TrayCoin"
+                    }
+                },
+                "columns": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "occupied": {
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 0
+                },
+                "rows": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1
+                }
+            }
+        },
+        "repository.TrayCoin": {
+            "type": "object",
+            "properties": {
+                "diameterMm": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "image": {
+                    "$ref": "#/definitions/repository.TrayImage"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "storageSlot": {
+                    "description": "StorageSlot is the one-based row-major position within the tray.",
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1
+                }
+            }
+        },
+        "repository.TrayImage": {
+            "type": "object",
+            "properties": {
+                "filePath": {
+                    "type": "string"
+                },
+                "imageType": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.TrayOccupancy": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1
+                },
+                "columns": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1
+                },
+                "currentCoinSlot": {
+                    "type": "integer",
+                    "maximum": 400,
+                    "minimum": 1,
+                    "x-nullable": true
+                },
+                "locationId": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "occupiedSlots": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "maximum": 400,
+                        "minimum": 1
+                    }
+                },
+                "rows": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1
                 }
             }
         },

@@ -33,7 +33,7 @@ func newQuickCaptureServiceAndDBForTest(t *testing.T, uploadDir string) (*QuickC
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AppSetting{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AppSetting{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Create(&models.CatalogRegistry{
@@ -666,7 +666,7 @@ func TestQuickCaptureServicePromoteDraft_AcceptsAdminConfiguredEraAndCategoryWhe
 	}
 }
 
-func TestQuickCaptureServicePromoteDraft_RejectsCustomEraWithoutCoinValidationWired(t *testing.T) {
+func TestQuickCaptureServicePromoteDraft_StorageContractAndCustomEraFallback(t *testing.T) {
 	// Baseline: when no CoinService is wired (WithCoinValidation not called),
 	// promotion falls back to built-in defaults only - never laxer than
 	// today's behavior, even though it can't consult admin settings.
@@ -680,6 +680,46 @@ func TestQuickCaptureServicePromoteDraft_RejectsCustomEraWithoutCoinValidationWi
 	if err != nil {
 		t.Fatalf("create draft: %v", err)
 	}
+
+	t.Run("cannot bypass tray assignment contract", func(t *testing.T) {
+		svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+		rows, columns := 1, 1
+		tray := models.StorageLocation{UserID: 1, Name: "Tray", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		if err := db.Create(&tray).Error; err != nil {
+			t.Fatal(err)
+		}
+		coinSvc := NewCoinService(repository.NewCoinRepository(db), nil).
+			WithStorageLocationSupport(repository.NewStorageLocationRepository(db))
+		svc = svc.WithCoinValidation(coinSvc)
+
+		draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+			UserID:       1,
+			WorkingTitle: "Quick Capture coin",
+			Era:          string(models.EraAncient),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true})
+		if err != nil {
+			t.Fatalf("promote draft: %v", err)
+		}
+		var promoted models.Coin
+		if err := db.First(&promoted, result.CoinID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if promoted.StorageLocationID != nil || promoted.StorageSlot != nil {
+			t.Fatalf("Quick Capture invented a tray assignment: %#v", promoted)
+		}
+
+		promoted.StorageLocationID = &tray.ID
+		promoted.StorageSlot = nil
+		promoted.ID = 0
+		promoted.Name = "Invalid tray attempt"
+		if err := coinSvc.CreateCoin(&promoted); !errors.Is(err, ErrStorageSlotRequired) {
+			t.Fatalf("shared CoinService accepted an unslotted tray assignment: %v", err)
+		}
+	})
 
 	_, err = svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true})
 	var validationErr *QuickCapturePromotionValidationError

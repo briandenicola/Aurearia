@@ -71,8 +71,17 @@ type LLMConfigResolver interface {
 type CoinIntakeService struct {
 	draftRepo   *repository.CoinIntakeDraftRepository
 	coinRepo    *repository.CoinRepository
+	coinService *CoinService
 	proxyClient IntakeProxyClient
 	llmResolver LLMConfigResolver
+}
+
+// WithCoinService routes committed drafts through the same validation and
+// transactional creation boundary used by manual, quick-capture, and deep
+// identification flows.
+func (s *CoinIntakeService) WithCoinService(coinService *CoinService) *CoinIntakeService {
+	s.coinService = coinService
+	return s
 }
 
 func NewCoinIntakeService(
@@ -214,14 +223,22 @@ func (s *CoinIntakeService) CommitDraft(userID uint, req IntakeCommitRequest) (*
 		}
 
 		txCoinRepo := s.coinRepo.WithTx(tx)
-		if err := txCoinRepo.Create(coin); err != nil {
-			return err
+		if s.coinService != nil {
+			if err := s.coinService.CreateCoinInTx(tx, coin); err != nil {
+				return err
+			}
+		} else {
+			if err := txCoinRepo.Create(coin); err != nil {
+				return err
+			}
 		}
 		if err := txDraftRepo.AttachConfirmedCoin(draft.ID, userID, coin.ID); err != nil {
 			return err
 		}
-		if err := txCoinRepo.RecordValueSnapshot(userID); err != nil {
-			return err
+		if s.coinService == nil {
+			if err := txCoinRepo.RecordValueSnapshot(userID); err != nil {
+				return err
+			}
 		}
 		journalEntry := &models.CoinJournal{
 			CoinID: coin.ID,

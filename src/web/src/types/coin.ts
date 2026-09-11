@@ -32,7 +32,8 @@ export interface Coin {
   vendorSku: string
   vendorInvoice: string
   storageLocationId: number | null
-  storageLocation: Pick<StorageLocation, 'id' | 'name'> | null
+  storageSlot?: number | null
+  storageLocation: Pick<StorageLocation, 'id' | 'name' | 'type' | 'rows' | 'columns'> | null
   notes: string
   aiAnalysis: string
   obverseAnalysis: string

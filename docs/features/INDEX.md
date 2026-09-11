@@ -30,6 +30,7 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 
 - **[Collection Management](collection-management.md)** — Create, browse, filter, search, and organize coins with rich metadata
 - **[Coin Details](coin-details.md)** — Store comprehensive numismatic data, images, references, activity journals, and notes
+- **[Storage Trays](storage-trays.md)** — Configure fixed-dimension physical trays, assign exact slots, and view persisted placement
 - **[Coin of the Day](coin-of-the-day.md)** — Daily featured coin notifications to help rediscover your collection
 
 ## Discovery & Acquisition

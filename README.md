@@ -135,6 +135,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Standard, goal, smart, and human-reviewed Agentic set types. Snapshot history and value milestones.
 - **Coin Agent Notes** — Save completed Coin Agent answers into Notes through an explicit markdown review dialog.
 - **Museum Tray Dates** — Tray cards show purchase dates in `YYYY-MM-DD`; wishlist placeholders are more transparent and display `TBD`.
+- **Structured Storage Trays** — Define backward-compatible Standard Locations or fixed 1–20 by 1–20 Coin Trays in Settings. Assign coins to exact one-based slots and open **Collection → Storage Trays** for a read-only physical layout. The existing Museum Tray remains the curated, responsive collection view.
 - **Health Scorecard** — Track AI coverage, image coverage, and metadata completeness.
 - Enhanced AI agent teams (grading, price trends, gap analysis, photography guide, similar lots).
 

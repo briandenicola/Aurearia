@@ -3,9 +3,11 @@ import { expect } from '@playwright/test'
 import {
   buildRomanDenariusCore,
   buildTestCoinSets,
+  buildTestMintLocations,
   buildTestStorageLocations,
   buildTestTags,
 } from '../../src/test/fixtures'
+import { emptyThreeByThreeTray, occupiedThreeByThreeTray, twentyByTwentyTray } from '../../src/test/fixtures/storageTrays'
 import type { Coin, CoinImage, CoinListResponse, CoinMutationPayload, CoinSet, StorageLocation, Tag, UserInfo } from '../../src/types'
 
 export const workflowUser = {
@@ -137,6 +139,22 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
 
     if (path === '/storage-locations' && method === 'GET') {
       await json(route, { storageLocations: state.storageLocations })
+      return
+    }
+
+    if (path === '/mint-locations' && method === 'GET') {
+      await json(route, { mintLocations: buildTestMintLocations() })
+      return
+    }
+
+    if (path === '/storage-trays' && method === 'GET') {
+      await json(route, { trays: [occupiedThreeByThreeTray, { ...emptyThreeByThreeTray, id: 2, name: 'Empty Tray' }, twentyByTwentyTray] })
+      return
+    }
+
+    const occupancyMatch = path.match(/^\/storage-locations\/(\d+)\/occupancy$/)
+    if (occupancyMatch && method === 'GET') {
+      await json(route, { locationId: Number(occupancyMatch[1]), rows: 3, columns: 3, capacity: 9, occupiedSlots: [6], currentCoinSlot: null })
       return
     }
 

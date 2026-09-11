@@ -283,7 +283,7 @@ describe('MuseumTrayWell', () => {
     expect(wrapper.emitted('coin-clicked')?.[0]).toEqual([1])
   })
 
-  it('does not emit on other keys', async () => {
+  it('does not emit on unsupported keys', async () => {
     const wrapper = mount(MuseumTrayWell, {
       props: {
         coin: mockCoin,
@@ -291,7 +291,6 @@ describe('MuseumTrayWell', () => {
       },
     })
 
-    await wrapper.find('.tray-well').trigger('keydown.space')
     await wrapper.find('.tray-well').trigger('keydown.escape')
     expect(wrapper.emitted('coin-clicked')).toBeFalsy()
   })

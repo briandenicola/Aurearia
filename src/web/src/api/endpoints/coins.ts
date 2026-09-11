@@ -58,7 +58,7 @@ export const getCoins = (params?: {
   seed?: number
 }) => api.get<CoinListResponse>('/coins', { params })
 
-const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'romanImperialFigureId', 'mintLocationId']
+const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'storageSlot', 'romanImperialFigureId', 'mintLocationId']
 
 function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
   const clean: Record<string, unknown> = { ...coin }

@@ -9,11 +9,12 @@
         'is-wishlist-placeholder': coin.wishlistPlaceholder,
       }"
       :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
-      :aria-label="coin.name"
+      :aria-label="ariaLabel ?? coin.name"
       :tabindex="interactive ? 0 : undefined"
       :role="interactive ? 'button' : undefined"
       @click="handleClick"
       @keydown.enter="handleClick"
+      @keydown.space.prevent="handleClick"
     >
       <div class="well-container">
         <img
@@ -60,6 +61,7 @@ interface Props {
   showCaptions?: boolean
   showNames?: boolean
   preferredFace?: TrayCoinFace
+  ariaLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -68,6 +70,7 @@ const props = withDefaults(defineProps<Props>(), {
   showCaptions: true,
   showNames: false,
   preferredFace: 'obverse',
+  ariaLabel: undefined,
 })
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]

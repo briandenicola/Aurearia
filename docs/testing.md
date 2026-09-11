@@ -244,3 +244,20 @@ Full rationale: `.squad/decisions/inbox/maximus-seam-test.md`.
 
 TODOs:
 - Python static type checking is still absent. If we promote it to backlog, file it as `specs/_backlog/F012-agent-static-type-checking.md`.
+# Structured storage tray regressions
+
+```powershell
+Push-Location src/api
+go test ./database -run TestFeature358 -count=1
+go test ./services ./repository ./handlers -run 'Test.*Storage(Location|Slot)|Test.*Bulk.*Location|Test.*Duplicate' -count=1
+Pop-Location
+
+Push-Location src/web
+npx vitest run src/components/__tests__/StorageTrayGrid.test.ts src/pages/__tests__/StorageTraysPage.test.ts src/components/__tests__/CoinForm.test.ts src/components/__tests__/BulkLocationPickerModal.test.ts src/components/__tests__/MuseumTray.test.ts src/components/__tests__/MuseumTrayWell.test.ts src/pages/__tests__/TrayViewPage.test.ts
+npx playwright test e2e/workflows/storage-trays.spec.ts e2e/workflows/coin-form.spec.ts e2e/workflows/tray.spec.ts
+Pop-Location
+```
+
+The full release gate also requires `go build ./...`, `go vet ./...`,
+`go test ./...`, `task test-race`, frontend lint/type-check/test/build, and
+`task openapi`.

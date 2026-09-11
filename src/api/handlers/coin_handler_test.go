@@ -1126,7 +1126,7 @@ func TestCoinHandler_Update_ClearsStorageLocationWhenExplicitNull(t *testing.T) 
 	}
 }
 
-func TestCoinHandler_Update_RejectsNonOwnedStorageLocation(t *testing.T) {
+func TestCoinHandler_StorageAssignmentContractsAndOwnerIsolation(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "updater")
 	createTestUser(t, db, 2, "other")
@@ -1135,6 +1135,126 @@ func TestCoinHandler_Update_RejectsNonOwnedStorageLocation(t *testing.T) {
 	if err := db.Create(&otherLocation).Error; err != nil {
 		t.Fatalf("failed to seed other storage location: %v", err)
 	}
+
+	t.Run("legacy storage omission and explicit null contracts", func(t *testing.T) {
+		router, db := setupCoinHandlerRouter(t)
+		createTestUser(t, db, 1, "legacy-client")
+		standard := models.StorageLocation{UserID: 1, Name: "Legacy Cabinet", Type: models.StorageLocationTypeStandard}
+		if err := db.Create(&standard).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		createBody, _ := json.Marshal(map[string]interface{}{
+			"name": "Legacy Create", "category": "Roman", "material": "Silver",
+			"storageLocationId": standard.ID,
+		})
+		createReq := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(createBody))
+		createReq.Header.Set("Content-Type", "application/json")
+		createReq.Header.Set("Authorization", authHeader(1))
+		createResponse := httptest.NewRecorder()
+		router.ServeHTTP(createResponse, createReq)
+		if createResponse.Code != http.StatusCreated {
+			t.Fatalf("legacy create status = %d: %s", createResponse.Code, createResponse.Body.String())
+		}
+		var created models.Coin
+		if err := json.Unmarshal(createResponse.Body.Bytes(), &created); err != nil {
+			t.Fatal(err)
+		}
+		if created.StorageLocationID == nil || *created.StorageLocationID != standard.ID || created.StorageSlot != nil {
+			t.Fatalf("legacy create did not preserve unslotted standard assignment: %#v", created)
+		}
+
+		updateBody := []byte(`{"name":"Legacy Renamed"}`)
+		updateReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", created.ID), bytes.NewReader(updateBody))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.Header.Set("Authorization", authHeader(1))
+		updateResponse := httptest.NewRecorder()
+		router.ServeHTTP(updateResponse, updateReq)
+		if updateResponse.Code != http.StatusOK {
+			t.Fatalf("legacy omitted update status = %d: %s", updateResponse.Code, updateResponse.Body.String())
+		}
+		var persisted models.Coin
+		if err := db.First(&persisted, created.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if persisted.StorageLocationID == nil || *persisted.StorageLocationID != standard.ID || persisted.StorageSlot != nil {
+			t.Fatalf("omitted update changed standard assignment: %#v", persisted)
+		}
+
+		clearReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", created.ID), strings.NewReader(`{"storageLocationId":null,"storageSlot":null}`))
+		clearReq.Header.Set("Content-Type", "application/json")
+		clearReq.Header.Set("Authorization", authHeader(1))
+		clearResponse := httptest.NewRecorder()
+		router.ServeHTTP(clearResponse, clearReq)
+		if clearResponse.Code != http.StatusOK {
+			t.Fatalf("explicit null update status = %d: %s", clearResponse.Code, clearResponse.Body.String())
+		}
+		if err := db.First(&persisted, created.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if persisted.StorageLocationID != nil || persisted.StorageSlot != nil {
+			t.Fatalf("explicit null did not clear assignment: %#v", persisted)
+		}
+	})
+
+	t.Run("tray assignment validation and conflict contracts", func(t *testing.T) {
+		router, db := setupCoinHandlerRouter(t)
+		createTestUser(t, db, 1, "tray-owner")
+		createTestUser(t, db, 2, "other-owner")
+		rows, columns := 2, 2
+		tray := models.StorageLocation{UserID: 1, Name: "Tray", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		foreignTray := models.StorageLocation{UserID: 2, Name: "Foreign Tray", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		if err := db.Create(&[]*models.StorageLocation{&tray, &foreignTray}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec(`CREATE UNIQUE INDEX idx_coins_storage_location_slot_unique
+			ON coins(storage_location_id, storage_slot) WHERE storage_slot IS NOT NULL`).Error; err != nil {
+			t.Fatal(err)
+		}
+		occupiedSlot := 2
+		if err := db.Create(&models.Coin{UserID: 1, Name: "Occupant", Category: models.CategoryRoman, StorageLocationID: &tray.ID, StorageSlot: &occupiedSlot}).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		tests := []struct {
+			name       string
+			payload    map[string]interface{}
+			wantStatus int
+			wantCode   string
+			wantField  string
+		}{
+			{name: "missing slot", payload: map[string]interface{}{"name": "Missing", "category": "Roman", "storageLocationId": tray.ID}, wantStatus: http.StatusBadRequest, wantCode: "validation_error", wantField: "storageSlot"},
+			{name: "out of range", payload: map[string]interface{}{"name": "Range", "category": "Roman", "storageLocationId": tray.ID, "storageSlot": 5}, wantStatus: http.StatusBadRequest, wantCode: "validation_error", wantField: "storageSlot"},
+			{name: "cross owner", payload: map[string]interface{}{"name": "Foreign", "category": "Roman", "storageLocationId": foreignTray.ID, "storageSlot": 1}, wantStatus: http.StatusNotFound},
+			{name: "occupied", payload: map[string]interface{}{"name": "Occupied", "category": "Roman", "storageLocationId": tray.ID, "storageSlot": occupiedSlot}, wantStatus: http.StatusConflict, wantCode: "slot_occupied"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				body, _ := json.Marshal(tt.payload)
+				req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", authHeader(1))
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, req)
+				if response.Code != tt.wantStatus {
+					t.Fatalf("status = %d, want %d: %s", response.Code, tt.wantStatus, response.Body.String())
+				}
+				var envelope map[string]interface{}
+				if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+					t.Fatal(err)
+				}
+				if tt.wantCode != "" && envelope["code"] != tt.wantCode {
+					t.Fatalf("code = %v, want %q: %s", envelope["code"], tt.wantCode, response.Body.String())
+				}
+				if tt.wantField != "" && envelope["field"] != tt.wantField {
+					t.Fatalf("field = %v, want %q: %s", envelope["field"], tt.wantField, response.Body.String())
+				}
+				if tt.wantCode == "slot_occupied" && envelope["message"] == "" {
+					t.Fatalf("slot conflict must include recovery message: %s", response.Body.String())
+				}
+			})
+		}
+	})
 	coin := models.Coin{Name: "Stored Coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
 	if err := db.Create(&coin).Error; err != nil {
 		t.Fatalf("failed to seed coin: %v", err)
@@ -1148,8 +1268,8 @@ func TestCoinHandler_Update_RejectsNonOwnedStorageLocation(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for non-owned storage location, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for non-owned storage location, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var found models.Coin
@@ -2133,4 +2253,3 @@ func TestCoinHandler_Create_WishlistWithReferencesStoresReferences(t *testing.T)
 		t.Fatalf("expected normalized RIC II 162, got %#v", refs[0])
 	}
 }
-

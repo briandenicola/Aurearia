@@ -105,6 +105,15 @@
         <p class="text-sm text-text-muted">Create shelf, tray, safe, or box locations for the coin form dropdown.</p>
 
         <div class="my-4 flex flex-wrap items-center gap-2">
+          <select
+            v-model="newStorageLocationType"
+            aria-label="Storage location type"
+            class="form-select"
+            :disabled="storageLocationSaving"
+          >
+            <option value="standard">Standard Location</option>
+            <option value="tray">Coin Tray</option>
+          </select>
           <input
             v-model="newStorageLocationName"
             type="text"
@@ -114,6 +123,12 @@
             :disabled="storageLocationSaving"
             @keydown.enter="handleCreateStorageLocation"
           />
+          <template v-if="newStorageLocationType === 'tray'">
+            <input v-model.number="newStorageLocationRows" aria-label="Tray rows" class="form-input w-24" type="number" min="1" max="20" />
+            <span aria-hidden="true">×</span>
+            <input v-model.number="newStorageLocationColumns" aria-label="Tray columns" class="form-input w-24" type="number" min="1" max="20" />
+            <span class="text-sm text-text-muted">{{ newStorageLocationRows * newStorageLocationColumns }} slots</span>
+          </template>
           <button
             class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
             @click="handleCreateStorageLocation"
@@ -134,6 +149,12 @@
                 maxlength="100"
                 @keydown.enter="handleSaveStorageLocation"
               />
+              <template v-if="location.type === 'tray'">
+                <input v-model.number="editStorageLocationRows" aria-label="Tray rows" class="form-input w-24" type="number" min="1" max="20" :disabled="location.occupied > 0" />
+                <span aria-hidden="true">×</span>
+                <input v-model.number="editStorageLocationColumns" aria-label="Tray columns" class="form-input w-24" type="number" min="1" max="20" :disabled="location.occupied > 0" />
+                <span v-if="location.occupied > 0" class="text-sm text-text-muted">Empty the tray before resizing.</span>
+              </template>
               <button
                 class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
                 @click="handleSaveStorageLocation"
@@ -151,6 +172,9 @@
             </template>
             <template v-else>
               <span class="chip-sm shrink-0 bg-input text-text-primary">{{ location.name }}</span>
+              <span class="text-sm text-text-muted">
+                {{ location.type === 'tray' ? `Coin Tray · ${location.rows}×${location.columns} · ${location.occupied} / ${location.capacity}` : 'Standard Location' }}
+              </span>
               <div class="ml-auto flex gap-1">
                 <button
                   class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
@@ -437,8 +461,13 @@ async function handleDeleteTag(tag: Tag) {
 // Storage location management
 const storageLocationList = ref<StorageLocation[]>([])
 const newStorageLocationName = ref('')
+const newStorageLocationType = ref<'standard' | 'tray'>('standard')
+const newStorageLocationRows = ref(3)
+const newStorageLocationColumns = ref(3)
 const editingStorageLocation = ref<StorageLocation | null>(null)
 const editStorageLocationName = ref('')
+const editStorageLocationRows = ref(1)
+const editStorageLocationColumns = ref(1)
 const storageLocationError = ref('')
 const storageLocationsLoading = ref(false)
 const storageLocationSaving = ref(false)
@@ -476,7 +505,12 @@ async function handleCreateStorageLocation() {
   if (!name) return
   storageLocationSaving.value = true
   try {
-    await createStorageLocation({ name })
+    await createStorageLocation({
+      name,
+      type: newStorageLocationType.value,
+      rows: newStorageLocationType.value === 'tray' ? newStorageLocationRows.value : null,
+      columns: newStorageLocationType.value === 'tray' ? newStorageLocationColumns.value : null,
+    })
     newStorageLocationName.value = ''
     await loadStorageLocations()
   } catch (error: unknown) {
@@ -489,6 +523,8 @@ async function handleCreateStorageLocation() {
 function startEditStorageLocation(location: StorageLocation) {
   editingStorageLocation.value = location
   editStorageLocationName.value = location.name
+  editStorageLocationRows.value = location.rows ?? 1
+  editStorageLocationColumns.value = location.columns ?? 1
   storageLocationError.value = ''
 }
 
@@ -499,7 +535,12 @@ async function handleSaveStorageLocation() {
   if (!name) return
   storageLocationSaving.value = true
   try {
-    await updateStorageLocation(editingStorageLocation.value.id, { name })
+    await updateStorageLocation(editingStorageLocation.value.id, {
+      name,
+      ...(editingStorageLocation.value.type === 'tray' && editingStorageLocation.value.occupied === 0
+        ? { rows: editStorageLocationRows.value, columns: editStorageLocationColumns.value }
+        : {}),
+    })
     editingStorageLocation.value = null
     await loadStorageLocations()
   } catch (error: unknown) {
