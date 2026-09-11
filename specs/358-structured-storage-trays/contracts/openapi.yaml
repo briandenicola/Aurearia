@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: Structured Storage Trays Contract
+  version: 0.1.0-plan
+  description: Normative feature-level contract; implementation regenerates the repository's complete Swagger artifacts.
+security:
+  - BearerAuth: []
+paths:
+  /api/storage-locations:
+    get:
+      summary: List the current owner's storage locations
+      responses:
+        "200":
+          description: Owner-scoped list including tray occupancy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [storageLocations]
+                properties:
+                  storageLocations:
+                    type: array
+                    items: { $ref: "#/components/schemas/StorageLocation" }
+    post:
+      summary: Create a Standard Location or Coin Tray
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StorageLocationWrite" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/StorageLocation" } } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+  /api/storage-locations/{id}:
+    put:
+      summary: Rename a location or resize an empty tray
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StorageLocationUpdate" }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/StorageLocation" } } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Occupied tray cannot change dimensions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConflictError" }
+    delete:
+      summary: Delete an unreferenced location
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Location is referenced by coins
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConflictError" }
+  /api/storage-locations/{id}/occupancy:
+    get:
+      summary: Read owner-scoped tray occupancy without unrelated coin details
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+        - name: coinId
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+          description: Owner coin whose existing slot may remain selectable
+      responses:
+        "200":
+          description: Tray dimensions and occupied slots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrayOccupancy" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/storage-trays:
+    get:
+      summary: Read all physical trays for the current owner
+      responses:
+        "200":
+          description: Includes empty trays and positioned minimal coins
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [trays]
+                properties:
+                  trays:
+                    type: array
+                    items: { $ref: "#/components/schemas/TrayAggregate" }
+  /api/coins:
+    post:
+      summary: Create coin (storage-related fields excerpt)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CoinStorageWrite" }
+      responses:
+        "201": { description: Created }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SlotConflict" }
+  /api/coins/{id}:
+    put:
+      summary: Update coin (storage-related fields excerpt)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CoinStorageWrite" }
+      responses:
+        "200": { description: Updated }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SlotConflict" }
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    LocationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+  schemas:
+    StorageLocation:
+      type: object
+      required: [id, name, type, rows, columns, occupied, capacity]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        type: { type: string, enum: [standard, tray] }
+        rows: { type: integer, nullable: true, minimum: 1, maximum: 20 }
+        columns: { type: integer, nullable: true, minimum: 1, maximum: 20 }
+        occupied: { type: integer, minimum: 0 }
+        capacity: { type: integer, minimum: 0, maximum: 400 }
+    StorageLocationWrite:
+      type: object
+      required: [name]
+      description: Omitted type means standard. Standard requires null/absent dimensions; tray requires both.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        type: { type: string, enum: [standard, tray], default: standard }
+        rows: { type: integer, nullable: true, minimum: 1, maximum: 20 }
+        columns: { type: integer, nullable: true, minimum: 1, maximum: 20 }
+        sortOrder: { type: integer }
+    StorageLocationUpdate:
+      type: object
+      minProperties: 1
+      description: Omitted fields preserve current values. Type conversion is not exposed in v1.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        rows: { type: integer, nullable: true, minimum: 1, maximum: 20 }
+        columns: { type: integer, nullable: true, minimum: 1, maximum: 20 }
+        sortOrder: { type: integer }
+    CoinStorageWrite:
+      type: object
+      description: Excerpt only. Omission preserves legacy Standard behavior; tray assignment requires both fields.
+      properties:
+        storageLocationId: { type: integer, nullable: true, minimum: 1 }
+        storageSlot: { type: integer, nullable: true, minimum: 1, maximum: 400 }
+    TrayOccupancy:
+      type: object
+      required: [locationId, rows, columns, capacity, occupiedSlots, currentCoinSlot]
+      properties:
+        locationId: { type: integer }
+        rows: { type: integer, minimum: 1, maximum: 20 }
+        columns: { type: integer, minimum: 1, maximum: 20 }
+        capacity: { type: integer, minimum: 1, maximum: 400 }
+        occupiedSlots:
+          type: array
+          items: { type: integer, minimum: 1, maximum: 400 }
+        currentCoinSlot: { type: integer, nullable: true, minimum: 1, maximum: 400 }
+    TrayCoin:
+      type: object
+      required: [id, name, diameterMm, storageSlot, image]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        diameterMm: { type: number, nullable: true }
+        storageSlot: { type: integer, minimum: 1, maximum: 400 }
+        image:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/TrayImage" }]
+    TrayImage:
+      type: object
+      required: [filePath]
+      properties:
+        filePath: { type: string }
+        imageType: { type: string, nullable: true }
+    TrayAggregate:
+      type: object
+      required: [id, name, rows, columns, capacity, occupied, coins]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        rows: { type: integer, minimum: 1, maximum: 20 }
+        columns: { type: integer, minimum: 1, maximum: 20 }
+        capacity: { type: integer, minimum: 1, maximum: 400 }
+        occupied: { type: integer, minimum: 0, maximum: 400 }
+        coins:
+          type: array
+          items: { $ref: "#/components/schemas/TrayCoin" }
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code: { type: string }
+        message: { type: string }
+        field: { type: string }
+        count: { type: integer, minimum: 0 }
+    ConflictError:
+      allOf:
+        - $ref: "#/components/schemas/ApiError"
+      description: code is tray_occupied or location_referenced
+  responses:
+    ValidationError:
+      description: Invalid field or field combination
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    NotFound:
+      description: Missing or inaccessible owner-scoped resource
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    SlotConflict:
+      description: Another coin owns the requested slot; code=slot_occupied
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }

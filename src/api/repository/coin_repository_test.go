@@ -1,7 +1,11 @@
 package repository
 
 import (
+	"errors"
+	"fmt"
 	"math"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,12 +14,16 @@ import (
 	"gorm.io/gorm"
 )
 
+var coinRepositoryTestDBCounter uint64
+
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:coin_repository_%d_%d?mode=memory&cache=shared&_pragma=busy_timeout(5000)", time.Now().UnixNano(), atomic.AddUint64(&coinRepositoryTestDBCounter, 1))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
+
 	err = db.AutoMigrate(
 		&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
 		&models.ValueSnapshot{}, &models.CoinJournal{},
@@ -30,6 +38,15 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
+}
+
+func addStorageSlotUniqueIndex(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := db.Exec(`CREATE UNIQUE INDEX idx_coins_storage_location_slot_unique
+		ON coins(storage_location_id, storage_slot)
+		WHERE storage_slot IS NOT NULL`).Error; err != nil {
+		t.Fatalf("create storage slot unique index: %v", err)
+	}
 }
 
 func TestCoinRepository_CreateAndGet(t *testing.T) {
@@ -1044,7 +1061,7 @@ func TestCoinRepository_Update_WithSelectedFieldsPersistsNilNullableScalars(t *t
 	}
 }
 
-func TestCoinRepository_UpdateStorageLocationID_PersistsNullClear(t *testing.T) {
+func TestCoinRepository_StorageAssignmentContractsAndLegacyNullClear(t *testing.T) {
 	db := setupTestDB(t)
 	coinRepo := NewCoinRepository(db)
 
@@ -1052,6 +1069,105 @@ func TestCoinRepository_UpdateStorageLocationID_PersistsNullClear(t *testing.T) 
 	if err := db.Create(&location).Error; err != nil {
 		t.Fatalf("Create storage location failed: %v", err)
 	}
+
+	t.Run("UpdateStorageAssignment is atomic and clears standard slots", func(t *testing.T) {
+		db := setupTestDB(t)
+		addStorageSlotUniqueIndex(t, db)
+		repo := NewCoinRepository(db)
+		rows, columns := 2, 2
+		tray := models.StorageLocation{UserID: 1, Name: "Tray", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		standard := models.StorageLocation{UserID: 1, Name: "Safe", Type: models.StorageLocationTypeStandard}
+		if err := db.Create(&[]models.StorageLocation{tray, standard}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Where("name = ?", "Tray").First(&tray).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Where("name = ?", "Safe").First(&standard).Error; err != nil {
+			t.Fatal(err)
+		}
+		slotOne, slotTwo := 1, 2
+		moving := models.Coin{UserID: 1, Name: "Moving", StorageLocationID: &tray.ID, StorageSlot: &slotOne}
+		blocking := models.Coin{UserID: 1, Name: "Blocking", StorageLocationID: &tray.ID, StorageSlot: &slotTwo}
+		if err := db.Create(&[]*models.Coin{&moving, &blocking}).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		if err := repo.UpdateStorageAssignment(&moving, &tray.ID, &slotTwo); !errors.Is(err, ErrStorageSlotOccupied) {
+			t.Fatalf("expected named-index conflict translation, got %v", err)
+		}
+		var persisted models.Coin
+		if err := db.First(&persisted, moving.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if persisted.StorageLocationID == nil || *persisted.StorageLocationID != tray.ID || persisted.StorageSlot == nil || *persisted.StorageSlot != slotOne {
+			t.Fatalf("failed move changed prior assignment: %#v", persisted)
+		}
+
+		if err := repo.UpdateStorageAssignment(&moving, &standard.ID, nil); err != nil {
+			t.Fatalf("move to standard: %v", err)
+		}
+		if moving.StorageLocationID == nil || *moving.StorageLocationID != standard.ID || moving.StorageSlot != nil {
+			t.Fatalf("standard move did not atomically clear slot: %#v", moving)
+		}
+	})
+
+	t.Run("UpdateStorageAssignment concurrent claims have one winner", func(t *testing.T) {
+		db := setupTestDB(t)
+		addStorageSlotUniqueIndex(t, db)
+		sqlDB, err := db.DB()
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlDB.SetMaxOpenConns(4)
+
+		rows, columns, slot := 1, 1, 1
+		tray := models.StorageLocation{UserID: 1, Name: "One Well", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		if err := db.Create(&tray).Error; err != nil {
+			t.Fatal(err)
+		}
+		coins := []models.Coin{{UserID: 1, Name: "First"}, {UserID: 1, Name: "Second"}}
+		if err := db.Create(&coins).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		start := make(chan struct{})
+		results := make(chan error, len(coins))
+		var wg sync.WaitGroup
+		for i := range coins {
+			wg.Add(1)
+			go func(coin *models.Coin) {
+				defer wg.Done()
+				<-start
+				results <- NewCoinRepository(db).UpdateStorageAssignment(coin, &tray.ID, &slot)
+			}(&coins[i])
+		}
+		close(start)
+		wg.Wait()
+		close(results)
+
+		successes, conflicts := 0, 0
+		for result := range results {
+			switch {
+			case result == nil:
+				successes++
+			case errors.Is(result, ErrStorageSlotOccupied):
+				conflicts++
+			default:
+				t.Fatalf("unexpected concurrent claim error: %v", result)
+			}
+		}
+		if successes != 1 || conflicts != 1 {
+			t.Fatalf("expected one winner and one slot conflict, got successes=%d conflicts=%d", successes, conflicts)
+		}
+		var occupied int64
+		if err := db.Model(&models.Coin{}).Where("storage_location_id = ? AND storage_slot = ?", tray.ID, slot).Count(&occupied).Error; err != nil {
+			t.Fatal(err)
+		}
+		if occupied != 1 {
+			t.Fatalf("expected exactly one persisted claimant, got %d", occupied)
+		}
+	})
 	coin := &models.Coin{
 		Name:              "Storage Clear Coin",
 		Category:          models.CategoryRoman,

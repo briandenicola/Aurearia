@@ -2824,3 +2824,27 @@ curl http://localhost:8080/api/user/export/catalog \
   -H "Authorization: Bearer $TOKEN" \
   --output my-catalog.pdf
 ```
+# Structured storage
+
+All endpoints below require authentication and are owner-scoped. Inaccessible
+location and coin IDs return a generic `404`.
+
+- `GET /api/storage-locations` returns Standard Locations and Coin Trays with
+  nullable `rows`/`columns`, plus `occupied` and `capacity`.
+- `POST /api/storage-locations` accepts `name`, optional
+  `type: "standard"|"tray"` (omission means `standard`), and tray dimensions.
+- `PUT /api/storage-locations/{id}` renames a location and may resize an empty
+  tray. It returns `tray_occupied` when an occupied tray cannot be resized.
+- `DELETE /api/storage-locations/{id}` returns `location_referenced` when one
+  or more coins still reference the location. Create/update name conflicts
+  return `duplicate_location`.
+- `GET /api/storage-locations/{id}/occupancy?coinId={id}` returns only
+  one-based occupied slot numbers and the current coin's slot.
+- `GET /api/storage-trays` returns all owned trays and minimal positioned coin
+  data in one aggregate response.
+
+Coin create/update accepts nullable `storageLocationId` and `storageSlot`.
+Standard requires a null slot; Tray requires `1..rows*columns`. Concurrent
+claims return `409` with `code: "slot_occupied"`. Omitted update fields
+preserve the existing assignment, while an explicit null location clears both
+fields.

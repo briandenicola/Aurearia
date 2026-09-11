@@ -268,6 +268,7 @@ const defaultNavItems: NavItem[] = [
     children: [
       { id: 'collection-gallery', label: 'Gallery', to: '/' },
       { id: 'collection-tray', label: 'Tray', to: '/tray' },
+      { id: 'collection-storage-trays', label: 'Storage Trays', to: '/storage-trays' },
     ],
   },
   { id: 'add-coin', label: 'Add Coin', icon: markRaw(CirclePlus), to: '/add', visible: isPwa },

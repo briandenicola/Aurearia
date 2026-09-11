@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -128,20 +129,20 @@ func (h *BulkHandler) BulkAction(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"coins": coins, "total": len(coins)})
 
 	case "assign-location":
-		// Validate ownership if a non-nil location ID is provided
-		if req.StorageLocationID != nil && *req.StorageLocationID != 0 {
-			exists, err := h.storageLocationRepo.ExistsByID(*req.StorageLocationID, userID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate storage location"})
-				return
-			}
-			if !exists {
+		if h.coinService == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Storage assignment service unavailable"})
+			return
+		}
+		affected, err := h.coinService.BulkAssignLocation(req.CoinIDs, req.StorageLocationID, userID)
+		if err != nil {
+			if errors.Is(err, services.ErrStorageLocationNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Storage location not found"})
 				return
 			}
-		}
-		affected, err := h.coinRepo.BulkAssignLocation(req.CoinIDs, req.StorageLocationID, userID)
-		if err != nil {
+			if errors.Is(err, services.ErrStorageSlotRequired) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Tray assignments require choosing a slot on each coin.", "code": "validation_error", "field": "storageLocationId"})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign storage location"})
 			return
 		}

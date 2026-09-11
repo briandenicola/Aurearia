@@ -41,48 +41,50 @@ const (
 )
 
 type Coin struct {
-	ID                     uint             `gorm:"primaryKey" json:"id"`
-	Name                   string           `gorm:"not null" json:"name" binding:"max=200"`
-	Category               Category         `gorm:"type:varchar(20);not null;default:'Other'" json:"category" binding:"omitempty,max=64"`
-	Denomination           string           `json:"denomination" binding:"max=200"`
-	Ruler                  string           `json:"ruler" binding:"max=200"`
-	RomanImperialFigureID  *uint            `gorm:"index" json:"romanImperialFigureId"`
-	Era                    Era              `gorm:"type:varchar(64)" json:"era" binding:"omitempty,max=64"`
-	DateRange              string           `gorm:"type:varchar(200)" json:"dateRange" binding:"max=200"`
-	Mint                   string           `json:"mint" binding:"max=200"`
-	MintLocationID         *uint            `json:"mintLocationId"`
-	MintLocation           *MintLocation    `gorm:"foreignKey:MintLocationID;constraint:-" json:"mintLocation"`
-	Material               Material         `gorm:"type:varchar(20);default:'Other'" json:"material"`
-	WeightGrams            *float64         `json:"weightGrams"`
-	DiameterMm             *float64         `json:"diameterMm"`
-	Grade                  string           `json:"grade" binding:"max=100"`
-	ObverseInscription     string           `json:"obverseInscription" binding:"max=1000"`
-	ReverseInscription     string           `json:"reverseInscription" binding:"max=1000"`
-	ObverseDescription     string           `json:"obverseDescription" binding:"max=2000"`
-	ReverseDescription     string           `json:"reverseDescription" binding:"max=2000"`
-	RarityRating           string           `json:"rarityRating" binding:"max=100"`
-	PurchasePrice          *float64         `json:"purchasePrice"`
-	CurrentValue           *float64         `json:"currentValue"`
-	CurrentValueUpdatedAt  *time.Time       `json:"currentValueUpdatedAt"`
-	PurchaseDate           *time.Time       `json:"purchaseDate"`
-	PurchaseLocation       string           `json:"purchaseLocation" binding:"max=500"`
-	VendorSKU              string           `json:"vendorSku" binding:"max=200"`
-	VendorInvoice          string           `json:"vendorInvoice" binding:"max=200"`
-	Notes                  string           `gorm:"type:text" json:"notes" binding:"max=5000"`
-	AIAnalysis             string           `gorm:"type:text;column:ai_analysis" json:"aiAnalysis"`
-	ObverseAnalysis        string           `gorm:"type:text;column:obverse_analysis" json:"obverseAnalysis"`
-	ReverseAnalysis        string           `gorm:"type:text;column:reverse_analysis" json:"reverseAnalysis"`
-	ReferenceURL           string           `json:"referenceUrl" binding:"max=2000"`
-	ReferenceText          string           `json:"referenceText" binding:"max=2000"`
-	IsWishlist             bool             `gorm:"default:false" json:"isWishlist"`
-	IsSold                 bool             `gorm:"default:false" json:"isSold"`
-	SoldPrice              *float64         `json:"soldPrice"`
-	SoldDate               *time.Time       `json:"soldDate"`
-	SoldTo                 string           `json:"soldTo"`
-	ListingStatus          string           `gorm:"type:varchar(20);default:''" json:"listingStatus"`
-	ListingCheckedAt       *time.Time       `json:"listingCheckedAt"`
-	ListingCheckReason     string           `gorm:"type:text" json:"listingCheckReason"`
-	StorageLocationID      *uint            `json:"storageLocationId"`
+	ID                    uint          `gorm:"primaryKey" json:"id"`
+	Name                  string        `gorm:"not null" json:"name" binding:"max=200"`
+	Category              Category      `gorm:"type:varchar(20);not null;default:'Other'" json:"category" binding:"omitempty,max=64"`
+	Denomination          string        `json:"denomination" binding:"max=200"`
+	Ruler                 string        `json:"ruler" binding:"max=200"`
+	RomanImperialFigureID *uint         `gorm:"index" json:"romanImperialFigureId"`
+	Era                   Era           `gorm:"type:varchar(64)" json:"era" binding:"omitempty,max=64"`
+	DateRange             string        `gorm:"type:varchar(200)" json:"dateRange" binding:"max=200"`
+	Mint                  string        `json:"mint" binding:"max=200"`
+	MintLocationID        *uint         `json:"mintLocationId"`
+	MintLocation          *MintLocation `gorm:"foreignKey:MintLocationID;constraint:-" json:"mintLocation"`
+	Material              Material      `gorm:"type:varchar(20);default:'Other'" json:"material"`
+	WeightGrams           *float64      `json:"weightGrams"`
+	DiameterMm            *float64      `json:"diameterMm"`
+	Grade                 string        `json:"grade" binding:"max=100"`
+	ObverseInscription    string        `json:"obverseInscription" binding:"max=1000"`
+	ReverseInscription    string        `json:"reverseInscription" binding:"max=1000"`
+	ObverseDescription    string        `json:"obverseDescription" binding:"max=2000"`
+	ReverseDescription    string        `json:"reverseDescription" binding:"max=2000"`
+	RarityRating          string        `json:"rarityRating" binding:"max=100"`
+	PurchasePrice         *float64      `json:"purchasePrice"`
+	CurrentValue          *float64      `json:"currentValue"`
+	CurrentValueUpdatedAt *time.Time    `json:"currentValueUpdatedAt"`
+	PurchaseDate          *time.Time    `json:"purchaseDate"`
+	PurchaseLocation      string        `json:"purchaseLocation" binding:"max=500"`
+	VendorSKU             string        `json:"vendorSku" binding:"max=200"`
+	VendorInvoice         string        `json:"vendorInvoice" binding:"max=200"`
+	Notes                 string        `gorm:"type:text" json:"notes" binding:"max=5000"`
+	AIAnalysis            string        `gorm:"type:text;column:ai_analysis" json:"aiAnalysis"`
+	ObverseAnalysis       string        `gorm:"type:text;column:obverse_analysis" json:"obverseAnalysis"`
+	ReverseAnalysis       string        `gorm:"type:text;column:reverse_analysis" json:"reverseAnalysis"`
+	ReferenceURL          string        `json:"referenceUrl" binding:"max=2000"`
+	ReferenceText         string        `json:"referenceText" binding:"max=2000"`
+	IsWishlist            bool          `gorm:"default:false" json:"isWishlist"`
+	IsSold                bool          `gorm:"default:false" json:"isSold"`
+	SoldPrice             *float64      `json:"soldPrice"`
+	SoldDate              *time.Time    `json:"soldDate"`
+	SoldTo                string        `json:"soldTo"`
+	ListingStatus         string        `gorm:"type:varchar(20);default:''" json:"listingStatus"`
+	ListingCheckedAt      *time.Time    `json:"listingCheckedAt"`
+	ListingCheckReason    string        `gorm:"type:text" json:"listingCheckReason"`
+	StorageLocationID     *uint         `json:"storageLocationId" minimum:"1" extensions:"x-nullable"`
+	// StorageSlot is the nullable, one-based row-major position within a Coin Tray.
+	StorageSlot            *int             `json:"storageSlot" minimum:"1" maximum:"400" extensions:"x-nullable"`
 	StorageLocation        *StorageLocation `gorm:"foreignKey:StorageLocationID;constraint:-" json:"storageLocation"`
 	SourceAlertCandidateID *uint            `gorm:"index" json:"sourceAlertCandidateId"`
 	IsPrivate              bool             `gorm:"default:false" json:"isPrivate"`

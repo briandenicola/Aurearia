@@ -313,6 +313,12 @@ const router = createRouter({
       component: () => import('@/pages/TrayViewPage.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/storage-trays',
+      name: 'storage-trays',
+      component: () => import('@/pages/StorageTraysPage.vue'),
+      meta: { requiresAuth: true },
+    },
     // Set routes - placeholder for Phase 2 and Phase 3 implementation
     {
       path: '/sets',

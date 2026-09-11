@@ -345,6 +345,7 @@ function createEmptyForm(category: Category, material: Material): Partial<Coin> 
     vendorSku: '',
     vendorInvoice: '',
     storageLocationId: null,
+    storageSlot: null,
     notes: '',
     referenceUrl: '',
     referenceText: 'Store Link',
@@ -444,6 +445,7 @@ function normalizeDraftCoin(coin: CoinMutationPayload): Partial<Coin> {
     vendorSku: readString(source, 'vendorSku', 'vendor_sku'),
     vendorInvoice: readString(source, 'vendorInvoice', 'vendor_invoice'),
     storageLocationId: readNumber(source, 'storageLocationId', 'storage_location_id') ?? null,
+    storageSlot: readNumber(source, 'storageSlot', 'storage_slot') ?? null,
     notes: readString(source, 'notes'),
     referenceUrl: readString(source, 'referenceUrl', 'reference_url'),
     referenceText: readString(source, 'referenceText', 'reference_text') || 'Store Link',
@@ -459,6 +461,7 @@ function buildCoinPayload(source: Partial<Coin>): CoinMutationPayload {
     denomination: source.denomination?.trim() || undefined,
     ruler: source.ruler?.trim() || undefined,
     mint: source.mint?.trim() || undefined,
+    mintLocationId: source.mintLocationId ?? null,
     era: source.era || undefined,
     weightGrams: source.weightGrams ?? undefined,
     diameterMm: source.diameterMm ?? undefined,
@@ -475,6 +478,7 @@ function buildCoinPayload(source: Partial<Coin>): CoinMutationPayload {
     vendorSku: source.vendorSku?.trim() || undefined,
     vendorInvoice: source.vendorInvoice?.trim() || undefined,
     storageLocationId: source.storageLocationId ?? null,
+    storageSlot: source.storageSlot ?? null,
     romanImperialFigureId: source.category === 'Roman' ? (source.romanImperialFigureId ?? null) : null,
     notes: source.notes?.trim() || undefined,
     referenceUrl: source.referenceUrl?.trim() || undefined,
@@ -650,8 +654,14 @@ async function handleManualSubmit() {
     }
 
     router.push(`/coin/${coin.id}`)
-  } catch {
-    await showAlert('Failed to add coin', { title: 'Error' })
+  } catch (error: unknown) {
+    const code = (error as { response?: { data?: { code?: string } } })?.response?.data?.code
+    if (code === 'slot_occupied') {
+      await coinFormRef.value?.refreshStorageOccupancy()
+      await showAlert('That tray slot was just taken. Choose another available slot; your form has been preserved.', { title: 'Slot unavailable' })
+    } else {
+      await showAlert('Failed to add coin', { title: 'Error' })
+    }
   } finally {
     saving.value = false
   }

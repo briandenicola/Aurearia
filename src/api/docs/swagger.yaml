@@ -239,7 +239,15 @@ definitions:
       soldTo:
         type: string
       storageLocationId:
+        minimum: 1
         type: integer
+        x-nullable: true
+      storageSlot:
+        description: StorageSlot is a nullable, one-based row-major tray position.
+        maximum: 400
+        minimum: 1
+        type: integer
+        x-nullable: true
       vendorInvoice:
         maxLength: 200
         type: string
@@ -467,7 +475,15 @@ definitions:
       soldTo:
         type: string
       storageLocationId:
+        minimum: 1
         type: integer
+        x-nullable: true
+      storageSlot:
+        description: StorageSlot is a nullable, one-based row-major tray position.
+        maximum: 400
+        minimum: 1
+        type: integer
+        x-nullable: true
       vendorInvoice:
         maxLength: 200
         type: string
@@ -522,8 +538,21 @@ definitions:
     type: object
   handlers.ErrorResponse:
     properties:
+      code:
+        example: validation_error
+        type: string
+      count:
+        minimum: 0
+        type: integer
+        x-nullable: true
       error:
         example: Something went wrong
+        type: string
+      field:
+        example: storageSlot
+        type: string
+      message:
+        example: Choose another slot and try again.
         type: string
     type: object
   handlers.ExtractTextResponse:
@@ -712,6 +741,26 @@ definitions:
     properties:
       eventId:
         type: integer
+    type: object
+  handlers.LocationReferencedErrorResponse:
+    properties:
+      code:
+        enum:
+        - location_referenced
+        example: location_referenced
+        type: string
+      count:
+        example: 2
+        minimum: 1
+        type: integer
+      error:
+        example: Storage location is used by 2 coin(s); reassign those coins before
+          deleting it
+        type: string
+      message:
+        example: Storage location is used by 2 coin(s); reassign those coins before
+          deleting it
+        type: string
     type: object
   handlers.LogEntry:
     properties:
@@ -1147,6 +1196,20 @@ definitions:
         example: "94001000"
         type: string
     type: object
+  handlers.SlotOccupiedErrorResponse:
+    properties:
+      code:
+        enum:
+        - slot_occupied
+        example: slot_occupied
+        type: string
+      error:
+        example: Storage slot is occupied
+        type: string
+      message:
+        example: Storage slot is occupied
+        type: string
+    type: object
   handlers.StatsResponse:
     properties:
       byCategory:
@@ -1165,6 +1228,68 @@ definitions:
         type: integer
       values:
         $ref: '#/definitions/handlers.ValueSummary'
+    type: object
+  handlers.StorageLocationConflictErrorResponse:
+    properties:
+      code:
+        enum:
+        - duplicate_location
+        - location_limit
+        - tray_occupied
+        example: duplicate_location
+        type: string
+      error:
+        example: a storage location with this name already exists
+        type: string
+      message:
+        example: Choose a different storage location name.
+        type: string
+    type: object
+  handlers.StorageLocationCreateRequest:
+    properties:
+      columns:
+        maximum: 20
+        minimum: 1
+        type: integer
+        x-nullable: true
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      rows:
+        maximum: 20
+        minimum: 1
+        type: integer
+        x-nullable: true
+      sortOrder:
+        type: integer
+      type:
+        default: standard
+        enum:
+        - standard
+        - tray
+        type: string
+    required:
+    - name
+    type: object
+  handlers.StorageLocationUpdateRequest:
+    properties:
+      columns:
+        maximum: 20
+        minimum: 1
+        type: integer
+        x-nullable: true
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      rows:
+        maximum: 20
+        minimum: 1
+        type: integer
+        x-nullable: true
+      sortOrder:
+        type: integer
     type: object
   handlers.SyncWatchlistRequest:
     properties:
@@ -1283,6 +1408,22 @@ definitions:
     required:
     - password
     - username
+    type: object
+  handlers.ValidationErrorResponse:
+    properties:
+      code:
+        enum:
+        - validation_error
+        example: validation_error
+        type: string
+      error:
+        example: tray rows and columns must each be between 1 and 20
+        type: string
+      field:
+        example: rows
+        type: string
+      message:
+        type: string
     type: object
   handlers.ValueSummary:
     properties:
@@ -1900,15 +2041,6 @@ definitions:
           $ref: '#/definitions/models.RomanImperialFigure'
         type: array
     type: object
-  handlers.storageLocationCreateRequest:
-    properties:
-      name:
-        type: string
-      sortOrder:
-        type: integer
-    required:
-    - name
-    type: object
   handlers.storageLocationListResponse:
     properties:
       storageLocations:
@@ -1916,12 +2048,12 @@ definitions:
           $ref: '#/definitions/models.StorageLocation'
         type: array
     type: object
-  handlers.storageLocationUpdateRequest:
+  handlers.storageTrayListResponse:
     properties:
-      name:
-        type: string
-      sortOrder:
-        type: integer
+      trays:
+        items:
+          $ref: '#/definitions/repository.TrayAggregate'
+        type: array
     type: object
   handlers.updateSetProposalRequest:
     properties:
@@ -2533,7 +2665,16 @@ definitions:
       storageLocation:
         $ref: '#/definitions/models.StorageLocation'
       storageLocationId:
+        minimum: 1
         type: integer
+        x-nullable: true
+      storageSlot:
+        description: StorageSlot is the nullable, one-based row-major position within
+          a Coin Tray.
+        maximum: 400
+        minimum: 1
+        type: integer
+        x-nullable: true
       tags:
         items:
           $ref: '#/definitions/models.Tag'
@@ -3751,14 +3892,40 @@ definitions:
     - ShipmentStatusSourceAPI
   models.StorageLocation:
     properties:
+      capacity:
+        maximum: 400
+        minimum: 0
+        type: integer
+      columns:
+        maximum: 20
+        minimum: 1
+        type: integer
+        x-nullable: true
       createdAt:
         type: string
       id:
         type: integer
       name:
+        maxLength: 100
+        minLength: 1
         type: string
+      occupied:
+        maximum: 400
+        minimum: 0
+        type: integer
+      rows:
+        maximum: 20
+        minimum: 1
+        type: integer
+        x-nullable: true
       sortOrder:
         type: integer
+      type:
+        default: standard
+        enum:
+        - standard
+        - tray
+        type: string
       updatedAt:
         type: string
       userId:
@@ -3943,6 +4110,85 @@ definitions:
         type: string
       name:
         type: string
+    type: object
+  repository.TrayAggregate:
+    properties:
+      capacity:
+        maximum: 400
+        minimum: 1
+        type: integer
+      coins:
+        items:
+          $ref: '#/definitions/repository.TrayCoin'
+        type: array
+      columns:
+        maximum: 20
+        minimum: 1
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      occupied:
+        maximum: 400
+        minimum: 0
+        type: integer
+      rows:
+        maximum: 20
+        minimum: 1
+        type: integer
+    type: object
+  repository.TrayCoin:
+    properties:
+      diameterMm:
+        type: number
+      id:
+        type: integer
+      image:
+        $ref: '#/definitions/repository.TrayImage'
+      name:
+        type: string
+      storageSlot:
+        description: StorageSlot is the one-based row-major position within the tray.
+        maximum: 400
+        minimum: 1
+        type: integer
+    type: object
+  repository.TrayImage:
+    properties:
+      filePath:
+        type: string
+      imageType:
+        type: string
+    type: object
+  repository.TrayOccupancy:
+    properties:
+      capacity:
+        maximum: 400
+        minimum: 1
+        type: integer
+      columns:
+        maximum: 20
+        minimum: 1
+        type: integer
+      currentCoinSlot:
+        maximum: 400
+        minimum: 1
+        type: integer
+        x-nullable: true
+      locationId:
+        minimum: 1
+        type: integer
+      occupiedSlots:
+        items:
+          maximum: 400
+          minimum: 1
+          type: integer
+        type: array
+      rows:
+        maximum: 20
+        minimum: 1
+        type: integer
     type: object
   services.AIJobSubmissionResponse:
     properties:
@@ -8658,7 +8904,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new coin record for the authenticated user.
+      description: Creates a new coin record for the authenticated user. storageSlot
+        is nullable and one-based; a tray assignment requires an available slot within
+        the tray's persisted capacity.
       parameters:
       - description: Coin data
         in: body
@@ -8681,6 +8929,14 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.SlotOccupiedErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -8765,7 +9021,10 @@ paths:
       consumes:
       - application/json
       description: Updates an existing coin record. Only the coin owner can update
-        it.
+        it. storageSlot is nullable and one-based; omitted storage fields preserve
+        the current assignment. Explicit null is accepted only when the resulting
+        location/slot combination is valid, such as clearing the location and slot
+        together.
       parameters:
       - description: Coin ID
         in: path
@@ -8797,6 +9056,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.SlotOccupiedErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -14932,14 +15195,16 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a user-owned storage location.
+      description: Creates a user-owned Standard Location or Coin Tray. Type defaults
+        to standard; trays require rows and columns from 1 through 20, with at most
+        400 slots.
       parameters:
       - description: Storage location data
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/handlers.storageLocationCreateRequest'
+          $ref: '#/definitions/handlers.StorageLocationCreateRequest'
       produces:
       - application/json
       responses:
@@ -14950,7 +15215,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/handlers.ValidationErrorResponse'
         "401":
           description: Unauthorized
           schema:
@@ -14958,7 +15223,7 @@ paths:
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/handlers.StorageLocationConflictErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -15000,7 +15265,7 @@ paths:
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/handlers.LocationReferencedErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -15013,7 +15278,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Updates a user-owned storage location.
+      description: Renames a user-owned location or resizes an empty tray. Nullable
+        dimensions are validated against the persisted location type.
       parameters:
       - description: Storage location ID
         in: path
@@ -15025,7 +15291,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/handlers.storageLocationUpdateRequest'
+          $ref: '#/definitions/handlers.StorageLocationUpdateRequest'
       produces:
       - application/json
       responses:
@@ -15036,7 +15302,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/handlers.ValidationErrorResponse'
         "401":
           description: Unauthorized
           schema:
@@ -15048,7 +15314,7 @@ paths:
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+            $ref: '#/definitions/handlers.StorageLocationConflictErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -15056,6 +15322,72 @@ paths:
       security:
       - BearerAuth: []
       summary: Update storage location
+      tags:
+      - Storage Locations
+  /storage-locations/{id}/occupancy:
+    get:
+      description: Returns one-based occupied slot numbers for an owned Coin Tray.
+        coinId may identify the current owned coin whose slot remains selectable.
+      parameters:
+      - description: Storage location ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      - description: Current owned coin ID
+        in: query
+        minimum: 1
+        name: coinId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.TrayOccupancy'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ValidationErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get tray occupancy
+      tags:
+      - Storage Locations
+  /storage-trays:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.storageTrayListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List physical storage trays
       tags:
       - Storage Locations
   /suggestions:

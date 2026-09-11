@@ -1,5 +1,5 @@
 <template>
-  <div class="museum-tray" :class="`felt-${feltTheme}`">
+  <TraySurface :felt-theme="feltTheme">
     <div v-if="hasAnyFaceImage" class="tray-actions">
       <button
         class="tray-face-toggle"
@@ -27,13 +27,14 @@
         @coin-clicked="emit('coin-clicked', $event)"
       />
     </div>
-  </div>
+  </TraySurface>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RotateCcw } from 'lucide-vue-next'
 import MuseumTrayWell from './MuseumTrayWell.vue'
+import TraySurface from './TraySurface.vue'
 import { getScaledCoinRenderSizePx, normalizeDiameterMm, type TrayCoin, type TrayCoinFace } from '@/utils/trayLayout'
 import type { FeltColor } from '@/composables/useTrayPreference'
 
