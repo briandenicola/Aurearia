@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var ErrStorageSlotOccupied = errors.New("storage slot is occupied")
 
 // CoinListFilters holds optional filters for listing coins.
 type CoinListFilters struct {
@@ -410,9 +413,24 @@ func (r *CoinRepository) TopOwnedByCurrentValue(userID uint, limit int) ([]model
 // Create inserts a new coin and returns it with images preloaded.
 func (r *CoinRepository) Create(coin *models.Coin) error {
 	if err := r.db.Omit("References").Create(coin).Error; err != nil {
+		if isStorageSlotConflict(err, coin.StorageSlot) {
+			return ErrStorageSlotOccupied
+		}
 		return err
 	}
+
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(coin, coin.ID).Error
+}
+
+func isStorageSlotConflict(err error, storageSlot *int) bool {
+	if err == nil || storageSlot == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "idx_coins_storage_location_slot_unique") ||
+		(strings.Contains(message, "unique constraint failed") &&
+			strings.Contains(message, "coins.storage_location_id") &&
+			strings.Contains(message, "coins.storage_slot"))
 }
 
 // Duplicate creates an owner-scoped copy of a coin without copying media or card state rows.
@@ -463,8 +481,13 @@ func (r *CoinRepository) Duplicate(id uint, userID uint) (*models.Coin, error) {
 		ListingCheckedAt:      source.ListingCheckedAt,
 		ListingCheckReason:    source.ListingCheckReason,
 		StorageLocationID:     source.StorageLocationID,
+		StorageSlot:           source.StorageSlot,
 		IsPrivate:             source.IsPrivate,
 		UserID:                source.UserID,
+	}
+	if source.StorageLocation != nil && source.StorageLocation.Type == models.StorageLocationTypeTray {
+		duplicate.StorageLocationID = nil
+		duplicate.StorageSlot = nil
 	}
 	if err := r.db.Omit("Images", "References", "Tags", "Sets", "StorageLocation", "User").Create(&duplicate).Error; err != nil {
 		return nil, err
@@ -568,15 +591,21 @@ func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]inte
 
 // UpdateStorageLocationID updates only the storage-location foreign key, including clearing it.
 func (r *CoinRepository) UpdateStorageLocationID(coin *models.Coin, storageLocationID *uint) error {
+	return r.UpdateStorageAssignment(coin, storageLocationID, nil)
+}
+
+// UpdateStorageAssignment atomically persists location and one-based slot.
+func (r *CoinRepository) UpdateStorageAssignment(coin *models.Coin, storageLocationID *uint, storageSlot *int) error {
 	query := r.db.Model(&models.Coin{}).Where("id = ? AND user_id = ?", coin.ID, coin.UserID)
-	if storageLocationID == nil {
-		if err := query.Update("storage_location_id", nil).Error; err != nil {
-			return err
+	err := query.Updates(map[string]interface{}{
+		"storage_location_id": storageLocationID,
+		"storage_slot":        storageSlot,
+	}).Error
+	if err != nil {
+		if isStorageSlotConflict(err, storageSlot) {
+			return ErrStorageSlotOccupied
 		}
-	} else {
-		if err := query.Update("storage_location_id", *storageLocationID).Error; err != nil {
-			return err
-		}
+		return err
 	}
 	if err := r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(coin, coin.ID).Error; err != nil {
 		return err
@@ -584,6 +613,8 @@ func (r *CoinRepository) UpdateStorageLocationID(coin *models.Coin, storageLocat
 	if storageLocationID == nil {
 		coin.StorageLocation = nil
 	}
+	coin.StorageLocationID = storageLocationID
+	coin.StorageSlot = storageSlot
 	return nil
 }
 
@@ -685,7 +716,7 @@ func (r *CoinRepository) OwnedActiveIDs(coinIDs []uint, userID uint) ([]uint, er
 func (r *CoinRepository) BulkAssignLocation(coinIDs []uint, storageLocationID *uint, userID uint) (int64, error) {
 	result := r.db.Model(&models.Coin{}).
 		Where("id IN ? AND user_id = ?", coinIDs, userID).
-		Update("storage_location_id", storageLocationID)
+		Updates(map[string]interface{}{"storage_location_id": storageLocationID, "storage_slot": nil})
 	return result.RowsAffected, result.Error
 }
 

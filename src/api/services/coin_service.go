@@ -14,6 +14,9 @@ import (
 var (
 	ErrCoinInvalidEra      = errors.New("era is not supported")
 	ErrCoinInvalidCategory = errors.New("category is not supported")
+	ErrStorageSlotRequired = errors.New("a tray slot is required")
+	ErrStorageSlotInvalid  = errors.New("storage slot is invalid for this location")
+	ErrStorageSlotOccupied = errors.New("storage slot is occupied")
 )
 
 var builtInCoinEras = map[models.Era]struct{}{
@@ -159,7 +162,7 @@ func (s *CoinService) CreateCoinInTx(tx *gorm.DB, coin *models.Coin) error {
 }
 
 func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
-	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
+	if err := s.validateStorageAssignment(coin.StorageLocationID, coin.StorageSlot, coin.UserID, nil); err != nil {
 		return err
 	}
 	if err := s.validateMintLocation(coin.MintLocationID, coin.UserID); err != nil {
@@ -182,6 +185,9 @@ func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin) err
 		pendingReferences := coin.References
 		coin.References = nil
 		if err := txRepo.Create(coin); err != nil {
+			if errors.Is(err, repository.ErrStorageSlotOccupied) {
+				return ErrStorageSlotOccupied
+			}
 			return err
 		}
 
@@ -223,15 +229,32 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 // updateFields are persisted, allowing explicit zero values to be saved while
 // omitted request fields preserve existing values.
 func (s *CoinService) UpdateCoinWithFields(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, storageLocationProvided bool) error {
-	return s.updateCoin(existing, updates, updateFields, userID, source, storageLocationProvided)
+	return s.updateCoin(existing, updates, updateFields, userID, source, storageLocationProvided, false)
 }
 
-func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, updateStorageLocation bool) error {
+func (s *CoinService) UpdateCoinWithAssignmentFields(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, storageLocationProvided, storageSlotProvided bool) error {
+	return s.updateCoin(existing, updates, updateFields, userID, source, storageLocationProvided, storageSlotProvided)
+}
+
+func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, updateStorageLocation bool, updateStorageSlot ...bool) error {
+	slotProvided := len(updateStorageSlot) > 0 && updateStorageSlot[0]
 	oldValue := existing.CurrentValue
 	wasWishlist := existing.IsWishlist
 	wasSold := existing.IsSold
+	targetLocation, targetSlot := existing.StorageLocationID, existing.StorageSlot
 	if updateStorageLocation {
-		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
+		targetLocation = updates.StorageLocationID
+		if targetLocation == nil {
+			targetSlot = nil
+		} else if existing.StorageLocationID == nil || *existing.StorageLocationID != *targetLocation {
+			targetSlot = nil
+		}
+	}
+	if slotProvided {
+		targetSlot = updates.StorageSlot
+	}
+	if updateStorageLocation || slotProvided {
+		if err := s.validateStorageAssignment(targetLocation, targetSlot, userID, &existing.ID); err != nil {
 			return err
 		}
 	}
@@ -269,8 +292,11 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 				return err
 			}
 		}
-		if updateStorageLocation {
-			if err := txRepo.UpdateStorageLocationID(existing, updates.StorageLocationID); err != nil {
+		if updateStorageLocation || slotProvided {
+			if err := txRepo.UpdateStorageAssignment(existing, targetLocation, targetSlot); err != nil {
+				if errors.Is(err, repository.ErrStorageSlotOccupied) {
+					return ErrStorageSlotOccupied
+				}
 				return err
 			}
 		}
@@ -510,6 +536,66 @@ func (s *CoinService) validateStorageLocation(storageLocationID *uint, userID ui
 		return ErrStorageLocationNotFound
 	}
 	return nil
+}
+
+func (s *CoinService) validateStorageAssignment(storageLocationID *uint, storageSlot *int, userID uint, currentCoinID *uint) error {
+	if storageLocationID == nil {
+		if storageSlot != nil {
+			return ErrStorageSlotInvalid
+		}
+		return nil
+	}
+	if *storageLocationID == 0 || s.storageLocationRepo == nil {
+		return ErrStorageLocationNotFound
+	}
+	location, err := s.storageLocationRepo.GetByID(*storageLocationID, userID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			return ErrStorageLocationNotFound
+		}
+		return err
+	}
+	if location.Type == "" || location.Type == models.StorageLocationTypeStandard {
+		if storageSlot != nil {
+			return ErrStorageSlotInvalid
+		}
+		return nil
+	}
+	if location.Type != models.StorageLocationTypeTray || location.Rows == nil || location.Columns == nil {
+		return ErrStorageSlotInvalid
+	}
+	if storageSlot == nil {
+		return ErrStorageSlotRequired
+	}
+	if *storageSlot < 1 || *storageSlot > (*location.Rows)*(*location.Columns) {
+		return ErrStorageSlotInvalid
+	}
+	occupancy, err := s.storageLocationRepo.Occupancy(location.ID, userID, currentCoinID)
+	if err != nil {
+		return err
+	}
+	for _, slot := range occupancy.OccupiedSlots {
+		if slot == *storageSlot && (occupancy.CurrentCoinSlot == nil || *occupancy.CurrentCoinSlot != slot) {
+			return ErrStorageSlotOccupied
+		}
+	}
+	return nil
+}
+
+func (s *CoinService) BulkAssignLocation(coinIDs []uint, storageLocationID *uint, userID uint) (int64, error) {
+	if storageLocationID != nil {
+		location, err := s.storageLocationRepo.GetByID(*storageLocationID, userID)
+		if err != nil {
+			if repository.IsRecordNotFound(err) {
+				return 0, ErrStorageLocationNotFound
+			}
+			return 0, err
+		}
+		if location.Type == models.StorageLocationTypeTray {
+			return 0, ErrStorageSlotRequired
+		}
+	}
+	return s.repo.BulkAssignLocation(coinIDs, storageLocationID, userID)
 }
 
 func (s *CoinService) validateMintLocation(mintLocationID *uint, userID uint) error {

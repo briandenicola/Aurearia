@@ -53,3 +53,32 @@ test('desktop tray renders 67 measured coins through authenticated eager media',
   await expect(page.getByText('Tray 2 of 6')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Measured Tray Coin 13', exact: true })).toBeVisible()
 })
+
+test('mobile museum tray keeps responsive drawers and collection semantics', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const coins = Array.from({ length: 13 }, (_, index) =>
+    buildRomanDenariusCore({
+      id: index + 1,
+      name: `Mobile Museum Coin ${index + 1}`,
+      diameterMm: 18,
+    }),
+  )
+  await installWorkflowApiMocks(page, coins)
+
+  await page.goto('/tray')
+
+  await expect(page).toHaveURL(/\/tray$/)
+  await expect(page.getByText('Tray 1 of 2')).toBeVisible()
+  await expect(page.locator('.tray-well')).toHaveCount(12)
+  await expect.poll(async () =>
+    page.locator('.tray-grid').evaluate((grid) =>
+      getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length,
+    ),
+  ).toBe(3)
+  await expect(page.getByText(/Row \d+, column \d+/)).toHaveCount(0)
+
+  await page.getByRole('button', { name: /Next/ }).click()
+  await expect(page.getByText('Tray 2 of 2')).toBeVisible()
+  await expect(page.locator('.tray-well')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Mobile Museum Coin 13', exact: true })).toBeVisible()
+})

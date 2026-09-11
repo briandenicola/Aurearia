@@ -1,4 +1,4 @@
-﻿package database
+package database
 
 import (
 	"fmt"
@@ -88,9 +88,13 @@ func Connect(dbPath string) {
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
+	if err := migrateStructuredStorage(DB); err != nil {
+		log.Fatalf("Failed to migrate structured storage: %v", err)
+	}
 	if err := migrateQuickAccessPins(DB); err != nil {
 		log.Fatalf("Failed to migrate quick access pins: %v", err)
 	}
+
 	// 353-wishlist-availability-run-observability: AvailabilityCycle is a brand-new table and
 	// AvailabilityRun.CycleID is a brand-new nullable column. This AutoMigrate call is the
 	// entire "migration" — purely additive DDL, no backfill/reparenting/retagging of any
@@ -258,6 +262,7 @@ func backfillCoinValueHistorySources(db *gorm.DB) error {
 	if result := db.Exec("UPDATE coin_value_histories SET source='ai_scheduled' WHERE source='manual' AND confidence IN ('high','medium','low')"); result.Error != nil {
 		return fmt.Errorf("ai_scheduled backfill: %w", result.Error)
 	}
+
 	// Defensive: stamp any row still holding NULL or empty source as manual.
 	if result := db.Exec("UPDATE coin_value_histories SET source='manual' WHERE source IS NULL OR source=''"); result.Error != nil {
 		return fmt.Errorf("manual default backfill: %w", result.Error)
@@ -265,6 +270,63 @@ func backfillCoinValueHistorySources(db *gorm.DB) error {
 	return nil
 }
 
+// migrateStructuredStorage completes Feature 358's additive migration after
+// AutoMigrate has added the nullable columns. It intentionally creates no
+// physical foreign key, preserves IDs/associations, and fails on malformed
+// mixed rows rather than silently rewriting them.
+func migrateStructuredStorage(db *gorm.DB) error {
+	if err := db.Exec(
+		"UPDATE storage_locations SET type = ? WHERE type IS NULL OR TRIM(type) = ''",
+		models.StorageLocationTypeStandard,
+	).Error; err != nil {
+		return fmt.Errorf("backfill storage location type: %w", err)
+	}
+	var invalid int64
+	if err := db.Raw(`
+		SELECT COUNT(*) FROM storage_locations
+		WHERE type NOT IN (?, ?)
+		   OR (type = ? AND (rows IS NOT NULL OR columns IS NOT NULL))
+		   OR (type = ? AND (
+				rows IS NULL OR columns IS NULL OR
+				rows < 1 OR rows > 20 OR columns < 1 OR columns > 20 OR
+				rows * columns > 400
+		   ))`,
+		models.StorageLocationTypeStandard,
+		models.StorageLocationTypeTray,
+		models.StorageLocationTypeStandard,
+		models.StorageLocationTypeTray,
+	).Scan(&invalid).Error; err != nil {
+		return fmt.Errorf("validate storage location rows: %w", err)
+	}
+	if invalid > 0 {
+		return fmt.Errorf("validate storage location rows: %d malformed row(s)", invalid)
+	}
+	var duplicateNames int64
+	if err := db.Raw(`
+		SELECT COUNT(*) FROM (
+			SELECT user_id, name COLLATE NOCASE
+			FROM storage_locations
+			GROUP BY user_id, name COLLATE NOCASE
+			HAVING COUNT(*) > 1
+		)`).Scan(&duplicateNames).Error; err != nil {
+		return fmt.Errorf("validate storage location names: %w", err)
+	}
+	if duplicateNames > 0 {
+		return fmt.Errorf("validate storage location names: %d case-insensitive duplicate name group(s)", duplicateNames)
+	}
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_storage_locations_user_name_nocase
+		ON storage_locations(user_id, name COLLATE NOCASE)`).Error; err != nil {
+		return fmt.Errorf("create storage location name unique index: %w", err)
+	}
+	if err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_coins_storage_location_slot_unique
+		ON coins(storage_location_id, storage_slot)
+		WHERE storage_slot IS NOT NULL`).Error; err != nil {
+		return fmt.Errorf("create storage slot unique index: %w", err)
+	}
+	return nil
+}
 
 const mintLocationSeedVersionKey = "MintLocationSeedVersion"
 const currentMintLocationSeedVersion = "1"

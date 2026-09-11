@@ -132,9 +132,9 @@ func (h *CoinHandler) MatchCategoryEra(c *gin.Context) {
 
 // PurchaseRequest holds optional details when purchasing a wishlist coin.
 type PurchaseRequest struct {
-	PurchasePrice    *float64 `json:"purchasePrice"`
-	PurchaseDate     string   `json:"purchaseDate"`
-	PurchaseLocation string   `json:"purchaseLocation"`
+	PurchasePrice    *float64               `json:"purchasePrice"`
+	PurchaseDate     string                 `json:"purchaseDate"`
+	PurchaseLocation string                 `json:"purchaseLocation"`
 	Shipment         *ShipmentAttachRequest `json:"shipment,omitempty"`
 }
 
@@ -317,7 +317,7 @@ func (h *CoinHandler) Get(c *gin.Context) {
 // Create adds a new coin for the authenticated user.
 //
 //	@Summary		Create a coin
-//	@Description	Creates a new coin record for the authenticated user.
+//	@Description	Creates a new coin record for the authenticated user. storageSlot is nullable and one-based; a tray assignment requires an available slot within the tray's persisted capacity.
 //	@Tags			Coins
 //	@Accept			json
 //	@Produce		json
@@ -325,6 +325,8 @@ func (h *CoinHandler) Get(c *gin.Context) {
 //	@Success		201		{object}	models.Coin
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		409		{object}	SlotOccupiedErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/coins [post]
@@ -358,7 +360,7 @@ func (h *CoinHandler) Create(c *gin.Context) {
 // Update modifies an existing coin owned by the authenticated user.
 //
 //	@Summary		Update a coin
-//	@Description	Updates an existing coin record. Only the coin owner can update it.
+//	@Description	Updates an existing coin record. Only the coin owner can update it. storageSlot is nullable and one-based; omitted storage fields preserve the current assignment. Explicit null is accepted only when the resulting location/slot combination is valid, such as clearing the location and slot together.
 //	@Tags			Coins
 //	@Accept			json
 //	@Produce		json
@@ -368,6 +370,7 @@ func (h *CoinHandler) Create(c *gin.Context) {
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
+//	@Failure		409		{object}	SlotOccupiedErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/coins/{id} [put]
@@ -392,10 +395,13 @@ func (h *CoinHandler) Update(c *gin.Context) {
 	}
 	var raw map[string]json.RawMessage
 	storageLocationProvided := false
+	storageSlotProvided := false
 	nullableScalarProvided := map[string]bool{}
 	if err := json.Unmarshal(bodyBytes, &raw); err == nil {
 		_, storageLocationProvided = raw["storageLocationId"]
+		_, storageSlotProvided = raw["storageSlot"]
 		nullableScalarProvided = nullableScalarFieldPresence(raw)
+		nullableScalarProvided["StorageSlot"] = storageSlotProvided
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
@@ -408,7 +414,7 @@ func (h *CoinHandler) Update(c *gin.Context) {
 	updates, updateFields := req.toCoin(existing, storageLocationProvided, nullableScalarProvided)
 
 	source := c.Query("source")
-	if err := h.svc.UpdateCoinWithFields(existing, &updates, updateFields, userID, source, storageLocationProvided); err != nil {
+	if err := h.svc.UpdateCoinWithAssignmentFields(existing, &updates, updateFields, userID, source, storageLocationProvided, storageSlotProvided); err != nil {
 		if handleCoinMutationError(c, err) {
 			return
 		}
@@ -836,11 +842,20 @@ func handleCoinMutationError(c *gin.Context, err error) bool {
 		errors.Is(err, services.ErrReferenceVolumeRequired),
 		errors.Is(err, services.ErrReferenceUnknownCatalog),
 		errors.Is(err, services.ErrReferenceDuplicate),
-		errors.Is(err, services.ErrStorageLocationNotFound),
 		errors.Is(err, services.ErrMintLocationNotFound),
 		errors.Is(err, services.ErrCoinInvalidEra),
 		errors.Is(err, services.ErrCoinInvalidCategory):
 		respondError(c, http.StatusBadRequest, err.Error(), err)
+		return true
+	case errors.Is(err, services.ErrStorageSlotRequired),
+		errors.Is(err, services.ErrStorageSlotInvalid):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "message": err.Error(), "code": "validation_error", "field": "storageSlot"})
+		return true
+	case errors.Is(err, services.ErrStorageLocationNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Storage location not found"})
+		return true
+	case errors.Is(err, services.ErrStorageSlotOccupied):
+		c.JSON(http.StatusConflict, gin.H{"error": "Storage slot is occupied", "message": "Storage slot is occupied", "code": "slot_occupied"})
 		return true
 	case isUniqueConstraintError(err):
 		respondError(c, http.StatusBadRequest, services.ErrReferenceDuplicate.Error(), err)

@@ -8,7 +8,37 @@ import (
 // Swagger response types for documentation
 
 type ErrorResponse struct {
-	Error string `json:"error" example:"Something went wrong"`
+	Error   string `json:"error" example:"Something went wrong"`
+	Code    string `json:"code,omitempty" example:"validation_error"`
+	Message string `json:"message,omitempty" example:"Choose another slot and try again."`
+	Field   string `json:"field,omitempty" example:"storageSlot"`
+	Count   *int64 `json:"count,omitempty" minimum:"0" extensions:"x-nullable"`
+}
+
+type ValidationErrorResponse struct {
+	Error   string `json:"error" example:"tray rows and columns must each be between 1 and 20"`
+	Code    string `json:"code" enums:"validation_error" example:"validation_error"`
+	Message string `json:"message,omitempty"`
+	Field   string `json:"field,omitempty" example:"rows"`
+}
+
+type StorageLocationConflictErrorResponse struct {
+	Error   string `json:"error" example:"a storage location with this name already exists"`
+	Code    string `json:"code" enums:"duplicate_location,location_limit,tray_occupied" example:"duplicate_location"`
+	Message string `json:"message" example:"Choose a different storage location name."`
+}
+
+type SlotOccupiedErrorResponse struct {
+	Error   string `json:"error" example:"Storage slot is occupied"`
+	Code    string `json:"code" enums:"slot_occupied" example:"slot_occupied"`
+	Message string `json:"message" example:"Storage slot is occupied"`
+}
+
+type LocationReferencedErrorResponse struct {
+	Error   string `json:"error" example:"Storage location is used by 2 coin(s); reassign those coins before deleting it"`
+	Code    string `json:"code" enums:"location_referenced" example:"location_referenced"`
+	Message string `json:"message" example:"Storage location is used by 2 coin(s); reassign those coins before deleting it"`
+	Count   int64  `json:"count" minimum:"1" example:"2"`
 }
 
 type MessageResponse struct {

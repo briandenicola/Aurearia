@@ -44,6 +44,16 @@ vi.mock('@/api/client', async (importOriginal) => {
 })
 
 describe('App sidebar navigation', () => {
+  it('keeps the visual and physical tray views as distinct Collection children', () => {
+    const source = fs.readFileSync(appPath, 'utf8')
+    const routerSource = fs.readFileSync(path.resolve(__dirname, '../router/index.ts'), 'utf8')
+
+    expect(source).toContain("label: 'Tray', to: '/tray'")
+    expect(source).toContain("label: 'Storage Trays', to: '/storage-trays'")
+    expect(routerSource).toContain("path: '/tray'")
+    expect(routerSource).toContain("path: '/storage-trays'")
+  })
+
   it('renders Stats as a collapsible parent with dedicated route children', () => {
     const source = fs.readFileSync(appPath, 'utf8')
 

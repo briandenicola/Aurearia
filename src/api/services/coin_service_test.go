@@ -270,6 +270,43 @@ func TestDuplicateCoin_RejectsOtherUsersCoin(t *testing.T) {
 	}
 }
 
+func TestDuplicateCoin_ClearsTrayAssignmentButPreservesStandardAssignment(t *testing.T) {
+	db := setupTestDB(t)
+	service := newTestCoinServiceWithStorage(db)
+	rows, columns := 2, 2
+	tray := models.StorageLocation{UserID: 1, Name: "Tray", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+	standard := models.StorageLocation{UserID: 1, Name: "Cabinet", Type: models.StorageLocationTypeStandard}
+	if err := db.Create(&tray).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&standard).Error; err != nil {
+		t.Fatal(err)
+	}
+	slot := 1
+	trayCoin := models.Coin{UserID: 1, Name: "Tray coin", StorageLocationID: &tray.ID, StorageSlot: &slot}
+	standardCoin := models.Coin{UserID: 1, Name: "Standard coin", StorageLocationID: &standard.ID}
+	if err := db.Create(&trayCoin).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&standardCoin).Error; err != nil {
+		t.Fatal(err)
+	}
+	trayCopy, err := service.DuplicateCoin(trayCoin.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trayCopy.StorageLocationID != nil || trayCopy.StorageSlot != nil {
+		t.Fatalf("tray assignment leaked to duplicate: %#v", trayCopy)
+	}
+	standardCopy, err := service.DuplicateCoin(standardCoin.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if standardCopy.StorageLocationID == nil || *standardCopy.StorageLocationID != standard.ID || standardCopy.StorageSlot != nil {
+		t.Fatalf("standard assignment was not preserved: %#v", standardCopy)
+	}
+}
+
 func TestUpdateCoin_RecordsValueHistory(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinService(db)
@@ -353,7 +390,7 @@ func TestCreateCoin_RejectsNonOwnedStorageLocation(t *testing.T) {
 	}
 }
 
-func TestUpdateCoin_ValidatesAndClearsStorageLocation(t *testing.T) {
+func TestCoinService_StorageAssignmentContractsAndLegacyClear(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinServiceWithStorage(db)
 
@@ -362,6 +399,109 @@ func TestUpdateCoin_ValidatesAndClearsStorageLocation(t *testing.T) {
 	if err := db.Create(&ownedLocation).Error; err != nil {
 		t.Fatalf("failed to seed owned storage location: %v", err)
 	}
+
+	t.Run("storage assignment create contract", func(t *testing.T) {
+		db := setupTestDB(t)
+		if err := db.Exec(`CREATE UNIQUE INDEX idx_coins_storage_location_slot_unique
+			ON coins(storage_location_id, storage_slot) WHERE storage_slot IS NOT NULL`).Error; err != nil {
+			t.Fatal(err)
+		}
+		svc := newTestCoinServiceWithStorage(db)
+		rows, columns := 2, 2
+		tray := models.StorageLocation{UserID: 1, Name: "Tray", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		standard := models.StorageLocation{UserID: 1, Name: "Safe", Type: models.StorageLocationTypeStandard}
+		foreign := models.StorageLocation{UserID: 2, Name: "Foreign", Type: models.StorageLocationTypeStandard}
+		if err := db.Create(&[]*models.StorageLocation{&tray, &standard, &foreign}).Error; err != nil {
+			t.Fatal(err)
+		}
+		first, last, zero, overflow := 1, 4, 0, 5
+
+		tests := []struct {
+			name     string
+			location *uint
+			slot     *int
+			wantErr  error
+		}{
+			{name: "unassigned"},
+			{name: "standard", location: &standard.ID},
+			{name: "standard with slot", location: &standard.ID, slot: &first, wantErr: ErrStorageSlotInvalid},
+			{name: "tray missing slot", location: &tray.ID, wantErr: ErrStorageSlotRequired},
+			{name: "tray first boundary", location: &tray.ID, slot: &first},
+			{name: "tray last boundary", location: &tray.ID, slot: &last},
+			{name: "tray zero", location: &tray.ID, slot: &zero, wantErr: ErrStorageSlotInvalid},
+			{name: "tray overflow", location: &tray.ID, slot: &overflow, wantErr: ErrStorageSlotInvalid},
+			{name: "cross owner", location: &foreign.ID, wantErr: ErrStorageLocationNotFound},
+			{name: "slot without location", slot: &first, wantErr: ErrStorageSlotInvalid},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				coin := &models.Coin{UserID: 1, Name: "Assignment " + tt.name, Category: models.CategoryRoman, StorageLocationID: tt.location, StorageSlot: tt.slot}
+				err := svc.CreateCoin(coin)
+				if tt.wantErr != nil {
+					if !errors.Is(err, tt.wantErr) {
+						t.Fatalf("CreateCoin error = %v, want %v", err, tt.wantErr)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("CreateCoin: %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("storage assignment update presence and conflicts", func(t *testing.T) {
+		db := setupTestDB(t)
+		if err := db.Exec(`CREATE UNIQUE INDEX idx_coins_storage_location_slot_unique
+			ON coins(storage_location_id, storage_slot) WHERE storage_slot IS NOT NULL`).Error; err != nil {
+			t.Fatal(err)
+		}
+		svc := newTestCoinServiceWithStorage(db)
+		rows, columns := 2, 2
+		trayA := models.StorageLocation{UserID: 1, Name: "Tray A", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		trayB := models.StorageLocation{UserID: 1, Name: "Tray B", Type: models.StorageLocationTypeTray, Rows: &rows, Columns: &columns}
+		standard := models.StorageLocation{UserID: 1, Name: "Safe", Type: models.StorageLocationTypeStandard}
+		if err := db.Create(&[]*models.StorageLocation{&trayA, &trayB, &standard}).Error; err != nil {
+			t.Fatal(err)
+		}
+		slotOne, slotTwo := 1, 2
+		coin := &models.Coin{UserID: 1, Name: "Current", Category: models.CategoryRoman, StorageLocationID: &trayA.ID, StorageSlot: &slotOne}
+		blocker := &models.Coin{UserID: 1, Name: "Blocker", Category: models.CategoryRoman, StorageLocationID: &trayA.ID, StorageSlot: &slotTwo}
+		if err := db.Create(&[]*models.Coin{coin, blocker}).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		if err := svc.UpdateCoinWithAssignmentFields(coin, &models.Coin{Name: "Renamed"}, []string{"Name"}, 1, "manual", false, false); err != nil {
+			t.Fatalf("omitted assignment update: %v", err)
+		}
+		if coin.StorageLocationID == nil || *coin.StorageLocationID != trayA.ID || coin.StorageSlot == nil || *coin.StorageSlot != slotOne {
+			t.Fatalf("omitted assignment fields changed placement: %#v", coin)
+		}
+
+		if err := svc.UpdateCoinWithAssignmentFields(coin, &models.Coin{StorageSlot: &slotOne}, nil, 1, "manual", false, true); err != nil {
+			t.Fatalf("current coin should retain its own slot: %v", err)
+		}
+		if err := svc.UpdateCoinWithAssignmentFields(coin, &models.Coin{StorageSlot: &slotTwo}, nil, 1, "manual", false, true); !errors.Is(err, ErrStorageSlotOccupied) {
+			t.Fatalf("occupied slot error = %v, want %v", err, ErrStorageSlotOccupied)
+		}
+		if err := svc.UpdateCoinWithAssignmentFields(coin, &models.Coin{StorageLocationID: &trayB.ID}, nil, 1, "manual", true, false); !errors.Is(err, ErrStorageSlotRequired) {
+			t.Fatalf("changing trays without a new slot error = %v, want %v", err, ErrStorageSlotRequired)
+		}
+		var persisted models.Coin
+		if err := db.First(&persisted, coin.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if persisted.StorageLocationID == nil || *persisted.StorageLocationID != trayA.ID || persisted.StorageSlot == nil || *persisted.StorageSlot != slotOne {
+			t.Fatalf("rejected move did not preserve original assignment: %#v", persisted)
+		}
+
+		if err := svc.UpdateCoinWithAssignmentFields(coin, &models.Coin{StorageLocationID: &standard.ID}, nil, 1, "manual", true, false); err != nil {
+			t.Fatalf("move to standard: %v", err)
+		}
+		if coin.StorageLocationID == nil || *coin.StorageLocationID != standard.ID || coin.StorageSlot != nil {
+			t.Fatalf("move to standard did not clear stale slot: %#v", coin)
+		}
+	})
 	if err := db.Create(&otherLocation).Error; err != nil {
 		t.Fatalf("failed to seed other storage location: %v", err)
 	}

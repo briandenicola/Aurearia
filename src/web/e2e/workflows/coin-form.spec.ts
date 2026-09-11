@@ -25,7 +25,7 @@ test('manual add coin saves deterministic fixture-shaped data', async ({ page })
   await coinFormControl(page, 'Name').fill('Browser Workflow Denarius')
   await coinFormControl(page, 'Denomination').fill('Denarius')
   await coinFormControl(page, 'Ruler').fill('Trajan')
-  await coinFormControl(page, 'Mint').fill('Rome')
+  await coinFormControl(page, 'Mint').selectOption({ label: 'Rome' })
   await coinFormControl(page, 'Weight').fill('3.41')
   await coinFormControl(page, 'Purchase Price').fill('180')
   await page.getByRole('button', { name: 'Add to Collection' }).click()
@@ -38,6 +38,7 @@ test('manual add coin saves deterministic fixture-shaped data', async ({ page })
     denomination: 'Denarius',
     ruler: 'Trajan',
     mint: 'Rome',
+    mintLocationId: 1,
     weightGrams: 3.41,
     purchasePrice: 180,
   })
@@ -48,7 +49,7 @@ test('edit one field preserves the loaded golden fixture workflow', async ({ pag
   const api = await installWorkflowApiMocks(page, [coin])
 
   await page.goto(`/coin/${coin.id}`)
-  await page.getByRole('link', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Coin' })).toBeVisible()
 
   await coinFormControl(page, 'Name').fill('Trajan Denarius Retitled')
@@ -72,7 +73,7 @@ test('edit storage location changes and clears the golden fixture location', asy
   if (!vaultBox) throw new Error('Vault Box 2 fixture is required for the storage workflow')
 
   await page.goto(`/coin/${coin.id}`)
-  await page.getByRole('link', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Coin' })).toBeVisible()
 
   await coinFormControl(page, 'Storage Location').selectOption(String(vaultBox.id))
@@ -81,7 +82,7 @@ test('edit storage location changes and clears the golden fixture location', asy
   await expect(page).toHaveURL(`/coin/${coin.id}`)
   await expect(page.locator('.metadata-row').filter({ hasText: 'Storage Location' })).toContainText(vaultBox.name)
 
-  await page.getByRole('link', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Coin' })).toBeVisible()
 
   await coinFormControl(page, 'Storage Location').selectOption('')
@@ -90,6 +91,28 @@ test('edit storage location changes and clears the golden fixture location', asy
   await expect(page).toHaveURL(`/coin/${coin.id}`)
   await expect(page.locator('.metadata-row').filter({ hasText: 'Storage Location' })).toContainText('—')
   expect(api.updatePayloads.map(({ payload }) => payload.storageLocationId)).toEqual([vaultBox.id, null])
+})
+
+test('add coin assigns an exact one-based tray slot', async ({ page }) => {
+  const api = await installWorkflowApiMocks(page, [])
+  api.storageLocations.push({
+    id: 99,
+    name: 'Cabinet A',
+    type: 'tray',
+    rows: 3,
+    columns: 3,
+    occupied: 1,
+    capacity: 9,
+  })
+
+  await page.goto('/add')
+  await coinFormControl(page, 'Name').fill('Slotted Denarius')
+  await coinFormControl(page, 'Storage Location').selectOption('99')
+  await expect(page.getByRole('gridcell', { name: 'Row 2, column 3, occupied' })).toBeDisabled()
+  await page.getByRole('gridcell', { name: 'Row 2, column 2, available' }).click()
+  await page.getByRole('button', { name: 'Add to Collection' }).click()
+  await expect.poll(() => api.createPayloads[0]?.storageSlot).toBe(5)
+  expect(api.createPayloads[0]?.storageLocationId).toBe(99)
 })
 
 test('edit tags and sets updates detail-page associations deterministically', async ({ page }) => {
@@ -136,7 +159,7 @@ test('upload and delete image workflow updates deterministic image routes', asyn
   if (!obverse || !reverse) throw new Error('Image-heavy fixture must include obverse and reverse images')
 
   await page.goto(`/coin/${coin.id}`)
-  await page.getByRole('link', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Coin' })).toBeVisible()
 
   await page.getByLabel('Remove obverse image').click()
@@ -160,7 +183,7 @@ test('upload and delete image workflow updates deterministic image routes', asyn
       fileName: 'workflow-reverse.png',
     }),
   ])
-  await expect(page.locator('.hero-slot').first().getByText('No image')).toBeVisible()
+  await expect(page.getByText('Obverse', { exact: true }).locator('..').getByText('No image')).toBeVisible()
   await expect(page.getByAltText('Reverse')).toBeVisible()
 })
 
@@ -177,13 +200,13 @@ test('collection search and filters query deterministic fixture data', async ({ 
   await expect.poll(() => api.coinQueries.some((query) => query.search === 'Syracuse')).toBe(true)
 
   await page.getByPlaceholder('Search coins by name, ruler, inscription...').fill('')
-  await page.getByRole('button', { name: 'Greek' }).click()
+  await page.locator('select').filter({ hasText: 'All Categories' }).selectOption('Greek')
   await expect(page.getByRole('heading', { name: 'Athens Owl Tetradrachm Valued' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Trajan Denarius Core' })).toBeHidden()
   await expect.poll(() => api.coinQueries.some((query) => query.category === 'Greek')).toBe(true)
 
-  await page.getByRole('button', { name: 'All', exact: true }).click()
-  await page.locator('.tag-filter-select').selectOption({ label: 'Needs Research' })
+  await page.locator('select').filter({ hasText: 'All Categories' }).selectOption('')
+  await page.locator('select').filter({ hasText: 'All Sets' }).selectOption({ label: 'Needs Research' })
   await expect(page.getByRole('heading', { name: 'Diocletian Follis Tagged Storage' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Athens Owl Tetradrachm Valued' })).toBeHidden()
   await expect.poll(() => api.coinQueries.some((query) => query.tag === '302')).toBe(true)
@@ -195,7 +218,7 @@ test('mobile viewport edit workflow saves without desktop-only controls', async 
   const api = await installWorkflowApiMocks(page, [coin])
 
   await page.goto(`/coin/${coin.id}`)
-  await page.getByRole('link', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Coin' })).toBeVisible()
 
   await coinFormControl(page, 'Name').fill('Mobile Edited Denarius')

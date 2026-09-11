@@ -458,3 +458,15 @@ These are configured in the Admin UI (not environment variables) and stored in t
 | `ReversePrompt`       | Custom prompt for reverse image analysis |
 | `TextExtractionPrompt`| Custom prompt for OCR text extraction |
 | `LogLevel`            | Application log level (trace/debug/info/warn/error) |
+# Structured Storage Trays
+
+Storage locations support two owner-scoped types. Standard Locations preserve
+the previous unslotted behavior. Coin Trays have fixed rows and columns (each
+1–20, maximum 400 wells) and require an exact free slot for every assigned
+coin. Bulk assignment accepts only Standard Locations or clear.
+
+The authenticated **Storage Trays** page renders persisted coordinates,
+including empty wells, in a contained horizontal scroller. It is distinct from
+the responsive, paged Museum Tray at `/tray`. Existing databases are upgraded
+additively: locations become Standard, IDs and assignments stay unchanged, and
+legacy coin slots remain null.

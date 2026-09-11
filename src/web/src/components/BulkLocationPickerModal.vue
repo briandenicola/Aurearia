@@ -15,10 +15,16 @@
             v-for="location in locations"
             :key="location.id"
             class="flex items-center gap-2 rounded-sm border border-border-subtle bg-surface px-3 py-2 text-left text-body text-text-primary transition-colors hover:border-gold hover:text-gold"
+            :disabled="location.type === 'tray'"
             @click="$emit('select', location.id)"
           >
             <span class="flex shrink-0 items-center justify-center"><MapPin :size="14" /></span>
-            {{ location.name }}
+            <span>
+              {{ location.name }}
+              <small v-if="location.type === 'tray'" class="block text-text-muted">
+                Tray assignments require choosing a slot on each coin.
+              </small>
+            </span>
           </button>
         </div>
         <p v-else class="text-body text-text-muted">No storage locations. Create them in Settings first.</p>
