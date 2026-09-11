@@ -9,6 +9,9 @@ import {
 
 test.beforeEach(async ({ page }) => {
   await installAuthenticatedSession(page)
+  await page.addInitScript(() => {
+    window.localStorage.setItem('tray:feltColor', 'navy')
+  })
   await installWorkflowApiMocks(page)
 })
 
@@ -25,10 +28,21 @@ test('desktop renders sparse and empty trays and supports pointer activation', a
   await page.goto('/storage-trays')
 
   await expect(page.getByRole('heading', { name: 'Storage Trays' })).toBeVisible()
+  const pageBounds = await page.locator('main.storage-trays-page').boundingBox()
+  expect(pageBounds?.x ?? 0).toBeGreaterThan(0)
   const occupied = page.getByRole('region', { name: 'Cabinet A' })
+  await expect(occupied.locator('.tray-surface')).toHaveClass(/felt-navy/)
   await expect(occupied.getByRole('grid', { name: 'Cabinet A, 3 rows by 3 columns, 1 of 9 occupied' })).toBeVisible()
   await expect(occupied.getByRole('gridcell')).toHaveCount(9)
   await expect(occupied.getByRole('button', { name: 'Denarius, row 2, column 3' })).toBeVisible()
+  const surfaceBounds = await occupied.locator('.physical-surface').boundingBox()
+  const gridBounds = await occupied.getByRole('grid').boundingBox()
+  const wellBounds = await occupied.getByRole('button', { name: 'Denarius, row 2, column 3' }).boundingBox()
+  expect(Math.abs(
+    ((surfaceBounds?.x ?? 0) + (surfaceBounds?.width ?? 0) / 2) -
+    ((gridBounds?.x ?? 0) + (gridBounds?.width ?? 0) / 2)
+  )).toBeLessThan(2)
+  expect(wellBounds?.width).toBe(76)
   const empty = page.getByRole('region', { name: 'Empty Tray' })
   await expect(empty.getByRole('gridcell')).toHaveCount(9)
   await expect(empty.getByRole('button')).toHaveCount(0)
