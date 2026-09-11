@@ -185,7 +185,7 @@ Implementation MUST NOT modify `.specify/memory/constitution.md`, `specs/358-str
 - [X] T080 [P] Document endpoints, schemas, nullability, one-based arithmetic, bounds, authentication, owner scoping, and error codes in docs/api-reference.md
 - [X] T081 [P] Document focused migration, race, service, component, accessibility, and Playwright regression commands in docs/testing.md
 - [X] T082 Record any implementation-time cross-cutting choice or deviation from research.md, or an explicit “no new decisions” closure, in .squad/decisions/inbox/feature358-structured-storage-trays.md
-- [ ] T083 Run Go compile, vet, architecture, full tests, focused Feature 358 tests, and `task test-race` from src/api/ and Taskfile.yml. Local race execution is delegated to the GitHub Linux `go-race` job because this Windows workstation intentionally has no GCC toolchain.
+- [X] T083 Run Go compile, vet, architecture, full tests, focused Feature 358 tests, and `task test-race` from src/api/ and Taskfile.yml. The GitHub Linux `go-race` job passed on PR #702; no local GCC toolchain is required.
 - [X] T084 Run frontend lint, `vue-tsc --build`, Vitest, production build, and the storage-trays/coin-form/tray Playwright workflows from src/web/package.json and src/web/e2e/workflows/
 - [X] T085 Verify generated OpenAPI drift, route documentation coverage, formatting, secrets, and intended-file scope with Taskfile.yml, src/api/route_openapi_drift_test.go, docs/openapi.json, and specs/358-structured-storage-trays/quickstart.md
 - [X] T086 Perform the post-major-work QC audit across all eight audit domains and append evidence-backed blockers/follow-ups to docs/audits/2026-09-11.md
