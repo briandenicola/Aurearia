@@ -39,6 +39,7 @@
           :size-scale="traySizeScale"
           :image-src-resolver="imageUrl"
           :interactive="false"
+          :show-names="true"
         />
         <TrayControls
           v-if="totalDrawers > 1"

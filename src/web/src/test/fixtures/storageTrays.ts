@@ -22,11 +22,14 @@ export const occupiedThreeByThreeTray = buildStorageTray({
     name: 'Denarius',
     diameterMm: 19,
     storageSlot: 6,
-    image: { filePath: 'denarius.jpg', imageType: 'obverse' },
+    images: [
+      { filePath: 'denarius.jpg', imageType: 'obverse' },
+      { filePath: 'denarius-reverse.jpg', imageType: 'reverse' },
+    ],
   }],
 })
 export const twentyByTwentyTray = buildStorageTray({ id: 20, name: 'Large Tray', rows: 20, columns: 20, capacity: 400 })
 export const missingImageTray = buildStorageTray({
   occupied: 1,
-  coins: [{ id: 43, name: 'Image Missing', diameterMm: null, storageSlot: 1, image: null }],
+  coins: [{ id: 43, name: 'Image Missing', diameterMm: null, storageSlot: 1, images: [] }],
 })

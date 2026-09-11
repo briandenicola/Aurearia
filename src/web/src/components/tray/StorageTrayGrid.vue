@@ -2,7 +2,10 @@
   <section class="storage-tray" :aria-labelledby="headingId">
     <header class="tray-heading">
       <h2 :id="headingId">{{ tray.name }}</h2>
-      <span>{{ tray.occupied }} / {{ tray.capacity }}</span>
+      <div class="tray-heading-actions">
+        <span>{{ tray.occupied }} / {{ tray.capacity }}</span>
+        <TrayFaceToggle v-if="hasAnyFaceImage" :active-face="activeFace" @toggle="toggleFace" />
+      </div>
     </header>
     <div class="tray-scroller" tabindex="0" :aria-label="`${tray.name}, ${tray.columns} columns`">
       <TraySurface :felt-theme="feltTheme" class="physical-surface">
@@ -26,7 +29,9 @@
               :render-size-px="STORAGE_WELL_SIZE_PX"
               :interactive="Boolean(position.coin)"
               :show-captions="false"
-              :show-names="false"
+              :show-names="true"
+              :preferred-face="activeFace"
+              :well-stage-size-px="STORAGE_WELL_SIZE_PX"
               :aria-label="position.coin ? `${position.coin.name || 'Untitled'}, row ${position.row}, column ${position.column}` : `Empty, row ${position.row}, column ${position.column}`"
               @coin-clicked="emit('coin-clicked', $event)"
             />
@@ -39,21 +44,31 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { TrayAggregate, StorageTrayCoin } from '@/types'
-import type { TrayCoin } from '@/utils/trayLayout'
+import type { TrayCoin, TrayCoinFace } from '@/utils/trayLayout'
 import type { FeltColor } from '@/composables/useTrayPreference'
 import MuseumTrayWell from './MuseumTrayWell.vue'
 import TraySurface from './TraySurface.vue'
+import TrayFaceToggle from './TrayFaceToggle.vue'
 
 const STORAGE_WELL_SIZE_PX = 76
 const props = defineProps<{ tray: TrayAggregate; feltTheme: FeltColor }>()
 const emit = defineEmits<{ 'coin-clicked': [coinId: number] }>()
+const activeFace = ref<TrayCoinFace>('obverse')
 const headingId = computed(() => `storage-tray-${props.tray.id}`)
 const gridLabel = computed(() =>
   `${props.tray.name}, ${props.tray.rows} rows by ${props.tray.columns} columns, ${props.tray.occupied} of ${props.tray.capacity} occupied`
 )
 const bySlot = computed(() => new Map(props.tray.coins.map((coin) => [coin.storageSlot, coin])))
+const hasAnyFaceImage = computed(() =>
+  props.tray.coins.some((coin) =>
+    coin.images.some((image) => {
+      const imageType = image.imageType?.toLowerCase()
+      return imageType === 'obverse' || imageType === 'reverse'
+    })
+  )
+)
 
 function adaptCoin(coin: StorageTrayCoin | undefined, slot: number): TrayCoin {
   if (!coin) {
@@ -63,8 +78,12 @@ function adaptCoin(coin: StorageTrayCoin | undefined, slot: number): TrayCoin {
     id: coin.id,
     name: coin.name || 'Untitled',
     diameterMm: coin.diameterMm ?? null,
-    images: coin.image ? [coin.image] : [],
+    images: coin.images,
   }
+}
+
+function toggleFace() {
+  activeFace.value = activeFace.value === 'obverse' ? 'reverse' : 'obverse'
 }
 
 const positions = computed(() =>
@@ -101,6 +120,11 @@ const positions = computed(() =>
   color: var(--text-muted);
   font-size: 0.75rem;
 }
+.tray-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 .tray-scroller {
   max-width: 100%;
   overflow-x: auto;
@@ -125,7 +149,7 @@ const positions = computed(() =>
 }
 .physical-cell {
   width: var(--storage-well-size);
-  min-height: 6rem;
+  min-height: 7rem;
   display: flex;
   flex-direction: column;
   align-items: center;

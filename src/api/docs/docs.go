@@ -24355,8 +24355,11 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "image": {
-                    "$ref": "#/definitions/repository.TrayImage"
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.TrayImage"
+                    }
                 },
                 "name": {
                     "type": "string"

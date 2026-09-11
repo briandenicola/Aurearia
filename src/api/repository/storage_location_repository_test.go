@@ -50,6 +50,9 @@ func TestStorageLocationRepositoryOccupancyAndAggregateAreOwnerScoped(t *testing
 	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "coin.jpg", ImageType: "obverse", IsPrimary: true}).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "coin-reverse.jpg", ImageType: "reverse"}).Error; err != nil {
+		t.Fatal(err)
+	}
 	occupancy, err := repo.Occupancy(ownerTray.ID, 1, &coin.ID)
 	if err != nil || len(occupancy.OccupiedSlots) != 1 || occupancy.OccupiedSlots[0] != 6 || occupancy.CurrentCoinSlot == nil {
 		t.Fatalf("occupancy=%#v err=%v", occupancy, err)
@@ -58,8 +61,10 @@ func TestStorageLocationRepositoryOccupancyAndAggregateAreOwnerScoped(t *testing
 	if err != nil || len(trays) != 1 || len(trays[0].Coins) != 1 || trays[0].Coins[0].StorageSlot != 6 {
 		t.Fatalf("trays=%#v err=%v", trays, err)
 	}
-	if trays[0].Coins[0].Image == nil || trays[0].Coins[0].Image.FilePath != "coin.jpg" {
-		t.Fatalf("minimal image missing: %#v", trays[0].Coins[0])
+	if len(trays[0].Coins[0].Images) != 2 ||
+		trays[0].Coins[0].Images[0].FilePath != "coin.jpg" ||
+		trays[0].Coins[0].Images[1].FilePath != "coin-reverse.jpg" {
+		t.Fatalf("face images missing: %#v", trays[0].Coins[0].Images)
 	}
 }
 

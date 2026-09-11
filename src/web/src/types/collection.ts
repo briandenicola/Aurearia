@@ -57,7 +57,7 @@ export interface StorageTrayCoin {
   name: string
   diameterMm: number | null
   storageSlot: number
-  image: StorageTrayImage | null
+  images: StorageTrayImage[]
 }
 
 export interface TrayAggregate {
