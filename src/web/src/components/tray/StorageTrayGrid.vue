@@ -15,7 +15,7 @@
           :aria-label="gridLabel"
           :aria-rowcount="tray.rows"
           :aria-colcount="tray.columns"
-          :style="{ gridTemplateColumns: `repeat(${tray.columns}, var(--storage-well-size))` }"
+          :style="gridStyle"
         >
           <div
             v-for="position in positions"
@@ -26,12 +26,12 @@
           >
             <MuseumTrayWell
               :coin="position.trayCoin"
-              :render-size-px="STORAGE_WELL_SIZE_PX"
+              :render-size-px="wellSizePx"
               :interactive="Boolean(position.coin)"
               :show-captions="false"
               :show-names="true"
               :preferred-face="activeFace"
-              :well-stage-size-px="STORAGE_WELL_SIZE_PX"
+              :well-stage-size-px="wellSizePx"
               :aria-label="position.coin ? `${position.coin.name || 'Untitled'}, row ${position.row}, column ${position.column}` : `Empty, row ${position.row}, column ${position.column}`"
               @coin-clicked="emit('coin-clicked', $event)"
             />
@@ -53,9 +53,21 @@ import TraySurface from './TraySurface.vue'
 import TrayFaceToggle from './TrayFaceToggle.vue'
 
 const STORAGE_WELL_SIZE_PX = 76
-const props = defineProps<{ tray: TrayAggregate; feltTheme: FeltColor }>()
+const props = withDefaults(defineProps<{
+  tray: TrayAggregate
+  feltTheme: FeltColor
+  sizeScale?: number
+}>(), {
+  sizeScale: 1,
+})
 const emit = defineEmits<{ 'coin-clicked': [coinId: number] }>()
 const activeFace = ref<TrayCoinFace>('obverse')
+const wellSizePx = computed(() => Math.round(STORAGE_WELL_SIZE_PX * props.sizeScale))
+const gridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${props.tray.columns}, var(--storage-well-size))`,
+  '--storage-well-size': `${wellSizePx.value}px`,
+  '--storage-scale': props.sizeScale,
+}))
 const headingId = computed(() => `storage-tray-${props.tray.id}`)
 const gridLabel = computed(() =>
   `${props.tray.name}, ${props.tray.rows} rows by ${props.tray.columns} columns, ${props.tray.occupied} of ${props.tray.capacity} occupied`
@@ -142,18 +154,21 @@ const positions = computed(() =>
 }
 .physical-grid {
   --storage-well-size: 4.75rem;
+  --storage-scale: 1;
   display: grid;
-  gap: 1rem;
+  gap: max(0.5rem, calc(1rem * var(--storage-scale)));
   width: max-content;
   margin-inline: auto;
 }
 .physical-cell {
   width: var(--storage-well-size);
-  min-height: 7rem;
+  min-width: 0;
+  min-height: calc(var(--storage-well-size) + 2.25rem);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+  overflow: hidden;
 }
 @media (prefers-reduced-motion: reduce) {
   .physical-grid {

@@ -21,9 +21,12 @@ each coin needs an individual slot.
 Open **Collection → Storage Trays**. Every configured tray is shown, including
 empty trays. Wells are materialized in row-major order from `1` through
 `rows × columns`; they never pack, filter, paginate, or change column count.
-On narrow screens, scroll inside the tray. Empty wells are read-only grid
-cells. Occupied wells have 44×44 minimum targets and support pointer, Enter,
-and Space activation. Missing images use the standard authenticated fallback.
+The desktop view uses the available screen width, and the shared Coin size
+control scales wells, labels, spacing, and row height together without
+changing coordinates. On narrow screens, scroll inside the tray. Empty wells
+are read-only grid cells. Occupied wells have 44×44 minimum targets and
+support pointer, Enter, and Space activation. Missing images use the standard
+authenticated fallback.
 
 If loading fails, use **Retry**. The separate **Tray** navigation item remains
 the responsive Museum Tray and does not represent physical placement.

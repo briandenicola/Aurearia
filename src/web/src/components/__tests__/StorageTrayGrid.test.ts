@@ -46,4 +46,18 @@ describe('StorageTrayGrid', () => {
     expect(occupiedWell?.props('preferredFace')).toBe('reverse')
     expect(wrapper.find('.tray-face-toggle').attributes('aria-pressed')).toBe('true')
   })
+
+  it('scales wells and cell columns together without changing geometry', () => {
+    const wrapper = mount(StorageTrayGrid, {
+      props: { tray: occupiedThreeByThreeTray, feltTheme: 'navy', sizeScale: 1.5 },
+    })
+    const grid = wrapper.find('[role="grid"]')
+    const occupiedWell = wrapper.findAllComponents(MuseumTrayWell).find(well => well.props('interactive'))
+
+    expect(grid.attributes('style')).toContain('--storage-well-size: 114px')
+    expect(grid.attributes('style')).toContain('repeat(3, var(--storage-well-size))')
+    expect(wrapper.findAll('[role="gridcell"]')).toHaveLength(9)
+    expect(occupiedWell?.props('renderSizePx')).toBe(114)
+    expect(occupiedWell?.props('wellStageSizePx')).toBe(114)
+  })
 })
