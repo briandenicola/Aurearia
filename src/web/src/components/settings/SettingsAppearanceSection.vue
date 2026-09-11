@@ -104,7 +104,7 @@
     <div class="flex justify-between items-center py-3 border-b border-border-subtle gap-4 md:flex-row flex-col md:items-center items-stretch">
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-base font-medium">Tray Felt Color</span>
-        <span class="text-sm text-text-muted">Choose the museum tray background color</span>
+        <span class="text-sm text-text-muted">Choose the tray background color</span>
       </div>
       <div class="flex flex-wrap gap-1 bg-surface rounded-full p-[0.2rem]">
         <button

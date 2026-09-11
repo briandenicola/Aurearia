@@ -7,6 +7,9 @@ const getStorageTrays = vi.fn()
 const push = vi.fn()
 vi.mock('@/api/client', () => ({ getStorageTrays: () => getStorageTrays() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+vi.mock('@/composables/useTrayPreference', () => ({
+  useTrayPreference: () => ({ feltColor: 'navy' }),
+}))
 
 describe('StorageTraysPage', () => {
   beforeEach(() => {
@@ -21,7 +24,9 @@ describe('StorageTraysPage', () => {
     })
     await flushPromises()
     expect(getStorageTrays).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAllComponents({ name: 'StorageTrayGrid' })).toHaveLength(2)
+    const grids = wrapper.findAllComponents({ name: 'StorageTrayGrid' })
+    expect(grids).toHaveLength(2)
+    expect(grids[0]?.props('feltTheme')).toBe('navy')
   })
 
   it('offers a retry after a recoverable request failure', async () => {

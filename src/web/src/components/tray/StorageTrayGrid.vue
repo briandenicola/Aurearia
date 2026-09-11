@@ -5,14 +5,14 @@
       <span>{{ tray.occupied }} / {{ tray.capacity }}</span>
     </header>
     <div class="tray-scroller" tabindex="0" :aria-label="`${tray.name}, ${tray.columns} columns`">
-      <TraySurface felt-theme="green" class="physical-surface">
+      <TraySurface :felt-theme="feltTheme" class="physical-surface">
         <div
           class="physical-grid"
           role="grid"
           :aria-label="gridLabel"
           :aria-rowcount="tray.rows"
           :aria-colcount="tray.columns"
-          :style="{ gridTemplateColumns: `repeat(${tray.columns}, 44px)` }"
+          :style="{ gridTemplateColumns: `repeat(${tray.columns}, var(--storage-well-size))` }"
         >
           <div
             v-for="position in positions"
@@ -23,7 +23,7 @@
           >
             <MuseumTrayWell
               :coin="position.trayCoin"
-              :render-size-px="44"
+              :render-size-px="STORAGE_WELL_SIZE_PX"
               :interactive="Boolean(position.coin)"
               :show-captions="false"
               :show-names="false"
@@ -42,10 +42,12 @@
 import { computed } from 'vue'
 import type { TrayAggregate, StorageTrayCoin } from '@/types'
 import type { TrayCoin } from '@/utils/trayLayout'
+import type { FeltColor } from '@/composables/useTrayPreference'
 import MuseumTrayWell from './MuseumTrayWell.vue'
 import TraySurface from './TraySurface.vue'
 
-const props = defineProps<{ tray: TrayAggregate }>()
+const STORAGE_WELL_SIZE_PX = 76
+const props = defineProps<{ tray: TrayAggregate; feltTheme: FeltColor }>()
 const emit = defineEmits<{ 'coin-clicked': [coinId: number] }>()
 const headingId = computed(() => `storage-tray-${props.tray.id}`)
 const gridLabel = computed(() =>
@@ -111,19 +113,23 @@ const positions = computed(() =>
 .physical-surface {
   width: max-content;
   min-width: 100%;
-  padding: 1rem;
+  padding: 1.5rem;
+  box-sizing: border-box;
 }
 .physical-grid {
+  --storage-well-size: 4.75rem;
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
   width: max-content;
+  margin-inline: auto;
 }
 .physical-cell {
-  width: 44px;
-  min-height: 58px;
+  width: var(--storage-well-size);
+  min-height: 6rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 0.35rem;
 }
 @media (prefers-reduced-motion: reduce) {
   .physical-grid {
