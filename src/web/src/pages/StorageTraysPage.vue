@@ -1,5 +1,5 @@
 <template>
-  <main class="storage-trays-page">
+  <main class="container storage-trays-page">
     <header class="page-header">
       <h1>Storage Trays</h1>
       <router-link class="btn btn-secondary btn-sm" to="/">Back to Collection</router-link>
@@ -19,6 +19,7 @@
         v-for="tray in trays"
         :key="tray.id"
         :tray="tray"
+        :felt-theme="feltColor"
         @coin-clicked="openCoin"
       />
     </div>
@@ -29,10 +30,12 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getStorageTrays } from '@/api/client'
+import { useTrayPreference } from '@/composables/useTrayPreference'
 import type { TrayAggregate } from '@/types'
 import StorageTrayGrid from '@/components/tray/StorageTrayGrid.vue'
 
 const router = useRouter()
+const { feltColor } = useTrayPreference()
 const trays = ref<TrayAggregate[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -60,7 +63,7 @@ onMounted(load)
 
 <style scoped>
 .storage-trays-page {
-  max-width: 100%;
+  padding-bottom: 1.5rem;
 }
 .tray-list {
   display: grid;
