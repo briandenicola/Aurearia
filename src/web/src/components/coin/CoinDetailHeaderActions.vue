@@ -6,7 +6,7 @@
     </button>
     <div class="flex min-w-0 items-center justify-end gap-[0.45rem]">
       <AppIconButton
-        v-if="!isSold"
+        v-if="showPinButton"
         :disabled="pinBusy"
         :title="pinBusy ? 'Updating coin Quick Access pin' : pinLabel"
         :aria-label="pinBusy ? 'Updating coin Quick Access pin' : pinLabel"
@@ -19,7 +19,7 @@
         <Pin v-else :size="24" />
       </AppIconButton>
       <AppIconButton
-        v-if="showReminderAction"
+        v-if="showReminderButton"
         :title="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
         :aria-label="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
         :active="reminderActive"
@@ -28,6 +28,7 @@
         <BellRing :size="24" />
       </AppIconButton>
       <AppIconButton
+        v-if="!collapseSecondaryActions"
         :disabled="sharing"
         :title="sharing ? 'Sharing...' : 'Share'"
         :aria-label="sharing ? 'Sharing...' : 'Share'"
@@ -46,8 +47,18 @@
         :is-wishlist="isWishlist"
         :is-sold="isSold"
         :duplicating="duplicating"
+        :show-share="collapseSecondaryActions"
+        :sharing="sharing"
+        :show-reminder="collapseSecondaryActions && showReminderAction"
+        :reminder-active="reminderActive"
+        :show-pin="collapseSecondaryActions && !isSold"
+        :pinned="coinPinned"
+        :pin-busy="pinBusy"
         @sell="emit('sell')"
         @duplicate="emit('duplicate')"
+        @share="emit('share')"
+        @reminder="emit('reminder')"
+        @pin="togglePin"
       />
     </div>
   </div>
@@ -59,6 +70,7 @@ import { computed } from 'vue'
 import { ArrowLeft, BellRing, Pencil, Pin, PinOff, Share2, Trash2 } from 'lucide-vue-next'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
+import { usePwa } from '@/composables/usePwa'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useToast } from '@/composables/useToast'
 
@@ -95,6 +107,12 @@ const busy = isBusy('coin', props.coinId)
 const coinPinned = computed(() => pinned.value)
 const pinBusy = computed(() => busy.value)
 const pinLabel = computed(() => coinPinned.value ? 'Unpin coin from Quick Access' : 'Pin coin to Quick Access')
+const { isPwa } = usePwa()
+// In the installed PWA the action row keeps only Edit/Delete inline; share, reminder and pin
+// move into the overflow menu. In the browser every action stays on the row.
+const collapseSecondaryActions = computed(() => isPwa)
+const showPinButton = computed(() => !collapseSecondaryActions.value && !props.isSold)
+const showReminderButton = computed(() => !collapseSecondaryActions.value && props.showReminderAction)
 
 async function togglePin() {
   if (pinBusy.value) return
