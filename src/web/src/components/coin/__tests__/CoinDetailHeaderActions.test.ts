@@ -234,7 +234,7 @@ describe('CoinDetailHeaderActions', () => {
 
   it('renders an accessible Quick Access toggle for eligible coins only', async () => {
     const wrapper = mount(CoinDetailHeaderActions, {
-      props: { isWishlist: true, isSold: false, coinId: 42 },
+      props: { isWishlist: false, isSold: false, coinId: 42 },
     })
     const button = wrapper.find('button[aria-label="Pin coin to Quick Access"]')
     expect(button.attributes('aria-pressed')).toBe('false')
@@ -244,6 +244,62 @@ describe('CoinDetailHeaderActions', () => {
 
     await wrapper.setProps({ isSold: true })
     expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
+  })
+
+  it('moves share, reminder and pin into the overflow menu for wishlist items', async () => {
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: {
+        isWishlist: true,
+        isSold: false,
+        coinId: 42,
+        showReminderAction: true,
+      },
+      global: {
+        stubs: { RouterLink: routerLinkStub },
+      },
+    })
+
+    expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="Set Reminder"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="Edit"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Delete"]').exists()).toBe(true)
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+
+    await wrapper.get('button[aria-label="Share"]').trigger('click')
+    expect(wrapper.emitted('share')).toHaveLength(1)
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    await wrapper.get('button[aria-label="Set Reminder"]').trigger('click')
+    expect(wrapper.emitted('reminder')).toHaveLength(1)
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    const pinItem = wrapper.get('button[aria-label="Pin coin to Quick Access"]')
+    expect(pinItem.attributes('aria-pressed')).toBe('false')
+    await pinItem.trigger('click')
+    expect(pin).toHaveBeenCalledWith('coin', 42)
+
+    expect(wrapper.find('button[aria-label="Open overflow actions"]').exists()).toBe(true)
+  })
+
+  it('hides the overflow pin entry for sold wishlist items and reflects reminder state', async () => {
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: {
+        isWishlist: true,
+        isSold: true,
+        coinId: 42,
+        showReminderAction: true,
+        reminderActive: true,
+      },
+      global: {
+        stubs: { RouterLink: routerLinkStub },
+      },
+    })
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="Edit Reminder"]').exists()).toBe(true)
   })
 
   it('reflects pinned and pending state and reports failures without changing state', async () => {

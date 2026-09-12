@@ -6,7 +6,7 @@
     </button>
     <div class="flex min-w-0 items-center justify-end gap-[0.45rem]">
       <AppIconButton
-        v-if="!isSold"
+        v-if="showPinButton"
         :disabled="pinBusy"
         :title="pinBusy ? 'Updating coin Quick Access pin' : pinLabel"
         :aria-label="pinBusy ? 'Updating coin Quick Access pin' : pinLabel"
@@ -19,7 +19,7 @@
         <Pin v-else :size="24" />
       </AppIconButton>
       <AppIconButton
-        v-if="showReminderAction"
+        v-if="showReminderButton"
         :title="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
         :aria-label="reminderActive ? 'Edit Reminder' : 'Set Reminder'"
         :active="reminderActive"
@@ -28,6 +28,7 @@
         <BellRing :size="24" />
       </AppIconButton>
       <AppIconButton
+        v-if="!collapseSecondaryActions"
         :disabled="sharing"
         :title="sharing ? 'Sharing...' : 'Share'"
         :aria-label="sharing ? 'Sharing...' : 'Share'"
@@ -46,8 +47,18 @@
         :is-wishlist="isWishlist"
         :is-sold="isSold"
         :duplicating="duplicating"
+        :show-share="collapseSecondaryActions"
+        :sharing="sharing"
+        :show-reminder="collapseSecondaryActions && showReminderAction"
+        :reminder-active="reminderActive"
+        :show-pin="collapseSecondaryActions && !isSold"
+        :pinned="coinPinned"
+        :pin-busy="pinBusy"
         @sell="emit('sell')"
         @duplicate="emit('duplicate')"
+        @share="emit('share')"
+        @reminder="emit('reminder')"
+        @pin="togglePin"
       />
     </div>
   </div>
@@ -95,6 +106,10 @@ const busy = isBusy('coin', props.coinId)
 const coinPinned = computed(() => pinned.value)
 const pinBusy = computed(() => busy.value)
 const pinLabel = computed(() => coinPinned.value ? 'Unpin coin from Quick Access' : 'Pin coin to Quick Access')
+// Wishlist detail keeps only Edit/Delete inline; share, reminder and pin live in the overflow menu.
+const collapseSecondaryActions = computed(() => props.isWishlist)
+const showPinButton = computed(() => !collapseSecondaryActions.value && !props.isSold)
+const showReminderButton = computed(() => !collapseSecondaryActions.value && props.showReminderAction)
 
 async function togglePin() {
   if (pinBusy.value) return
