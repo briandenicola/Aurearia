@@ -29,6 +29,12 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ showToast }),
 }))
 
+const isPwa = ref(false)
+
+vi.mock('@/composables/usePwa', () => ({
+  usePwa: () => ({ isPwa: isPwa.value }),
+}))
+
 const routerLinkStub = {
   props: ['to'],
   template: '<a :href="to"><slot /></a>',
@@ -36,6 +42,7 @@ const routerLinkStub = {
 
 describe('CoinDetailHeaderActions', () => {
   beforeEach(() => {
+    isPwa.value = false
     pinned.value = false
     busy.value = false
     quickAccessError.value = ''
@@ -246,10 +253,11 @@ describe('CoinDetailHeaderActions', () => {
     expect(wrapper.find('button[aria-label*="Quick Access"]').exists()).toBe(false)
   })
 
-  it('moves share, reminder and pin into the overflow menu for wishlist items', async () => {
+  it.each([true, false])('moves share, reminder and pin into the overflow menu in the PWA (isWishlist: %s)', async (isWishlist) => {
+    isPwa.value = true
     const wrapper = mount(CoinDetailHeaderActions, {
       props: {
-        isWishlist: true,
+        isWishlist,
         isSold: false,
         coinId: 42,
         showReminderAction: true,
@@ -266,7 +274,6 @@ describe('CoinDetailHeaderActions', () => {
     expect(wrapper.find('button[aria-label="Delete"]').exists()).toBe(true)
 
     await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
-
     await wrapper.get('button[aria-label="Share"]').trigger('click')
     expect(wrapper.emitted('share')).toHaveLength(1)
 
@@ -279,11 +286,33 @@ describe('CoinDetailHeaderActions', () => {
     expect(pinItem.attributes('aria-pressed')).toBe('false')
     await pinItem.trigger('click')
     expect(pin).toHaveBeenCalledWith('coin', 42)
-
-    expect(wrapper.find('button[aria-label="Open overflow actions"]').exists()).toBe(true)
   })
 
-  it('hides the overflow pin entry for sold wishlist items and reflects reminder state', async () => {
+  it('keeps share, reminder and pin on the action row outside the PWA', async () => {
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: {
+        isWishlist: true,
+        isSold: false,
+        coinId: 42,
+        showReminderAction: true,
+      },
+      global: {
+        stubs: { RouterLink: routerLinkStub },
+      },
+    })
+
+    expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Set Reminder"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Pin coin to Quick Access"]').exists()).toBe(true)
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    expect(wrapper.findAll('button[aria-label="Share"]')).toHaveLength(1)
+    expect(wrapper.findAll('button[aria-label="Set Reminder"]')).toHaveLength(1)
+    expect(wrapper.findAll('button[aria-label="Pin coin to Quick Access"]')).toHaveLength(1)
+  })
+
+  it('hides the overflow pin entry for sold coins in the PWA and reflects reminder state', async () => {
+    isPwa.value = true
     const wrapper = mount(CoinDetailHeaderActions, {
       props: {
         isWishlist: true,

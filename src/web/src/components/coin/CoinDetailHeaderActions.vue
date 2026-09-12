@@ -70,6 +70,7 @@ import { computed } from 'vue'
 import { ArrowLeft, BellRing, Pencil, Pin, PinOff, Share2, Trash2 } from 'lucide-vue-next'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
+import { usePwa } from '@/composables/usePwa'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useToast } from '@/composables/useToast'
 
@@ -106,8 +107,10 @@ const busy = isBusy('coin', props.coinId)
 const coinPinned = computed(() => pinned.value)
 const pinBusy = computed(() => busy.value)
 const pinLabel = computed(() => coinPinned.value ? 'Unpin coin from Quick Access' : 'Pin coin to Quick Access')
-// Wishlist detail keeps only Edit/Delete inline; share, reminder and pin live in the overflow menu.
-const collapseSecondaryActions = computed(() => props.isWishlist)
+const { isPwa } = usePwa()
+// In the installed PWA the action row keeps only Edit/Delete inline; share, reminder and pin
+// move into the overflow menu. In the browser every action stays on the row.
+const collapseSecondaryActions = computed(() => isPwa)
 const showPinButton = computed(() => !collapseSecondaryActions.value && !props.isSold)
 const showReminderButton = computed(() => !collapseSecondaryActions.value && props.showReminderAction)
 
