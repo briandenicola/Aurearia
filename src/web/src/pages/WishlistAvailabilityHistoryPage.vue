@@ -42,19 +42,18 @@
             <thead>
               <tr>
                 <th>Coin</th>
-                <th>URL</th>
                 <th>Status</th>
                 <th>Reason</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="result in detailRun.results" :key="result.id">
-                <td>{{ result.coinName }}</td>
                 <td>
-                  <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline">
-                    {{ truncateUrl(result.url) }}
+                  <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" :title="result.url">
+                    {{ result.coinName }}
                   </SafeExternalLink>
-                  <span v-else class="text-text-muted">--</span>
+                  <span v-else>{{ result.coinName }}</span>
+                  <span v-if="resultHost(result.url)" class="mt-0.5 block text-sm text-text-muted">{{ resultHost(result.url) }}</span>
                 </td>
                 <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
                 <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
@@ -112,19 +111,18 @@
                     <thead>
                       <tr>
                         <th>Coin</th>
-                        <th>URL</th>
                         <th>Status</th>
                         <th>Reason</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr v-for="result in expandedResults" :key="result.id">
-                        <td>{{ result.coinName }}</td>
                         <td>
-                          <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" @click.stop>
-                            {{ truncateUrl(result.url) }}
+                          <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" :title="result.url" @click.stop>
+                            {{ result.coinName }}
                           </SafeExternalLink>
-                          <span v-else class="text-text-muted">--</span>
+                          <span v-else>{{ result.coinName }}</span>
+                          <span v-if="resultHost(result.url)" class="mt-0.5 block text-sm text-text-muted">{{ resultHost(result.url) }}</span>
                         </td>
                         <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
                         <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
@@ -201,19 +199,18 @@ function safeResultUrl(url: string | null | undefined): string | null {
   return sanitizeExternalUrl(url)
 }
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString()
+function resultHost(url: string | null | undefined): string | null {
+  const safe = sanitizeExternalUrl(url)
+  if (!safe) return null
+  try {
+    return new URL(safe).hostname.replace(/^www\./, '')
+  } catch {
+    return null
+  }
 }
 
-function truncateUrl(url: string) {
-  try {
-    const parsed = new URL(url)
-    const path = parsed.pathname.length > 20 ? parsed.pathname.substring(0, 17) + '...' : parsed.pathname
-    return parsed.hostname + path
-  } catch {
-    if (url.length <= 35) return url
-    return url.substring(0, 32) + '...'
-  }
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleString()
 }
 
 async function loadRuns() {

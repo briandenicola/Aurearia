@@ -120,6 +120,51 @@ describe('WishlistAvailabilityHistoryPage', () => {
     expect(wrapper.text()).toContain('Sign in required')
   })
 
+  it('links the coin name to the result URL and drops the separate URL column', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 9 }),
+        results: [
+          { id: 1, runId: 9, coinId: 5, coinName: 'Roman Spintria', url: 'https://vcoins.com/en/stores/numiscraft/items/long-lot-id', status: 'available', reason: null, httpStatus: 200, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/9')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const headers = wrapper.findAll('th').map(th => th.text())
+    expect(headers).toEqual(['Coin', 'Status', 'Reason'])
+
+    const link = wrapper.get('tbody a')
+    expect(link.text()).toBe('Roman Spintria')
+    expect(link.attributes('href')).toBe('https://vcoins.com/en/stores/numiscraft/items/long-lot-id')
+    expect(link.attributes('title')).toBe('https://vcoins.com/en/stores/numiscraft/items/long-lot-id')
+    expect(wrapper.text()).not.toContain('vcoins.com/en/stores')
+
+    // The store host stays visible as a small label under the link, without the www. prefix.
+    const host = wrapper.get('tbody td span.text-text-muted')
+    expect(host.text()).toBe('vcoins.com')
+  })
+
+  it('renders the coin name as plain text when the result has no usable URL', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 10 }),
+        results: [
+          { id: 1, runId: 10, coinId: 5, coinName: 'Galba Denarius', url: null, status: 'unknown', reason: 'no url', httpStatus: 0, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/10')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('tbody a').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Galba Denarius')
+    expect(wrapper.find('tbody td span.text-text-muted').exists()).toBe(false)
+  })
+
   it('wraps the detail-view results table in an overflow-x-auto container (mobile overflow regression)', async () => {
     mocks.getMyAvailabilityRunDetail.mockResolvedValue({
       data: {
