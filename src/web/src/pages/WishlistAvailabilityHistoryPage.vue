@@ -53,6 +53,7 @@
                     {{ result.coinName }}
                   </SafeExternalLink>
                   <span v-else>{{ result.coinName }}</span>
+                  <span v-if="resultHost(result.url)" class="mt-0.5 block text-sm text-text-muted">{{ resultHost(result.url) }}</span>
                 </td>
                 <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
                 <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
@@ -121,6 +122,7 @@
                             {{ result.coinName }}
                           </SafeExternalLink>
                           <span v-else>{{ result.coinName }}</span>
+                          <span v-if="resultHost(result.url)" class="mt-0.5 block text-sm text-text-muted">{{ resultHost(result.url) }}</span>
                         </td>
                         <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
                         <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
@@ -195,6 +197,16 @@ function resultStatusClass(status: string): string {
 
 function safeResultUrl(url: string | null | undefined): string | null {
   return sanitizeExternalUrl(url)
+}
+
+function resultHost(url: string | null | undefined): string | null {
+  const safe = sanitizeExternalUrl(url)
+  if (!safe) return null
+  try {
+    return new URL(safe).hostname.replace(/^www\./, '')
+  } catch {
+    return null
+  }
 }
 
 function formatDate(dateStr: string) {

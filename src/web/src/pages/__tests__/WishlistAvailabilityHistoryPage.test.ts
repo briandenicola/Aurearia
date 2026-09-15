@@ -141,6 +141,10 @@ describe('WishlistAvailabilityHistoryPage', () => {
     expect(link.attributes('href')).toBe('https://vcoins.com/en/stores/numiscraft/items/long-lot-id')
     expect(link.attributes('title')).toBe('https://vcoins.com/en/stores/numiscraft/items/long-lot-id')
     expect(wrapper.text()).not.toContain('vcoins.com/en/stores')
+
+    // The store host stays visible as a small label under the link, without the www. prefix.
+    const host = wrapper.get('tbody td span.text-text-muted')
+    expect(host.text()).toBe('vcoins.com')
   })
 
   it('renders the coin name as plain text when the result has no usable URL', async () => {
@@ -158,6 +162,7 @@ describe('WishlistAvailabilityHistoryPage', () => {
 
     expect(wrapper.find('tbody a').exists()).toBe(false)
     expect(wrapper.text()).toContain('Galba Denarius')
+    expect(wrapper.find('tbody td span.text-text-muted').exists()).toBe(false)
   })
 
   it('wraps the detail-view results table in an overflow-x-auto container (mobile overflow regression)', async () => {
