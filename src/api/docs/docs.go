@@ -3223,6 +3223,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/wishlist-search-alert-runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated manual and scheduled wishlist search alert runs across collectors for administrators.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "List all wishlist search alert runs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AdminWishlistSearchAlertRunListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/agent/chat": {
             "post": {
                 "security": [
@@ -18376,6 +18429,85 @@ const docTemplate = `{
                 "provider": {
                     "type": "string",
                     "example": "anthropic"
+                }
+            }
+        },
+        "handlers.AdminWishlistSearchAlertRun": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "type": "integer"
+                },
+                "alertName": {
+                    "type": "string"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "dismissedCount": {
+                    "type": "integer"
+                },
+                "duplicateCount": {
+                    "type": "integer"
+                },
+                "durationMs": {
+                    "type": "integer"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "newCount": {
+                    "type": "integer"
+                },
+                "partialWarnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rateLimitStatus": {
+                    "type": "string"
+                },
+                "resultCount": {
+                    "type": "integer"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.AlertRunStatus"
+                },
+                "triggerType": {
+                    "$ref": "#/definitions/models.AlertRunTriggerType"
+                },
+                "userId": {
+                    "type": "integer"
+                },
+                "userName": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.AdminWishlistSearchAlertRunListResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.AdminWishlistSearchAlertRun"
+                    }
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

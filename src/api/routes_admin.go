@@ -87,6 +87,8 @@ func registerAdminRoutes(api *gin.RouterGroup, d *appDeps) {
 		admin.POST("/availability/run", adminAvailHandler.TriggerRun)
 		admin.GET("/availability-cycles", adminAvailHandler.ListCycles)
 		admin.GET("/availability-cycles/:id", adminAvailHandler.GetCycleDetail)
+		wishlistSearchAlertAdminHandler := handlers.NewWishlistSearchAlertHandler(d.wishlistSearchAlertSvc)
+		admin.GET("/wishlist-search-alert-runs", wishlistSearchAlertAdminHandler.ListAdminRuns)
 
 		// Valuation run history and manual trigger
 		valAdminHandler := handlers.NewValuationAdminHandler(d.valRepo, d.valSvc, d.logger)

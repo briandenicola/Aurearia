@@ -89,6 +89,7 @@ func TestWishlistSearchAlertRepository_GetDueAlerts(t *testing.T) {
 			t.Fatalf("create alert %q: %v", a.Name, err)
 		}
 	}
+
 	// Deactivate via UpdateAlert (Save), matching how production code deactivates
 	// alerts — CreateAlert with IsActive:false at insert time hits GORM's
 	// default-tag zero-value skip and would silently persist as active.
@@ -116,9 +117,49 @@ func TestWishlistSearchAlertRepository_GetDueAlerts(t *testing.T) {
 			t.Errorf("expected %q to be due, but it was not returned", name)
 		}
 	}
+
 	for _, name := range []string{"manual, never runs automatically", "weekly, not yet due", "monthly, not yet due", "weekly but inactive"} {
 		if got[name] {
 			t.Errorf("expected %q to NOT be due, but it was returned", name)
 		}
+	}
+
+}
+
+func TestWishlistSearchAlertRepository_ListAllRunsIncludesAlertAndOwner(t *testing.T) {
+	repo, db := setupWishlistSearchAlertRepository(t)
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatalf("migrate users: %v", err)
+	}
+	user := models.User{Username: "collector"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	alert := &models.WishlistSearchAlert{
+		UserID: user.ID, Name: "Roman silver", Cadence: models.WishlistAlertCadenceDaily, IsActive: true,
+	}
+	if err := repo.CreateAlert(alert); err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	older := time.Now().Add(-time.Hour)
+	newer := time.Now()
+	for _, startedAt := range []time.Time{older, newer} {
+		if err := repo.CreateRun(&models.AlertRun{
+			AlertID: alert.ID, UserID: user.ID, TriggerType: models.AlertRunTriggerScheduled,
+			Status: models.AlertRunStatusCompleted, StartedAt: startedAt, CriteriaSnapshot: "{}",
+		}); err != nil {
+			t.Fatalf("create run: %v", err)
+		}
+	}
+
+	runs, total, err := repo.ListAllRuns(1, 1)
+	if err != nil {
+		t.Fatalf("list all runs: %v", err)
+	}
+	if total != 2 || len(runs) != 1 {
+		t.Fatalf("got len=%d total=%d", len(runs), total)
+	}
+	if !runs[0].StartedAt.Equal(newer) || runs[0].Alert.Name != alert.Name || runs[0].User.Username != user.Username {
+		t.Fatalf("run labels/order not hydrated: %+v", runs[0])
 	}
 }
