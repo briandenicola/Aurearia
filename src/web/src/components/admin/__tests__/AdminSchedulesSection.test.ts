@@ -4,8 +4,11 @@ import AdminSchedulesSection from '../AdminSchedulesSection.vue'
 
 const mocks = vi.hoisted(() => ({
   getAvailabilityRuns: vi.fn(),
+  getAvailabilityCycles: vi.fn(),
+  getAvailabilityCycleDetail: vi.fn(),
   getAvailabilityRunDetail: vi.fn(),
   triggerAvailabilityCheck: vi.fn(),
+  getAdminWishlistSearchAlertRuns: vi.fn(),
   getValuationRuns: vi.fn(),
   getValuationRunDetail: vi.fn(),
   triggerValuation: vi.fn(),
@@ -34,6 +37,9 @@ describe('AdminSchedulesSection', () => {
   beforeEach(() => {
     Object.values(mocks).forEach(mock => mock.mockReset())
     mocks.getAvailabilityRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
+    mocks.getAvailabilityCycles.mockResolvedValue({ data: { cycles: [], total: 0, page: 1, limit: 5 } })
+    mocks.getAvailabilityCycleDetail.mockResolvedValue({ data: { children: [] } })
+    mocks.getAdminWishlistSearchAlertRuns.mockResolvedValue({ data: { runs: [], total: 0, page: 1, limit: 5 } })
     mocks.getValuationRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getAuctionEndingRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getAuctionWatchBidDigestRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
@@ -93,12 +99,39 @@ describe('AdminSchedulesSection', () => {
     }
 
     expect(mocks.getAvailabilityRuns).toHaveBeenCalled()
+    expect(mocks.getAdminWishlistSearchAlertRuns).toHaveBeenCalledWith(1, 5)
     expect(mocks.getAuctionEndingRuns).toHaveBeenCalled()
     expect(mocks.getAuctionAlertReminderRuns).toHaveBeenCalled()
     expect(mocks.getAuctionWatchBidDigestRuns).toHaveBeenCalled()
     expect(mocks.getValuationRuns).toHaveBeenCalled()
     expect(mocks.getCollectionHealthSnapshotRuns).toHaveBeenCalled()
     expect(mocks.getCoinOfDayRuns).toHaveBeenCalled()
+  })
+
+  it('keeps each wishlist run history next to its own schedule settings', async () => {
+    const wrapper = mount(AdminSchedulesSection, {
+      props: buildProps(),
+      global: {
+        stubs: {
+          SafeExternalLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    const text = wrapper.text()
+    const availabilitySettings = text.indexOf('Wishlist Availability Check')
+    const availabilityHistory = text.indexOf('Availability Run History')
+    const parcelSettings = text.indexOf('ParcelApp Shipment Tracking')
+    const searchSettings = text.indexOf('Wishlist Search Alerts')
+    const searchHistory = text.indexOf('Wishlist Search Alert Run History')
+    const auctionSettings = text.indexOf('Auction Ending Alerts')
+
+    expect(availabilitySettings).toBeLessThan(availabilityHistory)
+    expect(availabilityHistory).toBeLessThan(parcelSettings)
+    expect(parcelSettings).toBeLessThan(searchSettings)
+    expect(searchSettings).toBeLessThan(searchHistory)
+    expect(searchHistory).toBeLessThan(auctionSettings)
   })
 
   it('shows auction alert and reminder run history and triggers a manual run', async () => {
@@ -220,6 +253,13 @@ function buildProps() {
       AuctionWatchBidDigestEnabled: 'false',
       AuctionWatchBidDigestStartTime: '08:00',
       AuctionWatchBidDigestInterval: '1440',
+      WishlistCheckEnabled: 'true',
+      WishlistCheckStartTime: '08:00',
+      WishlistCheckInterval: '10080',
+      WishlistSearchAlertsCheckEnabled: 'true',
+      WishlistSearchAlertsCheckStartTime: '08:00',
+      ParcelAppEnabled: 'true',
+      ShipmentSyncInterval: '20',
     },
     settingsSaving: false,
     availSettingsMsg: '',

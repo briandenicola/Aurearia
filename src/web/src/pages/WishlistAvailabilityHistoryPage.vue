@@ -39,7 +39,7 @@
         <p v-if="!detailRun.results || detailRun.results.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
         <div v-else class="overflow-x-auto">
           <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
-            <thead>
+            <thead class="hidden md:table-header-group">
               <tr>
                 <th>Coin</th>
                 <th>Status</th>
@@ -47,16 +47,16 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="result in detailRun.results" :key="result.id">
-                <td>
-                  <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" :title="result.url">
-                    {{ result.coinName }}
+              <tr v-for="result in detailRun.results" :key="result.id" class="grid grid-cols-[minmax(50vw,1fr)_auto] md:table-row">
+                <td class="min-w-0 !border-b-0 md:!border-b">
+                  <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="block min-w-0 text-gold no-underline hover:underline md:inline" :title="result.url">
+                    <span class="block truncate md:inline md:overflow-visible md:whitespace-normal" :title="result.coinName">{{ result.coinName }}</span>
                   </SafeExternalLink>
-                  <span v-else>{{ result.coinName }}</span>
+                  <span v-else class="block truncate md:inline md:overflow-visible md:whitespace-normal" :title="result.coinName">{{ result.coinName }}</span>
                   <span v-if="resultHost(result.url)" class="mt-0.5 block text-sm text-text-muted">{{ resultHost(result.url) }}</span>
                 </td>
-                <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
-                <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
+                <td class="!border-b-0 md:!border-b"><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
+                <td class="col-span-2 whitespace-normal italic text-text-secondary md:table-cell md:max-w-[220px] md:overflow-hidden md:text-ellipsis md:not-italic md:whitespace-nowrap">{{ result.reason || '--' }}</td>
               </tr>
             </tbody>
           </table>
@@ -108,7 +108,7 @@
                 <p v-if="expandedResults.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
                 <div v-else class="overflow-x-auto">
                   <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
-                    <thead>
+                    <thead class="hidden md:table-header-group">
                       <tr>
                         <th>Coin</th>
                         <th>Status</th>
@@ -116,16 +116,16 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="result in expandedResults" :key="result.id">
-                        <td>
-                          <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="text-gold no-underline hover:underline" :title="result.url" @click.stop>
-                            {{ result.coinName }}
+                      <tr v-for="result in expandedResults" :key="result.id" class="grid grid-cols-[minmax(50vw,1fr)_auto] md:table-row">
+                        <td class="min-w-0 !border-b-0 md:!border-b">
+                          <SafeExternalLink v-if="safeResultUrl(result.url)" :href="result.url" target="_blank" rel="noopener" class="block min-w-0 text-gold no-underline hover:underline md:inline" :title="result.url" @click.stop>
+                            <span class="block truncate md:inline md:overflow-visible md:whitespace-normal" :title="result.coinName">{{ result.coinName }}</span>
                           </SafeExternalLink>
-                          <span v-else>{{ result.coinName }}</span>
+                          <span v-else class="block truncate md:inline md:overflow-visible md:whitespace-normal" :title="result.coinName">{{ result.coinName }}</span>
                           <span v-if="resultHost(result.url)" class="mt-0.5 block text-sm text-text-muted">{{ resultHost(result.url) }}</span>
                         </td>
-                        <td><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
-                        <td class="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
+                        <td class="!border-b-0 md:!border-b"><span class="chip-sm" :class="resultStatusClass(result.status)">{{ result.status }}</span></td>
+                        <td class="col-span-2 whitespace-normal italic text-text-secondary md:table-cell md:max-w-[220px] md:overflow-hidden md:text-ellipsis md:not-italic md:whitespace-nowrap">{{ result.reason || '--' }}</td>
                       </tr>
                     </tbody>
                   </table>

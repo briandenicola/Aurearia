@@ -4,7 +4,9 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 )
@@ -219,6 +221,82 @@ func (h *WishlistSearchAlertHandler) ListRuns(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"runs": runs, "total": total, "page": page, "limit": limit})
+}
+
+type AdminWishlistSearchAlertRun struct {
+	ID              uint                       `json:"id"`
+	AlertID         uint                       `json:"alertId"`
+	AlertName       string                     `json:"alertName"`
+	UserID          uint                       `json:"userId"`
+	UserName        string                     `json:"userName"`
+	TriggerType     models.AlertRunTriggerType `json:"triggerType"`
+	Status          models.AlertRunStatus      `json:"status"`
+	StartedAt       time.Time                  `json:"startedAt"`
+	CompletedAt     *time.Time                 `json:"completedAt"`
+	DurationMs      int64                      `json:"durationMs"`
+	ResultCount     int                        `json:"resultCount"`
+	NewCount        int                        `json:"newCount"`
+	DuplicateCount  int                        `json:"duplicateCount"`
+	DismissedCount  int                        `json:"dismissedCount"`
+	PartialWarnings []string                   `json:"partialWarnings"`
+	ErrorMessage    string                     `json:"errorMessage"`
+	RateLimitStatus string                     `json:"rateLimitStatus"`
+}
+
+type AdminWishlistSearchAlertRunListResponse struct {
+	Runs  []AdminWishlistSearchAlertRun `json:"runs"`
+	Total int64                         `json:"total"`
+	Page  int                           `json:"page"`
+	Limit int                           `json:"limit"`
+}
+
+// ListAdminRuns returns aggregate search-alert run history for schedule observability.
+//
+//	@Summary		List all wishlist search alert runs
+//	@Description	Returns paginated manual and scheduled wishlist search alert runs across collectors for administrators.
+//	@Tags			Admin
+//	@Produce		json
+//	@Param			page	query	int	false	"Page number"	default(1)
+//	@Param			limit	query	int	false	"Items per page"	default(20)
+//	@Success		200	{object}	AdminWishlistSearchAlertRunListResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/wishlist-search-alert-runs [get]
+func (h *WishlistSearchAlertHandler) ListAdminRuns(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	runs, total, err := h.service.ListAdminRuns(page, limit)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to list wishlist search alert runs", err)
+		return
+	}
+
+	response := make([]AdminWishlistSearchAlertRun, 0, len(runs))
+	for _, run := range runs {
+		response = append(response, AdminWishlistSearchAlertRun{
+			ID:              run.ID,
+			AlertID:         run.AlertID,
+			AlertName:       run.Alert.Name,
+			UserID:          run.UserID,
+			UserName:        run.User.Username,
+			TriggerType:     run.TriggerType,
+			Status:          run.Status,
+			StartedAt:       run.StartedAt,
+			CompletedAt:     run.CompletedAt,
+			DurationMs:      run.DurationMs,
+			ResultCount:     run.ResultCount,
+			NewCount:        run.NewCount,
+			DuplicateCount:  run.DuplicateCount,
+			DismissedCount:  run.DismissedCount,
+			PartialWarnings: append([]string{}, run.PartialWarnings...),
+			ErrorMessage:    run.ErrorMessage,
+			RateLimitStatus: run.RateLimitStatus,
+		})
+	}
+	c.JSON(http.StatusOK, AdminWishlistSearchAlertRunListResponse{
+		Runs: response, Total: total, Page: page, Limit: limit,
+	})
 }
 
 // GetRun returns one alert run with candidates and provenance.

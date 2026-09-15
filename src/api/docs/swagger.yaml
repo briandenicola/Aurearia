@@ -15,6 +15,58 @@ definitions:
         example: anthropic
         type: string
     type: object
+  handlers.AdminWishlistSearchAlertRun:
+    properties:
+      alertId:
+        type: integer
+      alertName:
+        type: string
+      completedAt:
+        type: string
+      dismissedCount:
+        type: integer
+      duplicateCount:
+        type: integer
+      durationMs:
+        type: integer
+      errorMessage:
+        type: string
+      id:
+        type: integer
+      newCount:
+        type: integer
+      partialWarnings:
+        items:
+          type: string
+        type: array
+      rateLimitStatus:
+        type: string
+      resultCount:
+        type: integer
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/models.AlertRunStatus'
+      triggerType:
+        $ref: '#/definitions/models.AlertRunTriggerType'
+      userId:
+        type: integer
+      userName:
+        type: string
+    type: object
+  handlers.AdminWishlistSearchAlertRunListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      runs:
+        items:
+          $ref: '#/definitions/handlers.AdminWishlistSearchAlertRun'
+        type: array
+      total:
+        type: integer
+    type: object
   handlers.AgentChatMessage:
     properties:
       content:
@@ -6979,6 +7031,41 @@ paths:
       security:
       - BearerAuth: []
       summary: Trigger manual valuation
+      tags:
+      - Admin
+  /admin/wishlist-search-alert-runs:
+    get:
+      description: Returns paginated manual and scheduled wishlist search alert runs
+        across collectors for administrators.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AdminWishlistSearchAlertRunListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all wishlist search alert runs
       tags:
       - Admin
   /agent/chat:

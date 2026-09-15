@@ -165,6 +165,40 @@ describe('WishlistAvailabilityHistoryPage', () => {
     expect(wrapper.find('tbody td span.text-text-muted').exists()).toBe(false)
   })
 
+  it('stacks the reason below a half-screen truncated coin title and status on mobile', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 11 }),
+        results: [
+          { id: 1, runId: 11, coinId: 5, coinName: 'A very long Roman provincial coin title', url: 'https://vcoins.com/long-title', status: 'available', reason: 'Detected purchase option', httpStatus: 200, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/11')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.get('thead').classes()).toEqual(expect.arrayContaining(['hidden', 'md:table-header-group']))
+
+    const resultRow = wrapper.get('tbody tr')
+    expect(resultRow.classes()).toEqual(expect.arrayContaining([
+      'grid',
+      'grid-cols-[minmax(50vw,1fr)_auto]',
+      'md:table-row',
+    ]))
+
+    const cells = resultRow.findAll('td')
+    expect(cells[0]?.classes()).toContain('min-w-0')
+    expect(cells[0]?.get('[title="A very long Roman provincial coin title"]').classes()).toEqual(expect.arrayContaining(['block', 'truncate', 'md:inline']))
+    expect(cells[2]?.classes()).toEqual(expect.arrayContaining([
+      'col-span-2',
+      'italic',
+      'text-text-secondary',
+      'md:table-cell',
+      'md:not-italic',
+    ]))
+  })
+
   it('wraps the detail-view results table in an overflow-x-auto container (mobile overflow regression)', async () => {
     mocks.getMyAvailabilityRunDetail.mockResolvedValue({
       data: {
@@ -205,5 +239,14 @@ describe('WishlistAvailabilityHistoryPage', () => {
     const scrollWrapper = wrapper.find('.overflow-x-auto')
     expect(scrollWrapper.exists()).toBe(true)
     expect(scrollWrapper.find('table').exists()).toBe(true)
+
+    const resultRow = scrollWrapper.get('tbody tr')
+    expect(resultRow.classes()).toContain('grid-cols-[minmax(50vw,1fr)_auto]')
+    expect(resultRow.findAll('td')[2]?.classes()).toEqual(expect.arrayContaining([
+      'col-span-2',
+      'italic',
+      'md:table-cell',
+      'md:not-italic',
+    ]))
   })
 })

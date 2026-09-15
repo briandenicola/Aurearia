@@ -29,6 +29,7 @@ func setupWishlistSearchAlertHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB)
 	protected.GET("/wishlist/search-alerts/:alertId", handler.Get)
 	protected.PUT("/wishlist/search-alerts/:alertId", handler.Update)
 	protected.DELETE("/wishlist/search-alerts/:alertId", handler.Delete)
+	protected.GET("/admin/wishlist-search-alert-runs", handler.ListAdminRuns)
 	return r, db
 }
 
@@ -94,5 +95,41 @@ func TestWishlistSearchAlertHandler_Validation(t *testing.T) {
 	w := sendAlertRequest(router, http.MethodPost, "/api/wishlist/search-alerts", 1, bytes.NewReader(body))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("invalid cadence expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestWishlistSearchAlertHandler_ListAdminRuns(t *testing.T) {
+	router, db := setupWishlistSearchAlertHandlerRouter(t)
+	createTestUser(t, db, 1, "collector")
+	alert := models.WishlistSearchAlert{
+		UserID: 1, Name: "Greek bronze", Cadence: models.WishlistAlertCadenceWeekly, IsActive: true,
+	}
+	if err := db.Create(&alert).Error; err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	if err := db.Create(&models.AlertRun{
+		AlertID: alert.ID, UserID: 1, TriggerType: models.AlertRunTriggerScheduled,
+		Status: models.AlertRunStatusCompleted, StartedAt: alert.CreatedAt, CriteriaSnapshot: "{}",
+		ResultCount: 4, NewCount: 2,
+	}).Error; err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+
+	w := sendAlertRequest(router, http.MethodGet, "/api/admin/wishlist-search-alert-runs?page=1&limit=5", 1, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list admin runs expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var response AdminWishlistSearchAlertRunListResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if response.Total != 1 || len(response.Runs) != 1 {
+		t.Fatalf("unexpected response: %+v", response)
+	}
+	if response.Runs[0].AlertName != "Greek bronze" || response.Runs[0].UserName != "collector" || response.Runs[0].NewCount != 2 {
+		t.Fatalf("missing admin run details: %+v", response.Runs[0])
+	}
+	if response.Runs[0].PartialWarnings == nil {
+		t.Fatal("partialWarnings must serialize as an empty array")
 	}
 }

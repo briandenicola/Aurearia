@@ -113,6 +113,18 @@ export interface AlertRunListResponse {
   limit: number
 }
 
+export interface AdminWishlistSearchAlertRun extends Omit<AlertRun, 'criteriaSnapshot' | 'createdAt'> {
+  alertName: string
+  userName: string
+}
+
+export interface AdminWishlistSearchAlertRunListResponse {
+  runs: AdminWishlistSearchAlertRun[]
+  total: number
+  page: number
+  limit: number
+}
+
 export interface CandidateProvenance {
   id: number
   candidateId: number

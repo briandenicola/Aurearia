@@ -457,6 +457,10 @@ func (s *WishlistSearchAlertService) ListRuns(alertID, userID uint, page, limit 
 	return s.repo.ListRuns(alertID, userID, page, limit)
 }
 
+func (s *WishlistSearchAlertService) ListAdminRuns(page, limit int) ([]models.AlertRun, int64, error) {
+	return s.repo.ListAllRuns(page, limit)
+}
+
 func (s *WishlistSearchAlertService) GetRun(alertID, runID, userID uint) (*models.AlertRun, error) {
 	if _, err := s.GetAlert(alertID, userID); err != nil {
 		return nil, err
