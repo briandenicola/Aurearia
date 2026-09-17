@@ -21,6 +21,7 @@ describe('useAdminConfig', () => {
     Object.values(mocks).forEach(mock => mock.mockReset())
     mocks.getAppSettings.mockResolvedValue({
       data: {
+        AnthropicAPIKey: 'saved-key',
         PriceAlertCheckEnabled: 'true',
         PriceAlertCheckStartTime: '01:00',
         PriceAlertCheckInterval: '15',
@@ -51,6 +52,39 @@ describe('useAdminConfig', () => {
       { key: 'AuctionAlertsCheckInterval', value: '120' },
     ]))
     expect(entries.some(entry => entry.key.startsWith('PriceAlertCheck'))).toBe(false)
+
+    config.cleanup()
+  })
+
+  it('requires an edited Anthropic key to be saved before testing', async () => {
+    const config = useAdminConfig()
+
+    await config.loadSettings()
+    config.settings.value.AnthropicAPIKey = 'edited-key'
+
+    await config.testAnthropicConn()
+
+    expect(mocks.testAnthropicConnection).not.toHaveBeenCalled()
+    expect(config.anthropicTestOk.value).toBe(false)
+    expect(config.anthropicTestResult.value).toBe('Save AI settings before testing the Anthropic API.')
+
+    config.cleanup()
+  })
+
+  it('tests the Anthropic key after it has been saved', async () => {
+    mocks.testAnthropicConnection.mockResolvedValue({
+      data: { available: true, message: 'Anthropic key is valid' },
+    })
+    const config = useAdminConfig()
+
+    await config.loadSettings()
+    config.settings.value.AnthropicAPIKey = 'edited-key'
+    await config.saveSettings()
+    await config.testAnthropicConn()
+
+    expect(mocks.testAnthropicConnection).toHaveBeenCalledOnce()
+    expect(config.anthropicTestOk.value).toBe(true)
+    expect(config.anthropicTestResult.value).toBe('Anthropic key is valid')
 
     config.cleanup()
   })
