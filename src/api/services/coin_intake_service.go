@@ -347,7 +347,19 @@ func mergeCandidateAndOverrides(draftPayload string, overrides map[string]interf
 }
 
 func mapToCoin(payload map[string]interface{}) (*models.Coin, error) {
-	data, err := json.Marshal(payload)
+	canonicalPayload := make(map[string]interface{}, len(payload))
+	for key, value := range payload {
+		if !strings.ContainsRune(key, '_') {
+			canonicalPayload[key] = value
+		}
+	}
+	for snakeKey, camelKey := range intakeCoinFieldAliases {
+		if value, ok := payload[snakeKey]; ok {
+			canonicalPayload[camelKey] = value
+		}
+	}
+
+	data, err := json.Marshal(canonicalPayload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize candidate payload: %w", err)
 	}
@@ -360,6 +372,20 @@ func mapToCoin(payload map[string]interface{}) (*models.Coin, error) {
 		coin.Name = "Unidentified Coin"
 	}
 	return &coin, nil
+}
+
+var intakeCoinFieldAliases = map[string]string{
+	"obverse_inscription":  "obverseInscription",
+	"reverse_inscription":  "reverseInscription",
+	"obverse_description":  "obverseDescription",
+	"reverse_description":  "reverseDescription",
+	"weight_grams":         "weightGrams",
+	"diameter_mm":          "diameterMm",
+	"purchase_price":       "purchasePrice",
+	"current_value":        "currentValue",
+	"purchase_date":        "purchaseDate",
+	"purchase_location":    "purchaseLocation",
+	"is_wishlist":          "isWishlist",
 }
 
 func toSnakeCase(s string) string {
