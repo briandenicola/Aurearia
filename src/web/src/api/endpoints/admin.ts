@@ -3,6 +3,7 @@
 import { api } from '@/api/http'
 import type {
   AdminHealthSummaryResponse,
+  AdminWishlistSearchAlertRunListResponse,
   AppSettings,
   AuctionAlertReminderRun,
   AuctionEndingRun,
@@ -186,6 +187,9 @@ export const getAvailabilityCycles = (page = 1, limit = 5) =>
 
 export const getAvailabilityCycleDetail = (cycleId: number) =>
   api.get<AvailabilityCycleDetail>(`/admin/availability-cycles/${cycleId}`)
+
+export const getAdminWishlistSearchAlertRuns = (page = 1, limit = 5) =>
+  api.get<AdminWishlistSearchAlertRunListResponse>('/admin/wishlist-search-alert-runs', { params: { page, limit } })
 
 // Valuation Runs
 export const getValuationRuns = (page = 1, limit = 20) =>

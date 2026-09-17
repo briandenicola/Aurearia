@@ -33,6 +33,9 @@
           <option value="mint">Mint</option>
           <option value="grade">Grade</option>
         </optgroup>
+        <optgroup label="Storage">
+          <option value="storageLocationId">Storage location</option>
+        </optgroup>
         <optgroup label="Value & Dates">
           <option value="currentValue">Current value ($)</option>
           <option value="purchasePrice">Purchase price ($)</option>
@@ -104,6 +107,17 @@
               {{ location.displayName }}
             </option>
           </optgroup>
+        </select>
+        <select
+          v-else-if="rule.field === 'storageLocationId'"
+          v-model="rule.value"
+          class="rule-input"
+          @change="emitCriteria"
+        >
+          <option disabled value="">Select location</option>
+          <option v-for="location in storageLocations" :key="location.id" :value="location.id">
+            {{ location.name }}
+          </option>
         </select>
         <input
           v-else-if="isNumericField(rule.field)"
@@ -217,6 +231,7 @@ import {
   listCriteriaTemplates,
   saveCriteriaTemplate,
   getMintLocations,
+  getStorageLocations,
   type MintLocationsResponse,
 } from '@/api/client'
 import { useCoinOptions } from '@/composables/useCoinOptions'
@@ -228,6 +243,7 @@ import type {
   SmartCriteriaTemplate,
   SuggestedSmartCriteria,
   MintLocation,
+  StorageLocation,
 } from '@/types'
 
 function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
@@ -269,6 +285,7 @@ const saving = ref(false)
 const mintLocations = ref<MintLocation[]>([])
 const myMintLocations = computed(() => mintLocations.value.filter((m) => m.userId != null))
 const globalMintLocations = computed(() => mintLocations.value.filter((m) => m.userId == null))
+const storageLocations = ref<StorageLocation[]>([])
 
 // ---- lifecycle ----
 onMounted(async () => {
@@ -289,6 +306,12 @@ onMounted(async () => {
   } catch {
     mintLocations.value = []
   }
+  try {
+    const storageRes = await getStorageLocations()
+    storageLocations.value = storageRes.data.storageLocations
+  } catch {
+    storageLocations.value = []
+  }
   emitCriteria()
 })
 
@@ -298,6 +321,7 @@ watch([operator, rules], emitCriteria, { deep: true })
 const BOOL_FIELDS = new Set(['isWishlist', 'isSold', 'isPrivate'])
 const NUMERIC_FIELDS = new Set(['currentValue', 'purchasePrice'])
 const DATE_FIELDS = new Set(['purchaseDate', 'createdAt'])
+const STORAGE_LOCATION_FIELD = 'storageLocationId'
 
 function isBoolField(field: string) { return BOOL_FIELDS.has(field) }
 function isNumericField(field: string) { return NUMERIC_FIELDS.has(field) }
@@ -306,6 +330,14 @@ function isDateField(field: string) { return DATE_FIELDS.has(field) }
 interface OpOption { value: SmartCriteriaRuleOp; label: string }
 
 function opsForField(field: string): OpOption[] {
+  if (field === STORAGE_LOCATION_FIELD) {
+    return [
+      { value: 'eq', label: 'Equals' },
+      { value: 'neq', label: 'Not equals' },
+      { value: 'isNull', label: 'Is empty' },
+      { value: 'isNotNull', label: 'Is not empty' },
+    ]
+  }
   if (BOOL_FIELDS.has(field)) {
     return [
       { value: 'eq', label: 'Is true' },

@@ -10,6 +10,45 @@ import (
 	"github.com/briandenicola/ancient-coins-api/models"
 )
 
+func TestSetRepository_GetCoinsMatchingCriteria_FiltersByStorageLocation(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+	locationA := models.StorageLocation{UserID: 1, Name: "Cabinet A", Type: models.StorageLocationTypeStandard}
+	locationB := models.StorageLocation{UserID: 1, Name: "Cabinet B", Type: models.StorageLocationTypeStandard}
+	if err := db.Create(&[]*models.StorageLocation{&locationA, &locationB}).Error; err != nil {
+		t.Fatalf("create storage locations: %v", err)
+	}
+	coins := []models.Coin{
+		{Name: "In Cabinet A", UserID: 1, StorageLocationID: &locationA.ID},
+		{Name: "In Cabinet B", UserID: 1, StorageLocationID: &locationB.ID},
+		{Name: "Unstored", UserID: 1},
+		{Name: "Other User", UserID: 2, StorageLocationID: &locationA.ID},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("create coins: %v", err)
+	}
+
+	got, err := repo.GetCoinsMatchingCriteria(1, map[string]interface{}{
+		"field": "storageLocationId", "op": "eq", "value": float64(locationA.ID),
+	})
+	if err != nil {
+		t.Fatalf("GetCoinsMatchingCriteria failed: %v", err)
+	}
+	if names := coinNames(got); !reflect.DeepEqual(names, []string{"In Cabinet A"}) {
+		t.Fatalf("expected only Cabinet A coins, got %v", names)
+	}
+
+	got, err = repo.GetCoinsMatchingCriteria(1, map[string]interface{}{
+		"field": "storageLocationId", "op": "isNull",
+	})
+	if err != nil {
+		t.Fatalf("GetCoinsMatchingCriteria isNull failed: %v", err)
+	}
+	if names := coinNames(got); !reflect.DeepEqual(names, []string{"Unstored"}) {
+		t.Fatalf("expected only unstored coins, got %v", names)
+	}
+}
+
 func TestSetRepository_GetCoinsInSet_UsesManualSortOrder(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)

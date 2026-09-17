@@ -120,6 +120,85 @@ describe('WishlistAvailabilityHistoryPage', () => {
     expect(wrapper.text()).toContain('Sign in required')
   })
 
+  it('links the coin name to the result URL and drops the separate URL column', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 9 }),
+        results: [
+          { id: 1, runId: 9, coinId: 5, coinName: 'Roman Spintria', url: 'https://vcoins.com/en/stores/numiscraft/items/long-lot-id', status: 'available', reason: null, httpStatus: 200, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/9')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const headers = wrapper.findAll('th').map(th => th.text())
+    expect(headers).toEqual(['Coin', 'Status', 'Reason'])
+
+    const link = wrapper.get('tbody a')
+    expect(link.text()).toBe('Roman Spintria')
+    expect(link.attributes('href')).toBe('https://vcoins.com/en/stores/numiscraft/items/long-lot-id')
+    expect(link.attributes('title')).toBe('https://vcoins.com/en/stores/numiscraft/items/long-lot-id')
+    expect(wrapper.text()).not.toContain('vcoins.com/en/stores')
+
+    // The store host stays visible as a small label under the link, without the www. prefix.
+    const host = wrapper.get('tbody td span.text-text-muted')
+    expect(host.text()).toBe('vcoins.com')
+  })
+
+  it('renders the coin name as plain text when the result has no usable URL', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 10 }),
+        results: [
+          { id: 1, runId: 10, coinId: 5, coinName: 'Galba Denarius', url: null, status: 'unknown', reason: 'no url', httpStatus: 0, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/10')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('tbody a').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Galba Denarius')
+    expect(wrapper.find('tbody td span.text-text-muted').exists()).toBe(false)
+  })
+
+  it('stacks the reason below a half-screen truncated coin title and status on mobile', async () => {
+    mocks.getMyAvailabilityRunDetail.mockResolvedValue({
+      data: {
+        ...run({ id: 11 }),
+        results: [
+          { id: 1, runId: 11, coinId: 5, coinName: 'A very long Roman provincial coin title', url: 'https://vcoins.com/long-title', status: 'available', reason: 'Detected purchase option', httpStatus: 200, agentUsed: false, checkedAt: '2026-08-01T10:00:01Z' },
+        ],
+      },
+    })
+    const router = await buildRouter('/wishlist/availability-runs/11')
+    const wrapper = mount(WishlistAvailabilityHistoryPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.get('thead').classes()).toEqual(expect.arrayContaining(['hidden', 'md:table-header-group']))
+
+    const resultRow = wrapper.get('tbody tr')
+    expect(resultRow.classes()).toEqual(expect.arrayContaining([
+      'grid',
+      'grid-cols-[minmax(50vw,1fr)_auto]',
+      'md:table-row',
+    ]))
+
+    const cells = resultRow.findAll('td')
+    expect(cells[0]?.classes()).toContain('min-w-0')
+    expect(cells[0]?.get('[title="A very long Roman provincial coin title"]').classes()).toEqual(expect.arrayContaining(['block', 'truncate', 'md:inline']))
+    expect(cells[2]?.classes()).toEqual(expect.arrayContaining([
+      'col-span-2',
+      'italic',
+      'text-text-secondary',
+      'md:table-cell',
+      'md:not-italic',
+    ]))
+  })
+
   it('wraps the detail-view results table in an overflow-x-auto container (mobile overflow regression)', async () => {
     mocks.getMyAvailabilityRunDetail.mockResolvedValue({
       data: {
@@ -160,5 +239,14 @@ describe('WishlistAvailabilityHistoryPage', () => {
     const scrollWrapper = wrapper.find('.overflow-x-auto')
     expect(scrollWrapper.exists()).toBe(true)
     expect(scrollWrapper.find('table').exists()).toBe(true)
+
+    const resultRow = scrollWrapper.get('tbody tr')
+    expect(resultRow.classes()).toContain('grid-cols-[minmax(50vw,1fr)_auto]')
+    expect(resultRow.findAll('td')[2]?.classes()).toEqual(expect.arrayContaining([
+      'col-span-2',
+      'italic',
+      'md:table-cell',
+      'md:not-italic',
+    ]))
   })
 })

@@ -57,6 +57,7 @@ describe('PublicShowcasePage', () => {
     expect(wrapper.find('.flex.flex-col.gap-4.pb-20').exists()).toBe(true)
     expect(wrapper.find('.museum-tray').exists()).toBe(true)
     expect(wrapper.findAll('.tray-well')).toHaveLength(1)
+    expect(wrapper.find('.tray-name').text()).toBe('Aureus')
     expect(wrapper.find('.coins-grid').exists()).toBe(false)
     expect(wrapper.find('.coin-card').exists()).toBe(false)
   })
@@ -92,6 +93,8 @@ describe('PublicShowcasePage', () => {
     expect(wells[0]?.attributes('style')).toContain('height: 40px')
     expect(wells[1]?.attributes('style')).toContain('width: 120px')
     expect(wells[1]?.attributes('style')).toContain('height: 120px')
+    const stages = wrapper.findAll('.tray-well-stage')
+    expect(stages.every(stage => stage.attributes('style').includes('120px'))).toBe(true)
   })
 
   it('uses coin-face images in tray wells instead of card/detail images when available', async () => {

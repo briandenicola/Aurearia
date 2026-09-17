@@ -331,4 +331,18 @@ describe('MuseumTrayWell', () => {
     const style = well.attributes('style')
     expect(style).toContain('100px')
   })
+
+  it('centers a smaller coin in the shared well stage', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: mockCoin,
+        renderSizePx: 70,
+        wellStageSizePx: 120,
+        showNames: true,
+      },
+    })
+
+    expect(wrapper.find('.tray-well-stage').attributes('style')).toContain('120px')
+    expect(wrapper.find('.tray-well').attributes('style')).toContain('70px')
+  })
 })

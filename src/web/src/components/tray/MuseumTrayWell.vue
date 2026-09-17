@@ -1,45 +1,50 @@
 <template>
   <div class="tray-item">
-    <span v-if="displayName" class="tray-name">{{ displayName }}</span>
+    <span v-if="showNames" class="tray-name" :title="displayName ?? undefined">{{ displayName }}</span>
     <div
-      class="tray-well"
-      :class="{
-        'is-interactive': interactive,
-        'is-placeholder': coin.placeholder,
-        'is-wishlist-placeholder': coin.wishlistPlaceholder,
-      }"
-      :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
-      :aria-label="ariaLabel ?? coin.name"
-      :tabindex="interactive ? 0 : undefined"
-      :role="interactive ? 'button' : undefined"
-      @click="handleClick"
-      @keydown.enter="handleClick"
-      @keydown.space.prevent="handleClick"
+      class="tray-well-stage"
+      :style="{ width: `${wellStageSize}px`, height: `${wellStageSize}px` }"
     >
-      <div class="well-container">
-        <img
-          v-if="resolvedImageSrc"
-          :src="resolvedImageSrc"
-          :alt="coin.name"
-          class="well-coin"
-          loading="eager"
-          decoding="async"
-        />
-        <AuthenticatedImage
-          v-else-if="primaryImage"
-          :media-path="primaryImage"
-          :alt="coin.name"
-          class="well-coin"
-          loading="eager"
-          decoding="async"
-        />
-        <div v-else class="well-placeholder">
-          <span
-            v-if="coin.placeholderLabel"
-            class="placeholder-label"
-            :style="{ fontSize: `${placeholderFontSizePx}px` }"
-          >{{ coin.placeholderLabel }}</span>
-          <Coins v-else :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
+      <div
+        class="tray-well"
+        :class="{
+          'is-interactive': interactive,
+          'is-placeholder': coin.placeholder,
+          'is-wishlist-placeholder': coin.wishlistPlaceholder,
+        }"
+        :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
+        :aria-label="ariaLabel ?? coin.name"
+        :tabindex="interactive ? 0 : undefined"
+        :role="interactive ? 'button' : undefined"
+        @click="handleClick"
+        @keydown.enter="handleClick"
+        @keydown.space.prevent="handleClick"
+      >
+        <div class="well-container">
+          <img
+            v-if="resolvedImageSrc"
+            :src="resolvedImageSrc"
+            :alt="coin.name"
+            class="well-coin"
+            loading="eager"
+            decoding="async"
+          />
+          <AuthenticatedImage
+            v-else-if="primaryImage"
+            :media-path="primaryImage"
+            :alt="coin.name"
+            class="well-coin"
+            loading="eager"
+            decoding="async"
+          />
+          <div v-else class="well-placeholder">
+            <span
+              v-if="coin.placeholderLabel"
+              class="placeholder-label"
+              :style="{ fontSize: `${placeholderFontSizePx}px` }"
+            >{{ coin.placeholderLabel }}</span>
+            <Coins v-else :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
+          </div>
         </div>
       </div>
     </div>
@@ -62,6 +67,7 @@ interface Props {
   showNames?: boolean
   preferredFace?: TrayCoinFace
   ariaLabel?: string
+  wellStageSizePx?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -71,6 +77,7 @@ const props = withDefaults(defineProps<Props>(), {
   showNames: false,
   preferredFace: 'obverse',
   ariaLabel: undefined,
+  wellStageSizePx: undefined,
 })
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]
@@ -95,6 +102,7 @@ const resolvedImageSrc = computed(() => {
 })
 
 const placeholderFontSizePx = computed(() => Math.max(9, Math.min(13, Math.round(props.renderSizePx * 0.115))))
+const wellStageSize = computed(() => Math.max(props.renderSizePx, props.wellStageSizePx ?? props.renderSizePx))
 
 const displayCaption = computed(() => {
   if (!props.showCaptions) return null
@@ -125,7 +133,7 @@ function handleClick() {
 
 .tray-name {
   min-height: 1rem;
-  max-width: 100%;
+  width: 100%;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
@@ -134,6 +142,12 @@ function handleClick() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tray-well-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tray-well {

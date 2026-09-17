@@ -66,7 +66,7 @@ func validAlertInput() WishlistSearchAlertInput {
 
 func alertFloatPtr(v float64) *float64 { return &v }
 func alertIntPtr(v int) *int           { return &v }
-func alertUintPtr(v uint) *uint         { return &v }
+func alertUintPtr(v uint) *uint        { return &v }
 
 func TestWishlistSearchAlertService_PersistsMintLocationSelection(t *testing.T) {
 	svc, _ := setupWishlistSearchAlertService(t)
@@ -127,6 +127,32 @@ func TestWishlistSearchAlertService_CRUDScopesToOwner(t *testing.T) {
 	}
 	if _, err := svc.GetAlert(created.ID, 1); !errors.Is(err, ErrWishlistSearchAlertNotFound) {
 		t.Fatalf("get deleted error = %v", err)
+	}
+}
+
+func TestWishlistSearchAlertService_ListAdminRuns(t *testing.T) {
+	svc, db := setupWishlistSearchAlertService(t)
+	user := models.User{Username: "collector"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	alert, err := svc.CreateAlert(user.ID, validAlertInput())
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	if err := db.Create(&models.AlertRun{
+		AlertID: alert.ID, UserID: user.ID, TriggerType: models.AlertRunTriggerScheduled,
+		Status: models.AlertRunStatusCompleted, StartedAt: alert.CreatedAt, CriteriaSnapshot: "{}",
+	}).Error; err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+
+	runs, total, err := svc.ListAdminRuns(1, 5)
+	if err != nil {
+		t.Fatalf("list admin runs: %v", err)
+	}
+	if total != 1 || len(runs) != 1 || runs[0].Alert.Name != alert.Name || runs[0].User.Username != user.Username {
+		t.Fatalf("unexpected admin runs: total=%d runs=%+v", total, runs)
 	}
 }
 

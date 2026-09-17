@@ -29,12 +29,15 @@ test('desktop renders sparse and empty trays and supports pointer activation', a
 
   await expect(page.getByRole('heading', { name: 'Storage Trays' })).toBeVisible()
   const pageBounds = await page.locator('main.storage-trays-page').boundingBox()
-  expect(pageBounds?.x ?? 0).toBeGreaterThan(0)
+  expect(pageBounds?.x).toBe(0)
+  expect(pageBounds?.width).toBe(page.viewportSize()?.width)
+  await expect(page.locator('main.storage-trays-page')).toHaveCSS('max-width', 'none')
   const occupied = page.getByRole('region', { name: 'Cabinet A' })
   await expect(occupied.locator('.tray-surface')).toHaveClass(/felt-navy/)
   await expect(occupied.getByRole('grid', { name: 'Cabinet A, 3 rows by 3 columns, 1 of 9 occupied' })).toBeVisible()
   await expect(occupied.getByRole('gridcell')).toHaveCount(9)
   await expect(occupied.getByRole('button', { name: 'Denarius, row 2, column 3' })).toBeVisible()
+  await expect(occupied.getByText('Denarius', { exact: true })).toBeVisible()
   const surfaceBounds = await occupied.locator('.physical-surface').boundingBox()
   const gridBounds = await occupied.getByRole('grid').boundingBox()
   const wellBounds = await occupied.getByRole('button', { name: 'Denarius, row 2, column 3' }).boundingBox()
@@ -43,6 +46,26 @@ test('desktop renders sparse and empty trays and supports pointer activation', a
     ((gridBounds?.x ?? 0) + (gridBounds?.width ?? 0) / 2)
   )).toBeLessThan(2)
   expect(wellBounds?.width).toBe(76)
+  const titleBounds = await occupied.getByText('Denarius', { exact: true }).boundingBox()
+  const emptyTitleBounds = await occupied.getByRole('gridcell').nth(3).locator('.tray-name').boundingBox()
+  expect(Math.abs((titleBounds?.y ?? 0) - (emptyTitleBounds?.y ?? 0))).toBeLessThan(1)
+
+  await page.getByLabel('Coin size').fill('1.5')
+  await expect.poll(async () =>
+    occupied.getByRole('button', { name: 'Denarius, row 2, column 3' }).evaluate(element => element.getBoundingClientRect().width)
+  ).toBe(114)
+  await expect.poll(async () =>
+    occupied.getByRole('gridcell').nth(5).evaluate(element => element.scrollWidth <= element.clientWidth)
+  ).toBe(true)
+
+  const faceToggle = occupied.locator('.tray-face-toggle')
+  await expect(faceToggle).toHaveAccessibleName('Show reverse side for all coins')
+  const initialImageSrc = await occupied.getByRole('button', { name: 'Denarius, row 2, column 3' }).locator('img').getAttribute('src')
+  await faceToggle.click()
+  await expect(faceToggle).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () =>
+    occupied.getByRole('button', { name: 'Denarius, row 2, column 3' }).locator('img').getAttribute('src')
+  ).not.toBe(initialImageSrc)
   const empty = page.getByRole('region', { name: 'Empty Tray' })
   await expect(empty.getByRole('gridcell')).toHaveCount(9)
   await expect(empty.getByRole('button')).toHaveCount(0)

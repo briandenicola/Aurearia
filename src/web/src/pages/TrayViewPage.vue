@@ -42,6 +42,7 @@
           :coins="currentDrawerCoins"
           :felt-theme="feltColor"
           :show-captions="false"
+          :show-names="true"
           :size-scale="traySizeScale"
           :style="traySwipeStyle"
           @coin-clicked="handleCoinClicked"

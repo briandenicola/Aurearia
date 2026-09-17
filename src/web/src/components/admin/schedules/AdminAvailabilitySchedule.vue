@@ -45,8 +45,6 @@
     </div>
   </div>
 
-  <slot name="additional-settings" />
-
   <hr class="my-6 border-0 border-t border-border-subtle" />
   <h3 class="mb-4 text-base font-semibold text-text-primary">Availability Run History</h3>
 

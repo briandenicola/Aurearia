@@ -29,8 +29,8 @@ type TrayCoin struct {
 	Name       string   `json:"name"`
 	DiameterMm *float64 `json:"diameterMm"`
 	// StorageSlot is the one-based row-major position within the tray.
-	StorageSlot int        `json:"storageSlot" minimum:"1" maximum:"400"`
-	Image       *TrayImage `json:"image"`
+	StorageSlot int         `json:"storageSlot" minimum:"1" maximum:"400"`
+	Images      []TrayImage `json:"images"`
 }
 
 type TrayAggregate struct {
@@ -247,12 +247,16 @@ func (r *StorageLocationRepository) ListTrayAggregates(userID uint) ([]TrayAggre
 		StorageSlot       int
 		FilePath          *string
 		ImageType         *string
+		ObverseFilePath   *string
+		ReverseFilePath   *string
 	}
 	var rows []row
 	err := r.db.Table("coins").
 		Select(`coins.id, coins.name, coins.diameter_mm, coins.storage_location_id, coins.storage_slot,
 			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS file_path,
-			(SELECT image_type FROM coin_images WHERE coin_images.coin_id = coins.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS image_type`).
+			(SELECT image_type FROM coin_images WHERE coin_images.coin_id = coins.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS image_type,
+			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id AND LOWER(image_type) = 'obverse' ORDER BY is_primary DESC, id ASC LIMIT 1) AS obverse_file_path,
+			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id AND LOWER(image_type) = 'reverse' ORDER BY is_primary DESC, id ASC LIMIT 1) AS reverse_file_path`).
 		Scopes(OwnedBy(userID)).
 		Where("coins.storage_location_id IN ? AND coins.storage_slot IS NOT NULL", keys(byID)).
 		Order("coins.storage_location_id ASC, coins.storage_slot ASC").Scan(&rows).Error
@@ -264,12 +268,19 @@ func (r *StorageLocationRepository) ListTrayAggregates(userID uint) ([]TrayAggre
 		if !ok {
 			continue
 		}
-		coin := TrayCoin{ID: item.ID, Name: item.Name, DiameterMm: item.DiameterMm, StorageSlot: item.StorageSlot}
-		if item.FilePath != nil {
-			coin.Image = &TrayImage{FilePath: *item.FilePath}
+		coin := TrayCoin{ID: item.ID, Name: item.Name, DiameterMm: item.DiameterMm, StorageSlot: item.StorageSlot, Images: []TrayImage{}}
+		if item.ObverseFilePath != nil {
+			coin.Images = append(coin.Images, TrayImage{FilePath: *item.ObverseFilePath, ImageType: "obverse"})
+		}
+		if item.ReverseFilePath != nil {
+			coin.Images = append(coin.Images, TrayImage{FilePath: *item.ReverseFilePath, ImageType: "reverse"})
+		}
+		if len(coin.Images) == 0 && item.FilePath != nil {
+			fallback := TrayImage{FilePath: *item.FilePath}
 			if item.ImageType != nil {
-				coin.Image.ImageType = *item.ImageType
+				fallback.ImageType = *item.ImageType
 			}
+			coin.Images = append(coin.Images, fallback)
 		}
 		trays[index].Coins = append(trays[index].Coins, coin)
 		trays[index].Occupied++

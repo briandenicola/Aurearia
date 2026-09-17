@@ -221,6 +221,24 @@ func (r *WishlistSearchAlertRepository) ListRuns(alertID, userID uint, page, lim
 	return runs, total, err
 }
 
+func (r *WishlistSearchAlertRepository) ListAllRuns(page, limit int) ([]models.AlertRun, int64, error) {
+	page, limit = normalizePageLimit(page, limit)
+	query := r.db.Model(&models.AlertRun{})
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var runs []models.AlertRun
+	err := query.
+		Preload("Alert").
+		Preload("User").
+		Order("started_at DESC, id DESC").
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&runs).Error
+	return runs, total, err
+}
+
 func (r *WishlistSearchAlertRepository) GetRun(alertID, runID, userID uint) (*models.AlertRun, error) {
 	var run models.AlertRun
 	err := r.db.Preload("Candidates.Provenance").Where("id = ? AND alert_id = ? AND user_id = ?", runID, alertID, userID).First(&run).Error

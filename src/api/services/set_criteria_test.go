@@ -116,6 +116,25 @@ func TestValidateSmartCriteria_NestedGroups(t *testing.T) {
 	}
 }
 
+func TestValidateSmartCriteria_StorageLocation(t *testing.T) {
+	valid := map[string]interface{}{
+		"field": "storageLocationId", "op": "eq", "value": float64(42),
+	}
+	if err := ValidateSmartCriteria(valid); err != nil {
+		t.Fatalf("expected valid storage location criteria, got %v", err)
+	}
+
+	for _, invalid := range []map[string]interface{}{
+		{"field": "storageLocationId", "op": "contains", "value": "42"},
+		{"field": "storageLocationId", "op": "eq", "value": float64(0)},
+		{"field": "storageLocationId", "op": "eq", "value": "42"},
+	} {
+		if err := ValidateSmartCriteria(invalid); err == nil {
+			t.Fatalf("expected invalid storage location criteria to fail: %#v", invalid)
+		}
+	}
+}
+
 // ---- GetSuggestedCriteria ----
 
 func TestGetSuggestedCriteria_ReturnsTenSuggestions(t *testing.T) {

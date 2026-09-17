@@ -145,6 +145,8 @@ describe('MuseumTray', () => {
       expect(size).toBeGreaterThanOrEqual(40)
       expect(size).toBeLessThanOrEqual(120)
     })
+    const stageSizes = wells.map(well => well.props('wellStageSizePx'))
+    expect(new Set(stageSizes)).toEqual(new Set([Math.max(...sizes)]))
   })
 
   it('has responsive grid layout class', () => {
