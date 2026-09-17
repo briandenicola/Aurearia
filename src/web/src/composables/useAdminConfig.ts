@@ -119,6 +119,7 @@ export function useAdminConfig() {
   const anthropicTesting = ref(false)
   const anthropicTestResult = ref('')
   const anthropicTestOk = ref(false)
+  let savedAnthropicAPIKey = ''
   const anthropicModels = ref<AnthropicModel[]>([
     { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
     { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
@@ -157,6 +158,7 @@ export function useAdminConfig() {
       ])
       settingDefaults.value = { ...settingDefaults.value, ...defaultsRes.data }
       settings.value = { ...settings.value, ...settingsRes.data }
+      savedAnthropicAPIKey = settings.value.AnthropicAPIKey ?? ''
       legacyAuctionAlertSettingKeys.forEach(key => {
         delete settings.value[key]
       })
@@ -265,6 +267,7 @@ export function useAdminConfig() {
     try {
       const entries = Object.entries(settings.value).map(([key, value]) => ({ key, value: String(value) }))
       await updateAppSettings(entries)
+      savedAnthropicAPIKey = settings.value.AnthropicAPIKey ?? ''
       settingsMsg.value = 'Settings saved'
       availSettingsMsg.value = 'Settings saved'
       auctionSettingsMsg.value = 'Settings saved'
@@ -310,6 +313,12 @@ export function useAdminConfig() {
   }
 
   async function testAnthropicConn() {
+    if ((settings.value.AnthropicAPIKey ?? '') !== savedAnthropicAPIKey) {
+      anthropicTestOk.value = false
+      anthropicTestResult.value = 'Save AI settings before testing the Anthropic API.'
+      return
+    }
+
     anthropicTesting.value = true
     anthropicTestResult.value = ''
     try {
