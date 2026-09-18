@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: Aurearia Coin Copilot API
+  version: 1.0.0
+  description: |
+    Feature 359 owner-scoped, read-only, durable Coin Copilot contract.
+    All resources are persisted and authorized by Go. Python is stateless.
+servers:
+  - url: /api
+security:
+  - BearerAuth: []
+tags:
+  - name: coin-copilot
+paths:
+  /agent/copilot/capability:
+    get:
+      tags: [coin-copilot]
+      operationId: getCoinCopilotCapability
+      summary: Resolve Coin Copilot or legacy chat mode
+      responses:
+        "200":
+          description: Current mode for the configured provider/model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotCapability"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /agent/copilot/runs:
+    post:
+      tags: [coin-copilot]
+      operationId: startCoinCopilotRun
+      summary: Start a durable read-only Coin Copilot run
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRunRequest"
+      responses:
+        "202":
+          description: New run accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunEnvelope"
+        "200":
+          description: Idempotent replay returned the existing run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunEnvelope"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: Idempotency conflict or owner active-run capacity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Requested goal is wholly outside MVP scope
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Feature unavailable; client should use legacy chat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /agent/copilot/threads/{threadId}:
+    get:
+      tags: [coin-copilot]
+      operationId: getCoinCopilotThread
+      summary: Read an owner-scoped thread and its runs
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      responses:
+        "200":
+          description: Thread with user-visible messages and run summaries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ThreadEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [coin-copilot]
+      operationId: deleteCoinCopilotThread
+      summary: Delete an owner-scoped settled thread and all descendants
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      responses:
+        "204":
+          description: Thread, runs, checkpoints, events, and resume requests deleted
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: A run in the thread is queued, running, or settling cancellation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /agent/copilot/runs/{runId}:
+    get:
+      tags: [coin-copilot]
+      operationId: getCoinCopilotRun
+      summary: Read one owner-scoped run
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Current durable run snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /agent/copilot/runs/{runId}/events:
+    get:
+      tags: [coin-copilot]
+      operationId: streamCoinCopilotRunEvents
+      summary: Replay and follow durable run events
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - name: since
+          in: query
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: Last-Event-ID
+          in: header
+          schema: { type: integer, format: int64, minimum: 0 }
+      responses:
+        "200":
+          description: SSE stream defined by contracts/sse-events.md
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /agent/copilot/runs/{runId}/cancel:
+    post:
+      tags: [coin-copilot]
+      operationId: cancelCoinCopilotRun
+      summary: Cancel an owner-scoped queued, running, or paused run
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "202":
+          description: Cancellation requested or accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunEnvelope" }
+        "200":
+          description: Idempotent repeat returned current cancelled state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Natural completion/failure already won
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunEnvelope" }
+
+  /agent/copilot/runs/{runId}/resume:
+    post:
+      tags: [coin-copilot]
+      operationId: resumeCoinCopilotRun
+      summary: Resume a paused run with clarification input
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResumeRunRequest" }
+      responses:
+        "202":
+          description: Resume accepted and same run re-queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunEnvelope" }
+        "200":
+          description: Idempotent replay returned the accepted resume
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Not paused, stale checkpoint, expired resume window, or idempotency conflict
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Feature/model unavailable; existing run remains readable/cancellable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ThreadId:
+      name: threadId
+      in: path
+      required: true
+      schema: { type: string, pattern: "^cct_[A-Za-z0-9_-]+$" }
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, pattern: "^ccr_[A-Za-z0-9_-]+$" }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid bearer token
+    NotFound:
+      description: Resource absent or not owned
+  schemas:
+    CopilotCapability:
+      type: object
+      required: [mode, enabled, modelToolCallingSupported]
+      properties:
+        mode: { type: string, enum: [copilot, legacy] }
+        enabled: { type: boolean }
+        modelToolCallingSupported: { type: boolean }
+        reason:
+          type: string
+          enum: [disabled, provider_unconfigured, model_tool_calling_unsupported, temporarily_unavailable]
+          nullable: true
+    AppContext:
+      type: object
+      additionalProperties: false
+      properties:
+        route: { type: string, maxLength: 2048 }
+        activeCoinId: { type: integer, minimum: 1, nullable: true }
+    StartRunRequest:
+      type: object
+      additionalProperties: false
+      required: [goal]
+      properties:
+        threadId:
+          type: string
+          pattern: "^cct_[A-Za-z0-9_-]+$"
+          description: Omit to create a new thread.
+        goal: { type: string, minLength: 1, maxLength: 4000 }
+        appContext: { $ref: "#/components/schemas/AppContext" }
+    ResumeRunRequest:
+      type: object
+      additionalProperties: false
+      required: [answer, expectedCheckpointVersion]
+      properties:
+        answer: { type: string, minLength: 1, maxLength: 4000 }
+        expectedCheckpointVersion: { type: integer, format: int64, minimum: 1 }
+    RunStatus:
+      type: string
+      enum: [queued, running, paused, cancel_requested, completed, failed, cancelled]
+    Usage:
+      type: object
+      required: [iterations, toolCalls, inputTokens, outputTokens]
+      additionalProperties: false
+      properties:
+        iterations: { type: integer, minimum: 0 }
+        toolCalls: { type: integer, minimum: 0 }
+        inputTokens: { type: integer, format: int64, minimum: 0 }
+        outputTokens: { type: integer, format: int64, minimum: 0 }
+    Run:
+      type: object
+      required: [id, threadId, status, goal, checkpointVersion, lastSeq, usage, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        threadId: { type: string }
+        status: { $ref: "#/components/schemas/RunStatus" }
+        goal: { type: string }
+        checkpointVersion: { type: integer, format: int64 }
+        lastSeq: { type: integer, format: int64 }
+        attempt: { type: integer }
+        finalAnswer: { type: string, nullable: true }
+        failureCode: { type: string, nullable: true }
+        failureMessage: { type: string, nullable: true }
+        resumeDeadline: { type: string, format: date-time, nullable: true }
+        usage: { $ref: "#/components/schemas/Usage" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RunEnvelope:
+      type: object
+      required: [run, reused]
+      properties:
+        run: { $ref: "#/components/schemas/Run" }
+        reused: { type: boolean }
+    ThreadMessage:
+      type: object
+      required: [role, content, createdAt]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        runId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Thread:
+      type: object
+      required: [id, title, messages, runs, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ThreadMessage" }
+        runs:
+          type: array
+          items: { $ref: "#/components/schemas/Run" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ThreadEnvelope:
+      type: object
+      required: [thread]
+      properties:
+        thread: { $ref: "#/components/schemas/Thread" }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }

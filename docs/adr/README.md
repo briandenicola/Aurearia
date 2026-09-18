@@ -66,5 +66,6 @@ ADR 0001 for the full list.
 | 0013 | [Wishlist Coins May Hold Catalog References](0013-wishlist-coins-may-hold-catalog-references.md) | 2026-08-17 | Proposed (amends Feature 351) |
 | 0014 | [Scoped-Worker CSP Isolation for Background-Removal `unsafe-eval`](0014-background-removal-worker-csp-isolation.md) | 2026-08-24 | Accepted |
 | 0015 | [Lock Background-Removal Build Assets](0015-lock-background-removal-build-assets.md) | 2026-08-31 | Accepted |
+| 0016 | [Go-Owned Durable Coin Copilot State](0016-go-owned-durable-coin-copilot-state.md) | 2026-09-17 | Proposed |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
