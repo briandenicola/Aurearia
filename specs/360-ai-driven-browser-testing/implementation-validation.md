@@ -310,3 +310,10 @@ resource assertion pass, but Docker Compose still created no host binding when
 the long port syntax omitted `published`. The stack now uses Compose's
 documented short random-port form, `127.0.0.1::8080`; the isolation guard
 accepts only that exact string or an equivalent resolved long form.
+
+The third hosted run, Actions run `35353345604`, reached the same missing-port
+symptom even with the short syntax, while cleanup and the exact resource
+assertion again passed. The runner now waits for the app health check before
+resolving its port. If readiness fails, it emits bounded Compose status and
+the last 100 app log lines so the container failure is explicit rather than
+misreported as a port-allocation failure.

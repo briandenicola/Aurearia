@@ -333,8 +333,19 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         await compose(signal, 'run', '--rm', 'seed')
       }),
       waitReady: async () => budget.withinDeadline(async (signal) => {
-        await compose(signal, 'up', '--build', '-d', 'app')
-        const port = (await compose(signal, 'port', 'app', '8080')).stdout.trim().split(':').pop()
+        try {
+          await compose(signal, 'up', '--build', '-d', '--wait', 'app')
+        } catch (error) {
+          const diagnostics = await compose(undefined, 'ps', '--all')
+            .then(result => result.stdout.slice(0, 4000))
+            .catch(() => 'Compose status unavailable.')
+          const logs = await compose(undefined, 'logs', '--no-color', '--tail', '100', 'app')
+            .then(result => result.stdout.slice(0, 8000))
+            .catch(() => 'App logs unavailable.')
+          throw new Error(`App readiness failed.\n${diagnostics}\n${logs}`, { cause: error })
+        }
+        const portResult = await compose(signal, 'port', 'app', '8080')
+        const port = portResult.stdout.trim().split(':').pop()
         if (!port || port === '8080') throw new Error('Compose did not assign a random app port')
         appOrigin = `http://127.0.0.1:${port}`
         if (!isLoopback(appOrigin)) throw new Error('Resolved app target is not isolated loopback')
