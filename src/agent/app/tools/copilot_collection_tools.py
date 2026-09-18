@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 
 from app.models.requests import COPILOT_ALLOWED_TOOLS
 from app.outbound import validate_outbound_url
+from app.teams.specialist_contracts import SpecialistQuery, SpecialistResult
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,15 @@ CALLBACK_TOOLS = frozenset(
     }
 )
 VIRTUAL_TOOLS = frozenset({"portfolio_review", "gap_analysis"})
+SPECIALIST_TOOLS = frozenset(
+    {
+        "market_search",
+        "auction_search",
+        "price_trends",
+        "similar_lots",
+    }
+)
+LOCAL_TOOLS = VIRTUAL_TOOLS | SPECIALIST_TOOLS
 _PROMPT_INJECTION_RE = re.compile(
     r"(?i)\b(?:ignore|disregard|override|forget)\b.{0,40}\b(?:instructions?|prompt|rules?)\b"
 )
@@ -122,22 +132,32 @@ class AnalysisResult(StrictToolModel):
     mode: Literal["collection_only"] = "collection_only"
 
 
-ARG_MODELS: dict[str, type[StrictToolModel]] = {
+ARG_MODELS: dict[str, type[BaseModel]] = {
     "search_my_collection": SearchMyCollectionArgs,
     "get_coin": GetCoinArgs,
     "collection_summary": CollectionSummaryArgs,
     "top_coins_by_value": TopCoinsByValueArgs,
     "portfolio_review": PortfolioReviewArgs,
     "gap_analysis": GapAnalysisArgs,
+    "market_search": SpecialistQuery,
+    "auction_search": SpecialistQuery,
+    "price_trends": SpecialistQuery,
+    "similar_lots": SpecialistQuery,
 }
-RESULT_MODELS: dict[str, type[StrictToolModel]] = {
+RESULT_MODELS: dict[str, type[BaseModel]] = {
     "search_my_collection": SearchResult,
     "get_coin": GetCoinResult,
     "collection_summary": CollectionSummaryResult,
     "top_coins_by_value": TopCoinsResult,
     "portfolio_review": AnalysisResult,
     "gap_analysis": AnalysisResult,
+    "market_search": SpecialistResult,
+    "auction_search": SpecialistResult,
+    "price_trends": SpecialistResult,
+    "similar_lots": SpecialistResult,
 }
+
+LocalRunner = Callable[[dict[str, Any]], Awaitable[BaseModel | dict[str, Any] | str]]
 
 
 def _neutralize_text(value: str) -> str:
@@ -191,7 +211,8 @@ class CopilotCollectionToolClient:
         execution_token: str,
         allowed_tools: list[str],
         max_result_bytes: int,
-        analysis_runners: dict[str, Callable[[dict[str, Any]], Awaitable[str]]] | None = None,
+        local_runners: dict[str, LocalRunner] | None = None,
+        analysis_runners: dict[str, LocalRunner] | None = None,
         completed_call_ids: set[str] | None = None,
         completed_results: dict[str, dict[str, Any]] | None = None,
         client: httpx.AsyncClient | None = None,
@@ -203,7 +224,9 @@ class CopilotCollectionToolClient:
         self.execution_token = execution_token
         self.allowed_tools = allowed
         self.max_result_bytes = max_result_bytes
-        self.analysis_runners = analysis_runners or {}
+        self.local_runners = {**(analysis_runners or {}), **(local_runners or {})}
+        if not set(self.local_runners).issubset(LOCAL_TOOLS):
+            raise ValueError("local runners contain an unsupported capability")
         self._client = client
         self._completed_call_ids = set(completed_call_ids or ())
         self._results = self._validate_completed_results(completed_results or {})
@@ -217,7 +240,10 @@ class CopilotCollectionToolClient:
             if tool_name not in self.allowed_tools or tool_name not in RESULT_MODELS:
                 raise ValueError("completed result is not in the execution tool allowlist")
             try:
-                validated = RESULT_MODELS[tool_name].model_validate(result).model_dump()
+                validated_model = RESULT_MODELS[tool_name].model_validate(result)
+                if tool_name in SPECIALIST_TOOLS and validated_model.capability != tool_name:
+                    raise ValueError("completed specialist result does not match its capability")
+                validated = validated_model.model_dump(mode="json")
             except ValidationError as exc:
                 raise ValueError("completed tool result is invalid") from exc
             bounded, _, truncated, _ = bound_tool_result(validated, self.max_result_bytes)
@@ -244,11 +270,14 @@ class CopilotCollectionToolClient:
         if tool_name in CALLBACK_TOOLS:
             result = await self._execute_callback(tool_name, tool_call_id, args.model_dump(exclude_none=True))
         else:
-            result = await self._execute_virtual(tool_name)
+            result = await self._execute_local(tool_name, args.model_dump(exclude_none=True))
         try:
-            validated = RESULT_MODELS[tool_name].model_validate(result).model_dump()
+            validated_model = RESULT_MODELS[tool_name].model_validate(result)
         except ValidationError as exc:
             raise CopilotToolError("invalid_tool_call", "The tool returned an invalid result.") from exc
+        if tool_name in SPECIALIST_TOOLS and validated_model.capability != tool_name:
+            raise CopilotToolError("invalid_tool_call", "The tool returned an invalid result.")
+        validated = validated_model.model_dump(mode="json")
 
         bounded, original_bytes, truncated, digest = bound_tool_result(
             validated,
@@ -267,9 +296,7 @@ class CopilotCollectionToolClient:
         client = self._client
         owns_client = client is None
         if client is None:
-            client = httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=5.0, read=20.0, write=5.0, pool=5.0)
-            )
+            client = httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=20.0, write=5.0, pool=5.0))
         body = {"tool_call_id": tool_call_id, **args}
         try:
             response = await client.post(
@@ -291,17 +318,31 @@ class CopilotCollectionToolClient:
             if owns_client:
                 await client.aclose()
 
-    async def _execute_virtual(self, tool_name: str) -> dict[str, Any]:
-        summary_result = self._results.get("collection_summary")
-        if not summary_result or "summary" not in summary_result:
-            raise CopilotToolError(
-                "invalid_tool_call",
-                f"{tool_name} requires a completed collection_summary call.",
-            )
-        runner = self.analysis_runners.get(tool_name)
+    async def _execute_local(
+        self,
+        tool_name: str,
+        args: dict[str, Any],
+    ) -> BaseModel | dict[str, Any]:
+        if tool_name not in LOCAL_TOOLS:
+            raise CopilotToolError("invalid_tool_call", "The requested tool is not locally executable.")
+        runner = self.local_runners.get(tool_name)
         if runner is None:
             raise CopilotToolError("internal", f"{tool_name} is unavailable.")
-        return {"analysis": await runner(summary_result["summary"]), "mode": "collection_only"}
+        if tool_name in VIRTUAL_TOOLS:
+            summary_result = self._results.get("collection_summary")
+            if not summary_result or "summary" not in summary_result:
+                raise CopilotToolError(
+                    "invalid_tool_call",
+                    f"{tool_name} requires a completed collection_summary call.",
+                )
+            result = await runner(summary_result["summary"])
+            if not isinstance(result, str):
+                raise CopilotToolError("invalid_tool_call", f"{tool_name} returned an invalid result.")
+            return {"analysis": result, "mode": "collection_only"}
+        result = await runner(args)
+        if isinstance(result, str):
+            raise CopilotToolError("invalid_tool_call", f"{tool_name} returned an invalid result.")
+        return result
 
 
 def build_copilot_tool_definitions(
@@ -319,6 +360,10 @@ def build_copilot_tool_definitions(
         "top_coins_by_value": "Read the owner's highest-valued coins.",
         "portfolio_review": "Analyze validated collection summary data only.",
         "gap_analysis": "Identify structural collection gaps without market or acquisition advice.",
+        "market_search": "Search configured dealer sources for current market listings.",
+        "auction_search": "Search configured auction sources for relevant lots.",
+        "price_trends": "Analyze source-backed completed-sale observations.",
+        "similar_lots": "Find and rank source-backed similar auction lots.",
     }
     selected = allowed_tools or list(COPILOT_ALLOWED_TOOLS)
     if not set(selected).issubset(COPILOT_ALLOWED_TOOLS):

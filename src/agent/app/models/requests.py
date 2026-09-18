@@ -6,9 +6,10 @@ so this service remains stateless with no direct DB access.
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 
 from app.outbound import validate_outbound_url
+from app.teams.specialist_contracts import SpecialistResult
 
 MAX_MESSAGE_LENGTH = 4000
 MAX_HISTORY_MESSAGE_LENGTH = 20000
@@ -35,7 +36,7 @@ MAX_COPILOT_PLAN_ITEMS = 12
 MAX_COPILOT_PLAN_TITLE_LENGTH = 200
 MAX_COPILOT_CLARIFICATION_LENGTH = 500
 MAX_COPILOT_CLARIFICATION_CHOICES = 10
-MAX_COPILOT_ALLOWED_TOOLS = 6
+MAX_COPILOT_ALLOWED_TOOLS = 10
 
 COPILOT_ALLOWED_TOOLS = frozenset(
     {
@@ -45,6 +46,18 @@ COPILOT_ALLOWED_TOOLS = frozenset(
         "top_coins_by_value",
         "portfolio_review",
         "gap_analysis",
+        "market_search",
+        "auction_search",
+        "price_trends",
+        "similar_lots",
+    }
+)
+COPILOT_SPECIALIST_TOOLS = frozenset(
+    {
+        "market_search",
+        "auction_search",
+        "price_trends",
+        "similar_lots",
     }
 )
 
@@ -142,23 +155,48 @@ class CopilotUsage(StrictRequestModel):
     output_tokens: int = Field(default=0, ge=0)
 
 
+class CopilotBoundedToolResult(StrictRequestModel):
+    """Exact Feature 359 fallback emitted when a persisted result exceeds its byte limit."""
+
+    truncated: Literal[True]
+    original_bytes: int = Field(ge=0)
+    digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    summary: Literal["Tool result exceeded the persisted-result limit."]
+
+
 class CopilotCompletedTool(StrictRequestModel):
     """A bounded, sanitized tool fact from the latest Go checkpoint."""
 
     tool_call_id: CopilotToolCallID
     tool_name: str
     result_digest: Annotated[str, StringConstraints(max_length=64)] = ""
-    result: dict[str, Any]
+    result: SpecialistResult | dict[str, Any]
     original_bytes: int = Field(default=0, ge=0)
     persisted_bytes: int = Field(default=0, ge=0)
     truncated: bool = False
 
-    @field_validator("tool_name")
-    @classmethod
-    def validate_tool_name(cls, value: str) -> str:
-        if value not in COPILOT_ALLOWED_TOOLS:
+    @model_validator(mode="after")
+    def validate_tool_result(self) -> "CopilotCompletedTool":
+        if self.tool_name not in COPILOT_ALLOWED_TOOLS:
             raise ValueError("tool_name is not in the Coin Copilot allowlist")
-        return value
+        if self.tool_name in COPILOT_SPECIALIST_TOOLS:
+            if self.truncated:
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValidationError:
+                    raise ValueError("truncated specialist results require the bounded fallback envelope")
+                self.result = fallback.model_dump(mode="json")
+                return self
+            try:
+                result = SpecialistResult.model_validate(self.result)
+            except ValueError as exc:
+                raise ValueError("specialist result is invalid") from exc
+            if result.capability != self.tool_name:
+                raise ValueError("specialist result capability does not match tool_name")
+            self.result = result
+        elif isinstance(self.result, SpecialistResult):
+            raise ValueError("specialist result requires a specialist tool_name")
+        return self
 
 
 class CopilotClarification(StrictRequestModel):

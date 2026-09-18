@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "capability": "similar_lots",
+  "outcome": "partial",
+  "items": [
+    {
+      "kind": "similar_lot",
+      "source_url": "https://www.numisbids.com/n.php?p=lot&sid=9000&lot=1",
+      "canonical_source_id": "https://www.numisbids.com/n.php?p=lot&sid=9000&lot=1",
+      "provider": "numisbids",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "confidence": "high",
+      "verification_state": "verified",
+      "title": "Domitian denarius with Minerva advancing right",
+      "description": null,
+      "similarity_score": 0.92,
+      "matched_attributes": [
+        "ruler",
+        "denomination",
+        "material",
+        "reverse type"
+      ],
+      "material_differences": [
+        "Different officina mark"
+      ],
+      "provenance": [
+        {
+          "field": "title",
+          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=9000&lot=1",
+          "observed_at": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verification_state": "verified"
+        }
+      ]
+    }
+  ],
+  "trend": null,
+  "provider_attempts": [
+    {
+      "provider": "numisbids",
+      "status": "success",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 1,
+      "warning_code": null
+    },
+    {
+      "provider": "similar_lots_secondary",
+      "status": "timeout",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 0,
+      "warning_code": "provider_timeout"
+    }
+  ],
+  "warnings": [
+    "One configured source timed out; verified results are incomplete."
+  ],
+  "truncation": {
+    "truncated": false,
+    "original_bytes": 1024,
+    "persisted_bytes": 1024,
+    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "omitted_items": 0
+  }
+}

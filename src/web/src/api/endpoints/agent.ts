@@ -6,9 +6,12 @@ import type {
   AgentChatMessage,
   ApplyDeepIdentificationProposalInput,
   CoinCopilotCapability,
+  CoinCopilotEvidenceKind,
   CoinCopilotEvent,
   CoinCopilotRunEnvelope,
   CoinCopilotRunStatus,
+  CoinCopilotSpecialistCapability,
+  CoinCopilotSpecialistResult,
   CoinCopilotStreamEnd,
   CoinCopilotStreamTruncated,
   CoinCopilotThreadEnvelope,
@@ -292,6 +295,105 @@ function isNonNegativeInteger(value: unknown) {
   return Number.isSafeInteger(value) && Number(value) >= 0
 }
 
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return Object.keys(value).every(key => keys.includes(key))
+}
+
+const SPECIALIST_KINDS: Record<CoinCopilotSpecialistCapability, CoinCopilotEvidenceKind> = {
+  market_search: 'dealer_listing',
+  auction_search: 'auction_lot',
+  price_trends: 'sale_observation',
+  similar_lots: 'similar_lot',
+}
+
+function isSafeSpecialistUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2048) return false
+  try {
+    const url = new URL(value)
+    const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    const unsafeIPv4 = /^(?:0|10|127|169\.254|192\.168)\./.test(host) ||
+      /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      host !== 'localhost' && host !== '::1' && !host.endsWith('.localhost') &&
+      !host.endsWith('.local') && !unsafeIPv4
+  } catch {
+    return false
+  }
+}
+
+function isBoundedStrings(value: unknown, maximum: number, itemMaximum = 500): value is string[] {
+  return Array.isArray(value) && value.length <= maximum &&
+    value.every(item => typeof item === 'string' && item.length <= itemMaximum)
+}
+
+function isSpecialistEvidence(value: unknown, expectedKind: CoinCopilotEvidenceKind): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    'kind', 'title', 'sourceUrl', 'observedAt', 'confidence', 'verificationState',
+    'facts', 'matchedAttributes', 'materialDifferences',
+  ])) return false
+  if (
+    value.kind !== expectedKind ||
+    typeof value.title !== 'string' ||
+    value.title.length === 0 ||
+    value.title.length > 300 ||
+    !isSafeSpecialistUrl(value.sourceUrl) ||
+    typeof value.observedAt !== 'string' ||
+    !['high', 'medium', 'low'].includes(String(value.confidence)) ||
+    !['verified', 'partial'].includes(String(value.verificationState)) ||
+    !isBoundedStrings(value.facts, 10) ||
+    !isBoundedStrings(value.matchedAttributes, 20, 200) ||
+    !isBoundedStrings(value.materialDifferences, 20, 200)
+  ) return false
+  return expectedKind !== 'similar_lot' || value.matchedAttributes.length > 0
+}
+
+function isNullableFiniteNumber(value: unknown): boolean {
+  return value === null || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isSpecialistTrend(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    'state', 'sampleSize', 'dateFrom', 'dateTo', 'currency', 'priceBasis',
+    'low', 'median', 'high', 'confidence', 'limitations', 'supportingSourceIds',
+  ])) return false
+  return ['rising', 'stable', 'declining', 'unknown'].includes(String(value.state)) &&
+    isNonNegativeInteger(value.sampleSize) &&
+    (value.dateFrom === null || typeof value.dateFrom === 'string') &&
+    (value.dateTo === null || typeof value.dateTo === 'string') &&
+    (value.currency === null || typeof value.currency === 'string') &&
+    [null, 'hammer', 'realized_including_premium'].includes(value.priceBasis as null | string) &&
+    isNullableFiniteNumber(value.low) &&
+    isNullableFiniteNumber(value.median) &&
+    isNullableFiniteNumber(value.high) &&
+    ['high', 'medium', 'low'].includes(String(value.confidence)) &&
+    isBoundedStrings(value.limitations, 10) &&
+    isBoundedStrings(value.supportingSourceIds, 10, 2048) &&
+    value.supportingSourceIds.every(isSafeSpecialistUrl)
+}
+
+function isSpecialistResult(value: unknown, toolName: string): value is CoinCopilotSpecialistResult {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    'capability', 'outcome', 'items', 'trend', 'warnings', 'truncation',
+  ])) return false
+  const capability = value.capability as CoinCopilotSpecialistCapability
+  if (!(capability in SPECIALIST_KINDS) || capability !== toolName) return false
+  if (!['complete', 'partial', 'no_match', 'unavailable'].includes(String(value.outcome)) ||
+      !Array.isArray(value.items) || value.items.length > 10 ||
+      !value.items.every(item => isSpecialistEvidence(item, SPECIALIST_KINDS[capability])) ||
+      !isBoundedStrings(value.warnings, 10)) return false
+  if (['complete', 'partial'].includes(String(value.outcome)) !== (value.items.length > 0)) return false
+  if (capability === 'price_trends' ? !isSpecialistTrend(value.trend) : value.trend !== null) return false
+  if (!isRecord(value.truncation) || !hasOnlyKeys(value.truncation, [
+    'truncated', 'originalBytes', 'persistedBytes', 'digest', 'omittedItems',
+  ])) return false
+  return typeof value.truncation.truncated === 'boolean' &&
+    isNonNegativeInteger(value.truncation.originalBytes) &&
+    isNonNegativeInteger(value.truncation.persistedBytes) &&
+    typeof value.truncation.digest === 'string' &&
+    /^[a-f0-9]{64}$/.test(value.truncation.digest) &&
+    isNonNegativeInteger(value.truncation.omittedItems)
+}
+
 function isCoinCopilotUsage(value: unknown) {
   if (!isRecord(value)) return false
   return isNonNegativeInteger(value.iterations) && isNonNegativeInteger(value.toolCalls) &&
@@ -329,7 +431,9 @@ function isSafeCopilotEvent(value: unknown, eventType: string, eventId?: string)
     case 'tool_completed':
       return typeof payload.toolCallId === 'string' && typeof payload.toolName === 'string' &&
         typeof payload.stepId === 'string' && ['succeeded', 'failed', 'cancelled', 'rejected'].includes(String(payload.status)) &&
-        Number.isFinite(payload.durationMs) && typeof payload.resultSummary === 'string' && typeof payload.truncated === 'boolean'
+        Number.isFinite(payload.durationMs) && typeof payload.resultSummary === 'string' && typeof payload.truncated === 'boolean' &&
+        (!Object.hasOwn(payload, 'specialistResult') ||
+          isSpecialistResult(payload.specialistResult, payload.toolName))
     case 'clarification_required':
       return typeof payload.question === 'string' && ['text', 'single_choice', 'boolean'].includes(String(payload.inputType)) &&
         Array.isArray(payload.choices) && payload.choices.every(choice => typeof choice === 'string') &&

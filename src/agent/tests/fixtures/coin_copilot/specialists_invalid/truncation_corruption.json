@@ -1,0 +1,9 @@
+{
+  "base_fixture": "market_search_complete.json",
+  "changes": [
+    {
+      "path": ["truncation", "persisted_bytes"],
+      "value": 2048
+    }
+  ]
+}

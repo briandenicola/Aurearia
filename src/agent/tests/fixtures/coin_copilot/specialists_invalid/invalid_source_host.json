@@ -1,0 +1,6 @@
+{
+  "base_fixture": "market_search_complete.json",
+  "replacements": {
+    "https://www.cngcoins.com": "https://attacker.example"
+  }
+}

@@ -144,3 +144,65 @@ git diff --exit-code -- src/api/docs/docs.go src/api/docs/swagger.json src/api/d
 Expected result: all gates pass, generated OpenAPI files remain synchronized,
 the legacy router remains unchanged, and no write/deep-ID capability is
 reachable from Coin Copilot.
+
+## Pre-change compatibility baseline
+
+Recorded before Feature 361 runtime behavior changed:
+
+```powershell
+# src/api
+go test ./handlers ./services ./integration -run 'CoinCopilot|Copilot' -count=1
+```
+
+Result: **PASS** for handlers, services, and integration.
+
+```powershell
+# src/web
+node .\node_modules\vitest\vitest.mjs run `
+  src\composables\__tests__\useCoinCopilot.test.ts `
+  src\components\__tests__\CoinSearchChat.copilot.test.ts
+```
+
+Result: **PASS**, `2 passed` files and `19 passed` tests. These Feature 359
+fixtures remain the compatibility baseline for execution, replay,
+cancellation, fallback, and existing event behavior.
+
+## Foundational contract evidence
+
+The Python contract tests were added before `specialist_contracts.py` and
+initially failed during collection with
+`ModuleNotFoundError: app.teams.specialist_contracts`. After implementation:
+
+```powershell
+# src/agent
+uv run pytest tests/test_coin_copilot_contract.py -q
+uv run ruff check app/teams/specialist_contracts.py tests/test_coin_copilot_contract.py
+```
+
+Result: **PASS**, `105 passed`; Ruff reported `All checks passed!`. The fixture
+catalog contains 24 canonical and 28 adversarial JSON documents.
+
+The Go auction/similar-lot tests initially failed to compile because the
+specialist DTOs and validator did not exist. After implementation:
+
+```powershell
+# src/api
+go test ./services -run 'CoinCopilot|CopilotSpecialist' -count=1
+go vet ./services
+```
+
+Result: **PASS**. Go strictly decoded the same four canonical input/result
+fixtures and rejected the selected unsafe URL, missing-provenance,
+capability/provider mismatch, and hidden-reasoning fixtures.
+
+```powershell
+# src/web
+node .\node_modules\vitest\vitest.mjs run `
+  src\composables\__tests__\useCoinCopilot.test.ts
+node .\node_modules\vue-tsc\bin\vue-tsc.js --build
+node .\node_modules\eslint\bin\eslint.js `
+  src\types\agent.ts src\api\endpoints\agent.ts `
+  src\composables\__tests__\useCoinCopilot.test.ts --max-warnings 0
+```
+
+Result: **PASS**, `16 passed`; strict TypeScript and ESLint exited `0`.

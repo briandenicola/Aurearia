@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "capability": "similar_lots",
+  "outcome": "unavailable",
+  "items": [],
+  "trend": null,
+  "provider_attempts": [
+    {
+      "provider": "numisbids",
+      "status": "unavailable",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 0,
+      "warning_code": "provider_unavailable"
+    }
+  ],
+  "warnings": [
+    "The configured source was unavailable."
+  ],
+  "truncation": {
+    "truncated": false,
+    "original_bytes": 1024,
+    "persisted_bytes": 1024,
+    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "omitted_items": 0
+  }
+}

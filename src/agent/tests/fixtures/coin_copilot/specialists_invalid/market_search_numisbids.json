@@ -1,0 +1,7 @@
+{
+  "base_fixture": "market_search_complete.json",
+  "replacements": {
+    "https://www.cngcoins.com/Coin.aspx?CoinID=400001": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
+    "cng_dealer_search": "numisbids"
+  }
+}

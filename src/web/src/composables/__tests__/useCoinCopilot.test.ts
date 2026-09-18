@@ -395,4 +395,60 @@ describe('Coin Copilot SSE parser', () => {
       usage: { inputTokens: 12, outputTokens: 4 },
     })
   })
+
+  it('accepts strict specialist projections and rejects mismatched or extended results', () => {
+    const events: CoinCopilotEvent[] = []
+    const parser = createCoinCopilotSSEParser({ onEvent: value => { events.push(value) } })
+    const specialistResult = {
+      capability: 'market_search',
+      outcome: 'complete',
+      items: [{
+        kind: 'dealer_listing',
+        title: 'Domitian denarius',
+        sourceUrl: 'https://www.vcoins.com/en/stores/example/1/product/1/1',
+        observedAt: '2026-09-18T12:00:00Z',
+        confidence: 'high',
+        verificationState: 'verified',
+        facts: ['USD 250', 'Available'],
+        matchedAttributes: [],
+        materialDifferences: [],
+      }],
+      trend: null,
+      warnings: [],
+      truncation: {
+        truncated: false,
+        originalBytes: 500,
+        persistedBytes: 500,
+        digest: 'a'.repeat(64),
+        omittedItems: 0,
+      },
+    }
+    const frame = (seq: number, result: unknown) =>
+      `id: ${seq}\nevent: tool_completed\ndata: ${JSON.stringify({
+        seq,
+        threadId: 'cct_1',
+        runId: 'ccr_1',
+        executionId: 'cce_1',
+        type: 'tool_completed',
+        ts: '2026-09-18T12:00:00Z',
+        payload: {
+          toolCallId: `call_${seq}`,
+          toolName: 'market_search',
+          stepId: `step_${seq}`,
+          status: 'succeeded',
+          durationMs: 10,
+          resultSummary: 'One verified listing.',
+          truncated: false,
+          specialistResult: result,
+        },
+      })}\n\n`
+
+    parser.push(frame(1, specialistResult))
+    parser.push(frame(2, { ...specialistResult, capability: 'auction_search' }))
+    parser.push(frame(3, { ...specialistResult, hiddenReasoning: 'not allowed' }))
+    parser.finish()
+
+    expect(events).toHaveLength(1)
+    expect(events[0]?.payload).toMatchObject({ specialistResult })
+  })
 })

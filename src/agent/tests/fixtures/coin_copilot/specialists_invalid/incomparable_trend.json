@@ -1,0 +1,17 @@
+{
+  "base_fixture": "price_trends_complete.json",
+  "changes": [
+    {
+      "path": ["items", 1, "currency"],
+      "value": "EUR"
+    },
+    {
+      "path": ["items", 2, "price_basis"],
+      "value": "realized_including_premium"
+    },
+    {
+      "path": ["trend", "state"],
+      "value": "unknown"
+    }
+  ]
+}

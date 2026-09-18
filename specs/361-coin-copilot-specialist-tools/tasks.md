@@ -14,9 +14,9 @@ description: "Dependency-ordered implementation tasks for Feature 361 Coin Copil
 
 **Purpose**: Establish cross-service fixture inputs and a reproducible baseline without changing runtime behavior.
 
-- [ ] T001 Record the pre-change targeted test baseline and the exact Feature 359 compatibility fixtures reused by Feature 361 in `C:\Users\brian.denicolafamily\Code\AncientCoins\specs\361-coin-copilot-specialist-tools\quickstart.md`
-- [ ] T002 [P] Add canonical valid input/result/event JSON fixtures for all four capabilities and complete/partial/no-match/unavailable outcomes under `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\fixtures\coin_copilot\specialists\`
-- [ ] T003 [P] Add invalid and adversarial fixtures for unknown fields, invalid enums, missing provenance, unsafe URLs, duplicate/conflicting identities, oversized content, prompt injection, hidden reasoning, and completed-call replay under `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\fixtures\coin_copilot\specialists_invalid\`
+- [X] T001 Record the pre-change targeted test baseline and the exact Feature 359 compatibility fixtures reused by Feature 361 in `C:\Users\brian.denicolafamily\Code\AncientCoins\specs\361-coin-copilot-specialist-tools\quickstart.md`
+- [X] T002 [P] Add canonical valid input/result/event JSON fixtures for all four capabilities and complete/partial/no-match/unavailable outcomes under `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\fixtures\coin_copilot\specialists\`
+- [X] T003 [P] Add invalid and adversarial fixtures for unknown fields, invalid enums, missing provenance, unsafe URLs, duplicate/conflicting identities, oversized content, prompt injection, hidden reasoning, and completed-call replay under `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\fixtures\coin_copilot\specialists_invalid\`
 
 **Checkpoint**: Shared fixtures express the complete contract and existing Feature 359 tests still pass unchanged.
 
@@ -28,17 +28,17 @@ description: "Dependency-ordered implementation tasks for Feature 361 Coin Copil
 
 **CRITICAL**: T004-T007 are the exactly four contract-first tool test tasks. Run them and confirm failures are caused by missing Feature 361 support before T008 begins.
 
-- [ ] T004 [P] Add failing strict contract tests for `market_search` input, dealer-listing output, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py`
-- [ ] T005 [P] Add failing strict contract tests for `auction_search` input, auction-lot output, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
-- [ ] T006 Add failing strict contract tests for `price_trends` input, sale-observation output, typed trend summary, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py`
-- [ ] T007 Add failing strict contract tests for `similar_lots` input, ranked similar-lot output, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
-- [ ] T008 Implement strict Pydantic specialist query, provider-attempt, field-provenance, evidence-item, trend, truncation, and result-envelope models with all structural/string/count invariants in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\specialist_contracts.py`
-- [ ] T009 [P] Extend checkpoint and frame Pydantic models to discriminate and reject mismatched specialist results while preserving existing frames in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\models\requests.py` and `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\models\responses.py`
-- [ ] T010 Generalize the bounded Python dispatcher for local specialist runners without granting callback-route authority in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\tools\copilot_collection_tools.py`
-- [ ] T011 Implement strict Go specialist DTOs, capability/item matching, outcome invariants, provenance validation, and public projection types in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract.go`
-- [ ] T012 Extend the execution allowlist to exactly ten tools while leaving `copilotCallbackTools` collection-only in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract.go`
-- [ ] T013 [P] Extend TypeScript discriminated unions and strict runtime guards for optional `tool_completed.payload.specialistResult` in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\types\agent.ts`
-- [ ] T014 Run the four contract-first tests against T008-T013 and reconcile shared fixture semantics in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py` and `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
+- [X] T004 [P] Add failing strict contract tests for `market_search` input, dealer-listing output, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py`
+- [X] T005 [P] Add failing strict contract tests for `auction_search` input, auction-lot output, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
+- [X] T006 Add failing strict contract tests for `price_trends` input, sale-observation output, typed trend summary, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py`
+- [X] T007 Add failing strict contract tests for `similar_lots` input, ranked similar-lot output, provenance, outcomes, and bounds in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
+- [X] T008 Implement strict Pydantic specialist query, provider-attempt, field-provenance, evidence-item, trend, truncation, and result-envelope models with all structural/string/count invariants in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\specialist_contracts.py`
+- [X] T009 [P] Extend checkpoint and frame Pydantic models to discriminate and reject mismatched specialist results while preserving existing frames in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\models\requests.py` and `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\models\responses.py`
+- [X] T010 Generalize the bounded Python dispatcher for local specialist runners without granting callback-route authority in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\tools\copilot_collection_tools.py`
+- [X] T011 Implement strict Go specialist DTOs, capability/item matching, outcome invariants, provenance validation, and public projection types in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract.go`
+- [X] T012 Extend the execution allowlist to exactly ten tools while leaving `copilotCallbackTools` collection-only in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract.go`
+- [X] T013 [P] Extend TypeScript discriminated unions and strict runtime guards for optional `tool_completed.payload.specialistResult` in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\types\agent.ts`
+- [X] T014 Run the four contract-first tests against T008-T013 and reconcile shared fixture semantics in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py` and `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
 
 **Checkpoint**: Python and Go accept the same valid fixtures, reject the same invalid fixtures, and TypeScript has a strict additive event projection.
 

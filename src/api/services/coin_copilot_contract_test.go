@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -63,7 +64,7 @@ func TestCoinCopilotSharedContractFixtures(t *testing.T) {
 		t.Fatalf("valid execute request rejected: %v", err)
 	}
 	if request.SchemaVersion != CoinCopilotSchemaVersion || request.RunID != "ccr_fixture" ||
-		request.ExecutionID != "cce_fixture" || len(request.AllowedTools) != len(CoinCopilotAllowedTools) {
+		request.ExecutionID != "cce_fixture" || len(request.AllowedTools) != 6 {
 		t.Fatalf("unexpected execute fixture: %#v", request)
 	}
 
@@ -192,5 +193,174 @@ func TestCopilotUsageAndLimitsDoNotExposeEstimatedCost(t *testing.T) {
 	}
 	if bytes.Contains(usage, []byte("cost")) || bytes.Contains(limits, []byte("cost")) {
 		t.Fatalf("cost field leaked from contract: usage=%s limits=%s", usage, limits)
+	}
+}
+
+func validSpecialistEvidence(kind string) CopilotSpecialistEvidence {
+	return CopilotSpecialistEvidence{
+		Kind:              kind,
+		SourceURL:         "https://www.numisbids.com/sale/10489/lot/1",
+		CanonicalSourceID: "https://www.numisbids.com/sale/10489/lot/1",
+		Provider:          "numisbids",
+		ObservedAt:        "2026-09-18T12:00:00Z",
+		Confidence:        "high",
+		VerificationState: "verified",
+		Title:             "Domitian denarius",
+		Provenance: []CopilotFieldProvenance{{
+			Field:             "title",
+			SourceURL:         "https://www.numisbids.com/sale/10489/lot/1",
+			ObservedAt:        "2026-09-18T12:00:00Z",
+			Confidence:        "high",
+			VerificationState: "verified",
+		}},
+	}
+}
+
+func specialistString(value string) *string { return &value }
+
+func TestValidateCopilotAuctionSearchContract(t *testing.T) {
+	result := CopilotSpecialistResult{
+		SchemaVersion: 1,
+		Capability:    "auction_search",
+		Outcome:       "complete",
+		Items:         []CopilotSpecialistEvidence{validSpecialistEvidence("auction_lot")},
+		ProviderAttempts: []CopilotProviderAttempt{{
+			Provider: "numisbids", Status: "success", ObservedAt: "2026-09-18T12:00:00Z", AcceptedItems: 1,
+		}},
+		Warnings: []string{},
+		Truncation: CopilotSpecialistTruncation{
+			Digest: strings.Repeat("a", 64),
+		},
+	}
+	if err := ValidateCopilotSpecialistResult(result, "auction_search"); err != nil {
+		t.Fatalf("valid auction result rejected: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*CopilotSpecialistResult){
+		"capability mismatch": func(value *CopilotSpecialistResult) { value.Capability = "market_search" },
+		"item mismatch":       func(value *CopilotSpecialistResult) { value.Items[0].Kind = "dealer_listing" },
+		"unsafe URL":          func(value *CopilotSpecialistResult) { value.Items[0].SourceURL = "http://127.0.0.1/lot/1" },
+		"missing provenance":  func(value *CopilotSpecialistResult) { value.Items[0].Provenance = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := result
+			invalid.Items = append([]CopilotSpecialistEvidence(nil), result.Items...)
+			mutate(&invalid)
+			if !errors.Is(ValidateCopilotSpecialistResult(invalid, "auction_search"), ErrInvalidCopilotFrame) {
+				t.Fatalf("%s was accepted", name)
+			}
+		})
+	}
+}
+
+func TestValidateCopilotSimilarLotsContract(t *testing.T) {
+	item := validSpecialistEvidence("similar_lot")
+	item.SimilarityScore = 0.9
+	item.MatchedAttributes = []string{"ruler", "denomination"}
+	item.MaterialDifferences = []string{"reverse type"}
+	result := CopilotSpecialistResult{
+		SchemaVersion: 1,
+		Capability:    "similar_lots",
+		Outcome:       "partial",
+		Items:         []CopilotSpecialistEvidence{item},
+		ProviderAttempts: []CopilotProviderAttempt{
+			{Provider: "numisbids", Status: "success", ObservedAt: "2026-09-18T12:00:00Z", AcceptedItems: 1},
+			{Provider: "search", Status: "timeout", ObservedAt: "2026-09-18T12:00:01Z", WarningCode: specialistString("provider_timeout")},
+		},
+		Warnings: []string{"One source timed out."},
+		Truncation: CopilotSpecialistTruncation{
+			Digest: strings.Repeat("b", 64),
+		},
+	}
+
+	if err := ValidateCopilotSpecialistResult(result, "similar_lots"); err != nil {
+		t.Fatalf("valid similar-lot result rejected: %v", err)
+	}
+	result.Items[0].MatchedAttributes = nil
+	if !errors.Is(ValidateCopilotSpecialistResult(result, "similar_lots"), ErrInvalidCopilotFrame) {
+		t.Fatal("similar lot without matched attributes was accepted")
+	}
+}
+
+func TestCoinCopilotSpecialistAllowlistIsExactAndLocal(t *testing.T) {
+	want := []string{
+		"search_my_collection", "get_coin", "collection_summary", "top_coins_by_value",
+		"portfolio_review", "gap_analysis", "market_search", "auction_search",
+		"price_trends", "similar_lots",
+	}
+	if !reflect.DeepEqual(CoinCopilotAllowedTools, want) {
+		t.Fatalf("allowed tools=%v want=%v", CoinCopilotAllowedTools, want)
+	}
+	for _, tool := range want[6:] {
+		if IsCoinCopilotCallbackTool(tool) {
+			t.Fatalf("Python-local specialist %q gained callback authority", tool)
+		}
+	}
+}
+
+func TestValidateCopilotSpecialistQueryBounds(t *testing.T) {
+	if err := ValidateCopilotSpecialistQuery(CopilotSpecialistQuery{Query: "Domitian denarius"}); err != nil {
+		t.Fatalf("default-limit query rejected: %v", err)
+	}
+	for _, query := range []CopilotSpecialistQuery{
+		{},
+		{Query: strings.Repeat("x", 501)},
+		{Query: "coin", Limit: -1},
+		{Query: "coin", Limit: 11},
+	} {
+		if !errors.Is(ValidateCopilotSpecialistQuery(query), ErrInvalidCopilotFrame) {
+			t.Fatalf("invalid query accepted: %#v", query)
+		}
+	}
+}
+
+func TestCoinCopilotSharedSpecialistFixtures(t *testing.T) {
+	for _, capability := range []string{"market_search", "auction_search", "price_trends", "similar_lots"} {
+		t.Run(capability, func(t *testing.T) {
+			query, err := loadCoinCopilotFixture[CopilotSpecialistQuery](
+				t,
+				filepath.Join("specialists", capability+"_input.json"),
+			)
+			if err != nil {
+				t.Fatalf("strict query decode failed: %v", err)
+			}
+			if err := ValidateCopilotSpecialistQuery(query); err != nil {
+				t.Fatalf("query validation failed: %v", err)
+			}
+			result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+				t,
+				filepath.Join("specialists", capability+"_complete.json"),
+			)
+			if err != nil {
+				t.Fatalf("strict result decode failed: %v", err)
+			}
+			if err := ValidateCopilotSpecialistResult(result, capability); err != nil {
+				t.Fatalf("result validation failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestCoinCopilotSharedSpecialistFixturesRejectInvalidEvidence(t *testing.T) {
+	for _, name := range []string{
+		"unsafe_url_credentials.json",
+		"unsafe_url_http.json",
+		"unsafe_url_private.json",
+		"missing_provenance.json",
+		"market_search_numisbids.json",
+		"hidden_reasoning.json",
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+				t,
+				filepath.Join("specialists_invalid", name),
+			)
+			if err == nil {
+				err = ValidateCopilotSpecialistResult(result, result.Capability)
+			}
+			if err == nil {
+				t.Fatal("invalid specialist fixture was accepted")
+			}
+		})
 	}
 }

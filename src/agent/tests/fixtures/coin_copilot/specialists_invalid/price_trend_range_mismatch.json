@@ -1,0 +1,9 @@
+{
+  "base_fixture": "price_trends_complete.json",
+  "changes": [
+    {
+      "path": ["trend", "low"],
+      "value": 200
+    }
+  ]
+}

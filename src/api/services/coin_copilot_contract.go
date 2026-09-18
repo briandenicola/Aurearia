@@ -6,8 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 )
@@ -38,6 +42,10 @@ var CoinCopilotAllowedTools = []string{
 	"top_coins_by_value",
 	"portfolio_review",
 	"gap_analysis",
+	"market_search",
+	"auction_search",
+	"price_trends",
+	"similar_lots",
 }
 
 var copilotCallbackTools = map[string]bool{
@@ -90,6 +98,138 @@ type CopilotUsage struct {
 	ToolCalls    int   `json:"tool_calls"`
 	InputTokens  int64 `json:"input_tokens"`
 	OutputTokens int64 `json:"output_tokens"`
+}
+
+type CopilotSpecialistQuery struct {
+	Query string `json:"query"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+type CopilotFieldProvenance struct {
+	Field             string `json:"field"`
+	SourceURL         string `json:"source_url"`
+	ObservedAt        string `json:"observed_at"`
+	Confidence        string `json:"confidence"`
+	VerificationState string `json:"verification_state"`
+}
+
+type CopilotSpecialistEvidence struct {
+	Kind                string                   `json:"kind"`
+	SourceURL           string                   `json:"source_url"`
+	CanonicalSourceID   string                   `json:"canonical_source_id"`
+	Provider            string                   `json:"provider"`
+	ObservedAt          string                   `json:"observed_at"`
+	Confidence          string                   `json:"confidence"`
+	VerificationState   string                   `json:"verification_state"`
+	Title               string                   `json:"title"`
+	Description         *string                  `json:"description"`
+	DealerName          *string                  `json:"dealer_name,omitempty"`
+	ListedPrice         *float64                 `json:"listed_price,omitempty"`
+	Currency            *string                  `json:"currency,omitempty"`
+	Availability        *string                  `json:"availability,omitempty"`
+	AuctionHouse        *string                  `json:"auction_house,omitempty"`
+	SaleName            *string                  `json:"sale_name,omitempty"`
+	LotNumber           *string                  `json:"lot_number,omitempty"`
+	SaleDate            *string                  `json:"sale_date,omitempty"`
+	Estimate            *float64                 `json:"estimate,omitempty"`
+	CurrentBid          *float64                 `json:"current_bid,omitempty"`
+	LotStatus           *string                  `json:"lot_status,omitempty"`
+	Amount              *float64                 `json:"amount,omitempty"`
+	PriceBasis          *string                  `json:"price_basis,omitempty"`
+	Ruler               *string                  `json:"ruler,omitempty"`
+	Denomination        *string                  `json:"denomination,omitempty"`
+	Era                 *string                  `json:"era,omitempty"`
+	Material            *string                  `json:"material,omitempty"`
+	SimilarityScore     float64                  `json:"similarity_score,omitempty"`
+	MatchedAttributes   []string                 `json:"matched_attributes,omitempty"`
+	MaterialDifferences []string                 `json:"material_differences,omitempty"`
+	Provenance          []CopilotFieldProvenance `json:"provenance"`
+}
+
+type CopilotPriceTrend struct {
+	State               string   `json:"state"`
+	SampleSize          int      `json:"sample_size"`
+	DateFrom            *string  `json:"date_from"`
+	DateTo              *string  `json:"date_to"`
+	Currency            *string  `json:"currency"`
+	PriceBasis          *string  `json:"price_basis"`
+	Low                 *float64 `json:"low"`
+	Median              *float64 `json:"median"`
+	High                *float64 `json:"high"`
+	Confidence          string   `json:"confidence"`
+	Limitations         []string `json:"limitations"`
+	SupportingSourceIDs []string `json:"supporting_source_ids"`
+}
+
+type CopilotProviderAttempt struct {
+	Provider      string  `json:"provider"`
+	Status        string  `json:"status"`
+	ObservedAt    string  `json:"observed_at"`
+	AcceptedItems int     `json:"accepted_items"`
+	WarningCode   *string `json:"warning_code"`
+}
+
+type CopilotSpecialistTruncation struct {
+	Truncated      bool   `json:"truncated"`
+	OriginalBytes  int    `json:"original_bytes"`
+	PersistedBytes int    `json:"persisted_bytes"`
+	Digest         string `json:"digest"`
+	OmittedItems   int    `json:"omitted_items"`
+}
+
+type CopilotSpecialistResult struct {
+	SchemaVersion    int                         `json:"schema_version"`
+	Capability       string                      `json:"capability"`
+	Outcome          string                      `json:"outcome"`
+	Items            []CopilotSpecialistEvidence `json:"items"`
+	Trend            *CopilotPriceTrend          `json:"trend"`
+	ProviderAttempts []CopilotProviderAttempt    `json:"provider_attempts"`
+	Warnings         []string                    `json:"warnings"`
+	Truncation       CopilotSpecialistTruncation `json:"truncation"`
+}
+
+type CopilotSpecialistPublicEvidence struct {
+	Kind                string   `json:"kind"`
+	Title               string   `json:"title"`
+	SourceURL           string   `json:"sourceUrl"`
+	ObservedAt          string   `json:"observedAt"`
+	Confidence          string   `json:"confidence"`
+	VerificationState   string   `json:"verificationState"`
+	Facts               []string `json:"facts"`
+	MatchedAttributes   []string `json:"matchedAttributes"`
+	MaterialDifferences []string `json:"materialDifferences"`
+}
+
+type CopilotSpecialistPublicTrend struct {
+	State               string   `json:"state"`
+	SampleSize          int      `json:"sampleSize"`
+	DateFrom            *string  `json:"dateFrom"`
+	DateTo              *string  `json:"dateTo"`
+	Currency            *string  `json:"currency"`
+	PriceBasis          *string  `json:"priceBasis"`
+	Low                 *float64 `json:"low"`
+	Median              *float64 `json:"median"`
+	High                *float64 `json:"high"`
+	Confidence          string   `json:"confidence"`
+	Limitations         []string `json:"limitations"`
+	SupportingSourceIDs []string `json:"supportingSourceIds"`
+}
+
+type CopilotSpecialistPublicTruncation struct {
+	Truncated      bool   `json:"truncated"`
+	OriginalBytes  int    `json:"originalBytes"`
+	PersistedBytes int    `json:"persistedBytes"`
+	Digest         string `json:"digest"`
+	OmittedItems   int    `json:"omittedItems"`
+}
+
+type CopilotSpecialistPublicResult struct {
+	Capability string                            `json:"capability"`
+	Outcome    string                            `json:"outcome"`
+	Items      []CopilotSpecialistPublicEvidence `json:"items"`
+	Trend      *CopilotSpecialistPublicTrend     `json:"trend"`
+	Warnings   []string                          `json:"warnings"`
+	Truncation CopilotSpecialistPublicTruncation `json:"truncation"`
 }
 
 type CopilotCheckpointState struct {
@@ -236,6 +376,196 @@ func SanitizeCopilotText(value string, max int) string {
 func CopilotCheckpointDigest(stateJSON string) string {
 	sum := sha256.Sum256([]byte(stateJSON))
 	return hex.EncodeToString(sum[:])
+}
+
+func ValidateCopilotSpecialistQuery(query CopilotSpecialistQuery) error {
+	if utf8.RuneCountInString(query.Query) < 1 || utf8.RuneCountInString(query.Query) > 500 ||
+		query.Limit < 0 || query.Limit > 10 {
+		return ErrInvalidCopilotFrame
+	}
+	return nil
+}
+
+func validSpecialistTimestamp(value string) bool {
+	parsed, err := time.Parse(time.RFC3339, value)
+	return err == nil && strings.HasSuffix(value, "Z") && parsed.Location() == time.UTC
+}
+
+func validSpecialistURL(value string) bool {
+	if len(value) == 0 || len(value) > 2048 {
+		return false
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+		return false
+	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") ||
+		strings.HasSuffix(host, ".local") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsPrivate() {
+		return false
+	}
+	return true
+}
+
+func validSpecialistConfidence(value string) bool {
+	return value == "high" || value == "medium" || value == "low"
+}
+
+func validateBoundedSpecialistStrings(values []string, maximum, itemMaximum int) bool {
+	if len(values) > maximum {
+		return false
+	}
+	for _, value := range values {
+		if utf8.RuneCountInString(value) > itemMaximum {
+			return false
+		}
+	}
+	return true
+}
+
+func validateCopilotSpecialistEvidence(item CopilotSpecialistEvidence, expectedKind string) bool {
+	if item.Kind != expectedKind || !validSpecialistURL(item.SourceURL) ||
+		!validSpecialistURL(item.CanonicalSourceID) ||
+		len(item.Provider) == 0 || len(item.Provider) > 64 ||
+		!validSpecialistTimestamp(item.ObservedAt) ||
+		!validSpecialistConfidence(item.Confidence) ||
+		(item.VerificationState != "verified" && item.VerificationState != "partial") ||
+		utf8.RuneCountInString(item.Title) < 1 || utf8.RuneCountInString(item.Title) > 300 ||
+		len(item.Provenance) < 1 || len(item.Provenance) > 20 {
+		return false
+	}
+	if item.Description != nil && utf8.RuneCountInString(*item.Description) > 500 {
+		return false
+	}
+	seenFields := map[string]bool{}
+	for _, provenance := range item.Provenance {
+		if provenance.Field == "" || seenFields[provenance.Field] ||
+			provenance.SourceURL != item.SourceURL ||
+			!validSpecialistTimestamp(provenance.ObservedAt) ||
+			!validSpecialistConfidence(provenance.Confidence) ||
+			(provenance.VerificationState != "verified" && provenance.VerificationState != "partial") {
+			return false
+		}
+		seenFields[provenance.Field] = true
+	}
+	if expectedKind == "similar_lot" {
+		return item.SimilarityScore >= 0 && item.SimilarityScore <= 1 &&
+			len(item.MatchedAttributes) >= 1 &&
+			validateBoundedSpecialistStrings(item.MatchedAttributes, 20, 200) &&
+			validateBoundedSpecialistStrings(item.MaterialDifferences, 20, 200)
+	}
+	return len(item.MatchedAttributes) == 0 && len(item.MaterialDifferences) == 0
+}
+
+func validateCopilotPriceTrend(trend *CopilotPriceTrend, items []CopilotSpecialistEvidence) bool {
+	if trend == nil || trend.SampleSize < 0 || trend.SampleSize > len(items) ||
+		!validSpecialistConfidence(trend.Confidence) ||
+		!validateBoundedSpecialistStrings(trend.Limitations, 10, 500) ||
+		len(trend.SupportingSourceIDs) > 10 {
+		return false
+	}
+	switch trend.State {
+	case "rising", "stable", "declining":
+		if trend.SampleSize < 3 || trend.DateFrom == nil || trend.DateTo == nil ||
+			trend.Currency == nil || trend.PriceBasis == nil {
+			return false
+		}
+	case "unknown":
+	default:
+		return false
+	}
+	for _, sourceID := range trend.SupportingSourceIDs {
+		if !validSpecialistURL(sourceID) {
+			return false
+		}
+	}
+	return true
+}
+
+func ValidateCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapability string) error {
+	kinds := map[string]string{
+		"market_search":  "dealer_listing",
+		"auction_search": "auction_lot",
+		"price_trends":   "sale_observation",
+		"similar_lots":   "similar_lot",
+	}
+	expectedKind, ok := kinds[result.Capability]
+	if !ok || result.SchemaVersion != 1 || result.Capability != invokedCapability ||
+		len(result.Items) > 10 || len(result.ProviderAttempts) > 10 ||
+		!validateBoundedSpecialistStrings(result.Warnings, 10, 500) {
+		return ErrInvalidCopilotFrame
+	}
+	switch result.Outcome {
+	case "complete":
+		if len(result.Items) == 0 {
+			return ErrInvalidCopilotFrame
+		}
+	case "partial":
+		if len(result.Items) == 0 {
+			return ErrInvalidCopilotFrame
+		}
+	case "no_match", "unavailable":
+		if len(result.Items) != 0 {
+			return ErrInvalidCopilotFrame
+		}
+	default:
+		return ErrInvalidCopilotFrame
+	}
+	hasDegradedAttempt := false
+	for _, attempt := range result.ProviderAttempts {
+		if len(attempt.Provider) == 0 || len(attempt.Provider) > 64 ||
+			!validSpecialistTimestamp(attempt.ObservedAt) ||
+			attempt.AcceptedItems < 0 || attempt.AcceptedItems > 10 {
+			return ErrInvalidCopilotFrame
+		}
+		switch attempt.Status {
+		case "success", "no_match":
+			if attempt.WarningCode != nil {
+				return ErrInvalidCopilotFrame
+			}
+		case "timeout", "failure", "unavailable", "malformed":
+			hasDegradedAttempt = true
+			if attempt.WarningCode == nil || *attempt.WarningCode == "" {
+				return ErrInvalidCopilotFrame
+			}
+		default:
+			return ErrInvalidCopilotFrame
+		}
+	}
+	if (result.Outcome == "partial" || result.Outcome == "unavailable") && !hasDegradedAttempt {
+		return ErrInvalidCopilotFrame
+	}
+	if result.Outcome == "no_match" && hasDegradedAttempt {
+		return ErrInvalidCopilotFrame
+	}
+	for _, item := range result.Items {
+		if !validateCopilotSpecialistEvidence(item, expectedKind) {
+			return ErrInvalidCopilotFrame
+		}
+	}
+	if result.Capability == "price_trends" {
+		if !validateCopilotPriceTrend(result.Trend, result.Items) {
+			return ErrInvalidCopilotFrame
+		}
+	} else if result.Trend != nil {
+		return ErrInvalidCopilotFrame
+	}
+	truncation := result.Truncation
+	if truncation.OriginalBytes < 0 || truncation.PersistedBytes < 0 ||
+		truncation.PersistedBytes > truncation.OriginalBytes || truncation.OmittedItems < 0 ||
+		len(truncation.Digest) != 64 {
+		return ErrInvalidCopilotFrame
+	}
+	if _, err := hex.DecodeString(truncation.Digest); err != nil {
+		return ErrInvalidCopilotFrame
+	}
+	return nil
 }
 
 func ValidateCopilotCheckpoint(state CopilotCheckpointState, run *models.CoinCopilotRun) error {

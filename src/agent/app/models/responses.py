@@ -7,10 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from app.models.hypothesis import CoinHypothesis
 from app.models.requests import (
     COPILOT_ALLOWED_TOOLS,
+    COPILOT_SPECIALIST_TOOLS,
     MAX_COPILOT_CLARIFICATION_CHOICES,
     MAX_COPILOT_CLARIFICATION_LENGTH,
     MAX_COPILOT_PLAN_ITEMS,
     ChatMessage,
+    CopilotBoundedToolResult,
     CopilotClarification,
     CopilotCompletedTool,
     CopilotExecutionID,
@@ -19,6 +21,7 @@ from app.models.requests import (
     CopilotToolCallID,
     CopilotUsage,
 )
+from app.teams.specialist_contracts import SpecialistResult
 
 
 class StrictResponseModel(BaseModel):
@@ -81,7 +84,26 @@ class CopilotToolCompletedPayload(CopilotToolStartedPayload):
     status: Literal["succeeded", "failed", "cancelled", "rejected"]
     duration_ms: int = Field(ge=0)
     result_summary: Annotated[str, StringConstraints(max_length=MAX_COPILOT_RESULT_SUMMARY_LENGTH)]
-    result: dict[str, Any]
+    result: SpecialistResult | dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_specialist_result(self) -> "CopilotToolCompletedPayload":
+        if self.tool_name in COPILOT_SPECIALIST_TOOLS:
+            try:
+                result = SpecialistResult.model_validate(self.result)
+            except ValueError as exc:
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValueError:
+                    raise ValueError("specialist result is invalid") from exc
+                self.result = fallback.model_dump(mode="json")
+                return self
+            if result.capability != self.tool_name:
+                raise ValueError("specialist result capability does not match tool_name")
+            self.result = result
+        elif isinstance(self.result, SpecialistResult):
+            raise ValueError("specialist result requires a specialist tool_name")
+        return self
 
 
 class CopilotClarificationPayload(StrictResponseModel):

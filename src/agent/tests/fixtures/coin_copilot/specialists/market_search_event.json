@@ -1,0 +1,43 @@
+{
+  "seq": 14,
+  "threadId": "cct_fixture",
+  "runId": "ccr_fixture",
+  "executionId": "cce_fixture",
+  "type": "tool_completed",
+  "ts": "2026-09-18T12:00:00Z",
+  "payload": {
+    "toolCallId": "call_market_search",
+    "toolName": "market_search",
+    "stepId": "step-1",
+    "status": "succeeded",
+    "durationMs": 823,
+    "resultSummary": "market_search returned normalized evidence.",
+    "truncated": false,
+    "specialistResult": {
+      "capability": "market_search",
+      "outcome": "complete",
+      "items": [
+        {
+          "kind": "dealer_listing",
+          "title": "Domitian denarius with Minerva reverse",
+          "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=400001",
+          "observedAt": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verificationState": "verified",
+          "facts": [],
+          "matchedAttributes": [],
+          "materialDifferences": []
+        }
+      ],
+      "trend": null,
+      "warnings": [],
+      "truncation": {
+        "truncated": false,
+        "originalBytes": 1024,
+        "persistedBytes": 1024,
+        "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "omittedItems": 0
+      }
+    }
+  }
+}

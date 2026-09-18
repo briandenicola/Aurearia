@@ -176,6 +176,58 @@ export interface CoinCopilotPlanItem {
   status: CoinCopilotPlanStatus
 }
 
+export type CoinCopilotSpecialistCapability =
+  | 'market_search'
+  | 'auction_search'
+  | 'price_trends'
+  | 'similar_lots'
+
+export type CoinCopilotSpecialistOutcome = 'complete' | 'partial' | 'no_match' | 'unavailable'
+export type CoinCopilotEvidenceKind = 'dealer_listing' | 'auction_lot' | 'sale_observation' | 'similar_lot'
+export type CoinCopilotEvidenceConfidence = 'high' | 'medium' | 'low'
+
+export interface CoinCopilotSpecialistEvidence {
+  kind: CoinCopilotEvidenceKind
+  title: string
+  sourceUrl: string
+  observedAt: string
+  confidence: CoinCopilotEvidenceConfidence
+  verificationState: 'verified' | 'partial'
+  facts: string[]
+  matchedAttributes: string[]
+  materialDifferences: string[]
+}
+
+export interface CoinCopilotPriceTrend {
+  state: 'rising' | 'stable' | 'declining' | 'unknown'
+  sampleSize: number
+  dateFrom: string | null
+  dateTo: string | null
+  currency: string | null
+  priceBasis: 'hammer' | 'realized_including_premium' | null
+  low: number | null
+  median: number | null
+  high: number | null
+  confidence: CoinCopilotEvidenceConfidence
+  limitations: string[]
+  supportingSourceIds: string[]
+}
+
+export interface CoinCopilotSpecialistResult {
+  capability: CoinCopilotSpecialistCapability
+  outcome: CoinCopilotSpecialistOutcome
+  items: CoinCopilotSpecialistEvidence[]
+  trend: CoinCopilotPriceTrend | null
+  warnings: string[]
+  truncation: {
+    truncated: boolean
+    originalBytes: number
+    persistedBytes: number
+    digest: string
+    omittedItems: number
+  }
+}
+
 export type CoinCopilotClarificationInputType = 'text' | 'single_choice' | 'boolean'
 
 export interface CoinCopilotClarification {
@@ -276,6 +328,7 @@ export type CoinCopilotToolCompletedEvent = CoinCopilotEventBase<'tool_completed
   durationMs: number
   resultSummary: string
   truncated: boolean
+  specialistResult?: CoinCopilotSpecialistResult
 }>
 
 export type CoinCopilotClarificationRequiredEvent = CoinCopilotEventBase<'clarification_required', CoinCopilotClarification>
