@@ -24,11 +24,13 @@ from app.models.requests import AlertDiscoveryRequest, LLMConfig
 from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
 from app.safety import with_safety
 from app.teams.specialist_contracts import (
+    CancellationCheck,
     ProviderMalformedError,
     ProviderRunner,
     ProviderUnavailableError,
     SpecialistQuery,
     SpecialistResult,
+    raise_if_cancelled,
     run_provider_search,
 )
 from app.tools.numismatic_authority import normalize_candidate_references
@@ -210,17 +212,21 @@ async def _collect_market_candidates(
     *,
     search_prompt: str = "",
     allowed_fetch_hosts: set[str] | None = None,
+    cancellation_check: CancellationCheck | None = None,
 ) -> Sequence[Mapping[str, Any]]:
     combined_search = f"{search_prompt}\n\n{SEARCH_PROMPT}" if search_prompt else SEARCH_PROMPT
     search_results = await _search_dealer_pages(llm_config, query, combined_search)
+    await raise_if_cancelled(cancellation_check)
     fetched = await _fetch_dealer_pages(
         search_results,
         allowed_fetch_hosts,
         specialist_boundary=True,
     )
+    await raise_if_cancelled(cancellation_check)
     if not fetched.strip():
         return []
     _, candidates = await _format_dealer_candidates(llm_config, query, fetched, strict=True)
+    await raise_if_cancelled(cancellation_check)
     return candidates[:limit]
 
 
@@ -230,6 +236,7 @@ async def run_market_search(
     llm_config: LLMConfig | None = None,
     provider_runners: Sequence[ProviderRunner] | None = None,
     observed_at: datetime | None = None,
+    cancellation_check: CancellationCheck | None = None,
 ) -> SpecialistResult:
     """Run the canonical dealer workflow and return a strict specialist result."""
     if provider_runners is None:
@@ -237,7 +244,12 @@ async def run_market_search(
             raise ProviderUnavailableError
 
         async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
-            return await _collect_market_candidates(llm_config, search_query, limit)
+            return await _collect_market_candidates(
+                llm_config,
+                search_query,
+                limit,
+                cancellation_check=cancellation_check,
+            )
 
         provider_runners = [
             ProviderRunner(provider="cng_dealer_search", run=canonical_provider)
@@ -247,6 +259,7 @@ async def run_market_search(
         query=query,
         provider_runners=provider_runners,
         observed_at=observed_at,
+        cancellation_check=cancellation_check,
     )
 
 

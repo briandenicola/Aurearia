@@ -164,6 +164,13 @@ class ProviderMalformedError(RuntimeError):
 
 
 ProviderCallable = Callable[[str, int], Awaitable[Sequence[Mapping[str, Any]]]]
+CancellationCheck = Callable[[], Awaitable[bool]]
+
+
+async def raise_if_cancelled(check: CancellationCheck | None) -> None:
+    """Stop specialist work as soon as the authoritative run is cancelled."""
+    if check is not None and await check():
+        raise asyncio.CancelledError
 
 
 @dataclass(frozen=True)
@@ -1125,6 +1132,7 @@ async def run_provider_search(
     query: SpecialistQuery | Mapping[str, Any],
     provider_runners: Sequence[ProviderRunner],
     observed_at: datetime | None = None,
+    cancellation_check: CancellationCheck | None = None,
 ) -> SpecialistResult:
     """Run fixed provider adapters and aggregate only normalized evidence."""
     parsed_query = query if isinstance(query, SpecialistQuery) else SpecialistQuery.model_validate(query)
@@ -1137,7 +1145,9 @@ async def run_provider_search(
     for provider_runner in provider_runners:
         status: ProviderStatus
         try:
+            await raise_if_cancelled(cancellation_check)
             raw_candidates = await provider_runner.run(parsed_query.query, parsed_query.limit)
+            await raise_if_cancelled(cancellation_check)
             if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
                 raise ProviderMalformedError
             normalized: list[DealerListing | AuctionLot] = []
@@ -1226,6 +1236,7 @@ async def run_price_trend_search(
     query: SpecialistQuery | Mapping[str, Any],
     provider_runners: Sequence[ProviderRunner],
     observed_at: datetime | None = None,
+    cancellation_check: CancellationCheck | None = None,
 ) -> SpecialistResult:
     """Run fixed completed-sale providers and compute a deterministic trend."""
     parsed_query = query if isinstance(query, SpecialistQuery) else SpecialistQuery.model_validate(query)
@@ -1237,7 +1248,9 @@ async def run_price_trend_search(
     for provider_runner in provider_runners:
         status: ProviderStatus
         try:
+            await raise_if_cancelled(cancellation_check)
             raw_candidates = await provider_runner.run(parsed_query.query, parsed_query.limit)
+            await raise_if_cancelled(cancellation_check)
             if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
                 raise ProviderMalformedError
             normalized: list[SaleObservation] = []

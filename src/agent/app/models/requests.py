@@ -246,7 +246,7 @@ class CopilotLimits(StrictRequestModel):
     max_iterations: int = Field(ge=1, le=20)
     max_tool_calls: int = Field(ge=1, le=40)
     max_concurrent_tools: int = Field(ge=1, le=5)
-    hard_timeout_seconds: int = Field(ge=15, le=600)
+    hard_timeout_seconds: int = Field(ge=15, le=150)
     max_persisted_tool_result_bytes: int = Field(ge=4096, le=131072)
 
 

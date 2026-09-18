@@ -20,10 +20,12 @@ from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.safety import with_safety
 from app.teams.specialist_contracts import (
+    CancellationCheck,
     ProviderMalformedError,
     ProviderRunner,
     SpecialistQuery,
     SpecialistResult,
+    raise_if_cancelled,
     run_provider_search,
 )
 from app.tools.numisbids import scrape_numisbids_lot, search_numisbids
@@ -123,9 +125,13 @@ async def _fetch_auction_lots(
 async def _collect_auction_candidates(
     query: str,
     limit: int,
+    cancellation_check: CancellationCheck | None = None,
 ) -> Sequence[Mapping[str, Any]]:
     search_results = await _search_auction_lots(query)
-    return await _fetch_auction_lots(search_results, limit)
+    await raise_if_cancelled(cancellation_check)
+    lots = await _fetch_auction_lots(search_results, limit)
+    await raise_if_cancelled(cancellation_check)
+    return lots
 
 
 async def run_auction_search(
@@ -133,17 +139,24 @@ async def run_auction_search(
     *,
     provider_runners: Sequence[ProviderRunner] | None = None,
     observed_at: datetime | None = None,
+    cancellation_check: CancellationCheck | None = None,
 ) -> SpecialistResult:
     """Run the canonical NumisBids workflow and return a strict specialist result."""
     if provider_runners is None:
-        provider_runners = [
-            ProviderRunner(provider="numisbids", run=_collect_auction_candidates)
-        ]
+        async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
+            return await _collect_auction_candidates(
+                search_query,
+                limit,
+                cancellation_check=cancellation_check,
+            )
+
+        provider_runners = [ProviderRunner(provider="numisbids", run=canonical_provider)]
     return await run_provider_search(
         capability="auction_search",
         query=query,
         provider_runners=provider_runners,
         observed_at=observed_at,
+        cancellation_check=cancellation_check,
     )
 
 

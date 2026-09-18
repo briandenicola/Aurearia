@@ -1,5 +1,6 @@
 """Shared Go/Python Coin Copilot contract fixture validation."""
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -15,6 +16,7 @@ from app.teams.specialist_contracts import (
     SpecialistResult,
     TruncationMetadata,
 )
+from app.tools.copilot_collection_tools import bound_tool_result
 
 FIXTURES = Path(__file__).parent / "fixtures" / "coin_copilot"
 SPECIALIST_FIXTURES = FIXTURES / "specialists"
@@ -72,6 +74,15 @@ def test_concurrent_tool_limit_accepts_five_and_rejects_six():
     payload["limits"]["max_concurrent_tools"] = 5
     assert CopilotExecuteRequest.model_validate(payload).limits.max_concurrent_tools == 5
     payload["limits"]["max_concurrent_tools"] = 6
+    with pytest.raises(ValidationError):
+        CopilotExecuteRequest.model_validate(payload)
+
+
+def test_hard_timeout_accepts_release_maximum_and_rejects_higher_value():
+    payload = _load("valid_execute_request.json")
+    payload["limits"]["hard_timeout_seconds"] = 150
+    assert CopilotExecuteRequest.model_validate(payload).limits.hard_timeout_seconds == 150
+    payload["limits"]["hard_timeout_seconds"] = 151
     with pytest.raises(ValidationError):
         CopilotExecuteRequest.model_validate(payload)
 
@@ -651,6 +662,27 @@ def test_truncation_accepts_sha256_digest_and_rejects_negative_omitted_items():
     payload["omitted_items"] = -1
     with pytest.raises(ValidationError):
         TruncationMetadata.model_validate(payload)
+
+
+def test_oversized_result_uses_deterministic_32_kib_digest_fallback():
+    source = {"items": [{"title": "x" * 40000}]}
+    canonical = json.dumps(source, separators=(",", ":"), sort_keys=True).encode()
+
+    first = bound_tool_result(source, 32768)
+    second = bound_tool_result(source, 32768)
+
+    assert first == second
+    bounded, original_bytes, truncated, digest = first
+    assert truncated is True
+    assert original_bytes == len(canonical)
+    assert digest == hashlib.sha256(canonical).hexdigest()
+    assert bounded == {
+        "truncated": True,
+        "original_bytes": original_bytes,
+        "digest": digest,
+        "summary": "Tool result exceeded the persisted-result limit.",
+    }
+    assert len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()) <= 32768
 
 
 @pytest.mark.parametrize(

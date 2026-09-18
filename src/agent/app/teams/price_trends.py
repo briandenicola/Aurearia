@@ -21,11 +21,13 @@ from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.safety import with_safety
 from app.teams.specialist_contracts import (
+    CancellationCheck,
     ProviderMalformedError,
     ProviderRunner,
     ProviderUnavailableError,
     SpecialistQuery,
     SpecialistResult,
+    raise_if_cancelled,
     run_price_trend_search,
 )
 
@@ -135,8 +137,10 @@ async def _collect_price_observations(
     llm_config: LLMConfig,
     query: str,
     limit: int,
+    cancellation_check: CancellationCheck | None = None,
 ) -> Sequence[Mapping[str, Any]]:
     search_results = await search_auction_results(llm_config, query)
+    await raise_if_cancelled(cancellation_check)
     if not search_results.strip():
         return []
     model = get_chat_model(llm_config)
@@ -147,6 +151,7 @@ async def _collect_price_observations(
         ),
     ]
     response = await ainvoke_with_retry(model, messages)
+    await raise_if_cancelled(cancellation_check)
     content = response.content if isinstance(response.content, str) else str(response.content)
     return _parse_sale_observations(content)[:limit]
 
@@ -157,6 +162,7 @@ async def run_price_trends(
     llm_config: LLMConfig | None = None,
     provider_runners: Sequence[ProviderRunner] | None = None,
     observed_at: datetime | None = None,
+    cancellation_check: CancellationCheck | None = None,
 ) -> SpecialistResult:
     """Run the canonical price search through a strict completed-sale adapter."""
     if provider_runners is None:
@@ -164,13 +170,19 @@ async def run_price_trends(
             raise ProviderUnavailableError
 
         async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
-            return await _collect_price_observations(llm_config, search_query, limit)
+            return await _collect_price_observations(
+                llm_config,
+                search_query,
+                limit,
+                cancellation_check=cancellation_check,
+            )
 
         provider_runners = [ProviderRunner(provider="numisbids", run=canonical_provider)]
     return await run_price_trend_search(
         query=query,
         provider_runners=provider_runners,
         observed_at=observed_at,
+        cancellation_check=cancellation_check,
     )
 
 

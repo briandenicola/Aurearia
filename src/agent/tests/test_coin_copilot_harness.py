@@ -9,6 +9,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from app.models.requests import CopilotExecuteRequest
+from app.teams import auction_search, coin_copilot, coin_search, price_trends
 from app.teams.coin_copilot import run_coin_copilot
 from app.tools.copilot_collection_tools import (
     CopilotCollectionToolClient,
@@ -100,6 +101,16 @@ async def _frames(request, model, tool_client, cancellation_check=None):
             cancellation_check=cancellation_check,
         )
     ]
+
+
+def test_release_budget_defaults_are_shared_by_all_tool_types():
+    limits = _request().limits
+
+    assert limits.max_iterations == 8
+    assert limits.max_tool_calls == 12
+    assert limits.max_concurrent_tools == 3
+    assert limits.hard_timeout_seconds == 120
+    assert limits.max_persisted_tool_result_bytes == 32768
 
 
 @pytest.mark.asyncio
@@ -202,6 +213,86 @@ async def test_model_tool_batch_respects_snapshotted_maximum_of_five():
     ]
     assert frames[-1].type == "completed"
     assert frames[-1].payload.usage.tool_calls == 6
+
+
+@pytest.mark.asyncio
+async def test_specialist_uses_shared_run_budget_and_cumulative_token_counts(monkeypatch):
+    specialist_result = json.loads(
+        (
+            FIXTURE.parent
+            / "specialists"
+            / "market_search_complete.json"
+        ).read_text(encoding="utf-8")
+    )
+    runner_calls = []
+
+    async def market_runner(args, **_kwargs):
+        runner_calls.append(args)
+        return specialist_result
+
+    monkeypatch.setattr(coin_copilot, "run_market_search", market_runner)
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "market_search",
+                        "args": {"query": "Caesar"},
+                        "id": "call_market",
+                        "type": "tool_call",
+                    }
+                ],
+                usage_metadata={"input_tokens": 40, "output_tokens": 8, "total_tokens": 48},
+            ),
+            AIMessage(
+                content="One source-backed listing was found.",
+                usage_metadata={"input_tokens": 60, "output_tokens": 12, "total_tokens": 72},
+            ),
+        ]
+    )
+    request = _request()
+    request.allowed_tools.append("market_search")
+
+    frames = await _frames(request, model, tool_client=None)
+
+    assert runner_calls == [{"query": "Caesar", "limit": 5}]
+    assert frames[-1].type == "completed"
+    assert frames[-1].payload.usage.iterations == 2
+    assert frames[-1].payload.usage.tool_calls == 1
+    assert frames[-1].payload.usage.input_tokens == 100
+    assert frames[-1].payload.usage.output_tokens == 20
+
+
+@pytest.mark.asyncio
+async def test_final_answer_discloses_omitted_tool_evidence():
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "search_my_collection",
+                        "args": {"query": "Roman"},
+                        "id": "call_oversized",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content="The available collection evidence is summarized."),
+        ]
+    )
+    tools = _ToolClient([{"payload": "x" * 40000}])
+
+    frames = await _frames(_request(), model, tools)
+
+    completed = next(frame for frame in frames if frame.type == "tool_completed")
+    assert completed.payload.result["truncated"] is True
+    assert frames[-1].type == "completed"
+    assert frames[-1].payload.answer.endswith(
+        "Some tool evidence was omitted because it exceeded the saved-result limit."
+    )
+    assert "omitted evidence was reviewed" in str(model.messages[0][0].content)
 
 
 @pytest.mark.asyncio
@@ -536,6 +627,217 @@ async def test_timeout_and_cancellation_are_checked_after_awaits():
         cancellation_check=cancel_after_tool,
     )
     assert [frame.type for frame in tool_frames] == ["plan_updated", "tool_started"]
+
+
+@pytest.mark.asyncio
+async def test_cancellation_before_model_dispatch_emits_no_frames():
+    model = _SequenceModel([])
+
+    async def cancelled():
+        return True
+
+    frames = await _frames(
+        _request(),
+        model,
+        _ToolClient([]),
+        cancellation_check=cancelled,
+    )
+
+    assert frames == []
+    assert model.messages == []
+
+
+@pytest.mark.parametrize("cancel_after", ["search", "fetch", "format"])
+@pytest.mark.asyncio
+async def test_market_search_stops_after_each_await_when_cancellation_wins(
+    monkeypatch,
+    cancel_after,
+):
+    cancelled = False
+    operations = []
+
+    async def cancellation_check():
+        return cancelled
+
+    async def search(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("search")
+        if cancel_after == "search":
+            cancelled = True
+        return "https://www.vcoins.com/example"
+
+    async def fetch(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("fetch")
+        if cancel_after == "fetch":
+            cancelled = True
+        return "source-backed listing"
+
+    async def format_candidates(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("format")
+        if cancel_after == "format":
+            cancelled = True
+        return "", []
+
+    monkeypatch.setattr(coin_search, "_search_dealer_pages", search)
+    monkeypatch.setattr(coin_search, "_fetch_dealer_pages", fetch)
+    monkeypatch.setattr(coin_search, "_format_dealer_candidates", format_candidates)
+    request = _request()
+    request.allowed_tools.append("market_search")
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "market_search",
+                        "args": {"query": "Caesar"},
+                        "id": "call_cancelled_market",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        ]
+    )
+
+    frames = await _frames(
+        request,
+        model,
+        tool_client=None,
+        cancellation_check=cancellation_check,
+    )
+
+    expected_operations = {
+        "search": ["search"],
+        "fetch": ["search", "fetch"],
+        "format": ["search", "fetch", "format"],
+    }
+    assert operations == expected_operations[cancel_after]
+    assert [frame.type for frame in frames] == ["plan_updated", "tool_started"]
+
+
+@pytest.mark.parametrize("cancel_after", ["search", "fetch"])
+@pytest.mark.asyncio
+async def test_auction_search_stops_after_each_await_when_cancellation_wins(
+    monkeypatch,
+    cancel_after,
+):
+    cancelled = False
+    operations = []
+
+    async def cancellation_check():
+        return cancelled
+
+    async def search(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("search")
+        if cancel_after == "search":
+            cancelled = True
+        return [{"url": "https://www.numisbids.com/n.php?p=lot&sid=1&lot=2"}]
+
+    async def fetch(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("fetch")
+        if cancel_after == "fetch":
+            cancelled = True
+        return []
+
+    monkeypatch.setattr(auction_search, "_search_auction_lots", search)
+    monkeypatch.setattr(auction_search, "_fetch_auction_lots", fetch)
+    request = _request()
+    request.allowed_tools.append("auction_search")
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "auction_search",
+                        "args": {"query": "Caesar"},
+                        "id": "call_cancelled_auction",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        ]
+    )
+
+    frames = await _frames(
+        request,
+        model,
+        tool_client=None,
+        cancellation_check=cancellation_check,
+    )
+
+    expected_operations = {
+        "search": ["search"],
+        "fetch": ["search", "fetch"],
+    }
+    assert operations == expected_operations[cancel_after]
+    assert [frame.type for frame in frames] == ["plan_updated", "tool_started"]
+
+
+@pytest.mark.parametrize("cancel_after", ["search", "extract"])
+@pytest.mark.asyncio
+async def test_price_trends_stops_after_each_await_when_cancellation_wins(
+    monkeypatch,
+    cancel_after,
+):
+    cancelled = False
+    operations = []
+
+    async def cancellation_check():
+        return cancelled
+
+    async def search(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("search")
+        if cancel_after == "search":
+            cancelled = True
+        return "source-backed completed sale"
+
+    async def extract(*_args, **_kwargs):
+        nonlocal cancelled
+        operations.append("extract")
+        if cancel_after == "extract":
+            cancelled = True
+        return AIMessage(content="[]")
+
+    monkeypatch.setattr(price_trends, "search_auction_results", search)
+    monkeypatch.setattr(price_trends, "get_chat_model", lambda _config: object())
+    monkeypatch.setattr(price_trends, "ainvoke_with_retry", extract)
+    request = _request()
+    request.allowed_tools.append("price_trends")
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "price_trends",
+                        "args": {"query": "Caesar"},
+                        "id": "call_cancelled_trend",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        ]
+    )
+
+    frames = await _frames(
+        request,
+        model,
+        tool_client=None,
+        cancellation_check=cancellation_check,
+    )
+
+    expected_operations = {
+        "search": ["search"],
+        "extract": ["search", "extract"],
+    }
+    assert operations == expected_operations[cancel_after]
+    assert [frame.type for frame in frames] == ["plan_updated", "tool_started"]
 
 
 @pytest.mark.asyncio
