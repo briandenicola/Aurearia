@@ -1,5 +1,12 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { assertComposeIsolation, cleanupCommand } from '../cli'
+
+const composeFile = readFileSync(
+  resolve(process.cwd(), '../..', 'docker-compose.exploration.yml'),
+  'utf8',
+).replaceAll('\r', '')
 
 const safe = {
   name: 'ai-browser-test-abc123',
@@ -8,7 +15,7 @@ const safe = {
       build: '.',
       ports: ['127.0.0.1:49152:8080'],
       volumes: ['db:/app/data', 'uploads:/app/uploads'],
-      networks: ['internal'],
+      networks: ['internal', 'browser-ingress'],
     },
     agent: {
       build: { context: 'src/agent' },
@@ -18,10 +25,31 @@ const safe = {
     seed: { build: '.', volumes: ['db:/app/data'], restart: 'no', networks: ['internal'] },
   },
   volumes: { db: {}, uploads: {} },
-  networks: { internal: { internal: true }, 'provider-egress': {} },
+  networks: {
+    internal: { internal: true },
+    'browser-ingress': {
+      driver: 'bridge',
+      driver_opts: {
+        'com.docker.network.bridge.enable_ip_masquerade': 'false',
+        'com.docker.network.bridge.host_binding_ipv4': '127.0.0.1',
+      },
+    },
+    'provider-egress': {},
+  },
 }
 
 describe('Compose isolation guards', () => {
+  it('connects only the app to the guarded browser ingress network', () => {
+    const serviceBlock = (name: string) => composeFile.match(
+      new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][\\w-]*:\\n|^volumes:)`, 'm'),
+    )?.[1] ?? ''
+    expect(serviceBlock('app')).toContain('      - browser-ingress')
+    expect(serviceBlock('agent')).not.toContain('      - browser-ingress')
+    expect(serviceBlock('seed')).not.toContain('      - browser-ingress')
+    expect(composeFile).toContain('com.docker.network.bridge.enable_ip_masquerade: "false"')
+    expect(composeFile).toContain('com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"')
+  })
+
   it('accepts current-source, allocated-port, project-scoped isolation', () => {
     expect(() => assertComposeIsolation(safe, 'http://127.0.0.1:49152', 'ai-browser-test-abc123')).not.toThrow()
   })
@@ -42,6 +70,16 @@ describe('Compose isolation guards', () => {
     ['restart policy', { mutate: (v) => { Object.assign(v.services.app, { restart: 'unless-stopped' }) } }],
     ['deployment env file', { mutate: (v) => { Object.assign(v.services.app, { env_file: ['.env'] }) } }],
     ['external-capable internal network', { mutate: (v) => { v.networks.internal.internal = false } }],
+    ['masquerading browser ingress', {
+      mutate: (v) => {
+        v.networks['browser-ingress'].driver_opts['com.docker.network.bridge.enable_ip_masquerade'] = 'true'
+      },
+    }],
+    ['public browser ingress binding', {
+      mutate: (v) => {
+        v.networks['browser-ingress'].driver_opts['com.docker.network.bridge.host_binding_ipv4'] = '0.0.0.0'
+      },
+    }],
     ['app provider egress', { mutate: (v) => { v.services.app.networks.push('provider-egress') } }],
     ['seed provider egress', { mutate: (v) => { v.services.seed.networks.push('provider-egress') } }],
     ['agent missing internal network', { mutate: (v) => { v.services.agent.networks = ['provider-egress'] } }],

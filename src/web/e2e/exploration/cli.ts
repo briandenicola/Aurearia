@@ -30,7 +30,11 @@ type ComposeObject = {
     networks?: string[] | Record<string, unknown>
   }>
   volumes?: Record<string, { external?: boolean | { name?: string }; name?: string }>
-  networks?: Record<string, { internal?: boolean }>
+  networks?: Record<string, {
+    internal?: boolean
+    driver?: string
+    driver_opts?: Record<string, string>
+  }>
 }
 type ComposeServiceNetworks = NonNullable<ComposeObject['services']>[string]['networks']
 
@@ -95,6 +99,15 @@ export function assertComposeIsolation(value: unknown, origin: string, project: 
   if (compose.networks?.internal?.internal !== true) {
     throw new Error('Internal application network must disable external connectivity')
   }
+  const browserIngress = compose.networks?.['browser-ingress']
+  if (
+    browserIngress?.driver !== 'bridge' ||
+    browserIngress.internal === true ||
+    browserIngress.driver_opts?.['com.docker.network.bridge.enable_ip_masquerade'] !== 'false' ||
+    browserIngress.driver_opts?.['com.docker.network.bridge.host_binding_ipv4'] !== '127.0.0.1'
+  ) {
+    throw new Error('Browser ingress must be a loopback-only bridge without IP masquerading')
+  }
   for (const [name, service] of Object.entries(services)) {
     if (!service.build || service.image) throw new Error(`${name} must build current source without a remote image`)
     if (service.restart && service.restart !== 'no') throw new Error(`${name} must not restart`)
@@ -110,9 +123,18 @@ export function assertComposeIsolation(value: unknown, origin: string, project: 
         throw new Error('Agent must use only internal and provider-egress networks')
       }
     }
-    if (name === 'app' || name === 'seed') {
+    if (name === 'app') {
+      if (
+        memberNetworks.length !== 2 ||
+        !memberNetworks.includes('internal') ||
+        !memberNetworks.includes('browser-ingress')
+      ) {
+        throw new Error('app must use only the internal and browser-ingress networks')
+      }
+    }
+    if (name === 'seed') {
       if (memberNetworks.length !== 1 || memberNetworks[0] !== 'internal') {
-        throw new Error(`${name} must use only the internal network`)
+        throw new Error('seed must use only the internal network')
       }
     }
     for (const volume of service.volumes ?? []) {
@@ -280,18 +302,25 @@ export async function executeDecisionLoop(options: {
   }
 }
 
-async function waitFor(url: string, signal: AbortSignal): Promise<void> {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+export async function waitFor(
+  url: string,
+  signal: AbortSignal,
+  attempts = 60,
+  delayMs = 1000,
+): Promise<void> {
+  let lastFailure = 'no response'
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (signal.aborted) throw signal.reason
     try {
       const response = await fetch(url, { signal })
       if (response.ok) return
-    } catch {
-      // Keep retrying only this loopback endpoint until the bounded deadline.
+      lastFailure = `HTTP ${response.status}`
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message.slice(0, 500) : 'transport error'
     }
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1000))
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, delayMs))
   }
-  throw new Error(`Readiness failed: ${url}`)
+  throw new Error(`Readiness failed: ${url}; last probe: ${lastFailure}`)
 }
 
 function generatedEnvironment(project: string, appPort: number): NodeJS.ProcessEnv {
@@ -359,6 +388,33 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     ['compose', '-f', composeFile, '-p', project, ...args],
     { cwd: repoRoot, env, signal },
   )
+  const appDiagnostics = async (): Promise<string> => {
+    const collect = async (label: string, operation: () => Promise<string>, limit: number) => {
+      const value = await operation().catch((error) =>
+        error instanceof Error ? error.message : `${label} unavailable`)
+      return `${label}:\n${value.slice(0, limit)}`
+    }
+    const containerID = await compose(undefined, 'ps', '-q', 'app')
+      .then(result => result.stdout.trim())
+      .catch(() => '')
+    const sections = await Promise.all([
+      collect('Published port', async () =>
+        (await compose(undefined, 'port', 'app', '8080')).stdout, 1000),
+      collect('Compose status', async () =>
+        (await compose(undefined, 'ps', '--all')).stdout, 4000),
+      collect('Runtime port bindings', async () => {
+        if (!containerID) return 'App container unavailable.'
+        return (await run(
+          'docker',
+          ['inspect', '--format', '{{json .NetworkSettings.Ports}}', containerID],
+          { cwd: repoRoot, env },
+        )).stdout
+      }, 2000),
+      collect('App logs', async () =>
+        (await compose(undefined, 'logs', '--no-color', '--tail', '100', 'app')).stdout, 8000),
+    ])
+    return sections.join('\n')
+  }
   try {
     await runExplorationLifecycle({
       provision: async () => budget.withinDeadline(async (signal) => {
@@ -372,17 +428,12 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
       waitReady: async () => budget.withinDeadline(async (signal) => {
         try {
           await compose(signal, 'up', '--build', '-d', '--wait', 'app')
+          if (!isLoopback(appOrigin)) throw new Error('Resolved app target is not isolated loopback')
+          await waitFor(`${appOrigin}/healthz`, signal)
         } catch (error) {
-          const diagnostics = await compose(undefined, 'ps', '--all')
-            .then(result => result.stdout.slice(0, 4000))
-            .catch(() => 'Compose status unavailable.')
-          const logs = await compose(undefined, 'logs', '--no-color', '--tail', '100', 'app')
-            .then(result => result.stdout.slice(0, 8000))
-            .catch(() => 'App logs unavailable.')
-          throw new Error(`App readiness failed.\n${diagnostics}\n${logs}`, { cause: error })
+          const failure = error instanceof Error ? error.message : 'Unknown readiness failure'
+          throw new Error(`App readiness failed: ${failure}\n${await appDiagnostics()}`, { cause: error })
         }
-        if (!isLoopback(appOrigin)) throw new Error('Resolved app target is not isolated loopback')
-        await waitFor(`${appOrigin}/healthz`, signal)
       }),
       explore: async () => {
         const browser = await budget.withinDeadline(async () => chromium.launch())

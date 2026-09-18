@@ -320,3 +320,46 @@ now obtains an available loopback port from the OS (or validates
 configuration, and verifies the resolved Compose mapping exactly before
 startup. Readiness failures still include bounded Compose status and the last
 100 app log lines.
+
+Run `35356367491` on commit `84d7bfd7` confirmed explicit loopback port
+allocation and both container health checks succeeded, but the host runner
+could not reach `http://127.0.0.1:44853/healthz`. Run `35358932528` on commit
+`1196cdc0` reproduced the same boundary at port `36295`. Both runs completed
+the exact teardown and zero-resource assertion, proving the remaining failure
+was host ingress rather than application startup or cleanup.
+
+The app had been attached only to the Compose network declared
+`internal: true`. That externally isolated network is retained for app-agent
+communication, while the app now also joins a project-scoped
+`browser-ingress` bridge used solely for its published loopback port. The
+ingress bridge fixes host browser reachability without enabling container
+egress: IP masquerading is disabled and the default host binding is
+`127.0.0.1`. The agent and seed services remain excluded from this network.
+The isolation guard rejects missing or altered ingress controls.
+
+Readiness failure output now includes the last host probe result, resolved
+published port, Compose status, runtime `NetworkSettings.Ports`, and bounded
+app logs. This replaces blind retries with enough evidence to distinguish a
+mapping failure, host transport failure, and application response failure.
+
+Local validation after the ingress correction:
+
+```powershell
+# src/web
+node .\node_modules\vitest\vitest.mjs run e2e\exploration\__tests__
+node .\node_modules\eslint\bin\eslint.js e2e\exploration `
+  playwright.exploration.config.ts --ext .ts --max-warnings 0
+node .\node_modules\vue-tsc\bin\vue-tsc.js --build
+```
+
+Result: **PASS**. Vitest reported `10 passed` files, `105 passed` tests, and
+the Docker-only runtime test skipped locally; ESLint and strict TypeScript
+both exited `0`. Before the full run, the new expected Compose shape failed
+against the old single-network guard. The restored ingress guard was also
+tamper-tested by removing its no-masquerade assertion: the exact
+`rejects masquerading browser ingress` test failed, then passed after the
+assertion was restored.
+
+Hosted fake-model lifecycle acceptance remains pending the corrected rerun;
+T036-T038 stay incomplete until browser execution, teardown, and zero leaked
+resources all pass together.

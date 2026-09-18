@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { BudgetGuard } from '../budget'
-import { executeDecisionLoop, runExplorationLifecycle } from '../cli'
+import { executeDecisionLoop, runExplorationLifecycle, waitFor } from '../cli'
 import { F013_WORKFLOW_INVENTORY } from '../../fixtures/workflow'
 
 describe('exploration orchestration failures', () => {
+  it('reports the last host readiness probe failure', async () => {
+    await expect(waitFor(
+      'http://127.0.0.1:1/healthz',
+      new AbortController().signal,
+      1,
+      0,
+    )).rejects.toThrow(/last probe:/)
+  })
+
   it.each(['app', 'api', 'agent'])('finalizes and tears down when %s readiness fails', async (service) => {
     const events: string[] = []
     await expect(runExplorationLifecycle({

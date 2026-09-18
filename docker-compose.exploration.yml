@@ -76,6 +76,7 @@ services:
     restart: "no"
     networks:
       - internal
+      - browser-ingress
 
 volumes:
   exploration-db: {}
@@ -84,4 +85,9 @@ volumes:
 networks:
   internal:
     internal: true
+  browser-ingress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
   provider-egress: {}
