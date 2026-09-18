@@ -17,18 +17,19 @@
 
 **Purpose**: Establish the only approved mixed-version rollback target before any Feature 362 schema or row-producing work.
 
-**⚠️ BLOCKING GATE**: T001–T008 must complete and pass before T022 or any task that adds `copilot_draft`, `source_draft_id`, `coin_copilot_deep_handoffs`, or Feature 362 rows.
+**⚠️ BLOCKING GATE**: T001–T009 must complete and pass before T022 or any task that adds `copilot_draft`, `source_draft_id`, `coin_copilot_deep_handoffs`, or Feature 362 rows.
 
-- [ ] T001 Verify `docs/adr/0017-coin-copilot-deep-analysis-handoff.md` has `Status: Accepted`, record the accepted ADR SHA and compatibility-release prerequisite in `specs/362-coin-copilot-attribution/quickstart-evidence.md`, and stop implementation if either fact is absent
+- [ ] T001 Record the satisfied prerequisite that `docs/adr/0017-coin-copilot-deep-analysis-handoff.md` already has `Status: Accepted`, pin its accepted commit/SHA, and record the compatibility-release prerequisite in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
 - [ ] T002 Add pre-schema test-first raw-SQL fixtures proving unknown source values including `copilot_draft` are rejected without coercion, metadata disclosure, worker claim, or mutation by Deep list/get/status/stream/retry/apply/adoption paths in `src/api/handlers/deep_identification_test.go`, `src/api/services/deep_identification_service_test.go`, and `src/api/services/deep_identification_proposal_test.go`
 - [ ] T003 [P] Add pre-schema test-first worker/repository coverage proving an old compatibility binary recognizes only `intake` and `saved_coin`, leaves unknown-source rows/report/proposal/artifacts byte-for-byte intact, and never publishes events or provider work in `src/api/repository/deep_identification_repository_test.go` and `src/api/services/deep_identification_pipeline_runner_test.go`
 - [ ] T004 [P] Add test-first settings coverage proving `CoinCopilotAttributionEnabled` exists, defaults `false`, survives settings serialization, and admits zero handoff/provider work in `src/api/services/settings_service_test.go`
 - [ ] T005 Implement one closed Deep source validator for the compatibility release and apply it before list/get/status/stream/retry/apply/worker adoption in `src/api/models/deep_identification_job.go`, `src/api/handlers/deep_identification.go`, `src/api/services/deep_identification_service.go`, `src/api/services/deep_identification_proposal.go`, and `src/api/repository/deep_identification_repository.go`
-- [ ] T006 Implement the default-off `CoinCopilotAttributionEnabled` setting without adding a callback, source value, table, column, or Feature 362 row in `src/api/models/settings.go` and `src/api/services/settings_service.go`
+- [ ] T006 Implement the default-off `CoinCopilotAttributionEnabled` setting without adding a callback, source value, table, column, or Feature 362 row in `src/api/models/appsetting.go` and `src/api/services/settings_service.go`
 - [ ] T007 Create the executable mixed-binary harness that raw-seeds unknown sources, exercises every guarded read/adopt/apply path, compares preserved rows, and rejects rollback to a binary older than the guard release in `scripts/compat/feature362-rollback.ps1`
 - [ ] T008 Add `.github/workflows/feature362-compatibility.yml` to build/archive the compatibility-guard binary and run the guard-only half of `scripts/compat/feature362-rollback.ps1`, then require a local or hosted pass and record the artifact digest and passing run URL/ID in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T009 Complete the mandatory external/manual Release A checkpoint by deploying the verified compatibility-guard release to the intended environment, recording the deployed guard release/commit and list/get/status/stream/retry/apply/worker-adoption verification evidence in `specs/362-coin-copilot-attribution/quickstart-evidence.md`, and obtaining separate explicit user approval before any schema or `copilot_draft` row work; CI success or image publication alone is insufficient
 
-**Checkpoint**: ADR 0017 is accepted; the retained guard binary fails closed on unknown `copilot_draft`; the default-off flag admits no work; schema work may now begin only after the deterministic tests in Phases 1–2 are authored.
+**Checkpoint**: ADR 0017 is accepted; the retained guard binary fails closed on unknown `copilot_draft`; Release A is externally deployed and manually verified; separate user approval is recorded; the default-off flag admits no work. CI/image publication alone does not satisfy this checkpoint, and schema work may begin only after this checkpoint plus the deterministic tests in Phases 1–2.
 
 ---
 
@@ -36,8 +37,7 @@
 
 **Purpose**: Freeze the fixed callback authority and independent 64 KiB/32 KiB limits before route or orchestration implementation.
 
-- [ ] T009 Create canonical valid `request`/`status`/`rerun`, lifecycle, eligibility, truncation, and authentication fixtures—including `Authorization: Bearer <InternalTokenService.MintForCopilotExecution token>` bound to owner/run/current execution/exact tool/expiry/revocation—in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-valid.json`
-- [ ] T010 [P] Create invalid fixtures for user JWT/internal-service/Deep-job/wrong-tool/wrong-owner/wrong-run/stale-execution/expired/revoked tokens; unknown fields/enums; forged owner/snapshot/provider/apply fields; kind/job mismatch; duplicate calls; unsafe URLs; malformed output; and all byte boundaries in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-invalid.json`
+- [ ] T010 Create canonical valid `request`/`status`/`rerun`, lifecycle, eligibility, truncation, and `Authorization: Bearer <InternalTokenService.MintForCopilotExecution token>` fixtures in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-valid.json`, plus invalid user-JWT/internal-service/Deep-job/wrong-tool/wrong-owner/wrong-run/stale-execution/expired/revoked token, unknown-field/enum, forged owner/snapshot/provider/apply, kind/job mismatch, duplicate-call, unsafe-URL, malformed-output, and byte-boundary fixtures in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-invalid.json`
 - [ ] T011 [P] Add test-first Go fixture drift/auth tests proving only the canonical execution token is accepted and request/public event canonical bytes pass at 65,536 and fail at 65,537 in `src/api/handlers/coin_copilot_internal_tools_test.go` and `src/api/services/coin_copilot_contract_test.go`
 - [ ] T012 [P] Add test-first deterministic projection tests proving the complete canonical result is hashed before omission, persisted bytes never exceed 32,768, stable ordering produces identical bytes/digest/counts, UTF-8/JSON entries are never sliced, required lifecycle/link/limitations remain, and a non-fitting minimal envelope fails closed in `src/api/services/deep_analysis_handoff_projection_test.go`
 - [ ] T013 [P] Add test-first Python mirror cases for independent 65,536-byte request/public frames, 32,768-byte persisted results, checkpoint truncation disclosure/digest validation, unknown fields, and canonical execution-token forwarding in `src/agent/tests/test_coin_copilot_contract.py`
@@ -96,23 +96,23 @@
 
 **Goal**: Explain only eligible persisted Deep state through a deterministic bounded projection and link to the existing review page.
 
-**Independent Test**: Validated bindings, current owned saved coins, and active owned `copilot_draft` jobs are eligible; legacy unbound intake, unknown sources, deleted/promoted/foreign targets disclose no metadata.
+**Independent Test**: Validated bindings, current owned saved coins, and active owned `copilot_draft` jobs are eligible; unknown IDs, foreign jobs, legacy unbound intake, unknown sources, deleted/promoted targets, and arbitrary unbound jobs all return the same canonical byte-equivalent `status=not_eligible, reason=null` public body, regardless of internal cause.
 
 ### Tests for User Story 2
 
 - [ ] T033 [P] [US2] Add test-first closed eligibility cases for validated durable handoff plus matching checkpoint, owned current `saved_coin`, active owned `copilot_draft`, queued/running lifecycle-only results, and retained completed/partial reports with pruned events in `src/api/services/deep_analysis_handoff_service_test.go`
-- [ ] T034 [P] [US2] Add test-first nondisclosure cases returning `not_eligible` for legacy unbound `intake`, unknown source, arbitrary unbound/unknown/foreign job, and `target_unavailable` only for a previously validated binding whose coin was deleted or draft was deleted/discarded/promoted in `src/api/handlers/coin_copilot_internal_tools_test.go`
+- [ ] T034 [P] [US2] Add test-first nondisclosure cases proving unknown ID, foreign job, legacy unbound `intake`, unknown source, deleted coin, deleted/discarded/promoted draft, and arbitrary unbound job all serialize to the canonical byte-equivalent public body `status=not_eligible, reason=null`; assert internal causes and target existence never change response bytes or expose metadata in `src/api/handlers/coin_copilot_internal_tools_test.go`
 - [ ] T035 [P] [US2] Add test-first persisted projection cases for complete/partial/no-match/image-only/low-confidence/conflicts/unresolved/provider limits, invalid/malformed report JSON, safe citation hosts, deterministic 32 KiB omission/digest metadata, and exclusion of raw notes/paths/credentials/acceptance/apply data in `src/api/services/deep_analysis_handoff_projection_test.go`
 - [ ] T036 [P] [US2] Add URL tests rejecting unsafe schemes, embedded credentials, malformed/unapproved citation hosts, absolute/protocol-relative/non-positive/mismatched review URLs, and invented citation repair in `src/api/services/deep_identification_contract_drift_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Implement the exact eligibility predicate and non-disclosing `not_eligible`/`target_unavailable` outcomes, with `status` remaining read-only and creating no handoff row, in `src/api/services/deep_analysis_handoff_service.go`
+- [ ] T037 [US2] Implement the exact eligibility predicate so every ineligible status cause—including unknown ID, foreign job, legacy unbound intake, unknown source, deleted/promoted target, and arbitrary unbound job—maps to one canonical byte-stable `status=not_eligible, reason=null` public response while internal cause remains server-only; keep status read-only with no handoff row in `src/api/services/deep_analysis_handoff_service.go`
 - [ ] T038 [US2] Decode only validated persisted Deep report/proposal/coverage data, preserve source confidence/conflicts/no-match/provider attribution, validate citations, and build the complete canonical projection in `src/api/services/deep_analysis_handoff_projection.go`
 - [ ] T039 [US2] Deterministically reduce whole stable-order entries to 32,768 bytes after hashing the complete result, populate exact truncation byte/count/digest metadata, retain required lifecycle/link/limitations, and fail closed if the minimum cannot fit in `src/api/services/deep_analysis_handoff_projection.go`
 - [ ] T040 [US2] Enforce the 65,536-byte sanitized public-event envelope independently of the persisted result, expose only canonical `/deep-analysis/{jobId}`, and prevent status from restarting/retrying work in `src/api/services/coin_copilot_service.go` and `src/api/handlers/coin_copilot_internal_tools.go`
 
-**Checkpoint**: User Story 2 explains only closed-eligible persisted state, never leaks a foreign/legacy target, and produces byte-stable replay facts with visible omission disclosure.
+**Checkpoint**: User Story 2 explains only closed-eligible persisted state; all ineligible causes produce the same byte-equivalent `status=not_eligible, reason=null` public body; replay facts remain byte-stable with visible omission disclosure.
 
 ---
 
@@ -223,10 +223,10 @@
 
 ### Phase Dependencies
 
-- **Phase 0 (T001–T008)**: Absolute prerequisite. T001 confirms the accepted ADR; T002–T004 fail first; T005–T006 implement only the compatibility guard/default-off flag; T007–T008 produce and verify the retained guard artifact. No Feature 362 schema/rows may precede T008.
-- **Phase 1 (T009–T017)**: May begin after ADR confirmation but cannot register a route or write rows. Fixtures precede language implementations.
+- **Phase 0 (T001–T009)**: Absolute prerequisite. T001 records the already accepted ADR; T002–T004 fail first; T005–T006 implement only the compatibility guard/default-off flag; T007–T008 produce and verify the retained guard artifact; T009 requires external Release A deployment, manual verification, and separate user approval. No Feature 362 schema/rows may precede T009, and CI/image publication does not satisfy T009.
+- **Phase 1 (T010–T017)**: May begin after the Phase 0 external approval checkpoint but cannot register a route or write rows. Canonical fixtures precede language implementations.
 - **Phase 2 (T018–T021)**: Depends on the accepted ADR and contract vocabulary; all deterministic Go tests must be red before Phase 3 schema/orchestration starts.
-- **Phase 3 / US1 (T022–T032)**: Depends on T008, T015–T017, and all red tests T018–T021. Schema tests precede models/migrations; repositories precede services; callback registration is last.
+- **Phase 3 / US1 (T022–T032)**: Depends on T009, T015–T017, and all red tests T018–T021. Schema tests precede models/migrations; repositories precede services; callback registration is last.
 - **Phase 4 / US2 (T033–T040)**: Depends on US1's durable binding/job seam. Eligibility/projection tests precede implementation.
 - **Phase 5 / US3 (T041–T049)**: Depends on `copilot_draft` binding and the existing proposal editor, not on Vue. All matrix/transaction tests precede merge implementation.
 - **Phase 6 / US4 (T050–T058)**: Depends on the fixed Go callback and bounded projection. Python tests precede registration/orchestration.
@@ -243,7 +243,7 @@
 
 ### Critical Test-First Anchors
 
-1. Accepted ADR → unknown-source/default-off red tests → compatibility guard → retained guard artifact.
+1. Already accepted ADR → unknown-source/default-off red tests → compatibility guard → retained guard artifact → external Release A deployment/verification → separate user approval.
 2. 64 KiB request/public event and 32 KiB deterministic result tests → strict cross-language contracts.
 3. Snapshot/cancel/idempotency/start-resume red tests → schema → atomic repository/service implementation → callback registration.
 4. Closed eligibility/projection/URL red tests → status and deterministic persisted projection.
@@ -263,7 +263,7 @@ After T001:
 - T003 worker/repository compatibility tests
 - T004 default-off settings tests
 
-After canonical fixtures T009–T010:
+After canonical fixtures T010:
 - T011 Go auth/64 KiB tests
 - T012 Go 32 KiB projection tests
 - T013 Python contract tests
@@ -295,11 +295,12 @@ After bounded public delivery:
 
 ### Compatibility-First MVP
 
-1. Accept and pin ADR 0017.
+1. Use and pin the already accepted ADR 0017.
 2. Ship/test/archive the source-validation compatibility guard and default-off flag with no Feature 362 schema/rows.
-3. Author deterministic contract/snapshot/admission/cancellation/idempotency tests.
-4. Add schema and implement US1 atomic admission.
-5. Stop and independently verify one owned coin and one active draft produce one durable binding/job; do not enable or present full Feature 362 until US2–US4, rollback, and all gates pass.
+3. Externally deploy and manually verify Release A, record its release/commit and evidence, and obtain separate user approval; CI/image publication alone is insufficient.
+4. Author deterministic contract/snapshot/admission/cancellation/idempotency tests.
+5. Add schema and implement US1 atomic admission.
+6. Stop and independently verify one owned coin and one active draft produce one durable binding/job; do not enable or present full Feature 362 until US2–US4, rollback, and all gates pass.
 
 ### Non-Negotiable Boundaries
 
