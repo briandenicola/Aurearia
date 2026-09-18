@@ -225,8 +225,13 @@ durable Copilot run.
   `truncated=true`, original byte count, and a digest.
 - **FR-023**: Default run limits MUST be 8 reasoning iterations, 12 tool calls,
   one tool at a time, 120 seconds wall-clock, one active run per owner, and
-  32 KiB persisted tool results per call. Dollar-cost enforcement is deferred
-  because the MVP has no trustworthy provider/model pricing source. Settings
+  32 KiB persisted tool results per call. The execution timeout MUST accept
+  values from 15 through 150 seconds only; the 150-second maximum plus the
+  30-second credential buffer fits the execution token's absolute 180-second
+  TTL. Dollar-cost enforcement is deferred because the MVP has no trustworthy
+  provider/model pricing source. Reliable provider-reported input/output token
+  usage remains observable. Iteration, tool-call, wall-clock,
+  sequential-concurrency, and payload limits remain enforced. Settings
   validation ranges are defined in `research.md`; invalid settings fall back
   independently to documented defaults and mark the snapshot invalid.
 - **FR-024**: Limits MUST be snapshotted onto the run at creation so an admin

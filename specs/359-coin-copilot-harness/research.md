@@ -89,7 +89,7 @@ and sets `Valid=false`.
 | `CoinCopilotQueueDepth` | `16` | 1–100 queued runs |
 | `CoinCopilotMaxReasoningIterations` | `8` | 1–20 model planning steps |
 | `CoinCopilotMaxToolCalls` | `12` | 1–40 calls |
-| `CoinCopilotHardTimeoutSeconds` | `120` | 15–600 seconds per execution |
+| `CoinCopilotHardTimeoutSeconds` | `120` | 15–150 seconds per execution |
 | `CoinCopilotMaxPersistedToolResultBytes` | `32768` | 4096–131072 bytes/call |
 | `CoinCopilotEventRetentionHours` | `168` | 1–720 hours |
 | `CoinCopilotCheckpointRetentionDays` | `30` | 1–365 days after terminal |
@@ -112,6 +112,10 @@ portable monetary estimate. The contracts therefore omit estimated-cost
 fields and the admin surface omits a cost setting. Iteration, tool-call,
 sequential-concurrency, wall-clock, token-usage recording, and payload bounds
 remain enforced or recorded as applicable.
+
+The 150-second execution maximum is a security boundary, not only an
+operational default: adding the 30-second credential buffer reaches, but never
+exceeds, the execution token's absolute 180-second TTL.
 
 ## R7. Retention
 

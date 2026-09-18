@@ -52,6 +52,13 @@ credentials, provider-native messages, or raw tool arguments/results.
 }
 ```
 
+`hardTimeoutSeconds` defaults to 120 and may not exceed 150, preserving the
+30-second credential buffer within the absolute 180-second execution-token
+TTL. The limits object exposes enforceable iteration, tool-call, wall-clock,
+sequential-concurrency, and payload bounds. Dollar-cost enforcement is
+deferred. Terminal usage continues to expose reliable provider-reported
+input/output token counts without an estimated-cost field.
+
 ### `plan_updated`
 
 ```json

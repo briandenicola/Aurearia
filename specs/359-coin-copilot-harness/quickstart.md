@@ -70,9 +70,12 @@
 
 ## Scenario 7 — Limits, truncation, and privacy
 
-1. Exercise iteration, tool-call, and timeout limits; verify typed
+1. Exercise iteration, tool-call, and timeout limits, including the 120-second
+   default and rejection/fallback above the 150-second maximum; verify typed
    `run_failed` events and no further calls. Verify input/output token counts
-   remain recorded when reported and no estimated-cost field is exposed.
+   remain recorded when reported and no estimated-cost field or dollar-cost
+   enforcement is exposed. Confirm iteration, tool-call, wall-clock,
+   sequential-concurrency, and payload limits remain enforced.
 2. Return a tool result larger than 32 KiB; verify a bounded persisted result,
    `truncated=true`, original size, and digest.
 3. Seed prompt-injection text and token-shaped values in a tool result; verify
@@ -108,6 +111,16 @@ npm run test:unit
 npm run build
 ```
 
-Generated Swagger/OpenAPI output is intentionally not regenerated in the
-dollar-cost correction slice. Run `task openapi` before Feature 359 merges and
-verify generated API artifacts reflect the corrected no-cost contract.
+Regenerate and verify the API artifacts before Feature 359 merges:
+
+```powershell
+task openapi
+git diff --exit-code -- src\api\docs\docs.go src\api\docs\swagger.json src\api\docs\swagger.yaml docs\openapi.json
+Push-Location src\api
+go test . -run TestRegisteredAPIRoutesAreDocumentedInOpenAPI -count=1
+Pop-Location
+```
+
+The generated artifacts and `docs/api-reference.md` must describe the same
+public Coin Copilot routes. The contract intentionally exposes token usage but
+no estimated-cost field or dollar-cost limit.

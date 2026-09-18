@@ -1,7 +1,7 @@
 # Data Model: Coin Copilot Read-Only Harness (#721)
 
-**Storage**: SQLite via GORM additive `AutoMigrate`  
-**Owner**: Go API  
+**Storage**: SQLite via GORM additive `AutoMigrate`
+**Owner**: Go API
 **Python persistence**: none
 
 ## 1. Relationship overview
@@ -81,7 +81,17 @@ Indexes:
   by service/repository cleanup;
 - `(status, heartbeat_at)` for stale recovery.
 
-### 3.1 Run state machine
+### 3.1 Budget snapshot policy
+
+`HardTimeoutSeconds` defaults to 120 and is valid only from 15 through 150
+seconds. The upper bound leaves a 30-second credential buffer within the
+execution token's absolute 180-second TTL. The run snapshot also enforces
+iteration, tool-call, sequential-concurrency, and persisted-payload limits.
+Dollar-cost enforcement is deferred until a trustworthy provider/model pricing
+source exists; reliable provider-reported input/output token counts remain
+stored and observable without deriving a monetary estimate.
+
+### 3.2 Run state machine
 
 ```text
 [queued] ──claim──> [running] ──clarify──> [paused] ──resume──> [queued]

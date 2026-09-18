@@ -12,10 +12,17 @@ description: "Implementation tasks for issue #721 read-only Coin Copilot harness
 **Tests**: Required. Write the named tests before implementation and prove they
 fail for the intended reason.
 
+**Budget policy**: Dollar-cost enforcement is deferred until a trustworthy,
+current provider/model pricing source exists. Reliable provider-reported
+input/output token usage remains observable. Iteration, tool-call, wall-clock
+(120-second default, 150-second maximum), sequential-concurrency, and payload
+limits remain enforced; the timeout maximum plus the 30-second credential
+buffer fits the absolute 180-second execution-token TTL.
+
 ## Phase 1: Contract and settings foundation
 
 - [x] T001 [P] Create shared valid/invalid Coin Copilot JSON contract fixtures in `src/agent/tests/fixtures/coin_copilot/`
-- [ ] T002 [P] Add Go fixture loader and failing contract tests in `src/api/services/coin_copilot_contract_test.go`
+- [x] T002 [P] Add Go fixture loader and failing contract tests in `src/api/services/coin_copilot_contract_test.go`
 - [x] T003 [P] Add Python strict-schema failing tests in `src/agent/tests/test_coin_copilot_contract.py`
 - [x] T004 Add Coin Copilot setting constants/defaults and validated `CoinCopilotSettings` snapshot in `src/api/services/settings_service.go`; omit dollar-cost settings until a trustworthy pricing source exists
 - [x] T005 Add settings validation/default-off tests in `src/api/services/settings_service_test.go`
@@ -76,7 +83,7 @@ fail for the intended reason.
 - [x] T041 Add typed Coin Copilot proxy request/frame DTOs and execution streaming method in `src/api/services/agent_proxy.go`
 - [x] T042 Implement frame validation, bounded tool-result persistence, digest/truncation, reliable token-usage accounting without estimated-cost fields, and public-event translation in `src/api/services/coin_copilot_contract.go`
 - [x] T043 Integrate the proxy execution stream with `CoinCopilotWorker`, including fresh token mint/revoke and post-await budget/cancel checks
-- [ ] T044 Add an integration test using real SQLite plus a fake Python stream to prove checkpoint/event atomicity and restart resume in `src/api/integration/coin_copilot_seam_test.go`
+- [x] T044 Add an integration test using real SQLite plus a fake Python stream to prove checkpoint/event atomicity and restart resume in `src/api/integration/coin_copilot_seam_test.go`
 
 ## Phase 7: Public REST and replayable SSE
 
@@ -106,8 +113,8 @@ fail for the intended reason.
 - [x] T060 [P] Add Coin Copilot toggle and enforceable bounded limit inputs to `src/web/src/components/admin/AdminSystemSection.vue`; do not expose a dollar-cost control
 - [x] T061 Wire settings props/save payload in `src/web/src/pages/AdminPage.vue`
 - [x] T062 Add admin component tests for default-off and range validation in `src/web/src/components/admin/__tests__/AdminSystemSection.coin-copilot.test.ts`
-- [ ] T063 [P] Regenerate Swagger and synchronize `docs/openapi.json`, `docs/api-reference.md`, and generated `src/api/docs/`
-- [ ] T064 [P] Document feature scope/fallback/privacy in `docs/features.md`, `docs/ARCHITECTURE.md`, `docs/testing.md`, and `docs/threat-model.md`
+- [x] T063 [P] Regenerate Swagger and synchronize `docs/openapi.json`, `docs/api-reference.md`, and generated `src/api/docs/`
+- [x] T064 [P] Document feature scope/fallback/privacy in `docs/features.md`, `docs/ARCHITECTURE.md`, `docs/testing.md`, and `docs/threat-model.md`
 - [ ] T065 Execute every scenario in `specs/359-coin-copilot-harness/quickstart.md` and record results in the PR description
 
 ## Phase 10: Quality Gate

@@ -5,6 +5,10 @@ info:
   description: |
     Feature 359 owner-scoped, read-only, durable Coin Copilot contract.
     All resources are persisted and authorized by Go. Python is stateless.
+    Dollar-cost enforcement is deferred. Reliable provider-reported input and
+    output token usage remains observable, while iteration, tool-call,
+    wall-clock (120-second default, 150-second maximum),
+    sequential-concurrency, and payload limits remain enforced.
 servers:
   - url: /api
 security:

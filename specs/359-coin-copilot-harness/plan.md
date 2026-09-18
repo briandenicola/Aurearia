@@ -25,10 +25,12 @@ the fallback.
 **Project Type**: Go API + Vue SPA + stateless Python agent service  
 **Performance Goals**: run accepted within 1 second excluding queueing; first
 persisted progress event within 5 seconds under normal local conditions; hard
-execution ceiling 120 seconds by default  
+execution ceiling 120 seconds by default and 150 seconds maximum
 **Constraints**: read-only MVP; one tool at a time; no Python DB access; no
 chain-of-thought; owner scoping; replayable SSE; legacy fallback; dollar-cost
-enforcement deferred until a trustworthy pricing source exists  
+enforcement deferred until a trustworthy pricing source exists; reliable
+provider-reported token usage remains observable; iteration, tool-call,
+wall-clock, sequential-concurrency, and payload limits remain enforced
 **Scale/Scope**: personal-scale single node, one active run per owner by default,
 queue depth 16
 

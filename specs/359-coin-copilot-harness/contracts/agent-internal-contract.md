@@ -89,7 +89,11 @@ new run.
 
 Strict Pydantic models use `extra="forbid"`. Python validates ids, lengths,
 enum values, limits, cumulative counters, and that `allowed_tools` is a subset
-of the compiled MVP allowlist.
+of the compiled MVP allowlist. `hard_timeout_seconds` defaults to 120 and MUST
+be between 15 and 150 inclusive. Dollar-cost enforcement is deferred; reliable
+provider-reported input/output token usage remains observable, while iteration,
+tool-call, wall-clock, sequential-concurrency, and payload limits remain
+enforced.
 
 ## 3. Internal execution frames
 
@@ -181,9 +185,12 @@ Logical claims:
 ```
 
 The credential uses a dedicated HKDF-derived HMAC key and a canonical,
-base64url encoding. TTL is at most 180 seconds and is freshly minted per
-execution/resume. It is revoked as soon as that execution pauses or settles.
-Credentials are never persisted or logged.
+base64url encoding. TTL is
+`min(remaining execution budget + 30 seconds, 180 seconds)` and is freshly
+minted per execution/resume. The 150-second maximum execution timeout therefore
+cannot exceed the absolute 180-second token TTL after the buffer is added. It is
+revoked as soon as that execution pauses or settles. Credentials are never
+persisted or logged.
 
 ## 5. Cancellation
 

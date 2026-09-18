@@ -51,12 +51,15 @@ Otherwise it uses the existing supervisor and `/api/agent/chat` contract.
 
 Default limits are eight reasoning iterations, twelve tool calls, sequential
 tool execution, 120 seconds per execution, 32 KiB persisted tool result per
-call, and one active run per owner. Dollar-cost enforcement is deferred because
-the MVP has no trustworthy provider/model pricing source; reliable
-input/output token counts are still recorded when reported. Public events are
-retained seven days after terminal state; checkpoints/tool results are retained
-thirty days; thread messages and final run summaries remain until owner
-deletion.
+call, and one active run per owner. Execution timeout is configurable only from
+15 through 150 seconds; the maximum plus the 30-second credential buffer stays
+within the absolute 180-second execution-token TTL. Dollar-cost enforcement is
+deferred because the MVP has no trustworthy provider/model pricing source;
+reliable input/output token counts are still recorded when reported.
+Iteration, tool-call, wall-clock, sequential-concurrency, and payload limits
+remain enforced. Public events are retained seven days after terminal state;
+checkpoints/tool results are retained thirty days; thread messages and final
+run summaries remain until owner deletion.
 
 ## Consequences
 
