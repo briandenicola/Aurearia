@@ -43,10 +43,47 @@ Date: 2026-09-18
 
 ## External/manual Release A checkpoint
 
-Status: **BLOCKED - NOT DEPLOYED**
+Status: **DEPLOYED AND VERIFIED - SCHEMA APPROVAL PENDING**
 
-No deployment approval has been requested or granted. CI success, artifact
-publication, or image publication does not satisfy T009. Feature 362 schema
-and row-producing work remain blocked until the verified Release A artifact is
-deployed to the intended environment, all guarded paths are manually verified,
-the evidence is recorded here, and separate user approval is obtained.
+Deployment date: 2026-09-18
+
+- The owner explicitly approved deploying Release A to the disposable beta
+  environment, then corrected the deployment target from Azure to the existing
+  local server. No Azure deployment or resource change occurred.
+- Environment: `https://coins-beta.denicolafamily.com`.
+- Deployed app/agent commit:
+  `1fd371a0adc42fdffd4e35136f37519f688fd9a0`.
+- App OCI index digest:
+  `sha256:6e280855644e55a79f2b574c890b69865e504d8e6d5686d7f7c43393eba253b0`.
+- Running app platform digest:
+  `sha256:f7d62405e6caedf5569521e7e5db95717d8be12431e6f349dccf10a9a54784eb`.
+- `/health` returned HTTP 200 with `{"status":"ok"}` after deployment and
+  again after the worker-adoption restart.
+- A transactionally consistent pre-fixture SQLite backup was retained at
+  `/home/brian/f014-release-a-20260918T210809Z.db`, size 1,712,128 bytes,
+  SHA-256
+  `8da4f9dd373888e7889698628de1e959a88f36f969846c53311cb5b78be3dbdf`.
+- `DeepIdentificationEnabled` was `true`.
+  `CoinCopilotAttributionEnabled` had zero database overrides and therefore
+  resolved to its built-in default `false`.
+- Raw fixture: owner-scoped job `13`, source `copilot_draft`, artifact `26`.
+  Its canonical row/artifact/file preservation digest was
+  `013b2fde46471e3b88eeec565c8bf2966db98ff6d94c2c9730f6f92924127964`.
+- Guarded HTTP results:
+  - list: HTTP 200, fixture absent;
+  - get/status, stream, retry, cancel, proposal edit, and apply: HTTP 404;
+  - no response disclosed source, report, proposal, notes, or artifact data.
+- Worker-adoption verification restarted only the app container with Deep
+  Analysis enabled. After startup and an eight-second adoption window, the
+  fixture remained queued with attempt count 0, last sequence 0, zero events,
+  zero provider runs, no matching logs, and the exact same preservation
+  digest.
+- Existing supported-source job `12` (`intake`, `completed`) remained readable
+  through the deployed API with HTTP 200.
+- Cleanup deleted exactly synthetic job `13`, artifact `26`, and its fixture
+  file. All three were confirmed absent afterward. The backup remains retained.
+
+No Feature 362 schema, `copilot_draft` model constant, callback, handoff row, or
+source-draft binding has been added. T022 and all schema/row-producing work
+remain blocked until the owner separately approves proceeding beyond this
+verified Release A checkpoint.
