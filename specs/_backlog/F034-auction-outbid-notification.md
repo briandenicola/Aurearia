@@ -1,14 +1,14 @@
 ---
 id: F034
 title: "Notify when the provider reports you outbid on a lot"
-status: backlog
+status: completed
 priority: P1
 effort: S
 value: 5
 risk: 2
 owner: unassigned
 created: 2026-08-31
-updated: 2026-08-31
+updated: 2026-09-18
 ---
 
 # F034 — Notify when the provider reports you outbid on a lot
@@ -112,3 +112,6 @@ runs in the background and nothing fires.
   rendering, escaping, and the closes-in wording). Status left at `backlog`
   pending Lead triage per `_backlog/README.md` — implementation does not
   self-advance status.
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`. Aligning the client
+  badge with provider truth remains a separate follow-up.

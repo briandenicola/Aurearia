@@ -1,14 +1,14 @@
 ---
 title: Coin Analysis via Vision Model
 id: F004
-status: promoted
+status: completed
 priority: P2
 effort: M
 value: 5
 risk: 4
 owner: Maximus
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -44,3 +44,8 @@ None — feature shipped.
 ## Notes
 
 Retroactive card created 2026-05-28 for governance traceability under Constitution §0 (Hierarchy) Phase 2. Supports Anthropic vision_claude_3_5_sonnet and Ollama llava; timeout configurable in admin settings.
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `completed`; this shipped
+  before a dedicated SpecKit promotion and has no `specs/NNN-*` target.

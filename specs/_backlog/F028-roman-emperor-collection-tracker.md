@@ -1,14 +1,14 @@
 ---
 id: F028
 title: "Track collection progress toward every Roman Emperor (West + East, to 476 AD)"
-status: backlog
+status: completed
 priority: P2
 effort: L
 value: 5
 risk: 2
 owner: unassigned
 created: 2026-07-20
-updated: 2026-07-20
+updated: 2026-09-18
 ---
 
 # F028 — Track collection progress toward every Roman Emperor (West + East, to 476 AD)
@@ -193,7 +193,8 @@ no one has stress-tested yet).
 
 ### Dynasty/era scope
 
-The actual curated dataset is `specs/_backlog/F028-imperial-figures.md` — a
+The actual curated dataset is
+`specs/_backlog/roman-imperial-figures-dataset.md` — a
 first pass exists (reviewed 2026-07-20) covering:
 
 **Western Roman (27 BC – 476 AD)**, roughly: Julio-Claudian → Flavian →
@@ -271,7 +272,8 @@ unsourced first guess).
 
 - [x] Who curates the canonical `RomanImperialFigure` dataset, and where
       does it live? A first pass (153 figures, 87 of them `role: emperor`)
-      has been curated at `specs/_backlog/F028-imperial-figures.md` and
+      has been curated at
+      `specs/_backlog/roman-imperial-figures-dataset.md` and
       implemented as seed data (`models.RomanImperialFigure`,
       `database/roman_imperial_figure_seed.go`, following the existing
       `seedMintLocations` idempotent-seed pattern).
@@ -327,7 +329,7 @@ Prior art investigated during planning:
 Tracking issue: [#501](https://github.com/briandenicola/Aurearia/issues/501)
 (request + research; implementation not yet started).
 
-Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
+Curated dataset: `specs/_backlog/roman-imperial-figures-dataset.md` (first pass,
 153 imperial figures, 87 `role: emperor`).
 
 ## History
@@ -353,7 +355,8 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   pick the figure themselves when they next edit a coin.
 - 2026-07-20: linked GitHub tracking issue #501.
 - 2026-07-20: committed the first curated `RomanImperialFigure` dataset pass
-  (`F028-imperial-figures.md`, 153 figures, 87 `role: emperor`). Resolved
+  (`roman-imperial-figures-dataset.md`, 153 figures, 87 `role: emperor`).
+  Resolved
   the 476-cutoff open question (in scope if reign began on or before 476 —
   Zeno included in full through 491; Anastasius I excluded) and added
   Julius Caesar as a non-emperor `role: other` precursor entry, both per
@@ -394,3 +397,6 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   response was missing the four new user fields. Full Go (`-race`) and
   frontend (vitest + vue-tsc) suites pass. V2 (agent-assisted
   suggestions) remains explicitly not started, per its own gating.
+- 2026-09-18: Lead review verified that V1 satisfies every acceptance
+  criterion; status advanced to `completed`. The separately gated V2 remains
+  a future enhancement.

@@ -1,14 +1,14 @@
 ---
 title: WebAuthn and Biometric Login
 id: F007
-status: promoted
+status: completed
 priority: P1
 effort: M
 value: 4
 risk: 3
 owner: Cassius+Aurelia
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -44,3 +44,8 @@ None — feature shipped.
 ## Notes
 
 Retroactive card created 2026-05-28 for governance traceability under Constitution §0 (Hierarchy) Phase 2. Uses Go `github.com/duo-labs/webauthn` library; frontend uses `@simplewebauthn/browser` for ceremony orchestration. Requires HTTPS in production; localhost dev allowed.
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `completed`; this shipped
+  before a dedicated SpecKit promotion and has no `specs/NNN-*` target.

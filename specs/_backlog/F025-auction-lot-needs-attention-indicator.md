@@ -1,14 +1,14 @@
 ---
 id: F025
 title: "Flag lots whose auction has ended but status was never confirmed"
-status: backlog
+status: completed
 priority: P1
 effort: S
 value: 4
 risk: 2
 owner: unassigned
 created: 2026-07-19
-updated: 2026-07-19
+updated: 2026-09-18
 ---
 
 # F025 — Flag lots whose auction has ended but status was never confirmed
@@ -61,3 +61,5 @@ browsing.
   with the existing status/source filters rather than adding a separate UI
   surface. Left at `backlog` rather than self-advancing to
   `triaged`/`promoted`, per this repo's Lead-driven workflow.
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`.

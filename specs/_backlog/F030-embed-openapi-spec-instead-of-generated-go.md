@@ -1,7 +1,7 @@
 ---
 id: F030
 title: "Embed the OpenAPI spec instead of generating 24k lines of Go"
-status: backlog          # backlog | triaged | promoted | dropped
+status: backlog          # backlog | triaged | promoted | completed | dropped
 priority: P3             # P0 (now) | P1 (next) | P2 (soon) | P3 (someday)
 effort: S                # XS | S | M | L | XL
 value: 2                 # 1 (low) – 5 (high) user/business value

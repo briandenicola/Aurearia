@@ -1,14 +1,14 @@
 ---
 id: F024
 title: "Show whether a lot's Won/Lost status was auto-detected or manually set"
-status: backlog
+status: completed
 priority: P2
 effort: S
 value: 3
 risk: 2
 owner: unassigned
 created: 2026-07-19
-updated: 2026-07-19
+updated: 2026-09-18
 ---
 
 # F024 — Show whether a lot's Won/Lost status was auto-detected or manually set
@@ -63,3 +63,5 @@ lots never "just resolve themselves" the way CNG ones do.
   the end of the CNG rebuild work on issue #482.
 - 2026-07-19: implemented in full. Left at `backlog` rather than self-advancing
   to `triaged`/`promoted`, per this repo's Lead-driven workflow.
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`.

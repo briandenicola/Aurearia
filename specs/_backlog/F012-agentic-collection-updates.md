@@ -1,9 +1,25 @@
+---
+id: F012
+title: "Agentic Collection: Improve Structured Data, AI Entry, and Conversational Access"
+status: promoted
+priority: P0
+effort: XL
+value: 5
+risk: 5
+owner: Maximus
+created: 2026-05-30
+updated: 2026-09-18
+promoted_to: specs/012-agentic-collection-updates/
+---
+
 # Epic — Agentic Collection: Improve Structured Data, AI Entry, and Conversational Access
 
-> **Status:** Backlog (epic)
+> **Status:** Promoted (epic)
 > **Type:** Epic / theme
 > **Member cards:** Structured Catalog References · Agentic Coin Entry ·
 > Collection Chat · Collection Tool Server (External)
+
+**Promoted to**: `specs/012-agentic-collection-updates/`
 
 ## Summary
 
@@ -129,3 +145,10 @@ improve that layer once instead of duplicating query/update logic.
   transport.
 - [ ] Docs updated: features.md, api-reference.md, and a new doc for external
   tool-server setup (OpenWebUI/Ollama).
+
+## History
+
+- 2026-05-30: created and promoted to
+  `specs/012-agentic-collection-updates/`.
+- 2026-09-18: normalized missing backlog metadata; the active spec remains the
+  source of truth.

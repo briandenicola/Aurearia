@@ -1,14 +1,14 @@
 ---
 title: Portfolio Monthly Valuation Snapshots
 id: F009
-status: promoted
+status: triaged
 priority: P2
 effort: M
 value: 4
 risk: 2
 owner: unassigned
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -59,3 +59,9 @@ Capture an immutable monthly snapshot of every active coin's current valuation s
 
 - PRD §8 Q2 (Portfolio valuation tracking — resolved Yes, 2026-05-28)
 - F003 (Portfolio Review) — complementary, not blocking
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `triaged`; no active
+  `specs/NNN-*` target or implementation of portfolio-wide monthly snapshots
+  exists.

@@ -1,14 +1,14 @@
 ---
 title: Coin of the Day
 id: F001
-status: promoted
+status: completed
 priority: P1
 effort: M
 value: 4
 risk: 2
 owner: Cassius
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -43,3 +43,8 @@ None — feature shipped.
 ## Notes
 
 Retroactive card created 2026-05-28 for governance traceability under Constitution §0 (Hierarchy) Phase 2. All endpoints exist: `GET /featured-coins/latest`, `GET /featured-coins/:id`, `POST /admin/coin-of-day/run`.
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `completed`; this shipped
+  before a dedicated SpecKit promotion and has no `specs/NNN-*` target.

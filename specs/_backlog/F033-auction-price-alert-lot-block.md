@@ -1,14 +1,14 @@
 ---
 id: F033
 title: "Give the auction price alert the digest's lot block"
-status: backlog
+status: completed
 priority: P2
 effort: XS
 value: 3
 risk: 1
 owner: unassigned
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-09-18
 ---
 
 # F033 — Give the auction price alert the digest's lot block
@@ -105,3 +105,6 @@ compose multi-line bodies server-side.
   bid, link rendering, escaping, unusable-URL rejection, both surfaces' bodies).
   Status left at `backlog` pending Lead triage per `_backlog/README.md` —
   implementation does not self-advance status.
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`. The reminder/ending
+  notification redesign remains a separate follow-up.

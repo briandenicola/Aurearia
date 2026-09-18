@@ -1,14 +1,14 @@
 ---
 id: F026
 title: "Auto-sync watchlists for all configured users, not just Pushover users"
-status: backlog
+status: completed
 priority: P0
 effort: S
 value: 5
 risk: 2
 owner: unassigned
 created: 2026-07-19
-updated: 2026-07-19
+updated: 2026-09-18
 ---
 
 # F026 — Auto-sync watchlists for all configured users, not just Pushover users
@@ -83,3 +83,5 @@ gap, now fixed there as well.
   sites); all acceptance criteria met. Status left at `backlog` pending Lead
   triage per `_backlog/README.md` — implementation does not self-advance
   status.
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`.

@@ -1,14 +1,14 @@
 ---
 title: Wishlist and Availability Check
 id: F002
-status: promoted
+status: completed
 priority: P1
 effort: M
 value: 4
 risk: 3
 owner: Cassius
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -43,3 +43,8 @@ None — feature shipped.
 ## Notes
 
 Retroactive card created 2026-05-28 for governance traceability under Constitution §0 (Hierarchy) Phase 2. Purchase modal styling implemented; dismissed coins can clear status indicators.
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `completed`; this shipped
+  before a dedicated SpecKit promotion and has no `specs/NNN-*` target.

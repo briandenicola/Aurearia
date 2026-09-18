@@ -1,7 +1,7 @@
 ---
 id: F011
 title: "AI-driven exploratory browser testing for runtime UI bugs"
-status: triaged            # backlog | triaged | promoted | dropped
+status: triaged            # backlog | triaged | promoted | completed | dropped
 priority: P0
 effort: L
 value: 5

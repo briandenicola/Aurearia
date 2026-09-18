@@ -1,14 +1,14 @@
 ---
 title: Progressive Web App and Offline
 id: F006
-status: promoted
+status: completed
 priority: P1
 effort: M
 value: 5
 risk: 2
 owner: Aurelia
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -44,3 +44,8 @@ None — feature shipped.
 ## Notes
 
 Retroactive card created 2026-05-28 for governance traceability under Constitution §0 (Hierarchy) Phase 2. Background removal via client-side ML (ONNX.js or TensorFlow.js) available on detail page for image enhancement.
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `completed`; this shipped
+  before a dedicated SpecKit promotion and has no `specs/NNN-*` target.
