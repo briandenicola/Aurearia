@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -15,6 +18,43 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestCoinCopilotCallbackRoutesRemainExactReadOnlySet(t *testing.T) {
+	source, err := os.ReadFile("../routes_internal.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockPattern := regexp.MustCompile(`(?s)copilot := r\.Group\("/api/internal/copilot/tools"\).*?\n\t}`)
+	block := blockPattern.Find(source)
+	if block == nil {
+		t.Fatal("Coin Copilot callback route group not found")
+	}
+	routePattern := regexp.MustCompile(`copilot\.POST\("/([^"]+)"`)
+	matches := routePattern.FindAllSubmatch(block, -1)
+	routes := make([]string, 0, len(matches))
+	for _, match := range matches {
+		routes = append(routes, string(match[1]))
+	}
+	sort.Strings(routes)
+	want := []string{"collection_summary", "get_coin", "search_my_collection", "top_coins_by_value"}
+	if len(routes) != len(want) {
+		t.Fatalf("callback routes=%v, want %v", routes, want)
+	}
+	for index := range want {
+		if routes[index] != want[index] {
+			t.Fatalf("callback routes=%v, want %v", routes, want)
+		}
+	}
+	for _, forbidden := range []string{
+		"market_search", "auction_search", "price_trends", "similar_lots",
+		"write", "update", "delete", "approval", "deep_identification",
+		"fetch", "shell", "filesystem", "database",
+	} {
+		if bytes.Contains(block, []byte(forbidden)) {
+			t.Fatalf("callback route block contains forbidden capability %q", forbidden)
+		}
+	}
+}
 
 func TestCoinCopilotInternalToolBindsExecutionOwnerAndCallID(t *testing.T) {
 	gin.SetMode(gin.TestMode)

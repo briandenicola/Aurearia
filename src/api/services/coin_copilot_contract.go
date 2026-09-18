@@ -89,6 +89,13 @@ type CopilotCompletedTool struct {
 	Truncated      bool            `json:"truncated"`
 }
 
+type CopilotBoundedToolResult struct {
+	Truncated     bool   `json:"truncated"`
+	OriginalBytes int    `json:"original_bytes"`
+	Digest        string `json:"digest"`
+	Summary       string `json:"summary"`
+}
+
 type CopilotClarification struct {
 	Question  string   `json:"question"`
 	InputType string   `json:"input_type"`
@@ -629,6 +636,24 @@ func DecodeCopilotSpecialistResult(raw json.RawMessage, invokedCapability string
 	}
 	if err := ValidateCopilotSpecialistResult(result, invokedCapability); err != nil {
 		return result, err
+	}
+	return result, nil
+}
+
+func DecodeCopilotBoundedToolResult(raw json.RawMessage) (CopilotBoundedToolResult, error) {
+	var result CopilotBoundedToolResult
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return result, ErrInvalidCopilotFrame
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) ||
+		!result.Truncated || result.OriginalBytes < 0 || len(result.Digest) != 64 ||
+		result.Summary != "Tool result exceeded the persisted-result limit." {
+		return result, ErrInvalidCopilotFrame
+	}
+	if _, err := hex.DecodeString(result.Digest); err != nil {
+		return result, ErrInvalidCopilotFrame
 	}
 	return result, nil
 }

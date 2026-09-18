@@ -135,6 +135,45 @@ func TestCoinCopilotHandlerCapabilityStartValidationAndForeign404(t *testing.T) 
 	}
 }
 
+func TestCoinCopilotHandlerForeignOwnerOperationsMatchUnknown404(t *testing.T) {
+	_, _, service := setupCoinCopilotHandlerTest(t)
+	run, _, err := service.Start(7, services.CoinCopilotStartInput{
+		Goal: "Find market examples", IdempotencyKey: "foreign-owner-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewCoinCopilotHandler(service, services.NewLogger(10))
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("userId", uint(8)); c.Next() })
+	router.GET("/runs/:runId", handler.GetRun)
+	router.GET("/runs/:runId/events", handler.StreamEvents)
+	router.POST("/runs/:runId/cancel", handler.Cancel)
+	router.POST("/runs/:runId/resume", handler.Resume)
+
+	for _, runID := range []string{run.ID, "ccr_unknown"} {
+		requests := []*http.Request{
+			httptest.NewRequest(http.MethodGet, "/runs/"+runID, nil),
+			httptest.NewRequest(http.MethodGet, "/runs/"+runID+"/events", nil),
+			httptest.NewRequest(http.MethodPost, "/runs/"+runID+"/cancel", nil),
+			httptest.NewRequest(
+				http.MethodPost,
+				"/runs/"+runID+"/resume",
+				bytes.NewBufferString(`{"answer":"Continue","expectedCheckpointVersion":1}`),
+			),
+		}
+		requests[3].Header.Set("Content-Type", "application/json")
+		requests[3].Header.Set("Idempotency-Key", "foreign-resume")
+		for _, request := range requests {
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusNotFound {
+				t.Fatalf("%s %s status=%d body=%s", request.Method, request.URL.Path, recorder.Code, recorder.Body.String())
+			}
+		}
+	}
+}
+
 func TestCoinCopilotSSETerminalReplayAndSincePrecedence(t *testing.T) {
 	router, db, service := setupCoinCopilotHandlerTest(t)
 	run, _, err := service.Start(7, services.CoinCopilotStartInput{Goal: "Summary", IdempotencyKey: "sse-start"})

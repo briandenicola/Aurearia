@@ -101,6 +101,10 @@ func (s *CoinCopilotService) runExecution(parent context.Context, run *models.Co
 		return
 	}
 	seenFrames := map[string]bool{}
+	completedCallIDs := make(map[string]bool, len(request.Checkpoint.CompletedTools))
+	for _, tool := range request.Checkpoint.CompletedTools {
+		completedCallIDs[tool.ToolCallID] = true
+	}
 	var mu sync.Mutex
 	streamErr := s.proxy.StreamCoinCopilot(ctx, request, func(frame CopilotAgentFrame) error {
 		mu.Lock()
@@ -116,7 +120,26 @@ func (s *CoinCopilotService) runExecution(parent context.Context, run *models.Co
 		if err := ValidateCopilotFrame(frame, fresh); err != nil {
 			return err
 		}
-		return s.applyFrame(fresh, frame)
+		completedCallID := ""
+		if frame.Type == "tool_completed" {
+			var payload struct {
+				ToolCallID string `json:"tool_call_id"`
+			}
+			if err := json.Unmarshal(frame.Payload, &payload); err != nil || payload.ToolCallID == "" {
+				return ErrInvalidCopilotFrame
+			}
+			if completedCallIDs[payload.ToolCallID] {
+				return ErrDuplicateFrame
+			}
+			completedCallID = payload.ToolCallID
+		}
+		if err := s.applyFrame(fresh, frame); err != nil {
+			return err
+		}
+		if completedCallID != "" {
+			completedCallIDs[completedCallID] = true
+		}
+		return nil
 	})
 	if streamErr == nil {
 		return
@@ -231,7 +254,26 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			return ErrInvalidCopilotFrame
 		}
 		for i := range state.CompletedTools {
-			if isCoinCopilotSpecialistTool(state.CompletedTools[i].ToolName) {
+			specialist := isCoinCopilotSpecialistTool(state.CompletedTools[i].ToolName)
+			if specialist && state.CompletedTools[i].Truncated {
+				fallback, err := DecodeCopilotBoundedToolResult(state.CompletedTools[i].Result)
+				if err != nil {
+					return err
+				}
+				bounded, _, truncatedAgain, _, err := SanitizeCopilotJSON(
+					state.CompletedTools[i].Result,
+					run.MaxPersistedToolResultBytes,
+				)
+				if err != nil || truncatedAgain ||
+					state.CompletedTools[i].OriginalBytes != fallback.OriginalBytes ||
+					state.CompletedTools[i].PersistedBytes != len(bounded) ||
+					state.CompletedTools[i].ResultDigest != fallback.Digest {
+					return ErrInvalidCopilotFrame
+				}
+				state.CompletedTools[i].Result = bounded
+				continue
+			}
+			if specialist {
 				if _, err := DecodeCopilotSpecialistResult(state.CompletedTools[i].Result, state.CompletedTools[i].ToolName); err != nil {
 					return err
 				}
@@ -239,6 +281,13 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			bounded, originalBytes, truncated, digest, err := SanitizeCopilotJSON(state.CompletedTools[i].Result, run.MaxPersistedToolResultBytes)
 			if err != nil {
 				return err
+			}
+			if specialist &&
+				(state.CompletedTools[i].OriginalBytes != originalBytes ||
+					state.CompletedTools[i].PersistedBytes != len(bounded) ||
+					state.CompletedTools[i].Truncated != truncated ||
+					state.CompletedTools[i].ResultDigest != digest) {
+				return ErrInvalidCopilotFrame
 			}
 			state.CompletedTools[i].Result = bounded
 			state.CompletedTools[i].OriginalBytes = originalBytes
@@ -325,15 +374,20 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			"resultSummary": SanitizeCopilotText(payload.Summary, 300), "truncated": truncated,
 		}
 		if isCoinCopilotSpecialistTool(payload.ToolName) && payload.Status == "succeeded" {
-			result, err := DecodeCopilotSpecialistResult(payload.Result, payload.ToolName)
-			if err != nil {
-				return err
+			if _, fallbackErr := DecodeCopilotBoundedToolResult(payload.Result); fallbackErr == nil {
+				truncated = true
+				publicPayload["truncated"] = true
+			} else {
+				result, err := DecodeCopilotSpecialistResult(payload.Result, payload.ToolName)
+				if err != nil {
+					return err
+				}
+				specialistResult, err := ProjectCopilotSpecialistResult(result, payload.ToolName)
+				if err != nil {
+					return err
+				}
+				publicPayload["specialistResult"] = specialistResult
 			}
-			specialistResult, err := ProjectCopilotSpecialistResult(result, payload.ToolName)
-			if err != nil {
-				return err
-			}
-			publicPayload["specialistResult"] = specialistResult
 		}
 		public, _ := json.Marshal(publicPayload)
 		return s.appendFrameEvent(run, models.CopilotEventToolCompleted, public)

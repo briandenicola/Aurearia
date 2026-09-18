@@ -75,6 +75,48 @@ function actionableError(error: unknown, fallback: string) {
   return message || fallback
 }
 
+function normalizeCapability(value: unknown): CoinCopilotCapability {
+  if (typeof value !== 'object' || value === null) {
+    return {
+      mode: 'legacy',
+      enabled: false,
+      modelToolCallingSupported: false,
+      reason: 'temporarily_unavailable',
+    }
+  }
+  const candidate = value as Record<string, unknown>
+  if (candidate.mode === 'copilot' &&
+      candidate.enabled === true &&
+      candidate.modelToolCallingSupported === true &&
+      (candidate.reason === undefined || candidate.reason === null)) {
+    return {
+      mode: 'copilot',
+      enabled: true,
+      modelToolCallingSupported: true,
+      reason: candidate.reason as null | undefined,
+    }
+  }
+  const reasons = new Set([
+    'disabled',
+    'provider_unconfigured',
+    'model_tool_calling_unsupported',
+    'temporarily_unavailable',
+  ])
+  if (candidate.mode === 'legacy' &&
+      typeof candidate.enabled === 'boolean' &&
+      candidate.modelToolCallingSupported === false &&
+      typeof candidate.reason === 'string' &&
+      reasons.has(candidate.reason)) {
+    return candidate as CoinCopilotCapability
+  }
+  return {
+    mode: 'legacy',
+    enabled: false,
+    modelToolCallingSupported: false,
+    reason: 'temporarily_unavailable',
+  }
+}
+
 function readStoredCursor(): StoredRunCursor | null {
   try {
     const raw = sessionStorage.getItem(ACTIVE_RUN_KEY)
@@ -157,7 +199,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     if (!force && capability.value) return capability.value
     if (!force && capabilityPromise) return capabilityPromise
     capabilityPromise = getCoinCopilotCapability()
-      .then((response) => response.data)
+      .then((response) => normalizeCapability(response.data))
       .catch(() => ({
         mode: 'legacy',
         enabled: false,

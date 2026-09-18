@@ -9,6 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,22 +29,35 @@ type coinCopilotSeamAgent struct {
 	internalToken string
 	tokenVerifier *services.InternalTokenService
 
-	mu              sync.Mutex
-	executeCount    int
-	requests        []services.CopilotExecuteProxyRequest
-	tokens          []string
-	blockedStarted  chan int
-	blockedFinished chan int
-	errs            chan error
+	mu               sync.Mutex
+	executeCount     int
+	requests         []services.CopilotExecuteProxyRequest
+	tokens           []string
+	blockedStarted   chan int
+	blockedFinished  chan int
+	errs             chan error
+	specialistResult map[string]any
 }
 
-func newCoinCopilotSeamAgent(internalToken, tokenSecret string) *coinCopilotSeamAgent {
+func newCoinCopilotSeamAgent(t *testing.T, internalToken, tokenSecret string) *coinCopilotSeamAgent {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(
+		"..", "..", "agent", "tests", "fixtures", "coin_copilot", "specialists", "market_search_complete.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var specialistResult map[string]any
+	if err := json.Unmarshal(raw, &specialistResult); err != nil {
+		t.Fatal(err)
+	}
 	return &coinCopilotSeamAgent{
-		internalToken:   internalToken,
-		tokenVerifier:   services.NewInternalTokenService(tokenSecret),
-		blockedStarted:  make(chan int, 2),
-		blockedFinished: make(chan int, 2),
-		errs:            make(chan error, 20),
+		internalToken:    internalToken,
+		tokenVerifier:    services.NewInternalTokenService(tokenSecret),
+		blockedStarted:   make(chan int, 2),
+		blockedFinished:  make(chan int, 2),
+		errs:             make(chan error, 20),
+		specialistResult: specialistResult,
 	}
 }
 
@@ -99,21 +115,38 @@ func (a *coinCopilotSeamAgent) execute(w http.ResponseWriter, r *http.Request) {
 	switch attempt {
 	case 1:
 		a.writeFrame(w, request, "frm_tool_start", "tool_started", map[string]any{
-			"tool_call_id": "call_1", "tool_name": "collection_summary", "step_id": "step_1",
+			"tool_call_id": "call_market", "tool_name": "market_search", "step_id": "step_1",
 		})
 		a.writeFrame(w, request, "frm_tool_done", "tool_completed", map[string]any{
-			"tool_call_id": "call_1", "tool_name": "collection_summary", "step_id": "step_1",
-			"status": "succeeded", "duration_ms": 2, "result_summary": "Summary ready.",
-			"result": map[string]any{"totalCoins": 2},
+			"tool_call_id": "call_market", "tool_name": "market_search", "step_id": "step_1",
+			"status": "succeeded", "duration_ms": 2, "result_summary": "Market evidence ready.",
+			"result": a.specialistResult,
 		})
-		a.writeCheckpoint(w, request, "frm_checkpoint_1", 1)
+		a.writeFrame(w, request, "frm_tool_truncated", "tool_completed", map[string]any{
+			"tool_call_id": "call_market_truncated", "tool_name": "market_search", "step_id": "step_2",
+			"status": "succeeded", "duration_ms": 2, "result_summary": "Market evidence exceeded the result limit.",
+			"result": map[string]any{
+				"truncated": true, "original_bytes": 65536, "digest": strings.Repeat("a", 64),
+				"summary": "Tool result exceeded the persisted-result limit.",
+			},
+		})
+		a.writeSpecialistCheckpoint(w, request, "frm_checkpoint_1")
 		a.blockedStarted <- attempt
 		<-r.Context().Done()
 		a.blockedFinished <- attempt
 	case 2:
+		if len(request.Checkpoint.CompletedTools) != 2 ||
+			request.Checkpoint.CompletedTools[0].ToolCallID != "call_market" ||
+			request.Checkpoint.CompletedTools[0].ToolName != "market_search" ||
+			request.Checkpoint.CompletedTools[1].ToolCallID != "call_market_truncated" ||
+			!request.Checkpoint.CompletedTools[1].Truncated {
+			a.recordError(fmt.Errorf("specialist checkpoint was not hydrated: %#v", request.Checkpoint))
+			http.Error(w, "invalid checkpoint", http.StatusBadRequest)
+			return
+		}
 		a.writeFrame(w, request, "frm_completed_2", "completed", map[string]any{
 			"answer": "Resumed from the durable checkpoint.",
-			"usage":  map[string]any{"iterations": 2, "tool_calls": 1, "input_tokens": 30, "output_tokens": 12},
+			"usage":  map[string]any{"iterations": 2, "tool_calls": 2, "input_tokens": 30, "output_tokens": 12},
 		})
 	case 3:
 		a.writeCheckpoint(w, request, "frm_checkpoint_3", 1)
@@ -124,6 +157,58 @@ func (a *coinCopilotSeamAgent) execute(w http.ResponseWriter, r *http.Request) {
 		a.recordError(fmt.Errorf("unexpected execution attempt %d", attempt))
 		http.Error(w, "unexpected execution", http.StatusInternalServerError)
 	}
+}
+
+func (a *coinCopilotSeamAgent) writeSpecialistCheckpoint(
+	w http.ResponseWriter,
+	request services.CopilotExecuteProxyRequest,
+	frameID string,
+) {
+	raw, err := json.Marshal(a.specialistResult)
+	if err != nil {
+		a.recordError(fmt.Errorf("marshal specialist result: %w", err))
+		return
+	}
+	bounded, originalBytes, truncated, digest, err := services.SanitizeCopilotJSON(raw, 32768)
+	if err != nil {
+		a.recordError(fmt.Errorf("bound specialist result: %w", err))
+		return
+	}
+	var result map[string]any
+	if err := json.Unmarshal(bounded, &result); err != nil {
+		a.recordError(fmt.Errorf("decode bounded specialist result: %w", err))
+		return
+	}
+	truncatedResult := map[string]any{
+		"truncated": true, "original_bytes": 65536, "digest": strings.Repeat("a", 64),
+		"summary": "Tool result exceeded the persisted-result limit.",
+	}
+	truncatedRaw, err := json.Marshal(truncatedResult)
+	if err != nil {
+		a.recordError(fmt.Errorf("marshal truncated specialist result: %w", err))
+		return
+	}
+	a.writeFrame(w, request, frameID, "checkpoint", map[string]any{
+		"schema_version": 1,
+		"messages":       []map[string]any{{"role": "user", "content": request.Goal}},
+		"plan":           []map[string]any{{"id": "step_1", "title": "Search dealer listings", "status": "completed"}},
+		"completed_tools": []map[string]any{
+			{
+				"tool_call_id": "call_market", "tool_name": "market_search", "result_digest": digest,
+				"result": result, "original_bytes": originalBytes, "persisted_bytes": len(bounded), "truncated": truncated,
+			},
+			{
+				"tool_call_id": "call_market_truncated", "tool_name": "market_search",
+				"result_digest": strings.Repeat("a", 64), "result": truncatedResult,
+				"original_bytes": 65536, "persisted_bytes": len(truncatedRaw), "truncated": true,
+			},
+		},
+		"pending_clarification": nil,
+		"next_action":           "continue",
+		"counters": map[string]any{
+			"iterations": 1, "tool_calls": 2, "input_tokens": 20, "output_tokens": 5,
+		},
+	})
 }
 
 func (a *coinCopilotSeamAgent) writeCheckpoint(w http.ResponseWriter, request services.CopilotExecuteProxyRequest, frameID string, toolCalls int) {
@@ -243,7 +328,7 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 		internalToken = "coin-copilot-seam-internal"
 		tokenSecret   = "coin-copilot-seam-token-secret"
 	)
-	agent := newCoinCopilotSeamAgent(internalToken, tokenSecret)
+	agent := newCoinCopilotSeamAgent(t, internalToken, tokenSecret)
 	server := httptest.NewServer(agent)
 	defer server.Close()
 	repo := repository.NewCoinCopilotRepository(db)
@@ -259,7 +344,7 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	}
 	waitForCoinCopilotAttempt(t, agent.blockedStarted, 1)
 	running := waitForCoinCopilotRun(t, firstService, run.ID, func(current *models.CoinCopilotRun) bool {
-		return current.Status == models.CopilotRunRunning && current.CheckpointVersion == 1 && current.LastSeq == 3
+		return current.Status == models.CopilotRunRunning && current.CheckpointVersion == 1 && current.LastSeq == 4
 	})
 	firstExecutionID := running.ExecutionID
 	requests, tokens := agent.snapshot()
@@ -338,6 +423,27 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	}
 	if events[len(events)-1].Type != models.CopilotEventRunCompleted {
 		t.Fatalf("last event=%s, want run_completed", events[len(events)-1].Type)
+	}
+	specialistCompletions := 0
+	for _, event := range events {
+		if event.Type == models.CopilotEventToolCompleted &&
+			bytes.Contains([]byte(event.PayloadJSON), []byte(`"toolCallId":"call_market"`)) {
+			specialistCompletions++
+		}
+	}
+	if specialistCompletions != 1 {
+		t.Fatalf("specialist completion events=%d, want 1", specialistCompletions)
+	}
+	truncatedCompletions := 0
+	for _, event := range events {
+		if event.Type == models.CopilotEventToolCompleted &&
+			bytes.Contains([]byte(event.PayloadJSON), []byte(`"toolCallId":"call_market_truncated"`)) &&
+			bytes.Contains([]byte(event.PayloadJSON), []byte(`"truncated":true`)) {
+			truncatedCompletions++
+		}
+	}
+	if truncatedCompletions != 1 {
+		t.Fatalf("truncated specialist completion events=%d, want 1", truncatedCompletions)
 	}
 
 	handler := handlers.NewCoinCopilotHandler(secondService, services.NewLogger(10))

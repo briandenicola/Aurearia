@@ -85,6 +85,46 @@ describe('useCoinCopilot', () => {
     expect(mocks.startRun).not.toHaveBeenCalled()
   })
 
+  it.each([
+    undefined,
+    {},
+    { mode: 'copilot', enabled: true, modelToolCallingSupported: false },
+    { mode: 'legacy', enabled: true, modelToolCallingSupported: true, reason: 'temporarily_unavailable' },
+    { mode: 'legacy', enabled: true, modelToolCallingSupported: false, reason: 'ambiguous' },
+  ])('fails closed for missing or malformed capability data', async (capability) => {
+    mocks.getCapability.mockResolvedValue({ data: capability })
+    const copilot = useCoinCopilot()
+
+    const result = await copilot.start('Find gaps')
+
+    expect(result).toEqual({ accepted: false, fallback: true })
+    expect(mocks.startRun).not.toHaveBeenCalled()
+  })
+
+  it('falls back without creating an accepted run when capability lookup times out', async () => {
+    mocks.getCapability.mockRejectedValue(new Error('timeout'))
+    const copilot = useCoinCopilot()
+
+    const result = await copilot.start('Find gaps')
+
+    expect(result).toEqual({ accepted: false, fallback: true })
+    expect(mocks.startRun).not.toHaveBeenCalled()
+  })
+
+  it('falls back when startup is rejected before run acceptance', async () => {
+    mocks.startRun.mockRejectedValue({
+      response: { status: 503 },
+      message: 'temporarily unavailable',
+    })
+    const copilot = useCoinCopilot()
+
+    const result = await copilot.start('Find gaps')
+
+    expect(result).toEqual({ accepted: false, fallback: true })
+    expect(mocks.startRun).toHaveBeenCalledTimes(1)
+    expect(copilot.run.value).toBeNull()
+  })
+
   it('reuses the same start idempotency key when an unacknowledged request is retried', async () => {
     mocks.startRun
       .mockRejectedValueOnce(new Error('connection reset'))

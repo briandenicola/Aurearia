@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -177,6 +178,127 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 	}
 }
 
+func TestCoinCopilotWorkerRejectsTamperedSpecialistCheckpointMetadata(t *testing.T) {
+	mutations := map[string]func(*CopilotCompletedTool){
+		"digest":          func(tool *CopilotCompletedTool) { tool.ResultDigest = strings.Repeat("0", 64) },
+		"original bytes":  func(tool *CopilotCompletedTool) { tool.OriginalBytes++ },
+		"persisted bytes": func(tool *CopilotCompletedTool) { tool.PersistedBytes++ },
+		"truncated":       func(tool *CopilotCompletedTool) { tool.Truncated = true },
+	}
+	for name, mutate := range mutations {
+		t.Run(name, func(t *testing.T) {
+			db, service := newCopilotServiceTest(t)
+			repo := repository.NewCoinCopilotRepository(db)
+			thread := &models.CoinCopilotThread{ID: "cct_metadata_" + strings.ReplaceAll(name, " ", "_"), UserID: 7, Title: "Metadata"}
+			run := &models.CoinCopilotRun{
+				ID: "ccr_metadata_" + strings.ReplaceAll(name, " ", "_"), ThreadID: thread.ID, UserID: thread.UserID,
+				Status: models.CopilotRunRunning, Goal: "Find market examples",
+				StartIdempotencyKeyHash: "metadata-key-" + name, StartRequestFingerprint: "fingerprint",
+				ExecutionID: "cce_metadata", ExecutionAttempt: 1, MaxIterations: 8, MaxToolCalls: 12,
+				MaxConcurrentTools: 3, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+			}
+			if err := repo.CreateRun(thread, run); err != nil {
+				t.Fatal(err)
+			}
+			result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+				t,
+				filepath.Join("specialists", "market_search_complete.json"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := json.Marshal(result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bounded, originalBytes, truncated, digest, err := SanitizeCopilotJSON(raw, run.MaxPersistedToolResultBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tool := CopilotCompletedTool{
+				ToolCallID: "call_market", ToolName: "market_search", ResultDigest: digest,
+				Result: bounded, OriginalBytes: originalBytes, PersistedBytes: len(bounded), Truncated: truncated,
+			}
+			mutate(&tool)
+			state := CopilotCheckpointState{
+				SchemaVersion:  1,
+				Messages:       []CopilotMessage{{Role: "user", Content: run.Goal}},
+				Plan:           []CopilotPlanItem{},
+				CompletedTools: []CopilotCompletedTool{tool},
+				NextAction:     "continue",
+				Counters:       CopilotUsage{Iterations: 1, ToolCalls: 1},
+			}
+			payload, err := json.Marshal(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			frame := CopilotAgentFrame{
+				SchemaVersion: 1, RunID: run.ID, ExecutionID: run.ExecutionID,
+				FrameID: "frm_checkpoint", Type: "checkpoint", Payload: payload,
+			}
+			if err := service.applyFrame(run, frame); !errors.Is(err, ErrInvalidCopilotFrame) {
+				t.Fatalf("tampered checkpoint error=%v, want invalid frame", err)
+			}
+		})
+	}
+}
+
+func TestCoinCopilotWorkerRejectsTamperedSpecialistResult(t *testing.T) {
+	mutations := map[string]func(map[string]any){
+		"extra field": func(result map[string]any) { result["unexpected"] = true },
+		"capability mismatch": func(result map[string]any) {
+			result["capability"] = "auction_search"
+		},
+		"item kind mismatch": func(result map[string]any) {
+			result["items"].([]any)[0].(map[string]any)["kind"] = "auction_lot"
+		},
+		"fabricated provenance": func(result map[string]any) {
+			item := result["items"].([]any)[0].(map[string]any)
+			item["provenance"].([]any)[0].(map[string]any)["source_url"] = "https://attacker.example/listing"
+		},
+	}
+	for name, mutate := range mutations {
+		t.Run(name, func(t *testing.T) {
+			db, service := newCopilotServiceTest(t)
+			repo := repository.NewCoinCopilotRepository(db)
+			suffix := strings.ReplaceAll(name, " ", "_")
+			thread := &models.CoinCopilotThread{ID: "cct_result_" + suffix, UserID: 7, Title: "Result"}
+			run := &models.CoinCopilotRun{
+				ID: "ccr_result_" + suffix, ThreadID: thread.ID, UserID: thread.UserID,
+				Status: models.CopilotRunRunning, Goal: "Find market examples",
+				StartIdempotencyKeyHash: "result-key-" + name, StartRequestFingerprint: "fingerprint",
+				ExecutionID: "cce_result", ExecutionAttempt: 1, MaxIterations: 8, MaxToolCalls: 12,
+				MaxConcurrentTools: 3, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+			}
+			if err := repo.CreateRun(thread, run); err != nil {
+				t.Fatal(err)
+			}
+			result, err := loadCoinCopilotFixture[map[string]any](
+				t,
+				filepath.Join("specialists", "market_search_complete.json"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mutate(result)
+			payload, err := json.Marshal(map[string]any{
+				"tool_call_id": "call_market", "tool_name": "market_search", "step_id": "step_market",
+				"status": "succeeded", "duration_ms": 1, "result_summary": "Market result.", "result": result,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			frame := CopilotAgentFrame{
+				SchemaVersion: 1, RunID: run.ID, ExecutionID: run.ExecutionID,
+				FrameID: "frm_result", Type: "tool_completed", Payload: payload,
+			}
+			if err := service.applyFrame(run, frame); !errors.Is(err, ErrInvalidCopilotFrame) {
+				t.Fatalf("tampered result error=%v, want invalid frame", err)
+			}
+		})
+	}
+}
+
 func TestCoinCopilotWorkerRejectsDuplicateFrames(t *testing.T) {
 	db, service := newCopilotServiceTest(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +327,68 @@ func TestCoinCopilotWorkerRejectsDuplicateFrames(t *testing.T) {
 	}
 	if stored.Status != models.CopilotRunFailed || stored.FailureCode != "invalid_agent_frame" {
 		t.Fatalf("duplicate frame run = %#v", stored)
+	}
+}
+
+func TestCoinCopilotWorkerRejectsReplayedSpecialistCallID(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "market_search_complete.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for index := 1; index <= 2; index++ {
+			fmt.Fprintf(
+				w,
+				"data: {\"schema_version\":1,\"run_id\":\"ccr_replayed_call\",\"execution_id\":\"cce_replayed_call\",\"frame_id\":\"frm_%d\",\"type\":\"tool_completed\",\"payload\":{\"tool_call_id\":\"call_market\",\"tool_name\":\"market_search\",\"step_id\":\"step_market\",\"status\":\"succeeded\",\"duration_ms\":1,\"result_summary\":\"Market result.\",\"result\":%s}}\n\n",
+				index,
+				resultJSON,
+			)
+		}
+	}))
+	defer server.Close()
+	service.proxy = NewAgentProxy(server.URL, "internal", NewLogger(10))
+	repo := repository.NewCoinCopilotRepository(db)
+	thread := &models.CoinCopilotThread{ID: "cct_replayed_call", UserID: 7, Title: "Replay"}
+	run := &models.CoinCopilotRun{
+		ID: "ccr_replayed_call", ThreadID: thread.ID, UserID: thread.UserID, Status: models.CopilotRunRunning,
+		Goal: "Find market examples", StartIdempotencyKeyHash: "replayed-call-key", StartRequestFingerprint: "fingerprint",
+		ExecutionID: "cce_replayed_call", ExecutionAttempt: 1, MaxIterations: 8, MaxToolCalls: 12,
+		MaxConcurrentTools: 3, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+	}
+	if err := repo.CreateRun(thread, run); err != nil {
+		t.Fatal(err)
+	}
+
+	service.runExecution(context.Background(), run)
+
+	stored, err := repo.GetRun(run.ID, run.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != models.CopilotRunFailed || stored.FailureCode != "invalid_agent_frame" {
+		t.Fatalf("replayed call run=%#v", stored)
+	}
+	events, err := repo.ListEventsSince(run.ID, run.UserID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completions := 0
+	for _, event := range events {
+		if event.Type == models.CopilotEventToolCompleted {
+			completions++
+		}
+	}
+	if completions != 1 {
+		t.Fatalf("tool completion events=%d, want 1", completions)
 	}
 }
 

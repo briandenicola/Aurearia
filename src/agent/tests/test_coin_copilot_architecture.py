@@ -34,6 +34,50 @@ def test_coin_copilot_imports_no_database_or_execution_capability():
         assert not imports.intersection(forbidden_roots), (path, imports)
 
 
+def test_coin_copilot_imports_no_write_or_escalation_modules():
+    forbidden_modules = {
+        "app.teams.coin_intake",
+        "app.teams.deep_identification",
+        "app.tools.provider_tools",
+        "app.tools.update_proposals",
+        "app.tools.web_search",
+    }
+    forbidden_fragments = {
+        "approval",
+        "arbitrary_http",
+        "database",
+        "deep_identification",
+        "filesystem",
+        "mutation",
+        "shell",
+        "write",
+    }
+    for path in COPILOT_FILES:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        modules = {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module is not None
+        }
+        modules.update(
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        )
+        assert not modules.intersection(forbidden_modules), (path, modules)
+        exported_names = {
+            node.id.lower()
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+        }
+        assert not {
+            name
+            for name in exported_names
+            if any(fragment in name for fragment in forbidden_fragments)
+        }, (path, exported_names)
+
+
 def test_coin_copilot_exposes_only_locked_read_only_capabilities():
     assert COPILOT_ALLOWED_TOOLS == {
         "search_my_collection",
