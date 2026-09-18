@@ -1,185 +1,221 @@
 # Tasks: Coin Copilot Attribution Integration
 
-**Input**: Design documents from `specs/362-coin-copilot-attribution/`
-**Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/coin-copilot-deep-analysis.md`, `quickstart.md`
-**Branch constraint**: Work only on the existing `beta` branch. Do not create or switch branches, deploy, or modify unrelated dirty `.squad/` files.
-
-**Tests**: Feature 362 explicitly requires test-first contract, tamper, race, lifecycle, preservation, architecture, and regression coverage. For every test task below, add the failing assertion before its implementation task and confirm the failure is for the intended missing behavior.
+**Input**: `specs/362-coin-copilot-attribution/spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/coin-copilot-deep-analysis.md`, `quickstart.md`, and accepted `docs/adr/0017-coin-copilot-deep-analysis-handoff.md`
+**Branch constraint**: Work only on the existing `beta` branch. Do not create/switch branches, deploy, or modify unrelated dirty `.squad/` files.
+**Test-first rule**: Every guard/race/contract task below must fail for the intended missing behavior before its paired implementation begins.
+**Evidence rule**: Every configured gate must pass locally or in an equivalent hosted job whose URL/run ID is recorded; an unavailable local tool is not a waiver.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Safe to execute concurrently because the task changes different files and does not depend on unfinished implementation.
-- **[Story]**: Maps the task to a user story in `spec.md`.
-- Every task names its exact file set; no task authorizes direct agent mutation, a second attribution engine, or duplicate proposal UI.
+- **[P]** means the task is genuinely independent of other unfinished tasks and changes different files.
+- **[Story]** is required only for user-story work.
+- Every task names exact files. No task authorizes direct agent mutation, arbitrary callbacks, a second attribution engine/proposal model, or duplicate proposal UI.
 
 ---
 
-## Phase 1: Strict Contracts and Canonical Tamper Fixtures
+## Phase 0: Accepted ADR and Pre-Schema Compatibility Interlock
 
-**Purpose**: Freeze the smallest cross-layer contract and make unsafe expansion fail before any callback route or model behavior exists.
+**Purpose**: Establish the only approved mixed-version rollback target before any Feature 362 schema or row-producing work.
 
-- [ ] T001 Create canonical valid request/result and lifecycle fixtures for `request`, `status`, and `rerun` in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-valid.json`
-- [ ] T002 [P] Create canonical tamper cases for unknown fields/enums, wrong target kind or target/job pairing, non-positive IDs, malformed/oversized output, duplicate fields/evidence/tool calls, non-finite or out-of-range confidence, forged accept/apply/provider options, prompt injection, token-shaped secrets, and unsafe citation/review URLs in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-invalid.json`
-- [ ] T003 [P] Add test-first Go fixture drift and fail-closed decoding coverage, including the 64 KiB request/result cap and exact operation/outcome/job/result/provider vocabularies, in `src/api/services/coin_copilot_contract_test.go`
-- [ ] T004 [P] Add test-first Python mirror coverage that loads both canonical fixture files and rejects every invalid request/result without coercion in `src/agent/tests/test_coin_copilot_contract.py`
-- [ ] T005 [P] Add test-first TypeScript parsing/type cases for valid handoff events plus malformed, oversized, apply-like, unsafe-URL, and target/job-mismatch payloads in `src/web/src/api/endpoints/__tests__/agent.test.ts`
-- [ ] T006 Define strict Go handoff request/result/projection types, enum/range/size/duplicate validation, untrusted-text handling, and relative review-route validation in `src/api/services/coin_copilot_contract.go`
-- [ ] T007 [P] Define strict Pydantic handoff argument/result/projection mirrors with `extra="forbid"`, finite confidence bounds, mutual-field rules, bounded collections/text, and fixed relative review URLs in `src/agent/app/models/requests.py` and `src/agent/app/models/responses.py`
-- [ ] T008 [P] Define the typed public handoff projection and runtime fail-closed parser without apply/edit properties in `src/web/src/types/agent.ts` and `src/web/src/api/endpoints/agent.ts`
+**⚠️ BLOCKING GATE**: T001–T008 must complete and pass before T022 or any task that adds `copilot_draft`, `source_draft_id`, `coin_copilot_deep_handoffs`, or Feature 362 rows.
 
-**Checkpoint**: Go, Python, and TypeScript accept the same canonical payloads and reject all tampered variants; no route, database change, or agent behavior exists yet.
+- [ ] T001 Verify `docs/adr/0017-coin-copilot-deep-analysis-handoff.md` has `Status: Accepted`, record the accepted ADR SHA and compatibility-release prerequisite in `specs/362-coin-copilot-attribution/quickstart-evidence.md`, and stop implementation if either fact is absent
+- [ ] T002 Add pre-schema test-first raw-SQL fixtures proving unknown source values including `copilot_draft` are rejected without coercion, metadata disclosure, worker claim, or mutation by Deep list/get/status/stream/retry/apply/adoption paths in `src/api/handlers/deep_identification_test.go`, `src/api/services/deep_identification_service_test.go`, and `src/api/services/deep_identification_proposal_test.go`
+- [ ] T003 [P] Add pre-schema test-first worker/repository coverage proving an old compatibility binary recognizes only `intake` and `saved_coin`, leaves unknown-source rows/report/proposal/artifacts byte-for-byte intact, and never publishes events or provider work in `src/api/repository/deep_identification_repository_test.go` and `src/api/services/deep_identification_pipeline_runner_test.go`
+- [ ] T004 [P] Add test-first settings coverage proving `CoinCopilotAttributionEnabled` exists, defaults `false`, survives settings serialization, and admits zero handoff/provider work in `src/api/services/settings_service_test.go`
+- [ ] T005 Implement one closed Deep source validator for the compatibility release and apply it before list/get/status/stream/retry/apply/worker adoption in `src/api/models/deep_identification_job.go`, `src/api/handlers/deep_identification.go`, `src/api/services/deep_identification_service.go`, `src/api/services/deep_identification_proposal.go`, and `src/api/repository/deep_identification_repository.go`
+- [ ] T006 Implement the default-off `CoinCopilotAttributionEnabled` setting without adding a callback, source value, table, column, or Feature 362 row in `src/api/models/settings.go` and `src/api/services/settings_service.go`
+- [ ] T007 Create the executable mixed-binary harness that raw-seeds unknown sources, exercises every guarded read/adopt/apply path, compares preserved rows, and rejects rollback to a binary older than the guard release in `scripts/compat/feature362-rollback.ps1`
+- [ ] T008 Add `.github/workflows/feature362-compatibility.yml` to build/archive the compatibility-guard binary and run the guard-only half of `scripts/compat/feature362-rollback.ps1`, then require a local or hosted pass and record the artifact digest and passing run URL/ID in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
 
----
-
-## Phase 2: Foundational Persistence and Boundary Guards
-
-**Purpose**: Add the minimum durable draft binding and prove the service boundary cannot widen.
-
-**⚠️ CRITICAL**: Complete this phase before any user-story implementation.
-
-- [ ] T009 Add test-first migration assertions for nullable `source_draft_id`, deterministic migration order, owner/draft lookup index presence, `coin_id`/`source_draft_id` exclusivity invariant, no backfill of existing jobs, and rollback-code readability/fail-closed apply behavior in `src/api/database/database_test.go`
-- [ ] T010 Add test-first model/repository ownership cases proving draft-bound jobs are owner scoped, source binding is immutable, and foreign/unknown draft/job lookups are indistinguishable in `src/api/repository/deep_identification_repository_test.go`
-- [ ] T011 Add nullable indexed `SourceDraftID *uint` and the at-most-one-target invariant to `src/api/models/deep_identification_job.go`, then wire additive no-backfill migration ordering in `src/api/database/database.go`
-- [ ] T012 Implement owner/fingerprint-scoped newest-first retained-terminal lookup and immutable source-draft persistence in `src/api/repository/deep_identification_repository.go`
-- [ ] T013 [P] Add exact architecture tests proving Python has no database/filesystem/shell/generic-HTTP/provider/apply/write imports or tools and the browser never calls Python directly in `src/agent/tests/test_coin_copilot_architecture.py`
-- [ ] T014 [P] Add exact Go route-set tests proving the callback allowlist can gain only `deep_analysis_handoff`, only `POST /api/internal/copilot/tools/deep_analysis_handoff` is added, middleware binds that literal capability, and no wildcard, arbitrary `/api/internal/tools/*`, or Deep apply endpoint becomes reachable in `src/api/architecture_test.go` and `src/api/integration/coin_copilot_seam_test.go`
-- [ ] T015 Register only the `deep_analysis_handoff` literal in `CoinCopilotAllowedTools` and the fixed callback allowlist while preserving all existing collection and specialist tools in `src/api/services/coin_copilot_contract.go` and `src/api/services/coin_copilot_proxy.go`
-
-**Checkpoint**: Existing rows remain unchanged, draft ownership has a durable indexed binding, old-code rollback cannot misapply a draft job, and architecture tests reject any authority expansion.
+**Checkpoint**: ADR 0017 is accepted; the retained guard binary fails closed on unknown `copilot_draft`; the default-off flag admits no work; schema work may now begin only after the deterministic tests in Phases 1–2 are authored.
 
 ---
 
-## Phase 3: User Story 1 — Resolve a Target and Start/Reopen Deep Analysis (Priority: P1) 🎯 MVP
+## Phase 1: Strict Contracts, Authentication, Bounds, and Tamper Fixtures
 
-**Goal**: Resolve exactly one owned coin or active draft and reuse or admit the existing Deep Analysis workflow without a second attribution path.
+**Purpose**: Freeze the fixed callback authority and independent 64 KiB/32 KiB limits before route or orchestration implementation.
 
-**Independent Test**: Request attribution for one owned coin and one active draft with distinct valid faces; each returns the current equivalent Deep job, while ambiguity, foreign IDs, mismatched kinds, changed/deleted targets, and invalid images create no job.
+- [ ] T009 Create canonical valid `request`/`status`/`rerun`, lifecycle, eligibility, truncation, and authentication fixtures—including `Authorization: Bearer <InternalTokenService.MintForCopilotExecution token>` bound to owner/run/current execution/exact tool/expiry/revocation—in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-valid.json`
+- [ ] T010 [P] Create invalid fixtures for user JWT/internal-service/Deep-job/wrong-tool/wrong-owner/wrong-run/stale-execution/expired/revoked tokens; unknown fields/enums; forged owner/snapshot/provider/apply fields; kind/job mismatch; duplicate calls; unsafe URLs; malformed output; and all byte boundaries in `specs/362-coin-copilot-attribution/contracts/fixtures/deep-analysis-handoff-invalid.json`
+- [ ] T011 [P] Add test-first Go fixture drift/auth tests proving only the canonical execution token is accepted and request/public event canonical bytes pass at 65,536 and fail at 65,537 in `src/api/handlers/coin_copilot_internal_tools_test.go` and `src/api/services/coin_copilot_contract_test.go`
+- [ ] T012 [P] Add test-first deterministic projection tests proving the complete canonical result is hashed before omission, persisted bytes never exceed 32,768, stable ordering produces identical bytes/digest/counts, UTF-8/JSON entries are never sliced, required lifecycle/link/limitations remain, and a non-fitting minimal envelope fails closed in `src/api/services/deep_analysis_handoff_projection_test.go`
+- [ ] T013 [P] Add test-first Python mirror cases for independent 65,536-byte request/public frames, 32,768-byte persisted results, checkpoint truncation disclosure/digest validation, unknown fields, and canonical execution-token forwarding in `src/agent/tests/test_coin_copilot_contract.py`
+- [ ] T014 [P] Add test-first TypeScript cases for 64 KiB public events, 32 KiB result metadata, deterministic omission disclosure, malformed/tampered payloads, and unsafe/mismatched review URLs in `src/web/src/api/endpoints/__tests__/agent.test.ts`
+- [ ] T015 Define strict Go request/result/projection models, mutual-field rules, closed vocabularies, finite confidence, URL/duplicate validation, and separate request/public-event/persisted-result limits in `src/api/services/coin_copilot_contract.go` and `src/api/services/deep_analysis_handoff_projection.go`
+- [ ] T016 [P] Define strict Pydantic model-visible and callback request/result mirrors with `extra="forbid"`, injected idempotency/checkpoint fields, independent byte bounds, and truncation metadata in `src/agent/app/models/requests.py` and `src/agent/app/models/responses.py`
+- [ ] T017 [P] Define strict TypeScript handoff/truncation types and fail-closed public-event parsing without proposal/apply properties in `src/web/src/types/agent.ts` and `src/web/src/api/endpoints/agent.ts`
 
-### Tests for User Story 1
-
-- [ ] T016 [P] [US1] Add test-first saved-coin and draft resolver cases for owner scoping, foreign/unknown equality, target kind mismatch, prompt/context ID disagreement, inactive/promoted/discarded drafts, target changes during resolution, and missing/duplicate/unsupported face images in `src/api/services/deep_analysis_handoff_service_test.go`
-- [ ] T017 [P] [US1] Add test-first v2 fingerprint cases for owner, target class/id, face-content hashes, bounded normalized context, sorted provider selection, image/note/provider changes, and continued readability of v1 direct-entry jobs in `src/api/services/deep_identification_service_test.go`
-- [ ] T018 [P] [US1] Add test-first repository/concurrency cases proving equivalent active requests and concurrent admissions return one job/provider fan-out while target-only, changed-input, and different-owner requests do not collide in `src/api/repository/deep_identification_repository_test.go` and `src/api/services/deep_identification_concurrency_test.go`
-- [ ] T019 [P] [US1] Add test-first handler cases for strict body decoding, execution-token owner derivation, foreign/unknown coin/draft/job equality, target-kind mismatch, body limits, redacted errors, and exact HTTP/domain mappings in `src/api/handlers/coin_copilot_internal_tools_test.go`
-
-### Implementation for User Story 1
-
-- [ ] T020 [US1] Implement HTTP-agnostic owner-scoped coin/draft resolution, active-draft recheck, distinct usable face validation, bounded context snapshotting, and corrective outcomes in `src/api/services/deep_analysis_handoff_service.go`
-- [ ] T021 [US1] Extend v2 canonical fingerprint input with owner, target type/id, current face hashes, bounded context digest, and Go-selected providers while preserving v1 direct Deep Analysis and Fast Identify behavior in `src/api/services/deep_identification_service.go`
-- [ ] T022 [US1] Implement active-job reuse, retained-current-result lookup, explicit-rerun admission, and sole delegation to existing `CreateJobFromIntake`/`StartJob` paths in `src/api/services/deep_analysis_handoff_service.go`
-- [ ] T023 [US1] Add the thin strict callback handler with `AuthorizeToolCall`/`FinishToolCall`, body cap, generic error mapping, and no business logic in `src/api/handlers/coin_copilot_internal_tools.go`
-- [ ] T024 [US1] Inject the handoff service from existing repositories/services/settings/image boundaries in `src/api/deps.go` and register only `POST /api/internal/copilot/tools/deep_analysis_handoff` with literal execution-token middleware in `src/api/routes_internal.go`
-- [ ] T025 [US1] Add end-to-end seam tests proving owned coin/draft acceptance, clarification/no-call behavior, active reuse, explicit rerun, no second provider pipeline, and unchanged direct Deep Analysis and Fast Identify entry points in `src/api/integration/coin_copilot_seam_test.go` and `src/api/integration/deep_identification_seam_test.go`
-
-**Checkpoint**: User Story 1 independently starts or reopens only the authoritative Deep Analysis workflow and discloses nothing about foreign resources.
+**Checkpoint**: Cross-language fixtures agree; execution-token authentication is canonical; 64 KiB request/public event and 32 KiB persisted-result behavior are separate and deterministic.
 
 ---
 
-## Phase 4: User Story 2 — Explain Persisted Results and Reopen Review (Priority: P1)
+## Phase 2: Deterministic Go Admission, Snapshot, Cancellation, and Idempotency Tests
 
-**Goal**: Return a bounded, validated conversational projection of persisted Deep report/proposal data and the exact existing review route.
+**Purpose**: Author all row-count/race/idempotency tests before schema or orchestration implementation.
 
-**Independent Test**: Project completed, partial, no-match, image-only, low-confidence, conflicting, pruned-event, queued/running, and missing-result fixtures; verify confidence/provenance/coverage/limitations are preserved, unsafe citations are omitted, and no invented or writable data appears.
+**⚠️ TEST-FIRST GATE**: T018–T021 must fail for the intended absent atomic seam before T022 starts.
+
+- [ ] T018 [P] [US1] Add barrier/channel-based test-first snapshot cases for coin deletion, obverse/reverse row or content replacement, notes/context value and version changes, provider configuration generation changes, draft promotion/discard/deletion, owner change, and target kind/id change; assert HTTP 409, zero handoff/job rows, zero worker wakes, and zero provider calls in `src/api/services/deep_analysis_handoff_service_test.go`
+- [ ] T019 [P] [US4] Add deterministic test-first admission/cancellation cases proving cancel-first creates zero handoff/job rows, admission-first creates exactly one binding/job then requests existing Deep cancellation, simultaneous duplicates create one binding/job, and late report/proposal/event/Copilot settlement is rejected in `src/api/services/coin_copilot_service_test.go` and `src/api/services/deep_identification_concurrency_test.go`
+- [ ] T020 [P] [US4] Add test-first durable handoff idempotency/crash-replay cases for same key/same binding, changed operation, target kind/id, prior rerun job id, execution, expected checkpoint, stored app-context digest, and server snapshot; require HTTP 409 and exact zero additional rows/wakes/provider calls on every changed binding in `src/api/repository/coin_copilot_repository_test.go`
+- [ ] T021 [US4] Add Go start/resume API test-first cases proving reuse of the same idempotency key with changed target kind/id, route app context, checkpoint version, current execution, or saved checkpoint returns HTTP 409 without callback/job execution in `src/api/handlers/coin_copilot_test.go` and `src/api/services/coin_copilot_worker_test.go`
+
+**Checkpoint**: Deterministic red tests define the atomicity boundary and all required zero/one row outcomes before schema or row-producing code exists.
+
+---
+
+## Phase 3: User Story 1 — Atomic Target Resolution and Deep Job Admission (Priority: P1) 🎯 MVP
+
+**Goal**: Resolve exactly one owned coin or active draft, snapshot it atomically, and durably reuse/create exactly one authoritative Deep job.
+
+**Independent Test**: Admit an owned saved coin and active draft; replay returns the same durable binding/job, while any ownership, target, face, context, provider-generation, checkpoint, execution, cancellation, or app-context change produces no stale work.
+
+### Schema and Repository Tests
+
+- [ ] T022 [P] [US1] Add test-first migration/order/no-backfill/rollback-preservation assertions for `coin_copilot_deep_handoffs`, its unique `(user_id,run_id,handoff_key_hash)` key and owner/job indexes, nullable indexed `source_draft_id`, and migration after the compatibility interlock in `src/api/database/database_test.go`
+- [ ] T023 [P] [US1] Add test-first model invariant cases requiring `copilot_draft` plus owned non-null `source_draft_id`, requiring null draft binding for `intake`/`saved_coin`, keeping `PriorJobID` distinct from result `DeepJobID`, and rejecting unknown sources in `src/api/models/deep_identification_job_test.go` and `src/api/models/coin_copilot_test.go`
+- [ ] T024 [P] [US1] Add test-first owner-scoped repository cases for same-key replay, changed-binding conflict, newest eligible retained result, active uniqueness, immutable source binding, artifact-before-commit readiness, staged-file cleanup on rollback, and worker wake only after commit in `src/api/repository/coin_copilot_repository_test.go` and `src/api/repository/deep_identification_repository_test.go`
+
+### Schema and Atomic Implementation
+
+- [ ] T025 [US1] Add `CoinCopilotDeepHandoff` with execution/checkpoint/app-context/operation/target/prior-job/snapshot/result-job/outcome fields and closed `DeepJobSourceCopilotDraft` plus `SourceDraftID` invariants in `src/api/models/coin_copilot.go` and `src/api/models/deep_identification_job.go`
+- [ ] T026 [US1] Add ordered additive migrations and indexes with no backfill or destructive rollback in `src/api/database/database.go`
+- [ ] T027 [US1] Implement owner/run/key-first durable binding lookup and one linearizable admission transaction that revalidates run/execution/checkpoint/cancellation/flags, target/faces/context/provider generation, artifacts, Deep reuse/create, and handoff insertion in `src/api/repository/coin_copilot_repository.go` and `src/api/repository/deep_identification_repository.go`
+- [ ] T028 [US1] Implement server-only canonical v2 snapshot generation over target state/version, distinct face row/version/hash, bounded context value/version, and sorted effective providers/configuration generation in `src/api/services/deep_identification_service.go` and `src/api/services/settings_service.go`
+- [ ] T029 [US1] Implement HTTP-agnostic exact owner-scoped coin/active-draft resolution, missing/duplicate/unsupported-face outcomes, candidate snapshot comparison, active/retained reuse, explicit rerun with separately validated prior job, and post-commit worker publication in `src/api/services/deep_analysis_handoff_service.go`
+- [ ] T030 [US1] Add strict thin handler authorization/decoding/error mapping and register only `POST /api/internal/copilot/tools/deep_analysis_handoff` with `CoinCopilotExecutionTokenRequired(tokenSvc, "deep_analysis_handoff")` in `src/api/handlers/coin_copilot_internal_tools.go` and `src/api/routes_internal.go`
+- [ ] T031 [US1] Inject only existing Go repositories/services/settings/images/tokens into the handoff service and add only the literal `deep_analysis_handoff` callback allowlist entry in `src/api/deps.go`, `src/api/services/coin_copilot_contract.go`, and `src/api/services/coin_copilot_proxy.go`
+- [ ] T032 [US1] Make all Phase 2 barriers green and add seam assertions for clarification/no-call, foreign/unknown equality, target-kind mismatch, active/retained reuse, explicit rerun, artifacts-before-worker, and unchanged Fast Identify/direct Deep entry points in `src/api/integration/coin_copilot_seam_test.go` and `src/api/integration/deep_identification_seam_test.go`
+
+**Checkpoint**: User Story 1 is independently usable; one durable Go binding and one authoritative Deep job survive crash/replay without stale admission or a second pipeline.
+
+---
+
+## Phase 4: User Story 2 — Closed Status Eligibility and Bounded Persisted Explanation (Priority: P1)
+
+**Goal**: Explain only eligible persisted Deep state through a deterministic bounded projection and link to the existing review page.
+
+**Independent Test**: Validated bindings, current owned saved coins, and active owned `copilot_draft` jobs are eligible; legacy unbound intake, unknown sources, deleted/promoted/foreign targets disclose no metadata.
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Add test-first projection tests for complete/partial/no-match/image-only/low-confidence/conflicting evidence, unresolved questions, provider coverage/attribution, pruned events, bounded arrays/text, and exclusion of raw notes, paths, credentials, edit decisions, and apply tokens in `src/api/services/deep_analysis_handoff_projection_test.go`
-- [ ] T027 [P] [US2] Add test-first URL/citation tests for existing provider-host allowlists, unsafe schemes, embedded credentials, malformed/unapproved hosts, mismatched review URLs, and honest omission limitations in `src/api/services/deep_identification_contract_drift_test.go`
-- [ ] T028 [P] [US2] Add test-first lifecycle tests proving queued/running status never restarts work, retained completed/partial results survive pruned events, and failed/cancelled/stale/expired/input-mismatched/missing-result jobs are never described as current success in `src/api/services/deep_analysis_handoff_service_test.go`
+- [ ] T033 [P] [US2] Add test-first closed eligibility cases for validated durable handoff plus matching checkpoint, owned current `saved_coin`, active owned `copilot_draft`, queued/running lifecycle-only results, and retained completed/partial reports with pruned events in `src/api/services/deep_analysis_handoff_service_test.go`
+- [ ] T034 [P] [US2] Add test-first nondisclosure cases returning `not_eligible` for legacy unbound `intake`, unknown source, arbitrary unbound/unknown/foreign job, and `target_unavailable` only for a previously validated binding whose coin was deleted or draft was deleted/discarded/promoted in `src/api/handlers/coin_copilot_internal_tools_test.go`
+- [ ] T035 [P] [US2] Add test-first persisted projection cases for complete/partial/no-match/image-only/low-confidence/conflicts/unresolved/provider limits, invalid/malformed report JSON, safe citation hosts, deterministic 32 KiB omission/digest metadata, and exclusion of raw notes/paths/credentials/acceptance/apply data in `src/api/services/deep_analysis_handoff_projection_test.go`
+- [ ] T036 [P] [US2] Add URL tests rejecting unsafe schemes, embedded credentials, malformed/unapproved citation hosts, absolute/protocol-relative/non-positive/mismatched review URLs, and invented citation repair in `src/api/services/deep_identification_contract_drift_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Implement strict decoding of only persisted Deep report/proposal snapshots and derive the bounded non-persisted result projection in `src/api/services/deep_analysis_handoff_projection.go`
-- [ ] T030 [US2] Reuse existing Deep source-host validation and fixed provider/license vocabulary, preserving Numista/Nomisma automation, separately enabled OCRE attribution, NGC link-out-only behavior, and RPC unavailable status in `src/api/services/deep_analysis_handoff_projection.go`
-- [ ] T031 [US2] Return lifecycle-accurate status/result limitations, current input digest, retained-result reuse marker, explicit fresh-analysis availability, and canonical `/deep-analysis/{positiveJobID}` in `src/api/services/deep_analysis_handoff_service.go`
-- [ ] T032 [US2] Add handler/seam assertions that malformed persisted JSON fails closed, projections stay inside existing checkpoint/event payload bounds, and public `tool_completed.result` contains no raw storage or mutation authority in `src/api/handlers/coin_copilot_internal_tools_test.go` and `src/api/integration/coin_copilot_seam_test.go`
+- [ ] T037 [US2] Implement the exact eligibility predicate and non-disclosing `not_eligible`/`target_unavailable` outcomes, with `status` remaining read-only and creating no handoff row, in `src/api/services/deep_analysis_handoff_service.go`
+- [ ] T038 [US2] Decode only validated persisted Deep report/proposal/coverage data, preserve source confidence/conflicts/no-match/provider attribution, validate citations, and build the complete canonical projection in `src/api/services/deep_analysis_handoff_projection.go`
+- [ ] T039 [US2] Deterministically reduce whole stable-order entries to 32,768 bytes after hashing the complete result, populate exact truncation byte/count/digest metadata, retain required lifecycle/link/limitations, and fail closed if the minimum cannot fit in `src/api/services/deep_analysis_handoff_projection.go`
+- [ ] T040 [US2] Enforce the 65,536-byte sanitized public-event envelope independently of the persisted result, expose only canonical `/deep-analysis/{jobId}`, and prevent status from restarting/retrying work in `src/api/services/coin_copilot_service.go` and `src/api/handlers/coin_copilot_internal_tools.go`
 
-**Checkpoint**: User Story 2 can honestly explain and reopen any supported persisted state without provider re-query, result invention, or target mutation.
+**Checkpoint**: User Story 2 explains only closed-eligible persisted state, never leaks a foreign/legacy target, and produces byte-stable replay facts with visible omission disclosure.
 
 ---
 
-## Phase 5: User Story 3 — Keep All Changes Review-Gated (Priority: P1)
+## Phase 5: User Story 3 — Atomic Existing-Destination Apply Matrix (Priority: P1)
 
-**Goal**: Bind draft-origin proposals safely while preserving the existing per-field review/apply bridge for collection, wishlist, and draft destinations.
+**Goal**: Keep conversation read-only and apply only owner-confirmed fields through the existing Deep review UI using the exact destination matrix.
 
-**Independent Test**: Explain/open/replay without confirmation and verify zero writes; then accept one valid field in the existing editor and verify only that field changes, manual data remains byte-for-byte, references append/dedupe, and invalid destination fields cannot apply.
+**Independent Test**: For collection, wishlist, and bound active draft, accept one valid scalar, notes, and new/equivalent references; verify exact-field replacement, idempotent notes append, registry-valid additive/deduped references, manual preservation, and all-or-nothing rejection on stale/unsupported state.
 
 ### Tests for User Story 3
 
-- [ ] T033 [P] [US3] Add test-first collection/wishlist/active-draft proposal tests for one-field acceptance, undecided/rejected preservation, destination allowlists, wishlist-versus-collection rules, inactive/changed/foreign draft rejection, and no collection-only/manual-field overwrite in `src/api/services/deep_identification_proposal_integration_test.go`
-- [ ] T034 [P] [US3] Add test-first manual preservation fixtures covering scalar fields, notes, images, acquisition/provenance, valuation, storage, privacy/status, relationships, and no conversational apply/write in `src/api/services/deep_identification_proposal_phase6b_test.go`
-- [ ] T035 [P] [US3] Add test-first structured-reference cases for validated URL/reference-number rules, additive append, equivalent replay dedupe, preservation of every existing row, wishlist validity, draft staging, and rejection of destructive replacement in `src/api/services/deep_identification_proposal_test.go`
+- [ ] T041 [P] [US3] Add table-driven test-first scalar matrix cases: collection/wishlist permit only `denomination`, `ruler`, `era`, `dateRange`, `mint`, `material`, `weightGrams`, `diameterMm`, `obverseInscription`, `reverseInscription`, `obverseDescription`, `reverseDescription`, `coin_type`; bound drafts permit only `workingTitle`, `era`, `dateRange`; each accepted scalar replaces only itself in `src/api/services/deep_identification_proposal_integration_test.go`
+- [ ] T042 [P] [US3] Add test-first note merge cases for one dated job-id-keyed `Source: Coin Copilot Deep Analysis` block, same-job replay replacement without duplication, new-job append, bounded content, and byte-for-byte preservation of manual text outside the block in `src/api/services/deep_identification_proposal_test.go`
+- [ ] T043 [P] [US3] Add test-first reference cases for registry validation, case-insensitive equivalence, additive append/dedupe, no replacement/deletion, collection/wishlist behavior, draft proposal staging through `AppliedDraftID`, and transactional promotion merge with the draft's existing selected reference in `src/api/services/deep_identification_proposal_phase6b_test.go` and `src/api/services/quick_capture_service_test.go`
+- [ ] T044 [US3] Add deterministic transaction test-first cases that re-read owner, destination/source binding, active lifecycle, target/context version, proposal version/selection/applicability, and reference registry/equivalence; any stale or unsupported field returns `409 re_review_required`, rolls back every scalar/note/reference change, and preserves images/acquisition/valuation/storage/privacy/status/relationships in `src/api/services/deep_identification_proposal_integration_test.go`
+- [ ] T045 [P] [US3] Add architecture tests proving Go/Python/routes/public events/chat expose no `apply`, `accept`, `edit`, `cancel_deep_job`, arbitrary write, provider query, database, filesystem, shell, or generic HTTP operation in `src/api/architecture_test.go` and `src/agent/tests/test_coin_copilot_architecture.py`
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Bind draft-origin job creation immutably to the exact active owned `SourceDraftID` and revalidate target liveness/ownership before proposal edit or apply in `src/api/services/deep_identification_service.go` and `src/api/services/deep_identification_proposal.go`
-- [ ] T037 [US3] Route only individually accepted destination-valid fields through existing `DeepIdentificationProposalService.Apply`, preserving current collection/wishlist/draft allowlists and all unaccepted/manual values in `src/api/services/deep_identification_proposal.go`
-- [ ] T038 [US3] Reuse the existing validated additive/deduplicating reference services for collection, wishlist, and staged draft references, with no replace/delete behavior in `src/api/services/deep_identification_proposal.go`
-- [ ] T039 [US3] Add a guard test proving no `apply`, `accept`, `edit`, `cancel_deep_job`, reference write, or generic mutation operation exists in Go/Python handoff definitions or routes in `src/api/architecture_test.go` and `src/agent/tests/test_coin_copilot_architecture.py`
+- [ ] T046 [US3] Route `copilot_draft` proposals only to the exact still-active owner-bound `SourceDraftID`, preserve ordinary `intake` new-draft behavior, and perform all state/version/applicability revalidation in one transaction in `src/api/services/deep_identification_proposal.go`
+- [ ] T047 [US3] Implement exact-field scalar replacement and idempotent job-keyed notes append for collection, wishlist, and draft destinations without widening existing allowlists in `src/api/services/deep_identification_proposal.go`
+- [ ] T048 [US3] Implement registry-validated additive case-insensitive reference dedupe for coins, staged accepted draft references linked by `AppliedDraftID`, and atomic promotion merge in `src/api/services/deep_identification_proposal.go` and `src/api/services/quick_capture_service.go`
+- [ ] T049 [US3] Return `409 re_review_required` with zero partial writes for unsupported fields or changed owner/lifecycle/context/proposal/registry state and preserve all unselected/manual data in `src/api/handlers/deep_identification.go` and `src/api/services/deep_identification_proposal.go`
 
-**Checkpoint**: User Story 3 changes nothing from conversation and preserves every unaccepted/manual field and prior reference through the existing confirm-gated editor.
+**Checkpoint**: User Story 3 has no conversational write path; the existing editor applies the exact matrix atomically and replay-idempotently.
 
 ---
 
-## Phase 6: User Story 4 — Bounded Python Orchestration, Cancellation, Replay, and Fallback (Priority: P1)
+## Phase 6: User Story 4 — Python Orchestration, Replay, Cancellation, and Fallback (Priority: P1)
 
-**Goal**: Let the stateless Python harness invoke the one fixed callback within existing budgets, replay completed facts without re-execution, and recover safely from races or unavailable capabilities.
+**Goal**: Keep Python stateless and bounded while forwarding one fixed side-effect capability and replaying completed facts without re-execution.
 
-**Independent Test**: Exercise duplicate/replayed calls, changed-target replay, cancellation before admission and after each await, late frames, malformed model/callback output, failed/cancelled/stale jobs, disabled Deep/Copilot, unsupported models, and pre-accept failures; verify deterministic reuse/fallback and no duplicate work or write.
+**Independent Test**: Duplicate/replayed/changed calls, cancellation at every await, malformed output, unsupported models, disabled capabilities, and late frames produce deterministic reuse/conflict/fallback with no duplicate callback/provider work.
 
 ### Tests for User Story 4
 
-- [ ] T040 [P] [US4] Add test-first callback-client cases for exact route construction, execution token use, strict result validation, digest/bounds/sanitization, duplicate completed-call dedupe, changed-target replay rejection, and no arbitrary URL or Deep apply route in `src/agent/tests/test_coin_copilot_contract.py`
-- [ ] T041 [P] [US4] Add test-first harness cases for clarification before tool use, prompt/context disagreement, `request`/`status`/explicit `rerun` choice, handoff-only serial execution, existing iteration/tool/concurrency/wall-clock/token/payload bounds, and no nested unbounded budget in `src/agent/tests/test_coin_copilot_harness.py`
-- [ ] T042 [US4] Add deterministic test-first cancellation/replay cases for cancel-before-admission, admission-before-cancel, cancellation after every await, late result rejection, completed-checkpoint reconstruction without callback, duplicate/replayed calls, and stale/failed/cancelled result handling in `src/agent/tests/test_coin_copilot_harness.py`
-- [ ] T043 [P] [US4] Add test-first security/fallback cases for malformed/oversized output, unknown fields/states, injection text, token-shaped secrets, URL violations, forged apply/provider overrides, unavailable Deep capability, default-off Copilot, unsupported model, and pre-accept legacy fallback in `src/agent/tests/test_coin_copilot_security.py` and `src/agent/tests/test_coin_copilot_capabilities.py`
+- [ ] T050 [P] [US4] Add test-first Python callback cases for the fixed route, canonical `Bearer` execution token, harness-injected tool call/idempotency/checkpoint fields, forbidden model-supplied owner/snapshot/provider/apply data, strict 64 KiB request and 32 KiB result metadata, and no arbitrary URL in `src/agent/tests/test_coin_copilot_contract.py`
+- [ ] T051 [P] [US4] Add test-first harness cases for ambiguity/prompt-context disagreement, correct `request`/read-only `status`/explicit `rerun`, request/rerun executing alone, all existing iteration/tool/concurrency/wall-clock/token/event bounds, and no nested unbounded budget in `src/agent/tests/test_coin_copilot_harness.py`
+- [ ] T052 [US4] Add test-first replay/cancellation cases for completed-checkpoint reconstruction without callback, duplicate completed-call digest, changed binding conflict, cancellation before/after every await, admission-first Deep cancel, late frame rejection, deterministic truncation disclosure, and failed/cancelled/stale results in `src/agent/tests/test_coin_copilot_harness.py`
+- [ ] T053 [P] [US4] Add test-first security/fallback cases for unknown/malformed/oversized/injection/token-shaped output, unsafe URLs, unavailable Deep/attribution capability, default-off Copilot, unsupported model, and pre-accept legacy fallback in `src/agent/tests/test_coin_copilot_security.py` and `src/agent/tests/test_coin_copilot_capabilities.py`
 
 ### Implementation for User Story 4
 
-- [ ] T044 [US4] Register exactly `deep_analysis_handoff` in `COPILOT_ALLOWED_TOOLS`, `CALLBACK_TOOLS`, `ARG_MODELS`, and `RESULT_MODELS`, reusing the fixed callback client and completed-call digest path in `src/agent/app/tools/copilot_collection_tools.py`
-- [ ] T045 [US4] Add one typed tool definition and prompt policy for exact-target clarification, status/reuse, explicit rerun, persisted-result honesty, and the prohibition on conversational apply/write in `src/agent/app/teams/coin_copilot.py`
-- [ ] T046 [US4] Execute request/rerun handoffs alone, retain every existing harness bound, check cancellation around each await, and restore completed handoff facts from checkpoints without another Go call in `src/agent/app/teams/coin_copilot.py`
-- [ ] T047 [US4] Linearize Go cancellation against request/rerun admission per execution, return zero jobs when cancellation wins, preserve admitted Deep jobs as independent durable work, and reject late Python settlement in `src/api/services/coin_copilot_service.go` and `src/api/services/deep_analysis_handoff_service.go`
-- [ ] T048 [US4] Add Go race tests for cancel-before-admission, admission-before-cancel, duplicate concurrent calls, replay, exactly-one terminal Copilot event, and late-frame rejection in `src/api/services/coin_copilot_service_test.go` and `src/api/services/coin_copilot_worker_test.go`
-- [ ] T049 [US4] Preserve current collection callbacks, specialist tools, feature flags, unsupported-model handling, and pre-accept legacy fallback with regression assertions in `src/agent/tests/test_coin_copilot_specialists.py`, `src/agent/tests/test_coin_copilot_capabilities.py`, and `src/api/services/coin_copilot_proxy_test.go`
+- [ ] T054 [US4] Register exactly `deep_analysis_handoff` in `COPILOT_ALLOWED_TOOLS`, `CALLBACK_TOOLS`, `ARG_MODELS`, and `RESULT_MODELS`, inject execution/idempotency/checkpoint data, and reuse strict digest/sanitization/completed-call dedupe in `src/agent/app/tools/copilot_collection_tools.py`
+- [ ] T055 [US4] Add the one typed tool definition and system policy for exact-target clarification, status/reuse, explicit rerun, persisted-result/truncation honesty, and no conversational apply/write in `src/agent/app/teams/coin_copilot.py`
+- [ ] T056 [US4] Execute request/rerun alone, preserve all current budgets and cancellation checks, replay completed checkpoint facts without another Go call, and reject late settlement in `src/agent/app/teams/coin_copilot.py`
+- [ ] T057 [US4] Linearize Copilot cancel with admission, request Deep cancellation for an admission-first nonterminal bound job, and make late Copilot/provider/report/proposal/event settlement lose in `src/api/services/coin_copilot_service.go`, `src/api/services/coin_copilot_worker.go`, and `src/api/services/deep_analysis_handoff_service.go`
+- [ ] T058 [US4] Preserve existing four collection callbacks, specialist tools, feature flags, unsupported-model handling, and pre-accept legacy fallback in `src/agent/tests/test_coin_copilot_specialists.py`, `src/agent/tests/test_coin_copilot_capabilities.py`, and `src/api/services/coin_copilot_proxy_test.go`
 
-**Checkpoint**: User Story 4 remains bounded, replay-safe, cancellation-safe, capability-aware, stateless in Python, and backward compatible.
+**Checkpoint**: User Story 4 is stateless in Python, crash/replay safe in Go, bounded at both envelope levels, and cancellation/fallback safe.
 
 ---
 
 ## Phase 7: Vue Handoff Card and Existing Review Navigation
 
-**Purpose**: Complete the User Story 2 browser handoff without creating a second proposal surface or authorizing browser-to-agent calls.
+**Purpose**: Complete User Story 2 navigation without adding proposal mutation or duplicate UI.
 
-- [ ] T050 [P] [US2] Add test-first app-context cases that emit bounded `activeDraftId` only on the exact active-draft route and treat route/prompt hints as non-authoritative in `src/web/src/composables/__tests__/useCoinSearchChat.test.ts`
-- [ ] T051 [P] [US2] Add test-first card cases for queued/running/completed/partial/no-match/failed/cancelled/stale/unavailable states, limitations/conflicts/coverage, malformed projections, no apply controls, and fixed `Open Deep Analysis` label in `src/web/src/components/chat/__tests__/CopilotRunProgress.test.ts`
-- [ ] T052 [US2] Add test-first navigation cases rejecting absolute, protocol-relative, credential-bearing, non-positive, and job-mismatched URLs while accepting only `/deep-analysis/{positiveJobID}` through Vue Router in `src/web/src/components/chat/__tests__/CopilotRunProgress.test.ts`
-- [ ] T053 [P] [US2] Add regression tests for Copilot fallback/cancel/resume/reconnect and independent Deep Analysis report/proposal/retry/cancel/reconnect behavior in `src/web/src/composables/__tests__/useCoinCopilot.test.ts` and `src/web/src/pages/__tests__/DeepAnalysisPage.test.ts`
-- [ ] T054 [US2] Add bounded optional `activeDraftId` context only for the active Quick Capture route in `src/web/src/types/agent.ts` and `src/web/src/composables/useCoinSearchChat.ts`
-- [ ] T055 [US2] Render the typed compact handoff lifecycle/result card with limitations and a validated router link in `src/web/src/components/chat/CopilotRunProgress.vue`, using existing design tokens and Lucide icons and adding no proposal/edit/apply controls
-- [ ] T056 [US2] Preserve the canonical `/deep-analysis/:jobId` route and existing `DeepAnalysisPage` as the sole progress/review/editor surface, adding only navigation regression guards in `src/web/src/router/index.ts` and `src/web/src/pages/__tests__/DeepAnalysisPage.test.ts`
+- [ ] T059 [P] [US2] Add test-first app-context cases emitting bounded `activeDraftId` only on the exact active draft route while keeping all prompt/route hints non-authoritative in `src/web/src/composables/__tests__/useCoinSearchChat.test.ts`
+- [ ] T060 [P] [US2] Add test-first card cases for every closed outcome/status, truncation/omitted-count disclosure, conflicts/coverage/limitations, malformed payloads, no apply controls, and fixed `Open Deep Analysis` text in `src/web/src/components/chat/__tests__/CopilotRunProgress.test.ts`
+- [ ] T061 [US2] Add test-first router cases accepting only a positive job-matching `/deep-analysis/{jobId}` and rejecting absolute, protocol-relative, credential-bearing, non-positive, or mismatched URLs in `src/web/src/components/chat/__tests__/CopilotRunProgress.test.ts`
+- [ ] T062 [P] [US2] Add regression tests for Copilot fallback/cancel/resume/reconnect and independent Deep report/proposal/retry/cancel/reconnect behavior in `src/web/src/composables/__tests__/useCoinCopilot.test.ts` and `src/web/src/pages/__tests__/DeepAnalysisPage.test.ts`
+- [ ] T063 [US2] Add optional bounded `activeDraftId` only for the active Quick Capture route in `src/web/src/types/agent.ts` and `src/web/src/composables/useCoinSearchChat.ts`
+- [ ] T064 [US2] Render the typed bounded handoff card, omission disclosure, and validated Vue Router link with existing tokens/Lucide controls and no editor/apply UI in `src/web/src/components/chat/CopilotRunProgress.vue`
+- [ ] T065 [US2] Preserve `/deep-analysis/:jobId` and `DeepAnalysisPage.vue` as the sole progress/review/editor/apply surface with navigation/reconnect guards in `src/web/src/router/index.ts` and `src/web/src/pages/__tests__/DeepAnalysisPage.test.ts`
 
-**Checkpoint**: The existing drawer hands off safely to the existing Deep Analysis page on desktop and mobile/PWA; there is no duplicate proposal UI.
+**Checkpoint**: Desktop and mobile/PWA users reach the exact existing Deep review page; no browser-to-agent call or duplicate proposal UI exists.
 
 ---
 
-## Phase 8: Full Gates, Documentation, and Operational Evidence
+## Phase 8: Finish-Existing Flags and Mixed-Version Rollback
 
-**Purpose**: Prove the complete blast radius, synchronize contracts, and capture reproducible acceptance evidence without deployment.
+**Purpose**: Prove disabling features blocks only new admission/rerun and that the guard release remains a safe rollback target.
 
-- [ ] T057 Run targeted test-first suites from `specs/362-coin-copilot-attribution/quickstart.md` and record commands/results for Go contract/tamper/owner/lifecycle/proposal tests, Python contract/harness/security tests, and Vue handoff tests in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T058 Run architecture and route-set guards in `src/api/architecture_test.go`, `src/api/integration/coin_copilot_seam_test.go`, and `src/agent/tests/test_coin_copilot_architecture.py`; record proof in `specs/362-coin-copilot-attribution/quickstart-evidence.md` that Python remains DB/filesystem/shell/generic-HTTP/write free and only the fixed handoff callback route was added
-- [ ] T059 Run regression suites covering Fast Identify, legacy fallback, existing collection/specialist tools, direct Deep Analysis launch/history/status/retry/cancel/review/apply, manual data, additive references, and Numista/Nomisma/OCRE/NGC/RPC boundaries; record results in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T060 Regenerate Swagger/OpenAPI only if a documented public projection or route changed via `task openapi`, then run drift checks and update only `src/api/docs/docs.go`, `src/api/docs/swagger.json`, `src/api/docs/swagger.yaml`, and `docs/openapi.json`
-- [ ] T061 [P] Update capability, safety boundary, flags, target rules, lifecycle/replay behavior, existing review-only apply flow, provider attribution, and troubleshooting documentation in `docs/features/coin-copilot.md` and `docs/api-reference.md`
-- [ ] T062 Run the full repository Quality Gate from `.specify/memory/constitution.md` and `.github/workflows/ci.yml`: Go build/vet/all tests, Vue lint/type-check/tests/build, Python ruff/all pytest, and OpenAPI drift; append exact results to `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T063 Run `CGO_ENABLED=1 go test -race ./...` in `src/api`, then verify the hosted Linux Quality Gate jobs in `.github/workflows/ci.yml` are green; record local and hosted evidence in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T064 Run the security gates defined by `.github/workflows/security-scan.yml`—gitleaks, `govulncheck ./...`, `npm audit --audit-level=high`, `uv run pip-audit`, agent runtime-image pip absence/health smoke test—and the Constitution trivy High/Critical container scan; record results or an explicit environment limitation in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T065 Run browser exploration for owned coin, wishlist coin, active draft, ambiguity, missing/duplicate images, foreign IDs, active/retained/failed/cancelled/stale jobs, replay, fallback, one-field apply, manual preservation, and reference append/dedupe; record screenshots/observations in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T066 Run the narrow-viewport mobile/PWA acceptance walkthrough from `specs/362-coin-copilot-attribution/quickstart.md`, including background/restore of both independent SSE loops, 44 px touch target, keyboard navigation, dark-theme/design-token use, horizontal containment, and absence of duplicate editor; record evidence in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
-- [ ] T067 Invoke the `post-major-work-qc-audit` skill after all implementation and gates, resolve every blocking finding in the exact files it identifies, and append the final audit disposition to `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T066 [P] [US4] Add test-first transition cases for disabling `CoinCopilotAttributionEnabled`, `CoinCopilotEnabled`, model capability, or `DeepIdentificationEnabled` before admission; assert no handoff/job/provider work and typed unavailable reason in `src/api/services/deep_analysis_handoff_service_test.go` and `src/agent/tests/test_coin_copilot_capabilities.py`
+- [ ] T067 [US4] Add test-first `finish_existing` cases for each flag disabled after durable acceptance: worker completion remains allowed; owner status/events/cancel/report/proposal review/edit/confirmed existing-page apply remain available; all new handoffs/reruns are blocked in `src/api/integration/coin_copilot_seam_test.go` and `src/api/services/deep_identification_proposal_integration_test.go`
+- [ ] T068 [US4] Implement live pre-admission checks for all four gates while exempting already accepted owner reads/cancel/review/edit/apply and worker settlement in `src/api/services/deep_analysis_handoff_service.go`, `src/api/services/deep_identification_service.go`, and `src/api/services/deep_identification_proposal.go`
+- [ ] T069 Complete `scripts/compat/feature362-rollback.ps1` to migrate a copied database, create/settle saved-coin and `copilot_draft` handoffs, disable/drain/cancel, boot the guard binary, prove fail-closed adoption/apply with byte-preserved rows, then re-upgrade and restore status/review/apply
+- [ ] T070 Run the complete mixed-binary matrix locally or in `.github/workflows/feature362-compatibility.yml`; require a pass for pre-feature known sources, unknown/`copilot_draft` guard rejection, default-off migration, row preservation, and re-upgrade restoration, and record the passing URL/ID in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
 
-**Checkpoint**: All automated, race, hosted, security, browser, mobile/PWA, documentation, OpenAPI, quickstart, and post-major-work audit gates have reproducible evidence.
+**Checkpoint**: No gate waiver exists; rollback never targets an unguarded binary, and accepted work remains usable under finish-existing semantics.
+
+---
+
+## Phase 9: Full Quality, Security, Browser, Documentation, and PR Gates
+
+**Purpose**: Produce complete local-or-equivalent-hosted evidence for the whole repository and Feature 362 blast radius.
+
+- [ ] T071 Run targeted Go contract/tamper/auth/owner/snapshot/idempotency/status/projection/apply/cancellation/finish-existing suites and record exact passing commands/results in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T072 Run architecture and exact route-set guards proving Python remains database/filesystem/shell/generic-HTTP/provider/write free, Vue calls Go only, and the callback allowlist expands solely by `POST /api/internal/copilot/tools/deep_analysis_handoff` rather than wildcard or Deep apply routes; record the pass in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T073 Run regressions for Fast Identify, legacy fallback, all existing Coin Copilot collection/specialist tools, direct Deep intake/saved-coin history/events/cancel/retry/review/apply, manual data/additive references, and Numista/Nomisma/OCRE/NGC/RPC boundaries; record the pass in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T074 Regenerate and verify Swagger/OpenAPI only if the documented route/public projection changes by running `task openapi`, updating only `src/api/docs/docs.go`, `src/api/docs/swagger.json`, `src/api/docs/swagger.yaml`, and `docs/openapi.json`, and record the drift-check pass in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T075 [P] Update Feature 362 capability, accepted ADR/compatibility sequence, exact auth/bounds/status/apply matrix, finish-existing behavior, rollback, provider limits, and troubleshooting documentation in `docs/features/coin-copilot.md` and `docs/api-reference.md`
+- [ ] T076 Run the complete Python gate in `src/agent`: `pip install -e ".[dev]"`, `uv sync --extra dev`, `uv run python -m compileall -q app tests`, `uv run ruff check app tests`, targeted contract/harness tests, and `uv run pytest tests -v`; require local passes or equivalent hosted passes and record each in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T077 Run the complete web gate in `src/web`: `npm ci`, `npm run lint`, `npx vue-tsc --build`, `npm run test -- --run`, and `npm run build`; require local passes or equivalent hosted passes and record each in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T078 Run the complete Go/hosted gate in `src/api`: `go build ./...`, `go vet ./...`, `go test -run TestArchitecture ./...`, `go test ./...`, targeted integration/rollback tests, and `CGO_ENABLED=1 go test -race ./...`; require local passes or equivalent Linux Quality Gate passes and record each in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T079 Run all configured security gates from `.github/workflows/security-scan.yml` plus Constitution requirements: gitleaks, `govulncheck ./...`, `npm audit --audit-level=high`, `uv run pip-audit`, agent image no-pip/health smoke, and Trivy container scan with zero High/Critical findings; require local or equivalent hosted passes and record them in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T080 Run browser exploration for collection/wishlist/draft admission, every conflict/eligibility/lifecycle/fallback case, deterministic truncation disclosure, cancel races, finish-existing transitions, exact scalar/note/reference apply matrix, manual preservation, and no conversational write; record reproducible observations in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T081 Run narrow-viewport mobile/PWA acceptance for both independent SSE resumptions, background/restore, keyboard operation, 44 px touch targets, dark-theme/design-token layout, safe review navigation, truncation disclosure, horizontal containment, and absence of duplicate editor; record the pass in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T082 Verify every applicable hosted PR check passes—including Quality Gate, Go race, compatibility matrix, Security Scan, CodeQL, container image build/scan, and SBOM/provenance checks—and record check names and URLs/IDs in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [ ] T083 Complete the PR description from `.github/pull_request_template.md` with the Constitution §17/§21 Definition of Done and workflow-contract self-check, citing ADR 0017, Principles II/III/IV/V/VIII/IX, rollback artifact retention, test-first evidence, security evidence, and exact affected workflows without modifying the template
+- [ ] T084 Invoke the `post-major-work-qc-audit` skill after T070–T083 pass, resolve all blocking findings in the exact implementation/docs/test files identified by the audit, rerun affected gates, and append the final passing disposition to `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+
+**Checkpoint**: Every configured gate has a local or equivalent hosted pass; no environment limitation is accepted as evidence.
 
 ---
 
@@ -187,104 +223,90 @@
 
 ### Phase Dependencies
 
-- **Phase 1 (T001–T008)**: Starts immediately. T001 and T002 define fixtures; T003–T005 must fail against them before T006–T008 implement the mirrors.
-- **Phase 2 (T009–T015)**: Depends on Phase 1 contract vocabulary. T009–T010 and T013–T014 are failing guards before T011–T012 and T015.
-- **Phase 3 / US1 (T016–T025)**: Depends on Phase 2. Tests T016–T019 precede T020–T024; T025 follows the complete Go seam.
-- **Phase 4 / US2 backend (T026–T032)**: Depends on US1 job resolution/reuse. Tests T026–T028 precede T029–T031; T032 closes the seam.
-- **Phase 5 / US3 (T033–T039)**: Depends on the draft binding from Phase 2 and Deep job creation from US1; it does not depend on Vue. Tests T033–T035 precede T036–T038; T039 is the no-write guard.
-- **Phase 6 / US4 (T040–T049)**: Depends on the strict callback contract and Go seam. T040–T043 precede T044–T047; T048–T049 validate races and compatibility.
-- **Phase 7 / US2 browser (T050–T056)**: Depends on the validated public projection from Phase 4 and replay behavior from Phase 6. T050–T053 precede T054–T056.
-- **Phase 8 (T057–T067)**: Depends on all selected story phases. T060 precedes OpenAPI drift in T062; T062–T066 precede the final QC audit T067.
+- **Phase 0 (T001–T008)**: Absolute prerequisite. T001 confirms the accepted ADR; T002–T004 fail first; T005–T006 implement only the compatibility guard/default-off flag; T007–T008 produce and verify the retained guard artifact. No Feature 362 schema/rows may precede T008.
+- **Phase 1 (T009–T017)**: May begin after ADR confirmation but cannot register a route or write rows. Fixtures precede language implementations.
+- **Phase 2 (T018–T021)**: Depends on the accepted ADR and contract vocabulary; all deterministic Go tests must be red before Phase 3 schema/orchestration starts.
+- **Phase 3 / US1 (T022–T032)**: Depends on T008, T015–T017, and all red tests T018–T021. Schema tests precede models/migrations; repositories precede services; callback registration is last.
+- **Phase 4 / US2 (T033–T040)**: Depends on US1's durable binding/job seam. Eligibility/projection tests precede implementation.
+- **Phase 5 / US3 (T041–T049)**: Depends on `copilot_draft` binding and the existing proposal editor, not on Vue. All matrix/transaction tests precede merge implementation.
+- **Phase 6 / US4 (T050–T058)**: Depends on the fixed Go callback and bounded projection. Python tests precede registration/orchestration.
+- **Phase 7 / Vue (T059–T065)**: Depends on US2 projection and US4 delivery/replay.
+- **Phase 8 (T066–T070)**: Depends on all backend lifecycle/apply work; transition tests precede finish-existing implementation and the complete rollback matrix.
+- **Phase 9 (T071–T084)**: Depends on all selected feature phases. OpenAPI/docs precede full gates; all configured gates and PR evidence precede the final QC audit.
 
 ### User Story Dependencies
 
-- **US1**: First independently deliverable story after foundational work; it is the MVP.
-- **US2**: Backend projection depends on US1's owner-scoped job; browser handoff additionally depends on US4 replay-safe delivery.
-- **US3**: Depends on US1 job admission and foundational draft binding, but is independently testable through the existing Deep proposal editor without the new card.
-- **US4**: Depends on the fixed Go callback, but lifecycle/cancellation/fallback behavior is independently testable at the Python/Go seam without Vue.
+- **US1**: First independently deliverable story after compatibility, contracts, and deterministic red tests; it is the MVP.
+- **US2**: Depends on US1 durable bindings; Vue delivery additionally depends on US4 checkpoint replay.
+- **US3**: Depends on US1 `copilot_draft` binding but is independently testable through the existing Deep review UI.
+- **US4**: Depends on the fixed Go callback; its cancellation/idempotency red tests intentionally precede US1 implementation.
 
-### Critical Ordering Anchors
+### Critical Test-First Anchors
 
-1. Canonical tamper fixtures → failing language contract tests → strict mirrors.
-2. Failing migration/order/rollback/ownership tests → nullable column/index/invariant implementation.
-3. Failing foreign-ID/kind/image/fingerprint/duplicate tests → resolver and admission implementation.
-4. Failing projection/URL/lifecycle tests → persisted bounded projection.
-5. Failing manual/reference/destination/no-write tests → draft-bound existing apply bridge.
-6. Failing malformed/replay/cancel/fallback tests → Python registration and Go admission serialization.
-7. Failing card/navigation/reconnect tests → Vue handoff only.
-8. Targeted suites → OpenAPI sync → full/race/security/browser/mobile gates → final QC audit.
+1. Accepted ADR → unknown-source/default-off red tests → compatibility guard → retained guard artifact.
+2. 64 KiB request/public event and 32 KiB deterministic result tests → strict cross-language contracts.
+3. Snapshot/cancel/idempotency/start-resume red tests → schema → atomic repository/service implementation → callback registration.
+4. Closed eligibility/projection/URL red tests → status and deterministic persisted projection.
+5. Exact scalar/note/reference/state-revalidation red tests → atomic destination merge.
+6. Python malformed/replay/cancel/fallback red tests → serial tool registration/orchestration.
+7. Vue context/card/navigation/reconnect red tests → existing-drawer handoff.
+8. Flag-transition red tests → finish-existing implementation → mixed-binary rollback.
+9. Targeted regressions → OpenAPI/docs → full/race/security/browser/mobile/hosted/PR gates → QC audit.
 
 ---
 
-## Parallel Execution Examples
-
-### Phase 1
+## Genuine Parallel Opportunities
 
 ```text
-In parallel after T001–T002:
-- T003 Go fixture drift tests
-- T004 Python mirror tests
-- T005 TypeScript parser tests
-```
+After T001:
+- T002 unknown-source handler/service tests
+- T003 worker/repository compatibility tests
+- T004 default-off settings tests
 
-### User Story 1
+After canonical fixtures T009–T010:
+- T011 Go auth/64 KiB tests
+- T012 Go 32 KiB projection tests
+- T013 Python contract tests
+- T014 TypeScript event tests
 
-```text
-In parallel before implementation:
-- T016 target/ownership/image guard tests
-- T017 fingerprint tests
-- T018 duplicate/concurrency tests
-- T019 handler/auth/body-cap tests
-```
+Before schema, after Phase 1:
+- T018 snapshot mutation tests
+- T019 admission/cancellation tests
+- T020 durable idempotency tests
 
-### User Stories 2 and 3
-
-```text
 After US1:
-- US2 backend test thread: T026–T028
-- US3 review/apply test thread: T033–T035
-These touch separate projection and proposal test files; implementation remains ordered behind its own failing tests.
-```
+- T033–T036 US2 eligibility/projection test files
+- T041–T043 US3 matrix test files
 
-### User Story 4 and Vue
+After the Go callback:
+- T050 Python callback contract tests
+- T051 Python harness policy/budget tests
+- T053 Python security/capability tests
 
-```text
-After the Go callback exists:
-- T040 callback-client contract tests
-- T041 bounded orchestration tests
-- T043 security/fallback tests
-After US2 projection and US4 delivery are stable:
-- T050 app-context tests
-- T051/T052 card and navigation tests
-- T053 reconnect regression tests
+After bounded public delivery:
+- T059 app-context tests
+- T060 card rendering tests
+- T062 reconnect regressions
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First
+### Compatibility-First MVP
 
-1. Complete strict contracts/tamper fixtures (Phase 1).
-2. Complete migration and immutable boundary guards (Phase 2).
-3. Complete and independently validate US1 (Phase 3).
-4. Stop and demonstrate exact owner-scoped coin/draft resolution plus one reused/admitted authoritative Deep job; do not present this as full Feature 362 until US2–US4 and gates pass.
+1. Accept and pin ADR 0017.
+2. Ship/test/archive the source-validation compatibility guard and default-off flag with no Feature 362 schema/rows.
+3. Author deterministic contract/snapshot/admission/cancellation/idempotency tests.
+4. Add schema and implement US1 atomic admission.
+5. Stop and independently verify one owned coin and one active draft produce one durable binding/job; do not enable or present full Feature 362 until US2–US4, rollback, and all gates pass.
 
-### Incremental Delivery
+### Non-Negotiable Boundaries
 
-1. **US1**: Safe target resolution and authoritative job handoff.
-2. **US2 backend**: Honest persisted bounded result projection and review route.
-3. **US3**: Existing review-gated collection/wishlist/draft apply behavior with manual/reference preservation.
-4. **US4**: Bounded Python orchestration, deterministic cancellation/replay, and safe fallback.
-5. **US2 browser**: Existing drawer card to existing Deep Analysis page, never a second editor.
-6. **Full evidence**: OpenAPI as applicable, Quality Gate, race/hosted/security/browser/mobile, documentation, and QC audit.
-
-### Non-Negotiable Regression Boundary
-
-- Keep Fast Identify behavior and entry points unchanged.
-- Keep pre-accept legacy chat fallback and default-off/unsupported-model behavior unchanged.
-- Keep all current Coin Copilot collection and specialist tools unchanged.
-- Keep direct Deep Analysis launch, lifecycle, review, and apply paths authoritative.
-- Preserve manual fields and structured references; references remain validated, additive, and deduplicated.
-- Keep Python stateless and free of database, filesystem, shell, generic HTTP, provider, and write authority.
-- Add no direct agent mutation, generic callback, arbitrary Deep apply route, second proposal model, or duplicate proposal UI.
+- Fast Identify, direct Deep Analysis, legacy fallback, existing collection/specialist tools, and provider/license behavior remain unchanged.
+- Python remains stateless and database/filesystem/shell/generic-HTTP/provider/write free.
+- Conversation/status/link/replay cannot apply or mutate.
+- Existing Deep review UI remains the sole proposal editor/apply surface.
+- Collection/wishlist/draft manual data and prior references remain preserved; reference behavior is validated, additive, and case-insensitively deduplicated.
+- Rollback never targets the unguarded pre-feature binary and never drops/backfills Feature 362 rows.
+- No configured quality, security, compatibility, race, browser, or PR gate may be waived.
