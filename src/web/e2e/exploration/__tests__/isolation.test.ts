@@ -6,7 +6,7 @@ const safe = {
   services: {
     app: {
       build: '.',
-      ports: ['127.0.0.1::8080'],
+      ports: ['127.0.0.1:49152:8080'],
       volumes: ['db:/app/data', 'uploads:/app/uploads'],
       networks: ['internal'],
     },
@@ -22,7 +22,7 @@ const safe = {
 }
 
 describe('Compose isolation guards', () => {
-  it('accepts current-source, random-port, project-scoped isolation', () => {
+  it('accepts current-source, allocated-port, project-scoped isolation', () => {
     expect(() => assertComposeIsolation(safe, 'http://127.0.0.1:49152', 'ai-browser-test-abc123')).not.toThrow()
   })
 

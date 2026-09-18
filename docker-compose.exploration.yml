@@ -60,7 +60,7 @@ services:
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_ORIGIN: http://localhost
     ports:
-      - "127.0.0.1::8080"
+      - "127.0.0.1:${AI_BROWSER_APP_PORT:-0}:8080"
     volumes:
       - exploration-db:/app/data
       - exploration-uploads:/app/uploads

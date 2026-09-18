@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
+import { createServer } from 'node:net'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
@@ -130,11 +131,18 @@ export function assertComposeIsolation(value: unknown, origin: string, project: 
     }
   }
   const appPort = services.app?.ports?.[0]
-  if (!appPort) throw new Error('App must declare a loopback random port')
+  const expectedPort = new URL(origin).port
+  if (!appPort) throw new Error('App must declare a loopback ephemeral port')
   if (typeof appPort === 'string') {
-    if (appPort !== '127.0.0.1::8080') throw new Error('App port must be loopback-only and OS-assigned')
-  } else if (appPort.host_ip !== '127.0.0.1' || ![0, '0', '', undefined].includes(appPort.published)) {
-    throw new Error('App port must be loopback-only and OS-assigned')
+    if (appPort !== `127.0.0.1:${expectedPort}:8080`) {
+      throw new Error('App port must match the allocated loopback port')
+    }
+  } else if (
+    appPort.host_ip !== '127.0.0.1' ||
+    String(appPort.published) !== expectedPort ||
+    appPort.target !== 8080
+  ) {
+    throw new Error('App port must match the allocated loopback port')
   }
   for (const [name, volume] of Object.entries(compose.volumes ?? {})) {
     if (volume.external || (volume.name && volume.name !== `${project}_${name}`)) {
@@ -286,7 +294,7 @@ async function waitFor(url: string, signal: AbortSignal): Promise<void> {
   throw new Error(`Readiness failed: ${url}`)
 }
 
-function generatedEnvironment(project: string): NodeJS.ProcessEnv {
+function generatedEnvironment(project: string, appPort: number): NodeJS.ProcessEnv {
   const secret = () => randomBytes(32).toString('base64url')
   return {
     ...process.env,
@@ -298,7 +306,35 @@ function generatedEnvironment(project: string): NodeJS.ProcessEnv {
     AI_BROWSER_TEST_PASSWORD: secret(),
     AI_BROWSER_TEST_EMAIL: `explorer-${randomBytes(6).toString('hex')}@example.test`,
     AI_BROWSER_FAKE_MODEL: process.env.AI_BROWSER_FAKE_MODEL ?? 'true',
+    AI_BROWSER_APP_PORT: String(appPort),
   }
+}
+
+async function allocateAppPort(): Promise<number> {
+  const configured = process.env.AI_BROWSER_APP_PORT
+  if (configured !== undefined) {
+    const port = Number(configured)
+    if (!Number.isSafeInteger(port) || port < 1024 || port > 65535 || port === 8080) {
+      throw new Error('AI_BROWSER_APP_PORT must be an unprivileged ephemeral port other than 8080')
+    }
+    return port
+  }
+  return await new Promise((resolvePromise, reject) => {
+    const server = createServer()
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        server.close()
+        reject(new Error('Could not allocate a loopback app port'))
+        return
+      }
+      server.close((error) => {
+        if (error) reject(error)
+        else resolvePromise(address.port)
+      })
+    })
+  })
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
@@ -311,10 +347,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const runId = `aibr_${compactTime}_${randomBytes(6).toString('hex')}`
   const project = process.env.AI_BROWSER_COMPOSE_PROJECT ??
     `ai-browser-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`
-  const env = generatedEnvironment(project)
+  const appPort = await allocateAppPort()
+  const env = generatedEnvironment(project, appPort)
   const budget = new BudgetGuard(config.limits)
   const artifactDir = resolve(repoRoot, '.artifacts', 'ai-browser', project)
-  let appOrigin = 'http://127.0.0.1:0'
+  const appOrigin = `http://127.0.0.1:${appPort}`
   let outcome: Record<string, unknown> = { runId, project, status: 'infrastructure_failed' }
 
   const compose = async (signal: AbortSignal | undefined, ...args: string[]) => run(
@@ -326,7 +363,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     await runExplorationLifecycle({
       provision: async () => budget.withinDeadline(async (signal) => {
         const resolved = JSON.parse((await compose(signal, 'config', '--format', 'json')).stdout) as unknown
-        assertComposeIsolation(resolved, 'http://127.0.0.1:49152', project)
+        assertComposeIsolation(resolved, appOrigin, project)
         await compose(signal, 'up', '--build', '-d', '--wait', 'agent')
       }),
       seed: async () => budget.withinDeadline(async (signal) => {
@@ -344,10 +381,6 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
             .catch(() => 'App logs unavailable.')
           throw new Error(`App readiness failed.\n${diagnostics}\n${logs}`, { cause: error })
         }
-        const portResult = await compose(signal, 'port', 'app', '8080')
-        const port = portResult.stdout.trim().split(':').pop()
-        if (!port || port === '8080') throw new Error('Compose did not assign a random app port')
-        appOrigin = `http://127.0.0.1:${port}`
         if (!isLoopback(appOrigin)) throw new Error('Resolved app target is not isolated loopback')
         await waitFor(`${appOrigin}/healthz`, signal)
       }),
