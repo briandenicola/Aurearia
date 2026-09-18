@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "run_id": "ccr_fixture",
+  "execution_id": "cce_fixture",
+  "frame_id": "frm_tool",
+  "type": "tool_completed",
+  "payload": {
+    "tool_call_id": "call_1",
+    "tool_name": "collection_summary",
+    "step_id": "step-1",
+    "status": "succeeded",
+    "duration_ms": 12,
+    "result_summary": "Collection summary returned.",
+    "result": {
+      "summary": {
+        "totalCoins": 2
+      }
+    }
+  }
+}

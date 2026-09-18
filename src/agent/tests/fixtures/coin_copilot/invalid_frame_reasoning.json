@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "run_id": "ccr_fixture",
+  "execution_id": "cce_fixture",
+  "frame_id": "frm_bad",
+  "type": "plan_updated",
+  "payload": {
+    "plan": [],
+    "reasoning": "private chain of thought"
+  }
+}

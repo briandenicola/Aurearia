@@ -213,3 +213,22 @@ def _format_portfolio(portfolio: PortfolioSummary) -> str:
             lines.append(f"  {coin.name} ({coin.category}) — Value: {value_str}, Paid: {paid_str}")
 
     return "\n".join(lines)
+
+
+def build_collection_only_portfolio_review(summary: dict) -> str:
+    """Build a bounded portfolio fact sheet using only validated collection data."""
+    total = int(summary.get("totalCoins", 0))
+    current = float(summary.get("totalCurrentUsd", 0))
+    invested = float(summary.get("totalPurchaseUsd", 0))
+    gain = current - invested
+    missing = summary.get("missingFields", {})
+    missing_text = ", ".join(
+        f"{field}: {count}" for field, count in sorted(missing.items())
+    ) or "none reported"
+    return (
+        f"Collection-only portfolio review: {total} owned coins; "
+        f"recorded purchase total ${invested:,.2f}; recorded current-value total "
+        f"${current:,.2f}; recorded difference ${gain:,.2f}. "
+        f"Missing-data counts: {missing_text}. "
+        "No live market, dealer, auction, price-trend, or acquisition data was used."
+    )

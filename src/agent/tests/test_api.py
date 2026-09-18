@@ -4,10 +4,15 @@ These tests verify endpoint contracts and request validation.
 Integration tests requiring a live LLM belong in a separate suite.
 """
 
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
+from app.models.requests import CopilotUsage
+from app.models.responses import CopilotCompletedPayload, CopilotExecutionFrame
 
 client = TestClient(app)
 AUTH_HEADERS = {"X-Internal-Service-Token": "test-agent-service-token"}
@@ -291,3 +296,37 @@ def test_portfolio_review_rejects_invalid_body():
 def test_intake_draft_rejects_invalid_body():
     resp = client.post("/api/intake/draft", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422
+
+
+def test_coin_copilot_execute_requires_internal_token():
+    resp = client.post("/api/copilot/execute", json={})
+    assert resp.status_code == 401
+
+
+def test_coin_copilot_execute_streams_typed_sse(monkeypatch):
+    async def fake_run(request, cancellation_check=None):
+        assert cancellation_check is not None
+        yield CopilotExecutionFrame(
+            run_id=request.run_id,
+            execution_id=request.execution_id,
+            frame_id="frm_1",
+            type="completed",
+            payload=CopilotCompletedPayload(
+                answer="Done.",
+                usage=CopilotUsage(),
+            ),
+        )
+
+    monkeypatch.setattr("app.routes.run_coin_copilot", fake_run)
+    payload = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "coin_copilot"
+            / "valid_execute_request.json"
+        ).read_text(encoding="utf-8")
+    )
+    resp = client.post("/api/copilot/execute", json=payload, headers=AUTH_HEADERS)
+    assert resp.status_code == 200
+    assert "event: completed" in resp.text
+    assert '"schema_version":1' in resp.text

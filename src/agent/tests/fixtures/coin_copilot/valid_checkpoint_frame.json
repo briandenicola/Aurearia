@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "run_id": "ccr_fixture",
+  "execution_id": "cce_fixture",
+  "frame_id": "frm_checkpoint",
+  "type": "checkpoint",
+  "payload": {
+    "schema_version": 1,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Summarize my collection."
+      }
+    ],
+    "plan": [
+      {
+        "id": "step-1",
+        "title": "Summarize collection",
+        "status": "completed"
+      }
+    ],
+    "completed_tools": [
+      {
+        "tool_call_id": "call_1",
+        "tool_name": "collection_summary",
+        "result_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "result": {
+          "summary": {
+            "totalCoins": 2
+          }
+        },
+        "original_bytes": 28,
+        "persisted_bytes": 28,
+        "truncated": false
+      }
+    ],
+    "pending_clarification": null,
+    "next_action": "finish",
+    "counters": {
+      "iterations": 2,
+      "tool_calls": 1,
+      "input_tokens": 100,
+      "output_tokens": 30
+    }
+  }
+}

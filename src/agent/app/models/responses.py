@@ -1,10 +1,24 @@
 """Response models returned to the Go API proxy."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models.hypothesis import CoinHypothesis
+from app.models.requests import (
+    COPILOT_ALLOWED_TOOLS,
+    MAX_COPILOT_CLARIFICATION_CHOICES,
+    MAX_COPILOT_CLARIFICATION_LENGTH,
+    MAX_COPILOT_PLAN_ITEMS,
+    ChatMessage,
+    CopilotClarification,
+    CopilotCompletedTool,
+    CopilotExecutionID,
+    CopilotPlanItem,
+    CopilotRunID,
+    CopilotToolCallID,
+    CopilotUsage,
+)
 
 
 class StrictResponseModel(BaseModel):
@@ -15,6 +29,139 @@ class StrictResponseModel(BaseModel):
 
 MAX_SET_BUILDER_SLOTS_RESPONSE = 300
 MAX_WISHLIST_FEATURED_SUMMARY_LENGTH = 500
+MAX_COPILOT_ANSWER_LENGTH = 100000
+MAX_COPILOT_RESULT_SUMMARY_LENGTH = 300
+
+
+class CopilotCapabilityResponse(StrictResponseModel):
+    supported: bool
+
+
+class CopilotCheckpointState(StrictResponseModel):
+    """Complete durable continuation state emitted to Go."""
+
+    schema_version: Literal[1] = 1
+    messages: list[ChatMessage] = Field(default_factory=list, max_length=50)
+    plan: list[CopilotPlanItem] = Field(default_factory=list, max_length=MAX_COPILOT_PLAN_ITEMS)
+    completed_tools: list[CopilotCompletedTool] = Field(default_factory=list, max_length=40)
+    pending_clarification: CopilotClarification | None = None
+    next_action: Literal["continue", "await_clarification", "finish"] = "continue"
+    counters: CopilotUsage
+
+    @model_validator(mode="after")
+    def reject_private_or_duplicate_state(self) -> "CopilotCheckpointState":
+        seen: set[str] = set()
+        if sum(len(message.content) for message in self.messages) > 100000:
+            raise ValueError("checkpoint messages exceed the total content limit")
+        for tool in self.completed_tools:
+            call_id = tool.tool_call_id
+            if call_id in seen:
+                raise ValueError("completed_tools contains duplicate tool_call_id values")
+            seen.add(call_id)
+        return self
+
+
+class CopilotPlanUpdatedPayload(StrictResponseModel):
+    plan: list[CopilotPlanItem] = Field(max_length=MAX_COPILOT_PLAN_ITEMS)
+
+
+class CopilotToolStartedPayload(StrictResponseModel):
+    tool_call_id: CopilotToolCallID
+    tool_name: str
+    step_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+
+    @model_validator(mode="after")
+    def validate_tool_name(self) -> "CopilotToolStartedPayload":
+        if self.tool_name not in COPILOT_ALLOWED_TOOLS:
+            raise ValueError("tool_name is not in the Coin Copilot allowlist")
+        return self
+
+
+class CopilotToolCompletedPayload(CopilotToolStartedPayload):
+    status: Literal["succeeded", "failed", "cancelled", "rejected"]
+    duration_ms: int = Field(ge=0)
+    result_summary: Annotated[str, StringConstraints(max_length=MAX_COPILOT_RESULT_SUMMARY_LENGTH)]
+    result: dict[str, Any]
+
+
+class CopilotClarificationPayload(StrictResponseModel):
+    question: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_CLARIFICATION_LENGTH)]
+    input_type: Literal["text", "single_choice", "boolean"]
+    choices: list[Annotated[str, StringConstraints(min_length=1, max_length=200)]] = Field(
+        default_factory=list,
+        max_length=MAX_COPILOT_CLARIFICATION_CHOICES,
+    )
+
+
+class CopilotCompletedPayload(StrictResponseModel):
+    answer: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_ANSWER_LENGTH)]
+    usage: CopilotUsage
+
+
+class CopilotFailedPayload(StrictResponseModel):
+    code: Literal[
+        "agent_unavailable",
+        "execution_lost",
+        "invalid_agent_frame",
+        "invalid_tool_call",
+        "iteration_limit_exceeded",
+        "tool_limit_exceeded",
+        "time_limit_exceeded",
+        "model_tool_calling_unsupported",
+        "resume_window_expired",
+        "internal",
+    ]
+    message: Annotated[str, StringConstraints(min_length=1, max_length=300)]
+    retryable: bool
+    usage: CopilotUsage
+
+
+CopilotFramePayload = (
+    CopilotPlanUpdatedPayload
+    | CopilotToolStartedPayload
+    | CopilotToolCompletedPayload
+    | CopilotCheckpointState
+    | CopilotClarificationPayload
+    | CopilotCompletedPayload
+    | CopilotFailedPayload
+    | CopilotUsage
+)
+
+
+class CopilotExecutionFrame(StrictResponseModel):
+    """Typed internal SSE frame consumed and persisted by Go."""
+
+    schema_version: Literal[1] = 1
+    run_id: CopilotRunID
+    execution_id: CopilotExecutionID
+    frame_id: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    type: Literal[
+        "plan_updated",
+        "tool_started",
+        "tool_completed",
+        "checkpoint",
+        "clarification_required",
+        "completed",
+        "failed",
+        "usage",
+    ]
+    payload: CopilotFramePayload
+
+    @model_validator(mode="after")
+    def validate_payload_type(self) -> "CopilotExecutionFrame":
+        expected = {
+            "plan_updated": CopilotPlanUpdatedPayload,
+            "tool_started": CopilotToolStartedPayload,
+            "tool_completed": CopilotToolCompletedPayload,
+            "checkpoint": CopilotCheckpointState,
+            "clarification_required": CopilotClarificationPayload,
+            "completed": CopilotCompletedPayload,
+            "failed": CopilotFailedPayload,
+            "usage": CopilotUsage,
+        }[self.type]
+        if not isinstance(self.payload, expected):
+            raise ValueError(f"payload does not match frame type {self.type}")
+        return self
 
 
 class CandidateReference(BaseModel):
@@ -257,9 +404,7 @@ class SetBuilderResponse(StrictResponseModel):
 # Deep Agentic Coin Identification DTOs (344-deep-agentic-coin-identification).
 # Contract anchor: specs/344-deep-agentic-coin-identification/contracts/agent-internal-contract.md §4-5
 ProviderName = Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
-ProviderStatus = Literal[
-    "contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"
-]
+ProviderStatus = Literal["contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"]
 ProviderErrorKind = Literal[
     "timeout", "quota", "unconfigured", "upstream", "invalid_response", "insufficient_query_evidence"
 ]

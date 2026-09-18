@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "run_id": "ccr_fixture",
+  "execution_id": "cce_fixture",
+  "frame_id": "frm_bad_checkpoint",
+  "type": "checkpoint",
+  "payload": {
+    "schema_version": 1,
+    "messages": [{"role": "user", "content": "Summarize my collection."}],
+    "plan": [],
+    "completed_tools": [
+      {
+        "tool_call_id": "call_1",
+        "tool_name": "collection_summary",
+        "result_digest": "",
+        "result": {},
+        "original_bytes": 2,
+        "persisted_bytes": 2,
+        "truncated": false
+      },
+      {
+        "tool_call_id": "call_1",
+        "tool_name": "collection_summary",
+        "result_digest": "",
+        "result": {},
+        "original_bytes": 2,
+        "persisted_bytes": 2,
+        "truncated": false
+      }
+    ],
+    "pending_clarification": null,
+    "next_action": "continue",
+    "counters": {
+      "iterations": 1,
+      "tool_calls": 2,
+      "input_tokens": 0,
+      "output_tokens": 0
+    }
+  }
+}

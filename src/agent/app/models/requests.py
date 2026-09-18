@@ -30,6 +30,23 @@ MAX_SET_BUILDER_PROMPT_LENGTH = 500
 MAX_SET_BUILDER_FEEDBACK_LENGTH = 1000
 MAX_SET_BUILDER_MAX_TURNS = 8
 MAX_SET_BUILDER_MAX_SLOTS = 300
+MAX_COPILOT_GOAL_LENGTH = 4000
+MAX_COPILOT_PLAN_ITEMS = 12
+MAX_COPILOT_PLAN_TITLE_LENGTH = 200
+MAX_COPILOT_CLARIFICATION_LENGTH = 500
+MAX_COPILOT_CLARIFICATION_CHOICES = 10
+MAX_COPILOT_ALLOWED_TOOLS = 6
+
+COPILOT_ALLOWED_TOOLS = frozenset(
+    {
+        "search_my_collection",
+        "get_coin",
+        "collection_summary",
+        "top_coins_by_value",
+        "portfolio_review",
+        "gap_analysis",
+    }
+)
 
 # 344-deep-agentic-coin-identification (contracts/agent-internal-contract.md §2)
 MAX_DEEP_IMAGE_DATA_URI_LENGTH = 10 * 1024 * 1024
@@ -47,19 +64,21 @@ BoundedNotes = Annotated[str, StringConstraints(max_length=MAX_NOTES_LENGTH)]
 BoundedOptionalURL = Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)]
 BoundedURL = Annotated[str, StringConstraints(min_length=1, max_length=MAX_URL_LENGTH)]
 BoundedImageBase64 = Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64_LENGTH)]
-BoundedSetBuilderPrompt = Annotated[
-    str, StringConstraints(min_length=1, max_length=MAX_SET_BUILDER_PROMPT_LENGTH)
-]
+BoundedSetBuilderPrompt = Annotated[str, StringConstraints(min_length=1, max_length=MAX_SET_BUILDER_PROMPT_LENGTH)]
 BoundedSetBuilderFeedback = Annotated[str, StringConstraints(max_length=MAX_SET_BUILDER_FEEDBACK_LENGTH)]
-BoundedWishlistFeaturedSummary = Annotated[
-    str, StringConstraints(max_length=MAX_WISHLIST_FEATURED_SUMMARY_LENGTH)
-]
+BoundedWishlistFeaturedSummary = Annotated[str, StringConstraints(max_length=MAX_WISHLIST_FEATURED_SUMMARY_LENGTH)]
 
 
 class StrictRequestModel(BaseModel):
     """Base model for Go-to-agent DTOs with drift detection."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+CopilotThreadID = Annotated[str, StringConstraints(pattern=r"^cct_[A-Za-z0-9_-]+$")]
+CopilotRunID = Annotated[str, StringConstraints(pattern=r"^ccr_[A-Za-z0-9_-]+$")]
+CopilotExecutionID = Annotated[str, StringConstraints(pattern=r"^cce_[A-Za-z0-9_-]+$")]
+CopilotToolCallID = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 
 
 def _validate_history_total_chars(history: list["ChatMessage"]) -> list["ChatMessage"]:
@@ -104,6 +123,147 @@ class ChatMessage(StrictRequestModel):
 
     role: Literal["user", "assistant"]
     content: BoundedHistoryMessage
+
+
+class CopilotPlanItem(StrictRequestModel):
+    """Public, resumable plan state. It never contains model reasoning."""
+
+    id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    title: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_PLAN_TITLE_LENGTH)]
+    status: Literal["pending", "in_progress", "completed", "skipped", "failed"]
+
+
+class CopilotUsage(StrictRequestModel):
+    """Cumulative execution counters supplied by and returned to Go."""
+
+    iterations: int = Field(default=0, ge=0)
+    tool_calls: int = Field(default=0, ge=0)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+
+
+class CopilotCompletedTool(StrictRequestModel):
+    """A bounded, sanitized tool fact from the latest Go checkpoint."""
+
+    tool_call_id: CopilotToolCallID
+    tool_name: str
+    result_digest: Annotated[str, StringConstraints(max_length=64)] = ""
+    result: dict[str, Any]
+    original_bytes: int = Field(default=0, ge=0)
+    persisted_bytes: int = Field(default=0, ge=0)
+    truncated: bool = False
+
+    @field_validator("tool_name")
+    @classmethod
+    def validate_tool_name(cls, value: str) -> str:
+        if value not in COPILOT_ALLOWED_TOOLS:
+            raise ValueError("tool_name is not in the Coin Copilot allowlist")
+        return value
+
+
+class CopilotClarification(StrictRequestModel):
+    """Typed clarification state that can be resumed by Go."""
+
+    question: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_CLARIFICATION_LENGTH)]
+    input_type: Literal["text", "single_choice", "boolean"]
+    choices: list[Annotated[str, StringConstraints(min_length=1, max_length=200)]] = Field(
+        default_factory=list,
+        max_length=MAX_COPILOT_CLARIFICATION_CHOICES,
+    )
+
+    @model_validator(mode="after")
+    def validate_choices(self) -> "CopilotClarification":
+        if self.input_type == "single_choice" and not self.choices:
+            raise ValueError("single_choice clarification requires choices")
+        if self.input_type != "single_choice" and self.choices:
+            raise ValueError("choices are only valid for single_choice clarification")
+        return self
+
+
+class CopilotCheckpoint(StrictRequestModel):
+    """Latest durable continuation state supplied by Go."""
+
+    version: int = Field(ge=0)
+    plan: list[CopilotPlanItem] = Field(default_factory=list, max_length=MAX_COPILOT_PLAN_ITEMS)
+    completed_tools: list[CopilotCompletedTool] = Field(default_factory=list, max_length=40)
+    pending_clarification: CopilotClarification | None = None
+    next_action: Literal["continue", "await_clarification", "finish"] = "continue"
+    counters: CopilotUsage = Field(default_factory=CopilotUsage)
+
+    @field_validator("completed_tools")
+    @classmethod
+    def validate_unique_tool_calls(
+        cls,
+        tools: list[CopilotCompletedTool],
+    ) -> list[CopilotCompletedTool]:
+        ids = [tool.tool_call_id for tool in tools]
+        if len(ids) != len(set(ids)):
+            raise ValueError("completed_tools contains duplicate tool_call_id values")
+        return tools
+
+
+class CopilotLimits(StrictRequestModel):
+    """Snapshotted limits for one stateless execution."""
+
+    max_iterations: int = Field(ge=1, le=20)
+    max_tool_calls: int = Field(ge=1, le=40)
+    max_concurrent_tools: Literal[1]
+    hard_timeout_seconds: int = Field(ge=15, le=600)
+    max_persisted_tool_result_bytes: int = Field(ge=4096, le=131072)
+
+
+class CopilotAppContext(StrictRequestModel):
+    """Bounded, non-authoritative UI context."""
+
+    route: Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)] = ""
+    active_coin_id: int | None = Field(default=None, alias="activeCoinId", ge=1)
+
+
+class CopilotCapabilityRequest(StrictRequestModel):
+    """Provider configuration used only to verify fixed Copilot tool binding."""
+
+    llm: LLMConfig
+
+
+class CopilotExecuteRequest(StrictRequestModel):
+    """Complete stateless Go-to-Python Coin Copilot execution request."""
+
+    schema_version: Literal[1]
+    thread_id: CopilotThreadID
+    run_id: CopilotRunID
+    execution_id: CopilotExecutionID
+    goal: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_GOAL_LENGTH)]
+    messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_HISTORY_MESSAGES)
+    checkpoint: CopilotCheckpoint
+    app_context: CopilotAppContext | None = None
+    llm: LLMConfig
+    limits: CopilotLimits
+    tools_base_url: BoundedURL
+    execution_token: Annotated[str, StringConstraints(min_length=1, max_length=8192)]
+    allowed_tools: list[str] = Field(min_length=1, max_length=MAX_COPILOT_ALLOWED_TOOLS)
+
+    @field_validator("messages")
+    @classmethod
+    def validate_messages_total_chars(cls, messages: list[ChatMessage]) -> list[ChatMessage]:
+        return _validate_history_total_chars(messages)
+
+    @field_validator("allowed_tools")
+    @classmethod
+    def validate_allowed_tools(cls, tools: list[str]) -> list[str]:
+        if len(tools) != len(set(tools)):
+            raise ValueError("allowed_tools contains duplicates")
+        if not set(tools).issubset(COPILOT_ALLOWED_TOOLS):
+            raise ValueError("allowed_tools contains an unsupported capability")
+        return tools
+
+    @model_validator(mode="after")
+    def validate_checkpoint_budgets(self) -> "CopilotExecuteRequest":
+        counters = self.checkpoint.counters
+        if counters.iterations > self.limits.max_iterations:
+            raise ValueError("checkpoint exceeds max_iterations")
+        if counters.tool_calls > self.limits.max_tool_calls:
+            raise ValueError("checkpoint exceeds max_tool_calls")
+        return self
 
 
 class AppContext(StrictRequestModel):
@@ -507,9 +667,7 @@ class DeepIdentifyRequest(StrictRequestModel):
 
     @field_validator("provider_catalog")
     @classmethod
-    def validate_unique_providers(
-        cls, catalog: list[DeepProviderCatalogEntry]
-    ) -> list[DeepProviderCatalogEntry]:
+    def validate_unique_providers(cls, catalog: list[DeepProviderCatalogEntry]) -> list[DeepProviderCatalogEntry]:
         names = [entry.provider for entry in catalog]
         if len(set(names)) != len(names):
             raise ValueError("provider_catalog contains duplicate providers")

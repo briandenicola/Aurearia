@@ -5,7 +5,11 @@ from types import SimpleNamespace
 import pytest
 
 from app.models.requests import LLMConfig, PortfolioSummary
-from app.teams.portfolio_review import create_portfolio_review_team
+from app.teams.gap_analysis import build_read_only_gap_analysis
+from app.teams.portfolio_review import (
+    build_collection_only_portfolio_review,
+    create_portfolio_review_team,
+)
 
 
 @pytest.mark.asyncio
@@ -47,3 +51,25 @@ async def test_portfolio_review_does_not_repeat_raw_portfolio_payload(monkeypatc
     assert "Here is the portfolio data:" in first_human
     assert "Raw portfolio data:" not in second_human
     assert "Raw data:" not in third_human
+
+
+def test_copilot_portfolio_review_is_collection_only():
+    result = build_collection_only_portfolio_review({
+        "totalCoins": 4,
+        "totalCurrentUsd": 600,
+        "totalPurchaseUsd": 500,
+        "missingFields": {"diameterMm": 2},
+    })
+    assert "collection-only" in result.lower()
+    assert "no live market" in result.lower()
+    assert "dealer" in result.lower()
+
+
+def test_copilot_gap_analysis_excludes_acquisition_and_price_output():
+    result = build_read_only_gap_analysis({
+        "totalCoins": 4,
+        "missingFields": {"diameterMm": 2, "weightGrams": 1},
+    })
+    assert "structural metadata gaps" in result.lower()
+    assert "does not estimate prices" in result.lower()
+    assert "recommend purchases" in result.lower()
