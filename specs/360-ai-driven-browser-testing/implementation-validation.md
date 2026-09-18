@@ -285,6 +285,11 @@ networks, or volumes with the exact project label remain, and uploads evidence
 for 14 days. The workflow has only `contents: read`, is advisory, and uses
 immutable 40-character action pins.
 
+GitHub does not permit manual dispatch of a newly added workflow until the file
+exists on the default branch. A path-scoped `beta` push trigger therefore
+bootstraps acceptance without merging to `main`; the workflow remains separate
+from and non-blocking to the Quality Gate.
+
 The workflow policy guard was tamper-tested by removing
 `--remove-orphans`: one of four tests failed on the exact missing cleanup
 requirement. After restoration, all four policy tests passed; the Docker

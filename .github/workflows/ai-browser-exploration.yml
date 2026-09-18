@@ -1,6 +1,17 @@
 name: AI Browser Exploration
 
 on:
+  push:
+    branches: [beta]
+    paths:
+      - .github/workflows/ai-browser-exploration.yml
+      - docker-compose.exploration.yml
+      - Dockerfile
+      - src/agent/**
+      - src/api/**
+      - src/web/e2e/exploration/**
+      - src/web/e2e/fixtures/workflow.ts
+      - src/web/playwright.exploration.config.ts
   workflow_dispatch:
   schedule:
     - cron: '23 7 * * *'

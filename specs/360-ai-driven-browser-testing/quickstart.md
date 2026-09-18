@@ -171,6 +171,8 @@ Run the **AI Browser Exploration** workflow from GitHub Actions. Its initial
 fake-model acceptance job exercises the Docker-only Phase 3 lifecycle on a
 GitHub-hosted Linux runner, always tears down the exact Compose project, checks
 for leaked containers/networks/volumes, and uploads finite-retention evidence.
+Until this workflow reaches the default branch, scoped pushes to `beta` also
+run it so Docker acceptance can occur without prematurely merging to `main`.
 
 As later report and publication phases land, the same workflow will expose the
 full bounded inputs:
