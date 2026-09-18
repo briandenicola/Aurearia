@@ -197,7 +197,7 @@ exceeds, the execution token's absolute 180-second TTL.
   status, error code, durations, counts, input/output token usage, tool name,
   result byte count, truncation flag, and payload digest.
 - **Forbidden**: prompt text, conversation content, coin names/notes, query
-  strings, tool arguments/results, API keys, JWTs/internal tokens, raw model
+  strings, tool arguments/results, provider credentials, JWTs/internal tokens, raw model
   messages, and chain-of-thought.
 - **Error responses**: typed code plus generic user-facing message. Detailed
   causes remain in privacy-safe server logs.

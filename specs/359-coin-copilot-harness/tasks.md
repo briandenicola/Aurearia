@@ -115,15 +115,35 @@ buffer fits the absolute 180-second execution-token TTL.
 - [x] T062 Add admin component tests for default-off and range validation in `src/web/src/components/admin/__tests__/AdminSystemSection.coin-copilot.test.ts`
 - [x] T063 [P] Regenerate Swagger and synchronize `docs/openapi.json`, `docs/api-reference.md`, and generated `src/api/docs/`
 - [x] T064 [P] Document feature scope/fallback/privacy in `docs/features.md`, `docs/ARCHITECTURE.md`, `docs/testing.md`, and `docs/threat-model.md`
-- [ ] T065 Execute every scenario in `specs/359-coin-copilot-harness/quickstart.md` and record results in the PR description
+- [x] T065 Execute every scenario in `specs/359-coin-copilot-harness/quickstart.md` and record results in the PR description
 
 ## Phase 10: Quality Gate
 
-- [ ] T066 Run `go test ./...`, `go vet ./...`, and `go build ./...` from `src/api`
-- [ ] T067 Run `ruff check app tests` and `pytest tests -v` from `src/agent`
-- [ ] T068 Run `npm run test:unit` and `npm run build` from `src/web`
-- [ ] T069 Run `task openapi`, contract fixture checks, secret scan, and `git diff --check`
-- [ ] T070 Complete Constitution §17 and §21 self-check, citing Principles I–IX, ADR 0016, and exact workflow/tamper coverage
+- [x] T066 Run `go test ./...`, `go vet ./...`, and `go build ./...` from `src/api`
+- [x] T067 Run `ruff check app tests` and `pytest tests -v` from `src/agent`
+- [x] T068 Run `npm run test` and `npm run build` from `src/web`
+- [x] T069 Run OpenAPI generation, contract fixture checks, secret scan, and `git diff --check`
+- [x] T070 Complete Constitution §17 and §21 self-check, citing Principles I–IX, ADR 0016, and exact workflow/tamper coverage
+
+Validation completed 2026-09-17:
+
+- Go: full tests, vet, build, architecture, OpenAPI drift, shared contract
+  fixtures, and the real SQLite/fake-Python seam passed.
+- Python: Ruff passed; full pytest passed with 413 tests.
+- Web: ESLint passed; 175 Vitest files with 1,427 tests passed; the strict
+  production build passed.
+- Quickstart scenarios 1-8 were exercised by the cross-service seam,
+  lifecycle, owner-isolation, credential-tamper, capability-fallback,
+  replay/resume/cancellation, limits/privacy/retention, and responsive drawer
+  regression suites.
+- Gitleaks and `git diff --check` passed. Trivy found no high/critical
+  vulnerabilities in the Go, Python, or npm dependency locks and no findings
+  in either production Dockerfile. Its repository-wide config scan continues
+  to report the pre-existing `.devcontainer/Dockerfile` root/sudo findings,
+  which are outside Feature 359 and the production images.
+- `task openapi` remains affected by the documented Windows PowerShell
+  templating defect; the equivalent direct `swag init` generation and route
+  drift test passed with synchronized artifacts.
 
 ## Dependencies and ownership
 

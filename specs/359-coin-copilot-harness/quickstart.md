@@ -107,7 +107,7 @@ ruff check app tests
 pytest tests -v
 
 Set-Location ..\web
-npm run test:unit
+npm run test
 npm run build
 ```
 
