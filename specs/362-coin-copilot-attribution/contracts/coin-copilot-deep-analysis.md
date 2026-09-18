@@ -182,6 +182,9 @@ must be durable before worker publication.
 
 ### Closed handoff outcomes
 
+The top-level result discriminant is `outcome`, never `status`. `status` is
+permitted only as `job.status` for the Deep job lifecycle.
+
 | Outcome | Meaning |
 |---|---|
 | `accepted` | new Deep job committed |
@@ -190,23 +193,32 @@ must be durable before worker publication.
 | `status` | eligible owner-scoped status/result |
 | `retry_available` | prior failed/cancelled/stale/missing/mismatched result |
 | `missing_images` | one or both distinct usable faces absent |
-| `target_unavailable` | request/rerun target resolution failed before admission; never emitted to distinguish an ineligible status lookup |
-| `not_eligible` | every ineligible status lookup; canonical public body below |
+| `target_unavailable` | only a previously validated durable owner handoff/checkpoint binding whose coin/draft later disappeared or whose draft was promoted; no target metadata |
+| `not_eligible` | anonymous unknown/foreign/legacy-unbound/unknown-source/arbitrary-unbound lookup, including deleted/promoted ids without prior validated binding |
 | `unavailable` | live admission capability/queue/capacity unavailable |
 | `cancelled` | cancellation linearized before admission |
 
-Every ineligible `status` response—unknown id, foreign-owned id, unbound job,
-legacy unbound intake, unknown source, deleted coin, or deleted/discarded/
-promoted draft—has exactly this canonical public body:
+Every anonymous unknown/foreign/legacy-unbound/unknown-source/arbitrary-unbound
+lookup—including a deleted/promoted id presented without a prior validated
+durable owner binding—has exactly these canonical UTF-8 bytes:
 
 ```json
-{"reason":null,"status":"not_eligible"}
+{"outcome":"not_eligible","reason":null}
 ```
 
-The canonical UTF-8 bytes are byte-equivalent for all such cases. No job,
-target, source, ownership, lifecycle, existence, or cause field is present.
-The HTTP status, public headers, timing policy, and event projection also
-cannot vary by cause.
+No job, target, source, ownership, lifecycle, existence, or cause field is
+present. The HTTP status, public headers, timing policy, and event projection
+also cannot vary by cause.
+
+Only lookup through a previously validated durable owner handoff/checkpoint
+binding may distinguish later target disappearance or promotion:
+
+```json
+{"outcome":"target_unavailable","reason":null}
+```
+
+That response contains no target metadata. Possession of an id, ownership of
+an otherwise unbound job, or a deleted/promoted id alone is insufficient.
 
 Allowed `reason` values are:
 
@@ -218,7 +230,7 @@ job_at_capacity | queue_full | result_missing | result_expired |
 stale | cancelled
 ```
 
-`reason` is always null when `status=not_eligible`. Privacy-safe internal
+`reason` is always null when `outcome=not_eligible`. Privacy-safe internal
 diagnostic codes such as `legacy_unbound_intake` or `unknown_source` may be
 written only to access-controlled telemetry; they are not public contract
 values and cannot influence public output. Unknown public outcomes/reasons
@@ -271,10 +283,12 @@ Status/result access requires one:
    `source_draft_id`.
 
 Legacy unbound `intake` and every unknown source are not eligible. Arbitrary
-unknown/foreign/unbound job ids, deleted bound coins, and deleted/discarded/
-promoted bound drafts all return the exact canonical
-`{"reason":null,"status":"not_eligible"}` body. Validated prior binding never
-changes that public ineligibility shape.
+anonymous unknown/foreign/unbound job ids—including deleted/promoted ids
+without prior validated durable owner binding—return the exact canonical bytes
+`{"outcome":"not_eligible","reason":null}`. Only a previously validated durable
+owner handoff/checkpoint binding whose target later disappears/promotes may
+return `{"outcome":"target_unavailable","reason":null}`, without target
+metadata.
 
 ## 9. Apply matrix (existing Deep review UI only)
 

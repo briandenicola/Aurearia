@@ -105,12 +105,18 @@ selected reference.
 
 ## 5. Eligibility, cancellation, flags, and bounds
 
-- Unbound legacy intake, unknown/foreign/unbound job, unknown source,
-  previously bound deleted coin, and promoted/discarded/deleted bound draft
-  all return canonical public bytes
-  `{"reason":null,"status":"not_eligible"}` with no metadata.
+- Anonymous unknown/foreign ids, legacy-unbound intake, unknown-source jobs,
+  arbitrary unbound jobs, and deleted/promoted ids without a prior validated
+  durable owner binding all return exact canonical public bytes
+  `{"outcome":"not_eligible","reason":null}` with no metadata.
+- Create a validated durable owner handoff/checkpoint binding, then delete its
+  coin or delete/discard/promote its draft; only these bound fixtures return
+  `{"outcome":"target_unavailable","reason":null}`, with no target metadata.
+- Present the same deleted/promoted ids anonymously or outside that binding;
+  verify byte equivalence with every other `not_eligible` fixture.
 - Verify privacy-safe internal diagnostic codes, if emitted, cannot change
-  public status/body/headers/event projection or appear in public logs/events.
+  public HTTP status/body/headers/event projection or appear in public
+  logs/events.
 - Cancel-first race: zero handoff/job rows.
 - Admission-first race: exactly one binding/job; cancellation requests Deep
   cancel and late report/proposal/event settlement loses.

@@ -84,10 +84,12 @@
 
 - **Decision**: A status/result is eligible only through a validated durable
   checkpoint/handoff binding, a current owned `saved_coin`, or an active owned
-  `copilot_draft`. Every ineligible status case—including legacy unbound
-  intake, unknown/foreign/unbound jobs, unknown source, and a previously bound
-  deleted coin or deleted/discarded/promoted draft—returns the same canonical
-  public `status=not_eligible`, `reason=null` body.
+  `copilot_draft`. Anonymous unknown/foreign ids, legacy-unbound intake,
+  unknown-source jobs, and arbitrary unbound ids—including deleted/promoted
+  ids without a prior validated owner binding—return exact canonical bytes
+  `{"outcome":"not_eligible","reason":null}`. Only a previously validated
+  durable owner handoff/checkpoint binding whose target later disappears or
+  promotes may return `outcome=target_unavailable`, without target metadata.
 - **Rationale**: Owner scope alone does not authorize adopting arbitrary intake
   history into a conversation. Privacy-safe cause codes may exist only in
   protected internal diagnostics and cannot affect public bytes or behavior.

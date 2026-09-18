@@ -222,14 +222,17 @@ Eligible:
 
 Closed failures:
 
-- unbound legacy `intake`, arbitrary foreign/unknown/unbound job, unknown
-  source, or a previously validated binding whose coin/draft was deleted or
-  whose draft was discarded/promoted: the exact canonical public body
-  `{"reason":null,"status":"not_eligible"}` with no metadata;
+- anonymous unknown/foreign job ids, legacy-unbound intake, unknown-source
+  jobs, and arbitrary unbound ids—including deleted/promoted ids without a
+  prior validated durable owner binding—return the exact canonical public
+  bytes `{"outcome":"not_eligible","reason":null}` with no metadata;
+- only a previously validated durable owner handoff/checkpoint binding whose
+  coin/draft later disappears or whose draft is promoted may return
+  `outcome=target_unavailable`, without target metadata;
 - failed/cancelled/stale/expired/missing report or changed current snapshot:
   `retry_available`, never current success.
 
-All status-ineligibility causes are public-byte-equivalent after canonical
+All anonymous ineligibility causes are public-byte-equivalent after canonical
 serialization. Privacy-safe internal diagnostic codes may distinguish causes
 in protected telemetry only; they cannot change the public HTTP status, body,
 headers, timing policy, or event projection.
@@ -428,9 +431,11 @@ orchestration is added.
 - Repository transaction tests: same key/same request, every changed binding,
   changed snapshot, active/terminal reuse, crash replay, exact row counts.
 - Owner/eligibility tests: foreign/unknown equality, unbound intake, unknown
-  source, deleted coin, inactive draft, and pruned events all prove the
-  canonical byte-equivalent `{"reason":null,"status":"not_eligible"}` public
-  body for ineligible status calls.
+  source, deleted/promoted ids without a validated binding, and pruned events
+  all prove the canonical byte-equivalent
+  `{"outcome":"not_eligible","reason":null}` public body. Separate fixtures
+  prove only a validated durable owner binding whose target later disappears/
+  promotes returns `outcome=target_unavailable` and no target metadata.
 - Contract tests: unknown fields/enums, user JWT vs execution token, wrong
   owner/run/execution/tool, expiry/revocation, 64 KiB boundaries, finite
   confidence, safe URLs, redaction.
@@ -453,7 +458,8 @@ orchestration is added.
 
 ### Vue
 
-- Closed outcome/status cards, truncation disclosure, and safe relative link.
+- Closed outcome and Deep-job-status cards, truncation disclosure, and safe
+  relative link. The handoff result discriminant is always `outcome`.
 - No editor/apply in chat.
 - Existing capability fallback, cancel/resume/reconnect, Deep report/proposal/
   retry/reconnect, design tokens, keyboard/44 px controls, and narrow PWA layout.

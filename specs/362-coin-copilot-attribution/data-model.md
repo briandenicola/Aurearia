@@ -77,8 +77,9 @@ Closed invariant:
 
 The `copilot_draft` row keeps its source binding after the draft is promoted or
 deleted so protected history remains auditable, but it cannot be adopted or
-applied. Public status lookup uses the same canonical `not_eligible`/null-reason
-body as every other ineligible case.
+applied. A lookup through its previously validated durable owner binding may
+return `outcome=target_unavailable`; an anonymous/unbound lookup of the same id
+returns the canonical `not_eligible` body.
 
 ## 4. Server-computed target snapshot
 
@@ -140,20 +141,23 @@ Staged artifact files are cleaned on rollback.
 | Valid owner handoff/checkpoint binding and current target | eligible |
 | Owned `saved_coin` job and coin still exists | eligible |
 | Owned `copilot_draft`, non-null source draft, draft active | eligible |
-| Legacy unbound `intake` | canonical `status=not_eligible`, `reason=null` |
-| Unknown/foreign/unbound job id | same canonical ineligible body |
-| Previously bound coin deleted | same canonical ineligible body |
-| Previously bound draft deleted/promoted/discarded | same canonical ineligible body |
-| Unknown Deep source | same canonical ineligible body; no projection/adoption/apply |
+| Legacy-unbound `intake` | canonical `outcome=not_eligible`, `reason=null` |
+| Anonymous unknown/foreign/arbitrary-unbound id | same canonical ineligible body |
+| Deleted/promoted id without prior validated durable owner binding | same canonical ineligible body |
+| Validated durable owner binding whose coin later deleted | `outcome=target_unavailable`; no target metadata |
+| Validated durable owner binding whose draft later deleted/promoted/discarded | `outcome=target_unavailable`; no target metadata |
+| Unknown Deep source without validated binding | canonical ineligible body; no projection/adoption/apply |
 
 Queued/running jobs return lifecycle only plus the review URL. Completed/
 partial jobs require a retained, valid report. Failed/cancelled/stale/
 missing-result or snapshot-mismatched jobs are never current success.
 
-All ineligible status rows map to the canonical serialized public body
-`{"reason":null,"status":"not_eligible"}` and expose no metadata. Optional
-privacy-safe internal diagnostic codes are telemetry-only and cannot affect
-the public response.
+All anonymous ineligible lookups map to the canonical serialized public bytes
+`{"outcome":"not_eligible","reason":null}` and expose no metadata. The result
+discriminant is always `outcome`; `status` is reserved for the nested Deep job
+lifecycle. Optional privacy-safe internal diagnostic codes are telemetry-only
+and cannot affect the public response. `target_unavailable` requires proof of
+the prior durable owner binding and likewise omits target metadata.
 
 ## 7. Apply field matrix
 
