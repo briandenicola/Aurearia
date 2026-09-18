@@ -55,6 +55,7 @@ export class BudgetGuard {
     elapsedMilliseconds: 0,
   }
   private providerUsageInvalid = false
+  private readonly refusedLimits = new Set<keyof ExplorationLimits>()
 
   constructor(limits: ExplorationLimits, clock: Clock = { now: () => performance.now() }) {
     this.limits = Object.freeze({ ...limits })
@@ -158,6 +159,8 @@ export class BudgetGuard {
 
   private reachedLimits(): Array<keyof ExplorationLimits> {
     return precedence.filter((key) => {
+      if (this.refusedLimits.has(key)) return true
+      if (this.limits[key] === 0) return false
       if (key === 'wallTimeSeconds') return this.usage.elapsedMilliseconds >= this.limits.wallTimeSeconds * 1000
       if (key === 'modelTokens') return this.usage.modelTokens >= this.limits.modelTokens
       return this.usage[key] >= this.limits[key]
@@ -165,8 +168,8 @@ export class BudgetGuard {
   }
 
   private limitError(kind: keyof ExplorationLimits): BudgetExceededError {
+    this.refusedLimits.add(kind)
     const reached = this.reachedLimits()
-    if (!reached.includes(kind)) reached.push(kind)
     reached.sort((a, b) => precedence.indexOf(a) - precedence.indexOf(b))
     return new BudgetExceededError(`${kind} limit reached`, reasons[reached[0]], reached)
   }

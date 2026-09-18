@@ -86,6 +86,20 @@ describe('BudgetGuard', () => {
     guard.dispose()
   })
 
+  it('does not mark a disabled zero limit as reached unless work is attempted', () => {
+    const guard = new BudgetGuard({ ...limits, issueAttempts: 0 })
+    expect(guard.termination()).toEqual({
+      reason: 'completed',
+      reachedLimits: [],
+    })
+    expect(() => guard.reserve('issueAttempts')).toThrow(/issueAttempts limit/i)
+    expect(guard.termination()).toEqual({
+      reason: 'issue_attempt_limit',
+      reachedLimits: ['issueAttempts'],
+    })
+    guard.dispose()
+  })
+
   it('reports every simultaneous limit with documented precedence', () => {
     const guard = new BudgetGuard({ ...limits, steps: 1, modelCalls: 1, browserActions: 1 })
     guard.reserve('steps')

@@ -378,3 +378,21 @@ restoring it returned the full exploration suite to **PASS** with `10 passed`
 files, `106 passed` tests, and the Docker-only runtime test skipped locally.
 ESLint and strict TypeScript also exited `0`. Final hosted lifecycle acceptance
 remains pending another corrected run.
+
+Run `35362664610` proved the remaining runtime lifecycle: host readiness,
+authentication, the fake-model browser loop, exact Compose teardown, and the
+zero-resource assertion all passed. The retained `phase3-run.json` artifact
+recorded one model step, seven browser actions, valid provider token usage,
+and no issue-publication attempts. The job failed only because the final
+report was incorrectly marked `bounded` with `issue_attempt_limit` when the
+configured and consumed issue-attempt counts were both zero.
+
+`BudgetGuard` now distinguishes a disabled zero-capacity budget from a reached
+positive limit. An unused `issueAttempts: 0` therefore permits normal
+`completed` termination, while attempting issue publication still fails
+closed and records `issue_attempt_limit`. The regression was first run against
+the old implementation and reproduced the hosted status exactly. After the
+fix, the full local exploration suite passed with `10 passed` files,
+`107 passed` tests, and the Docker-only runtime test skipped; ESLint and strict
+TypeScript also exited `0`. T036-T038 remain pending one hosted run that
+confirms the corrected terminal status with the already-proven cleanup path.
