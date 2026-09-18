@@ -89,7 +89,7 @@ Write-Output "guard_sha256=$guardDigest"
 
 if ($GuardOnly) {
     Write-Output "feature362_compatibility=guard-only-pass"
-    exit 0
+    return
 }
 
 if ([string]::IsNullOrWhiteSpace($FeatureBinary)) {

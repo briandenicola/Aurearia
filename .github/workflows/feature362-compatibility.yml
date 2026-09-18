@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: src/api/go.mod
+          cache-dependency-path: src/api/go.sum
 
       - name: Build immutable compatibility guard
         shell: bash
@@ -45,7 +46,7 @@ jobs:
             -GuardCommit $env:FEATURE362_GUARD_COMMIT `
             -GuardSourceRoot ./.compat/guard `
             -GuardOnly |
-            Tee-Object -FilePath ./artifacts/feature362-guard/evidence.txt
+            Tee-Object -FilePath "$env:GITHUB_WORKSPACE/artifacts/feature362-guard/evidence.txt"
 
       - name: Upload immutable guard artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
