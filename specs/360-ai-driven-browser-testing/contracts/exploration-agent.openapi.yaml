@@ -1,0 +1,241 @@
+openapi: 3.1.0
+info:
+  title: Aurearia Internal Browser Exploration Decision API
+  version: 1.0.0
+  description: >
+    Ephemeral-stack-only Go-to-Python contract. The browser harness calls the
+    gated Go internal route; Go forwards this shape through AgentProxy. Secrets
+    are injected by the Go process and are not fields in this contract.
+paths:
+  /internal/browser-exploration/decide:
+    post:
+      operationId: decideBrowserExplorationAction
+      security:
+        - InternalServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionRequest'
+      responses:
+        '200':
+          description: One schema-valid decision with provider usage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionResponse'
+        '400':
+          description: Invalid or unsafe request.
+        '401':
+          description: Missing or invalid ephemeral internal token.
+        '422':
+          description: Model output failed strict validation.
+        '429':
+          description: Provider rate limited the request.
+        '502':
+          description: Provider unavailable or malformed.
+components:
+  securitySchemes:
+    InternalServiceToken:
+      type: http
+      scheme: bearer
+  schemas:
+    DecisionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - runId
+        - stepId
+        - provider
+        - model
+        - workflow
+        - goal
+        - allowedActions
+        - allowedRoutes
+        - observations
+      properties:
+        schemaVersion:
+          const: aurearia.browser-exploration-decision/v1
+        runId:
+          type: string
+          pattern: '^aibr_[0-9]{8}T[0-9]{6}Z_[a-f0-9]{12}$'
+        stepId:
+          type: string
+          pattern: '^step-[0-9]{3}$'
+        provider:
+          type: string
+          enum: [anthropic, ollama]
+        model:
+          type: string
+          minLength: 1
+          maxLength: 120
+        workflow:
+          type: string
+          minLength: 1
+          maxLength: 80
+        goal:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        allowedActions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ActionName'
+        allowedRoutes:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^/'
+            maxLength: 200
+        observations:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Observation'
+    Observation:
+      type: object
+      additionalProperties: false
+      required: [evidenceId, kind, route, summary]
+      properties:
+        evidenceId:
+          type: string
+          pattern: '^ev_[a-z]+_[0-9]{4}$'
+        kind:
+          type: string
+          enum: [route, screenshot, console, network, accessibility, ui]
+        route:
+          type: string
+          pattern: '^/'
+          maxLength: 200
+        summary:
+          type: string
+          maxLength: 2000
+    DecisionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - action
+        - target
+        - rationale
+        - suspectedFindings
+        - usage
+      properties:
+        schemaVersion:
+          const: aurearia.browser-exploration-decision/v1
+        action:
+          $ref: '#/components/schemas/ActionName'
+        target:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/ActionTarget'
+        rationale:
+          type: string
+          maxLength: 1000
+        suspectedFindings:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ModelTriage'
+        usage:
+          $ref: '#/components/schemas/ModelUsage'
+    ActionName:
+      type: string
+      enum:
+        - navigate
+        - click
+        - fill
+        - select
+        - upload_fixture
+        - set_viewport
+        - back
+        - wait_for_ui
+        - checkpoint
+        - finish
+    ActionTarget:
+      type: object
+      additionalProperties: false
+      properties:
+        route:
+          type: string
+          pattern: '^/'
+          maxLength: 200
+        role:
+          type: string
+          maxLength: 80
+        accessibleName:
+          type: string
+          maxLength: 200
+        label:
+          type: string
+          maxLength: 200
+        value:
+          type: string
+          maxLength: 1000
+        fixtureId:
+          type: string
+          enum: [synthetic-obverse-png, synthetic-reverse-png]
+        width:
+          type: integer
+          minimum: 320
+          maximum: 1920
+        height:
+          type: integer
+          minimum: 568
+          maximum: 1080
+        milliseconds:
+          type: integer
+          minimum: 0
+          maximum: 5000
+    ModelTriage:
+      type: object
+      additionalProperties: false
+      required:
+        - generatedByModel
+        - summary
+        - suggestedCategory
+        - suggestedSeverity
+        - confidence
+        - evidenceIds
+      properties:
+        generatedByModel:
+          const: true
+        summary:
+          type: string
+          maxLength: 2000
+        suggestedCategory:
+          type: string
+          enum: [functional, console, network, accessibility, visual, navigation, performance, security, other]
+        suggestedSeverity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        evidenceIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^ev_[a-z]+_[0-9]{4}$'
+    ModelUsage:
+      type: object
+      additionalProperties: false
+      required: [inputTokens, outputTokens]
+      properties:
+        inputTokens:
+          type: integer
+          minimum: 0
+        outputTokens:
+          type: integer
+          minimum: 0

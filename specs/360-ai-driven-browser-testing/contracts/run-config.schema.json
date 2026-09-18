@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aurearia.local/schemas/browser-exploration-config-v1.json",
+  "title": "Aurearia Browser Exploration Run Configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "trigger",
+    "provider",
+    "model",
+    "workflowScope",
+    "limits",
+    "createIssues",
+    "seededDefect"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "aurearia.browser-exploration-config/v1"
+    },
+    "trigger": {
+      "enum": ["local", "manual", "nightly"]
+    },
+    "provider": {
+      "enum": ["anthropic", "ollama"]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "workflowScope": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "login-session",
+          "add-coin",
+          "edit-one-field",
+          "storage-location-change-clear",
+          "tags-sets-edit",
+          "image-upload-delete",
+          "collection-search-filter",
+          "mobile-edit"
+        ]
+      }
+    },
+    "limits": {
+      "$ref": "#/$defs/limits"
+    },
+    "createIssues": {
+      "type": "boolean",
+      "default": false
+    },
+    "seededDefect": {
+      "oneOf": [
+        { "type": "null" },
+        { "const": "edit-save-http-500-v1" }
+      ],
+      "default": null
+    }
+  },
+  "$defs": {
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "steps",
+        "wallTimeSeconds",
+        "modelCalls",
+        "modelTokens",
+        "browserActions",
+        "issueAttempts"
+      ],
+      "properties": {
+        "steps": { "type": "integer", "minimum": 1, "maximum": 25 },
+        "wallTimeSeconds": { "type": "integer", "minimum": 1, "maximum": 900 },
+        "modelCalls": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "modelTokens": { "type": "integer", "minimum": 1, "maximum": 60000 },
+        "browserActions": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "issueAttempts": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    }
+  }
+}

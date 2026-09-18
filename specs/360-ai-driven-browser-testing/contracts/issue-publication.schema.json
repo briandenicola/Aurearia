@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aurearia.local/schemas/browser-exploration-issue-v1.json",
+  "title": "Aurearia Browser Exploration Issue Publication Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "findingId",
+    "fingerprint",
+    "repository",
+    "title",
+    "body",
+    "labels"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "aurearia.browser-exploration-issue/v1"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^aibr_[0-9]{8}T[0-9]{6}Z_[a-f0-9]{12}$"
+    },
+    "findingId": {
+      "type": "string",
+      "pattern": "^finding-[0-9]{3}$"
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "maxLength": 200
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "allOf": [
+        {
+          "pattern": "<!-- aurearia-ai-finding:v1:[a-f0-9]{64} -->"
+        }
+      ]
+    },
+    "labels": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["ai-browser-finding", "needs-triage", "accessibility"]
+      }
+    }
+  }
+}
