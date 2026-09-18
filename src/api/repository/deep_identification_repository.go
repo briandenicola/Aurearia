@@ -85,15 +85,17 @@ func (r *DeepIdentificationRepository) ClaimNextQueuedJob(workerID string) (*mod
 	var job models.DeepIdentificationJob
 	var claimed bool
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("status = ?", models.DeepJobStatusQueued).
+		result := tx.Where("status = ?", models.DeepJobStatusQueued).
 			Order("created_at ASC").
-			First(&job).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil
-			}
-			return err
+			Limit(1).
+			Find(&job)
+		if result.Error != nil {
+			return result.Error
 		}
-		result := tx.Model(&models.DeepIdentificationJob{}).
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		result = tx.Model(&models.DeepIdentificationJob{}).
 			Where("id = ? AND status = ?", job.ID, models.DeepJobStatusQueued).
 			Updates(map[string]interface{}{
 				"status":        models.DeepJobStatusRunning,

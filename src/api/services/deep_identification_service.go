@@ -37,6 +37,10 @@ const MaxDeepIdentificationHintArtifacts = 3
 // MaxDeepIdentificationRetryDepth caps the retry lineage depth (FR-020).
 const MaxDeepIdentificationRetryDepth = 3
 
+// deepJobClaimRetryDelay backs off only after a real claim error. Idle workers
+// remain event-driven and perform no periodic database polling.
+const deepJobClaimRetryDelay = 250 * time.Millisecond
+
 // Errors returned by DeepIdentificationService's job-orchestration methods
 // (Phase 4/5). Also generic per Principle V / FR-036.
 var (
@@ -51,12 +55,6 @@ var (
 	ErrDeepJobRetryDepth     = errors.New("retry depth limit reached")
 	ErrDeepJobNotTerminal    = errors.New("job is not terminal")
 )
-
-// deepJobPollInterval is the fallback ticker period a worker uses to check
-// for queued work when it hasn't been woken by an explicit signal. Kept
-// short so tests remain fast; production correctness does not depend on
-// its exact value, only that it is bounded.
-const deepJobPollInterval = 25 * time.Millisecond
 
 // DeepPipelineResult is what a pipeline run (Phase 7: the Python LangGraph
 // agent, proxied via agent_proxy.go) reports back to the worker loop.
@@ -212,9 +210,9 @@ func (s *DeepIdentificationService) pipelineRunner() DeepPipelineRunner {
 	return s.runner
 }
 
-// notifyWorkers wakes a single idle worker (if any) without blocking. A
-// missed signal is harmless: the poll-interval ticker fallback in the
-// worker loop will pick the job up shortly after.
+// notifyWorkers wakes a single idle worker without blocking. The buffered
+// signal is retained when all workers are busy, and each successful claim
+// hands off another wake so the configured pool can fill without polling.
 func (s *DeepIdentificationService) notifyWorkers() {
 	select {
 	case s.wake <- struct{}{}:
@@ -661,17 +659,17 @@ func (s *DeepIdentificationService) StartWorkers(ctx context.Context) {
 		workerID := fmt.Sprintf("worker-%d", i)
 		go s.workerLoop(ctx, workerID)
 	}
+	if settings.Enabled {
+		s.notifyWorkers()
+	}
 }
 
 func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID string) {
-	ticker := time.NewTicker(deepJobPollInterval)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-s.wake:
-		case <-ticker.C:
 		}
 		for {
 			s.intakeMu.RLock()
@@ -683,8 +681,8 @@ func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID str
 				// any error (including SQLITE_BUSY from a competing writer)
 				// the whole transaction rolls back and the job is left
 				// exactly as it was - still status=queued. Nothing is lost:
-				// this worker (or another) retries it on the next wake/tick
-				// (deepJobPollInterval, 25ms) without janitor involvement.
+				// a retained or subsequent wake lets this worker (or another)
+				// retry without janitor involvement.
 				// With busy_timeout now set (database.Connect), SQLite waits
 				// out a competing writer instead of failing immediately, so
 				// this branch should be rare; treat it as a transient,
@@ -692,11 +690,18 @@ func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID str
 				if s.logger != nil {
 					s.logger.Warn("deep-identification", "worker %s failed to claim job (will retry): %v", workerID, err)
 				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(deepJobClaimRetryDelay):
+					s.notifyWorkers()
+				}
 				break
 			}
 			if !claimed {
 				break
 			}
+			s.notifyWorkers()
 			s.runJob(ctx, job)
 			if ctx.Err() != nil {
 				return

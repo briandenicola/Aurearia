@@ -686,6 +686,115 @@ func TestDeepIdentificationService_StartJob_DisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestDeepIdentificationService_DisabledWorkersLeaveQueuedJobsInert(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "disabled-worker-owner", Email: "disabled-worker-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := newDeepStartJob(t, user.ID, "disabled worker")
+	if err := db.Create(job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{run: func(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}}
+	svc.SetPipelineRunner(runner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+	time.Sleep(100 * time.Millisecond)
+
+	var reloaded models.DeepIdentificationJob
+	if err := db.First(&reloaded, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Status != models.DeepJobStatusQueued {
+		t.Fatalf("disabled worker changed queued job status to %q", reloaded.Status)
+	}
+	if runner.peak() != 0 {
+		t.Fatalf("disabled worker invoked the pipeline %d time(s)", runner.peak())
+	}
+}
+
+func TestDeepIdentificationService_EnabledWorkersClaimWithoutPolling(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "enabled-worker-owner", Email: "enabled-worker-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	enableDeepIdentification(t, svc, map[string]string{
+		SettingDeepIdentificationWorkerCount: "2",
+	})
+	job := newDeepStartJob(t, user.ID, "enabled worker")
+	if err := db.Create(job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{run: func(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}}
+	svc.SetPipelineRunner(runner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var reloaded models.DeepIdentificationJob
+		if err := db.First(&reloaded, job.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.Status == models.DeepJobStatusCompleted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("enabled worker did not claim startup job; status=%q", reloaded.Status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestDeepIdentificationService_RuntimeEnableWakesWorkers(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "runtime-enable-owner", Email: "runtime-enable-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{run: func(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}}
+	svc.SetPipelineRunner(runner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+	enableDeepIdentification(t, svc, nil)
+
+	job, _, err := svc.StartJob(newDeepStartJob(t, user.ID, "runtime enable"))
+	if err != nil {
+		t.Fatalf("StartJob after runtime enable failed: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var reloaded models.DeepIdentificationJob
+		if err := db.First(&reloaded, job.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.Status == models.DeepJobStatusCompleted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("runtime-enabled worker did not claim job; status=%q", reloaded.Status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestDeepIdentificationService_WorkerPool_BoundsConcurrency(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "pool-owner", Email: "pool-owner@example.com", PasswordHash: "x"}
@@ -737,6 +846,9 @@ func TestDeepIdentificationService_WorkerPool_BoundsConcurrency(t *testing.T) {
 
 	if runner.peak() > 2 {
 		t.Fatalf("expected at most 2 concurrent jobs, saw peak %d", runner.peak())
+	}
+	if runner.peak() < 2 {
+		t.Fatalf("expected the wake handoff to fill both workers, saw peak %d", runner.peak())
 	}
 	var completedCount int64
 	db.Model(&models.DeepIdentificationJob{}).Where("status = ?", models.DeepJobStatusCompleted).Count(&completedCount)
