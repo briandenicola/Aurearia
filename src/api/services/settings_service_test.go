@@ -328,10 +328,17 @@ func TestCoinCopilotSettingsDefaultsAndIndependentFallbacks(t *testing.T) {
 	if _, exists := svc.GetSettingDefaults()["CoinCopilotMaxEstimatedCostMicros"]; exists {
 		t.Fatal("removed Coin Copilot cost setting is still exposed")
 	}
+	if settings.AttributionEnabled {
+		t.Fatal("Coin Copilot attribution must default off")
+	}
+	if got := svc.GetSettingDefaults()[SettingCoinCopilotAttributionEnabled]; got != "false" {
+		t.Fatalf("Coin Copilot attribution default = %q, want false", got)
+	}
 	_ = svc.SetSetting(SettingCoinCopilotEnabled, "true")
+	_ = svc.SetSetting(SettingCoinCopilotAttributionEnabled, "true")
 	_ = svc.SetSetting(SettingCoinCopilotMaxToolCalls, "999")
 	settings = svc.GetCoinCopilotSettings()
-	if !settings.Enabled || settings.MaxToolCalls != 12 || settings.Valid {
+	if !settings.Enabled || !settings.AttributionEnabled || settings.MaxToolCalls != 12 || settings.Valid {
 		t.Fatalf("invalid value did not independently fall back: %#v", settings)
 	}
 }

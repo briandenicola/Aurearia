@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +33,16 @@ func sseFrame(t *testing.T, frameType string, extra map[string]any) string {
 		t.Fatalf("marshal test frame: %v", err)
 	}
 	return "data: " + string(raw) + "\n\n"
+}
+
+func TestDeepIdentificationPipelineRunner_RejectsUnknownSourceBeforeWork(t *testing.T) {
+	runner := &DeepIdentificationPipelineRunner{}
+	job := &models.DeepIdentificationJob{ID: 42, UserID: 7, Source: models.DeepJobSource("copilot_draft")}
+
+	result, err := runner.Run(context.Background(), job)
+	if result != nil || !errors.Is(err, repository.ErrDeepJobSourceUnsupported) {
+		t.Fatalf("Run = %#v, %v; want nil, ErrDeepJobSourceUnsupported", result, err)
+	}
 }
 
 func TestStreamDeepIdentificationTranslatesFrameTypes(t *testing.T) {

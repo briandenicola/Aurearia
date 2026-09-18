@@ -76,6 +76,81 @@ func TestDeepIdentificationRepository_OwnerScoping(t *testing.T) {
 	}
 }
 
+func TestDeepIdentificationRepository_UnknownSourcesRemainInert(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "unknown-source-owner")
+	stale := time.Now().Add(-time.Hour)
+
+	queued := models.DeepIdentificationJob{
+		UserID: owner.ID, Source: models.DeepJobSource("copilot_draft"),
+		Status: models.DeepJobStatusQueued, InputFingerprint: "unknown-source-queued",
+		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "active",
+	}
+	if err := db.Create(&queued).Error; err != nil {
+		t.Fatal(err)
+	}
+	running := models.DeepIdentificationJob{
+		UserID: owner.ID, Source: models.DeepJobSource("future_source"),
+		Status: models.DeepJobStatusRunning, InputFingerprint: "unknown-source-running",
+		HeartbeatAt: &stale, ReportJSON: `{"private":"running-report"}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "active",
+	}
+	if err := db.Create(&running).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := repo.GetJob(queued.ID, owner.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("unknown-source GetJob error = %v, want record not found", err)
+	}
+	jobs, err := repo.ListJobs(owner.ID, DeepJobListFilters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("unknown-source jobs leaked into list: %#v", jobs)
+	}
+	if claimed, ok, err := repo.ClaimNextQueuedJob("compat-worker"); err != nil || ok || claimed != nil {
+		t.Fatalf("unknown-source claim = %#v, %v, %v; want nil, false, nil", claimed, ok, err)
+	}
+	recovered, err := repo.RecoverStaleJobs(time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recovered) != 0 {
+		t.Fatalf("unknown-source jobs recovered: %v", recovered)
+	}
+
+	var queuedAfter, runningAfter models.DeepIdentificationJob
+	if err := db.First(&queuedAfter, queued.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.First(&runningAfter, running.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if queuedAfter.Status != models.DeepJobStatusQueued ||
+		queuedAfter.ReportJSON != queued.ReportJSON ||
+		queuedAfter.ProposalJSON != queued.ProposalJSON ||
+		runningAfter.Status != models.DeepJobStatusRunning ||
+		runningAfter.ReportJSON != running.ReportJSON {
+		t.Fatalf("unknown-source rows mutated: queued=%#v running=%#v", queuedAfter, runningAfter)
+	}
+}
+
+func TestDeepIdentificationRepository_CreateJobRejectsUnknownSource(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "invalid-create-source-owner")
+	job := &models.DeepIdentificationJob{
+		UserID: owner.ID, Source: models.DeepJobSource("copilot_draft"),
+		InputFingerprint: "invalid-create-source", ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if _, _, err := repo.CreateJob(job); !errors.Is(err, ErrDeepJobSourceUnsupported) {
+		t.Fatalf("CreateJob error = %v, want ErrDeepJobSourceUnsupported", err)
+	}
+}
+
 func TestDeepIdentificationRepository_RecordRouterSelectionIsOwnerScoped(t *testing.T) {
 	db := newDeepIdentificationTestDB(t)
 	repo := NewDeepIdentificationRepository(db)

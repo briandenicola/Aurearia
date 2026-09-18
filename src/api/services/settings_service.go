@@ -103,6 +103,7 @@ const (
 	SettingDeepIdentificationRPCEnabled                = "DeepIdentificationRPCEnabled"
 
 	SettingCoinCopilotEnabled                     = "CoinCopilotEnabled"
+	SettingCoinCopilotAttributionEnabled          = "CoinCopilotAttributionEnabled"
 	SettingCoinCopilotWorkerCount                 = "CoinCopilotWorkerCount"
 	SettingCoinCopilotMaxActivePerUser            = "CoinCopilotMaxActivePerUser"
 	SettingCoinCopilotQueueDepth                  = "CoinCopilotQueueDepth"
@@ -237,6 +238,7 @@ var settingDefaults = map[string]string{
 	SettingDeepIdentificationOCRECallBudget:            "3",
 	SettingDeepIdentificationRPCEnabled:                "false",
 	SettingCoinCopilotEnabled:                          "false",
+	SettingCoinCopilotAttributionEnabled:               "false",
 	SettingCoinCopilotWorkerCount:                      "1",
 	SettingCoinCopilotMaxActivePerUser:                 "1",
 	SettingCoinCopilotQueueDepth:                       "16",
@@ -255,6 +257,7 @@ var settingDefaults = map[string]string{
 
 type CoinCopilotSettings struct {
 	Enabled                     bool
+	AttributionEnabled          bool
 	WorkerCount                 int
 	MaxActivePerUser            int
 	QueueDepth                  int
@@ -295,6 +298,7 @@ func (s *SettingsService) GetCoinCopilotSettings() CoinCopilotSettings {
 	resumeHours := readInt(SettingCoinCopilotResumeWindowHours, 168, 1, 720)
 	return CoinCopilotSettings{
 		Enabled:                     readBool(SettingCoinCopilotEnabled, false),
+		AttributionEnabled:          readBool(SettingCoinCopilotAttributionEnabled, false),
 		WorkerCount:                 readInt(SettingCoinCopilotWorkerCount, 1, 1, 4),
 		MaxActivePerUser:            readInt(SettingCoinCopilotMaxActivePerUser, 1, 1, 3),
 		QueueDepth:                  readInt(SettingCoinCopilotQueueDepth, 16, 1, 100),

@@ -37,6 +37,22 @@ const (
 	DeepJobSourceSavedCoin DeepJobSource = "saved_coin"
 )
 
+// IsSupportedDeepJobSource is the closed compatibility boundary for job
+// sources understood by this binary.
+func IsSupportedDeepJobSource(source DeepJobSource) bool {
+	switch source {
+	case DeepJobSourceIntake, DeepJobSourceSavedCoin:
+		return true
+	default:
+		return false
+	}
+}
+
+// SupportedDeepJobSources returns a fresh slice for repository IN clauses.
+func SupportedDeepJobSources() []DeepJobSource {
+	return []DeepJobSource{DeepJobSourceIntake, DeepJobSourceSavedCoin}
+}
+
 // DeepIdentificationJob is the sibling job aggregate for the deep agentic
 // coin identification feature (data-model.md §2). It is intentionally
 // separate from models.AIJob, which remains untouched.

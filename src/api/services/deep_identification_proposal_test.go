@@ -647,6 +647,32 @@ func TestDeepIdentificationProposal_SecondApplyIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestDeepIdentificationProposal_UnknownSourceCannotEditOrApply(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSource("copilot_draft"), nil, map[string]any{
+		"notes": "must remain unchanged",
+	})
+
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"notes": {Accepted: acceptTrue()},
+	}); !errors.Is(err, ErrDeepProposalNotFound) {
+		t.Fatalf("UpdateProposal error = %v, want ErrDeepProposalNotFound", err)
+	}
+	if _, err := svc.Apply(jobID, userID, "draft", nil); !errors.Is(err, ErrDeepProposalNotFound) {
+		t.Fatalf("Apply error = %v, want ErrDeepProposalNotFound", err)
+	}
+
+	var after models.DeepIdentificationJob
+	if err := db.First(&after, jobID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(after.ProposalJSON, "must remain unchanged") || after.AppliedAt != nil ||
+		after.AppliedCoinID != nil || after.AppliedDraftID != nil {
+		t.Fatalf("unknown-source proposal path mutated job: %#v", after)
+	}
+}
+
 // T117 (data-model.md §6): every terminal completed/partial job has
 // narrative/coverage/disagreements/unresolvedQuestions populated, and
 // partial jobs set PartialSuccess=true. This asserts on the shape written

@@ -93,6 +93,9 @@ const (
 // cancellable on explicit user cancel); it is passed straight through to
 // StreamDeepIdentification so HTTP-level cancellation is automatic (T071).
 func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+	if job == nil || !models.IsSupportedDeepJobSource(job.Source) {
+		return nil, repository.ErrDeepJobSourceUnsupported
+	}
 	unsettledStatus := models.DeepProviderRunFailed
 	unsettledErrorKind := "upstream"
 	defer func() {

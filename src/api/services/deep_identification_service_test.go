@@ -85,6 +85,81 @@ func seedDeepTestJob(t *testing.T, db *gorm.DB, userID uint) uint {
 	return job.ID
 }
 
+func TestDeepIdentificationService_UnknownSourceCannotRetryOrCancel(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "unknown-source-service", Email: "unknown-source-service@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSource("copilot_draft"),
+		Status: models.DeepJobStatusCompleted, InputFingerprint: "unknown-source-service",
+		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "terminal-unknown",
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.RetryJob(job.ID, user.ID, nil, nil); !errors.Is(err, ErrDeepJobNotFound) {
+		t.Fatalf("RetryJob error = %v, want ErrDeepJobNotFound", err)
+	}
+	if err := svc.RequestCancel(job.ID, user.ID); !errors.Is(err, ErrDeepJobNotFound) {
+		t.Fatalf("RequestCancel error = %v, want ErrDeepJobNotFound", err)
+	}
+	var after models.DeepIdentificationJob
+	if err := db.First(&after, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.ReportJSON != job.ReportJSON || after.ProposalJSON != job.ProposalJSON || after.Status != job.Status {
+		t.Fatalf("unknown-source service path mutated row: %#v", after)
+	}
+}
+
+func TestDeepIdentificationService_WorkersDoNotAdoptUnknownSource(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "unknown-source-worker", Email: "unknown-source-worker@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSource("copilot_draft"),
+		Status: models.DeepJobStatusQueued, InputFingerprint: "unknown-source-worker",
+		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "active",
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var providerCalls int32
+	svc.SetPipelineRunner(&fakeRunner{run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		atomic.AddInt32(&providerCalls, 1)
+		return &DeepPipelineResult{}, nil
+	}})
+	ctx, cancel := context.WithCancel(context.Background())
+	svc.StartWorkers(ctx)
+	svc.notifyWorkers()
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+
+	var after models.DeepIdentificationJob
+	if err := db.First(&after, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	var eventCount, providerRunCount int64
+	if err := db.Model(&models.DeepIdentificationEvent{}).Where("job_id = ?", job.ID).Count(&eventCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.DeepIdentificationProviderRun{}).Where("job_id = ?", job.ID).Count(&providerRunCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&providerCalls) != 0 || eventCount != 0 || providerRunCount != 0 ||
+		after.Status != job.Status || after.ReportJSON != job.ReportJSON || after.ProposalJSON != job.ProposalJSON {
+		t.Fatalf("unknown-source worker adopted job: calls=%d events=%d providers=%d job=%#v",
+			providerCalls, eventCount, providerRunCount, after)
+	}
+}
+
 func TestDeepIdentificationService_ValidateAndSaveArtifact_HappyPath(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "artifact-owner", Email: "artifact-owner@example.com", PasswordHash: "x"}
