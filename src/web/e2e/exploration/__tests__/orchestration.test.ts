@@ -1,9 +1,45 @@
 import { describe, expect, it, vi } from 'vitest'
 import { BudgetGuard } from '../budget'
-import { executeDecisionLoop, runExplorationLifecycle, waitFor } from '../cli'
+import {
+  authenticateExplorer,
+  executeDecisionLoop,
+  runExplorationLifecycle,
+  waitFor,
+} from '../cli'
 import { F013_WORKFLOW_INVENTORY } from '../../fixtures/workflow'
 
 describe('exploration orchestration failures', () => {
+  it('waits for authenticated navigation before enforcing the route guard', async () => {
+    let currentURL = 'http://127.0.0.1:49152/login'
+    const page = {
+      goto: vi.fn(),
+      url: vi.fn(() => currentURL),
+      waitForURL: vi.fn(async () => { currentURL = 'http://127.0.0.1:49152/' }),
+      getByRole: vi.fn((_role: string, options?: { name?: string }) =>
+        options?.name === 'Sign In'
+          ? { click: vi.fn() }
+          : { first: () => ({ fill: vi.fn() }) }),
+      locator: vi.fn(() => ({ fill: vi.fn() })),
+    }
+    const budget = new BudgetGuard({
+      steps: 1,
+      wallTimeSeconds: 60,
+      modelCalls: 1,
+      modelTokens: 10,
+      browserActions: 5,
+      issueAttempts: 0,
+    })
+    await expect(authenticateExplorer(
+      page as never,
+      budget,
+      'http://127.0.0.1:49152',
+      'explorer',
+      'password',
+    )).resolves.toBeUndefined()
+    expect(page.waitForURL).toHaveBeenCalledWith('http://127.0.0.1:49152/')
+    budget.dispose()
+  })
+
   it('reports the last host readiness probe failure', async () => {
     await expect(waitFor(
       'http://127.0.0.1:1/healthz',

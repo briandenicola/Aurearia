@@ -363,3 +363,18 @@ assertion was restored.
 Hosted fake-model lifecycle acceptance remains pending the corrected rerun;
 T036-T038 stay incomplete until browser execution, teardown, and zero leaked
 resources all pass together.
+
+Run `35362015040` on commit `518b1725` proved the ingress correction: host
+readiness passed and the lifecycle entered Playwright login execution. The run
+then failed because the CLI clicked **Sign In** and synchronously validated the
+current URL while Vue Router was still on `/login`. The canonical F013 login
+test already waits for `/`, so the CLI now starts `page.waitForURL()` before
+the click and applies its route guard only after authenticated navigation
+completes.
+
+The login wait has a focused orchestration regression test. Removing the wait
+caused that exact test to fail with `Navigation escaped the selected workflow`;
+restoring it returned the full exploration suite to **PASS** with `10 passed`
+files, `106 passed` tests, and the Docker-only runtime test skipped locally.
+ESLint and strict TypeScript also exited `0`. Final hosted lifecycle acceptance
+remains pending another corrected run.

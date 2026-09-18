@@ -323,6 +323,31 @@ export async function waitFor(
   throw new Error(`Readiness failed: ${url}; last probe: ${lastFailure}`)
 }
 
+export async function authenticateExplorer(
+  page: Page,
+  budget: BudgetGuard,
+  appOrigin: string,
+  username: string,
+  password: string,
+): Promise<void> {
+  await budget.perform('browserActions', async () => page.goto(`${appOrigin}/login`))
+  await budget.perform('browserActions', async () =>
+    page.getByRole('textbox').first().fill(username))
+  await budget.perform('browserActions', async () =>
+    page.locator('input[type="password"]').fill(password))
+  await budget.perform('browserActions', async () => {
+    await Promise.all([
+      page.waitForURL(`${appOrigin}/`),
+      page.getByRole('button', { name: 'Sign In' }).click(),
+    ])
+  })
+  validateNavigationDestination(page.url(), {
+    origin: appOrigin,
+    allowedRoutes: ['/'],
+    uploadFixtures: {},
+  })
+}
+
 function generatedEnvironment(project: string, appPort: number): NodeJS.ProcessEnv {
   const secret = () => randomBytes(32).toString('base64url')
   return {
@@ -439,18 +464,13 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         const browser = await budget.withinDeadline(async () => chromium.launch())
         try {
           const page = await budget.withinDeadline(async () => browser.newPage())
-          await budget.perform('browserActions', async () => page.goto(`${appOrigin}/login`))
-          await budget.perform('browserActions', async () =>
-            page.getByRole('textbox').first().fill(env.AI_BROWSER_TEST_USERNAME!))
-          await budget.perform('browserActions', async () =>
-            page.locator('input[type="password"]').fill(env.AI_BROWSER_TEST_PASSWORD!))
-          await budget.perform('browserActions', async () =>
-            page.getByRole('button', { name: 'Sign In' }).click())
-          validateNavigationDestination(page.url(), {
-            origin: appOrigin,
-            allowedRoutes: ['/'],
-            uploadFixtures: {},
-          })
+          await authenticateExplorer(
+            page,
+            budget,
+            appOrigin,
+            env.AI_BROWSER_TEST_USERNAME!,
+            env.AI_BROWSER_TEST_PASSWORD!,
+          )
 
           let stepIndex = 0
           const requestDecision: DecisionRequester = async (body, signal) => {
