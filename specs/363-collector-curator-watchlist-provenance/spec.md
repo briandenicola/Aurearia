@@ -2,7 +2,7 @@
 
 **Feature Branch**: `beta` (existing working branch; no feature branch created)
 **Created**: 2026-09-18
-**Status**: Draft - Ready for Planning
+**Status**: Draft - Analyzer blockers resolved; required ADR and release gates pending
 **Input**: Promote backlog card F015 as Feature 363 using the product-owner-set
 collector-profile, watchlist-input, tiered-risk, and confirmed-wishlist
 decisions dated 2026-09-18.
@@ -45,6 +45,14 @@ The profile foundation introduces no autonomous behavior. The first
 collector-facing recommendation slice is read-only. Each later slice can be
 disabled or rolled back without disabling earlier slices.
 
+## Clarifications
+
+### Session 2026-09-18
+
+- Q: What happens when an owner edits a Wishlist Action during review? → A: `immutable_revision`
+- Q: What does explicit Cancel do to a Wishlist Action stage? → A: `revoke_stage`
+- Q: What may owners do with existing stages while Wishlist Action is disabled? → A: `read_revoke_no_confirm`
+
 ## Settled Product Decisions
 
 1. **Preference storage — `collector_profile`**: budgets, favorite periods,
@@ -66,6 +74,17 @@ disabled or rolled back without disabling earlier slices.
 5. **Product claim boundary**: provenance findings support collector review;
    they are not forensic authentication, fraud determinations, accusations, or
    guarantees of authenticity, attribution, availability, or value.
+6. **Wishlist review edits — `immutable_revision`**: every permitted edit
+   creates a new immutable stage revision linked to the stage root, prior
+   revision, and unchanged source evidence. No revision or source evidence is
+   updated in place.
+7. **Wishlist cancel — `revoke_stage`**: explicit **Cancel** durably revokes
+   the stage root in Go. Closing or dismissing the modal is abandonment only;
+   it does not revoke the stage, which remains available until expiry.
+8. **Wishlist disable — `read_revoke_no_confirm`**: when Wishlist Action is
+   disabled, existing stages remain owner-readable and revocable and cleanup
+   continues, but new staging, revision, and confirmation are blocked until
+   re-enabled.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -238,8 +257,10 @@ audit metadata, and no collection-only or unrelated manual-field changes.
 2. **Given** a valid staged review, **When** the owner explicitly confirms,
    **Then** Go creates one owner-scoped wishlist item through the canonical
    write path and records source and audit metadata.
-3. **Given** the owner cancels, closes, replays, or never confirms the review,
-   **When** the staging period ends, **Then** no wishlist write occurs.
+3. **Given** the owner explicitly selects **Cancel**, **When** Go accepts the
+   request, **Then** the stage root is durably revoked and can never be revised
+   or confirmed; closing or dismissing the modal merely abandons the view and
+   leaves the stage confirmable until its expiry.
 4. **Given** the same source identity, result, or idempotency request was
    already confirmed, **When** it is submitted again, **Then** the existing
    outcome is returned or a duplicate warning blocks creation; no duplicate
@@ -379,9 +400,27 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   attribution evidence, proposal confidence, provider contradictions, or
   attribution citations MUST remain gated and unavailable.
 - **FR-025**: After Feature 362 is available and enabled, Feature 363 MAY consume
-  its validated, persisted attribution projection. It MUST preserve Feature
-  362 confidence, source conflicts, provider coverage, URLs, limitations, and
-  read-only/review-gated boundaries rather than reinterpreting them as facts.
+  its validated, persisted attribution projection only when ADR 0017 is
+  accepted, Feature 362 prerequisite gates are complete, the advertised
+  projection capability is persisted and enabled, and its schema version is
+  supported. The consumer MUST reject unknown versions or capabilities rather
+  than guess, downgrade, or reinterpret them. It MUST preserve the canonical
+  projection's owner/run/job identity, complete-result digest, schema version,
+  stable ordering and canonicalization rules, confidence, source conflicts,
+  provider coverage, evidence URLs, omitted-entry disclosure, limitations, and
+  read-only/review-gated boundaries. A supported older version MAY be read only
+  through an explicit compatibility adapter that preserves every required
+  field; otherwise attribution-rich findings fail closed while baseline review
+  remains available.
+- **FR-025a**: Feature 362 compatibility MUST use its published canonical JSON
+  form: UTF-8, normalized scalar forms, lexicographically sorted object keys,
+  Feature 362-defined stable array order, no unknown-field coercion, and
+  SHA-256 over the complete canonical projection before bounded omission.
+  Feature 363 MUST verify the advertised schema version and complete-result
+  digest before use, retain required identity/evidence/conflict/coverage/
+  confidence/limitation fields byte-for-byte in meaning, and expose truncation
+  or omitted-entry metadata. Downgrade to a binary without a verified adapter
+  disables attribution-rich risk and preserves persisted rows unchanged.
 
 #### Confirmed Add to Wishlist
 
@@ -389,10 +428,28 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   an explicit **Add to Wishlist** control. Conversational text alone MUST NOT
   start staging or mutation.
 - **FR-027**: Selecting the control MUST enter a Go-owned, owner-scoped review
-  flow that displays the original result identity, source URL, provider,
-  provenance, evidence, confidence, observed time, listing state, price and
-  currency, proposed field mapping, omitted fields, validation issues, and
-  duplicate warnings. Selection itself writes no wishlist item.
+  flow. Every stage and revision response MUST include the immutable stage-root
+  and revision ids, revision number, status, version, expiry, fingerprint,
+  original Coin Copilot run/execution/tool/result identity, Feature 361 schema
+  version and capability, canonical source identity and normalized HTTPS URL,
+  registered provider/host, canonical source digest, retained source-result
+  digest, provenance and per-field evidence, confidence, observation time,
+  closed listing/provider state values, paired price and ISO currency or
+  neither, proposed mapping, omitted fields, validation issues, and duplicate
+  warnings. Selection itself writes no wishlist item.
+- **FR-027a**: `source_kind` is the closed enum `market_search` or
+  `auction_search`; provider id MUST be selected from the versioned server
+  registry loaded at startup, never accepted as an open client string; and
+  `listing_state` is the closed enum `AVAILABLE`, `SOLD`, `ENDED`, `WITHDRAWN`,
+  or `UNKNOWN`. Only registered HTTPS hosts with an exact or approved
+  subdomain match may stage; redirects MUST be revalidated at every hop.
+  Canonical source identity is the Feature 361 source kind, registered provider
+  id, and normalized final HTTPS URL. Its digest and the source-result digest
+  use lowercase SHA-256 over UTF-8 canonical JSON with sorted object keys,
+  normalized scalar forms, schema-defined stable array order, and no
+  credentials or fragments. A numeric price MUST have one supported ISO
+  currency and a currency MUST have one numeric price; otherwise both are
+  represented as unknown and no comparison or mapping occurs.
 - **FR-028**: Saving MUST require a second explicit confirmation tied to the
   exact staged version. Coin Copilot and Python MUST NOT self-approve, confirm,
   directly write, receive a generic write credential, or call arbitrary write
@@ -401,7 +458,16 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   source-backed title to name; supported numismatic identity fields to their
   corresponding wishlist fields; source URL to reference URL; observed listing
   price to the wishlist value estimate when supported; and listing state to the
-  existing listing-status field. Missing fields remain empty.
+  existing listing-status field. During review, the owner MAY edit only name,
+  the supported destination numismatic identity fields, and the wishlist value
+  estimate paired with its supported ISO currency. Source URL/identity,
+  provider, listing state, provenance/evidence, observation time, and all
+  original execution/result identities are immutable. Missing fields remain
+  empty. Every accepted edit creates a new immutable revision with a new id,
+  monotonically increasing revision number/version, canonical fingerprint,
+  fresh idempotency binding, and a fresh 30-minute expiry; it links to the root,
+  prior revision, and unchanged source evidence without mutating any earlier
+  revision.
 - **FR-030**: Currency, provider, canonical source identity, observation time,
   field provenance, evidence, and limitations MUST be preserved in the staged
   action and durable audit/provenance metadata even when the current wishlist
@@ -419,7 +485,15 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   the canonical Go service/repository path. Python MUST never write.
 - **FR-033**: Stage and confirmation requests MUST use idempotency keys and an
   immutable request fingerprint. Same-owner same-payload replay MUST return the
-  original outcome; key reuse with a different payload MUST conflict.
+  original stage/revision or durable confirmation outcome; key reuse with a
+  different canonical payload MUST return `409 idempotency_conflict`.
+  Fingerprints MUST bind owner, operation, stage root/revision/version, original
+  execution/result identity, source and source-result digests, exact mapping,
+  expiry, and relevant feature/schema versions. Revision, revocation, and
+  confirmation MUST revalidate owner binding, current active revision,
+  fingerprint, expiry, source-result retention/digest, URL/provider
+  registration, listing eligibility, duplicate state, and feature/capability
+  state. Stale or tampered requests fail closed and never mutate evidence.
 - **FR-034**: Duplicate prevention MUST consider the owner, eligible result
   identity, canonical source URL, normalized source URL, and existing
   source-result linkage. Concurrent or replayed submissions MUST create at most
@@ -430,6 +504,48 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   time, idempotency outcome, and created wishlist item. The new item's activity
   journal MUST record the confirmed assisted creation without raw prompts,
   credentials, or full provider payloads.
+- **FR-035a**: Wishlist stage roots use the closed lifecycle `ACTIVE`,
+  `REVOKED`, `EXPIRED`, or `CONFIRMED`; immutable revisions use `ACTIVE`,
+  `SUPERSEDED`, `REVOKED`, `EXPIRED`, or `CONFIRMED`. Exactly one revision may
+  be `ACTIVE` per active root. Creating a revision atomically supersedes the
+  prior active revision. Explicit Cancel atomically changes the active root and
+  its active revision to `REVOKED`; modal close/dismiss performs no durable
+  transition. Expiry is determined from the Go database UTC clock. Revoked,
+  expired, superseded, or confirmed revisions cannot be revised or confirmed.
+  Revoked stages remain owner-readable only for the bounded audit period.
+- **FR-035b**: The complete public mutation surface is:
+  `PUT /api/collector-profile`, `POST /api/wishlist-actions/stages`,
+  `POST /api/wishlist-actions/stages/{stageID}/revisions`,
+  `POST /api/wishlist-actions/stages/{stageID}/revoke`, and
+  `POST /api/wishlist-actions/stages/{stageID}/confirm`. The stage route returns
+  `201` for created and `200` for an idempotently existing stage; revision
+  returns `201` or `200`; revoke returns `200`; confirm returns `201` with
+  `outcome=created` or `200` with `outcome=existing`. Validation is `400`,
+  foreign/unknown identifiers are indistinguishable `404`, stale version,
+  duplicate conflict, key mismatch, or concurrent transition is `409`, expired
+  or revoked stage is `410`, oversized canonical input is `413`, and disabled,
+  unavailable, unsupported schema/capability, or unretained source result is
+  `503`. Closed error codes are: `400 invalid_request`,
+  `400 invalid_mapping`, `400 invalid_source`; `404 not_found`;
+  `409 stale_version`, `409 idempotency_conflict`, `409 duplicate_conflict`,
+  `409 transition_conflict`; `410 stage_expired`, `410 stage_revoked`;
+  `413 payload_too_large`; and `503 feature_disabled`,
+  `503 dependency_unavailable`, `503 unsupported_contract`, or
+  `503 source_not_retained`. Responses disclose no foreign state.
+  Model/agent callback routes remain read-only and MUST NOT include any of
+  these mutations or a generic write route.
+- **FR-035c**: Durable stage-created, stage-existing, revision-created,
+  revision-existing, revoked, confirmation-created, and confirmation-existing
+  outcomes MUST be distinct from failures. A successful confirmation has one
+  durable outcome row; an idempotent replay reads it. A failed attempt MUST NOT
+  create a success/outcome row or wishlist journal entry. Go MUST persist
+  privacy-safe stage-created, revision-created, stage-revoked,
+  confirmation-created/existing, expiry, and rejected-transition audit events
+  with owner, operation, ids, versions, digests, reason code, and timestamps,
+  but no raw prompt, credential, provider payload, query, full URL, or private
+  content. Server logs contain only privacy-safe ids/digests, status/reason,
+  bounded counts/bytes, and duration; durable audit events, not logs, are the
+  audit authority.
 
 #### Safety, lifecycle, rollout, and tests
 
@@ -449,11 +565,28 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   after awaited work, before staging, and before confirmation commit. Late
   recommendation or risk output MUST be discarded after cancellation wins; a
   confirmation transaction that already committed remains idempotently
-  readable.
+  readable. For a staged Wishlist Action, only the explicit revoke route is a
+  durable cancellation; closing/dismissing UI is not a cancellation signal.
+  Revocation and confirmation serialize on the active stage version: revocation
+  wins if committed first and confirmation returns `410 stage_revoked`; if the
+  confirmation transaction commits first, revoke returns the existing
+  confirmed outcome without changing it.
 - **FR-040**: Each slice MUST have its own default-off feature control and safe
-  fallback. Disabling or unavailability MUST preserve existing collection,
-  wishlist, auction, Deep Analysis, and legacy chat workflows; stored profile
-  and audit data remain readable or inert as appropriate.
+  fallback. The five backend settings are `CollectorProfileEnabled`,
+  `CollectorCuratorEnabled`, `CollectorWatchlistEnabled`,
+  `CollectorProvenanceRiskEnabled`, and `CollectorWishlistActionEnabled`; all
+  default to `false`, are registered and validated at startup, are enforced by
+  server-side preflight as well as hidden/disabled UI, and do not rely on a
+  client flag. After disable, no new run is admitted for that slice. Read-only
+  curator/watchlist/risk runs accepted before disable may finish and remain
+  owner-readable/cancellable. Profile data remains stored and participates in
+  account export/deletion, but profile UI and API mutation are blocked while
+  its flag is off; owner-scoped reads may remain available for recovery.
+  Wishlist Action follows `read_revoke_no_confirm`: existing stages remain
+  owner-readable and revocable and cleanup continues, while new stage,
+  revision, and confirmation requests return `503 feature_disabled` until
+  re-enabled. Disabling or unavailability MUST preserve existing collection,
+  wishlist, auction, Deep Analysis, and legacy chat workflows.
 - **FR-041**: The feature MUST add no provider automation, external dependency,
   generic browsing, bulk scraping, direct browser-to-Python access, Python
   persistence, or hardcoded deployment network address.
@@ -466,6 +599,93 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   wishlist availability, alert candidate conversion, auction tracking, Deep
   Analysis, Coin Copilot specialist results, and legacy fallback remain
   unchanged outside the explicitly composed flows.
+- **FR-044**: Watchlist evaluation and Wishlist Action MUST accept only retained,
+  owner-bound, validated Feature 361 `market_search` or `auction_search`
+  results using specialist contract schema version `1`, with bounded
+  checkpoint/result metadata and the completed T039–T053 safety baseline.
+  Unknown schema versions, result kinds, capabilities, missing/truncated source
+  payloads, invalid digests, or unretained results MUST fail closed. No
+  unvalidated event text or reconstructed model output may substitute for the
+  retained result.
+- **FR-045**: Attribution-rich risk MUST require accepted ADR 0017, completed
+  Feature 362 prerequisite gates, a supported projection schema version, the
+  persisted projection capability, and all applicable Feature 362 and Feature
+  363 flags enabled. Failure of any dependency makes only attribution-rich
+  findings unavailable; it MUST NOT silently fall back to model memory or
+  transient output.
+- **FR-046**: Database constraints MUST enforce owner binding, not merely
+  handlers: goal `(owner_id, profile_id)` references the matching profile;
+  every stage revision/root/source binding shares one owner; each revision
+  references its root and prior revision within that owner; confirmation
+  outcome `(owner_id, stage_id)` references the matching stage and
+  `(owner_id, coin_id)` references the created owner wishlist coin. Composite
+  unique keys/foreign keys, checks, partial unique indexes, or an equivalently
+  enforceable database mechanism MUST prevent cross-owner, multiple-active-
+  revision, and multiple-outcome corruption. Migrations and tests MUST inject
+  corrupt owner/id combinations and prove the database rejects them.
+- **FR-047**: Retention uses safe defaults unless a higher legal or product
+  authority sets a stricter policy: profiles and goals persist until owner
+  clearing or account deletion; terminal recommendation, evaluation, risk, and
+  profile-snapshot rows are hard deleted after 30 days; active unconfirmed
+  stages expire after 30 minutes; stage roots/revisions and rejected-attempt
+  audit events are hard deleted 30 days after expiry or revocation;
+  failed-attempt operational audit events are hard deleted after 30 days; and
+  confirmed stage snapshots and confirmation audit records are hard deleted
+  after 90 days after their bounded fields are projected into the created
+  coin's durable activity journal. Final wishlist-coin provenance and journal
+  entries follow the canonical coin retention/deletion policy. A Go-owned UTC
+  cleanup job runs at least hourly in batches of at most 500, retries failures
+  with bounded exponential backoff capped at 24 hours, resumes safely after
+  restart from durable state, is idempotent under overlap, and records
+  privacy-safe counts/errors. Hard deletion leaves no owner-linked payload,
+  audit tombstone, or recoverable soft-delete row; only aggregate
+  non-identifying operational metrics may remain.
+- **FR-048**: Production account export and deletion MUST include every new
+  private profile, goal, snapshot, recommendation/evaluation/risk record,
+  Wishlist Action root/revision/outcome, and durable audit record. Export MUST
+  preserve user-understandable relationships, timestamps, statuses, and
+  provenance without credentials or internal security tokens. Account deletion
+  MUST remove or legally anonymize all owner-linked rows and audit records
+  through the production path, including retained confirmed provenance as
+  governed by the canonical coin policy; test-only cleanup is insufficient.
+- **FR-049**: A Feature 363 ADR in `docs/adr/NNNN-*.md` is mandatory and MUST be
+  accepted before any dependent schema or implementation is merged. It MUST
+  decide profile ownership; all five slice flags; immutable Wishlist Action
+  staging, revision, revocation, confirmation, and idempotency; database owner
+  constraints; retention/export/deletion; mixed-version, partial-migration, and
+  rollback behavior; and the invariant that models/Python never write.
+- **FR-050**: Test-first evidence is a release and sequencing requirement.
+  Architecture/route guards, five-flag admission and post-start behavior,
+  privacy/owner isolation, migration and corruption injection, lifecycle and
+  tamper cases, and concurrency/cancellation races MUST be written and shown
+  failing for the intended missing behavior before constrained implementation,
+  then pass afterward. This ordering is acceptance evidence, not merely a plan
+  preference.
+- **FR-051**: Upgrade, mixed-version, partial-migration, and rollback tests MUST
+  cover old/new API binaries, workers, web clients, all five flag states,
+  schema-before-code and code-before-schema deployment, interrupted and retried
+  migrations/cleanup, Feature 361 schema `1`, unknown specialist/projection
+  versions, and rollback to the documented compatibility guard release.
+  Unsupported writers/readers MUST fail closed without deleting or rewriting
+  rows. For every matrix cell, pre/post row counts, owner ids, stage/revision
+  states, digests, source links, outcomes, coin links, journal entries, and
+  audit content MUST be equal except for the single explicitly expected
+  transition; no orphan, duplicate, cross-owner, lost, or partially populated
+  row is permitted.
+- **FR-052**: Merge and release require recorded evidence for `go build ./...`,
+  `go vet ./...`, `go test ./...`, `go test -run TestArchitecture ./...`,
+  targeted `go test -race` lifecycle/concurrency packages, clean web dependency
+  installation, `vue-tsc --build`, web lint/unit/browser tests, `npm run build`,
+  explicit `pip install -e ".[dev]"`, locked `uv sync` as an additional
+  reproducibility check, Python syntax/type checks where configured,
+  `ruff check app/ tests/`, `pytest tests/`, migration/rollback and contract
+  suites, owner-isolation/security/tamper suites, CodeQL, container image build,
+  Trivy with zero High/Critical findings, secret scanning, SBOM generation,
+  threat-model review, and image provenance/scan evidence. The PR MUST include
+  the constitution self-check, Principle IV self-check, affected-workflow
+  regression evidence, and mirrored Definition of Done checklist. A local
+  environment limitation is never a waiver; an equivalent hosted pass is
+  required before merge or release.
 
 ### Key Entities
 
@@ -486,8 +706,10 @@ audit metadata, and no collection-only or unrelated manual-field changes.
   documentation concern, separating observations from claims and containing
   evidence, confidence, why it matters, limitations, and needs-review language.
 - **Wishlist Action Stage**: Owner-scoped immutable review snapshot for one
-  eligible market result, proposed field mapping, evidence, duplicate status,
-  version, expiry, and confirmation state; it is not a wishlist item.
+  eligible market result. A root owns an append-only chain of immutable
+  revisions containing the proposed field mapping, original source/result
+  bindings and digests, evidence, duplicate status, fingerprint, version,
+  expiry, and closed lifecycle state; it is not a wishlist item.
 - **Wishlist Action Audit**: Durable privacy-safe record linking confirmed
   explicit intent, source result and evidence identity, mapping, idempotency
   outcome, and created wishlist item.
@@ -498,10 +720,14 @@ audit metadata, and no collection-only or unrelated manual-field changes.
 |-------|-------------------------------|----------------------|
 | Collector profile | Yes | Existing auth and owner-scoped persistence patterns |
 | Curator read-only recommendations | Yes | Feature 012 collection tools; existing portfolio/gap logic; collector profile |
-| Watchlist evaluation | Yes | Existing wishlist/availability/auction services; Feature 361 eligible market evidence |
+| Watchlist evaluation | Yes | Existing wishlist/availability/auction services; retained validated Feature 361 `market_search`/`auction_search` schema v1 results; bounded checkpoint/result metadata; completed T039–T053 baseline |
 | Baseline provenance/documentation risk | Yes | Existing coin/listing data, URL safety, availability evidence, and any already-defensible image evidence |
-| Attribution-evidence-rich risk | No | Feature 362 plus Features 344/351/352 persisted evidence projection |
-| Confirmed Add to Wishlist | Yes, if Feature 361 result contracts are available | Feature 361 eligible result identity/evidence; canonical Go wishlist write and audit paths |
+| Attribution-evidence-rich risk | No | Accepted ADR 0017; completed Feature 362 prerequisite gates; supported persisted projection schema/capability; applicable flags |
+| Confirmed Add to Wishlist | Yes, if Feature 361 gates are satisfied | Retained validated Feature 361 `market_search`/`auction_search` schema v1 result; bounded checkpoint/result metadata; completed T039–T053 baseline; canonical Go wishlist write and audit paths |
+
+The Feature 363 ADR required by FR-049 is a blocking predecessor for dependent
+schema and implementation. Dependency preflight MUST reject unknown or absent
+versions/capabilities rather than optimistically admit a workflow.
 
 ## Non-Goals
 
@@ -530,10 +756,12 @@ audit metadata, and no collection-only or unrelated manual-field changes.
 - **SC-001**: In owner-isolation tests, 100% of profile, goal, recommendation,
   evaluation, risk, stage, confirmation, and audit operations disclose zero
   foreign or private data.
-- **SC-002**: At least 90% of evaluators can create or update a collector
-  profile with a budget, three preference types, and one goal in under 3
-  minutes, with 100% of invalid-boundary fixtures rejected without partial
-  updates.
+- **SC-002**: An automated desktop and installed-PWA browser workflow can open
+  **Settings > Collector Profile**, set a budget, one value in each of the
+  three preference lists, and one active goal, save, reload, edit, clear, and
+  restore the profile with no more than one explicit save action per change;
+  100% of valid fixtures round-trip exactly and 100% of invalid-boundary
+  fixtures are rejected without partial updates.
 - **SC-003**: In controlled curator fixtures, 100% of displayed recommendations
   identify supporting collection facts, profile effects, confidence, why the
   recommendation matters, and limitations, and create zero writes.
@@ -582,6 +810,9 @@ audit metadata, and no collection-only or unrelated manual-field changes.
 - Duplicate-image review uses only evidence already available to the
   application at execution time; absence of a detected match proves nothing.
 - Existing retention rules for source Coin Copilot and Deep Analysis records
-  remain authoritative. Feature 363 stores only the bounded snapshots and audit
-  metadata required to explain its own durable actions.
-- There are no unresolved specification-stage product clarifications.
+  remain authoritative for those source records. Feature 363 stores only the
+  bounded snapshots and audit metadata required by FR-047 to explain its own
+  durable actions.
+- No higher retention authority has yet replaced the bounded defaults in
+  FR-047; a future approved legal/product policy may shorten them or require a
+  documented hold without weakening account deletion obligations.
