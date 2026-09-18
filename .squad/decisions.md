@@ -11284,3 +11284,38 @@ They go to Brian separately.
 
 **Principles:** §17 Quality Gate (CI green required after each rebase), Principle V (security dependency currency).
 
+---
+
+### 2026-09-17T21:56:03-05:00: Feature 359 — Coin Copilot MVP Design
+
+**By:** Maximus (Lead / Architect)
+**Requested by:** GitHub Copilot CLI
+**Status:** ACCEPTED — corrected canonical MVP scope and bounded execution controls
+
+**Decision**: Feature 359 wraps only owner-scoped collection reads, portfolio
+review, and read-only gap analysis in a bounded multi-step harness. Go owns
+durable threads, runs, checkpoints, idempotency, cancellation, retention, and
+replayable SSE. Python remains stateless/DB-free and receives a fresh
+run-and-execution-scoped read-only credential on every execution or resume.
+
+**Rollout**: The existing app-wide chat drawer selects the harness only when
+`CoinCopilotEnabled` is on (default off) and the configured model has verified
+tool-calling capability; otherwise the legacy supervisor remains the fallback.
+
+**Defaults**: 8 reasoning iterations, 12 tool calls, sequential tools, 120
+seconds per execution (configurable only up to 150 seconds), 32 KiB persisted
+result per tool call, and one active run per owner. Dollar-cost enforcement is
+deferred until the project has a trustworthy, current provider/model pricing
+source. Reliable provider-reported input/output token usage remains observable;
+iteration, tool-call, wall-clock, sequential-concurrency, and payload limits
+remain enforced. The 150-second maximum leaves the required 30-second
+credential buffer within the execution token's absolute 180-second TTL. Events
+retain 7 days, checkpoints/tool results 30 days, and final thread/run summaries
+until owner deletion.
+
+**Deferred**: market/dealer search, auction search, price trends, similar lots,
+writes/approvals, deep-identification handoff, and long-term user memory.
+
+**Governance**: ADR 0016 records the material multi-service decision. No
+constitution amendment is needed because this design directly implements
+Principle II rather than changing it.
