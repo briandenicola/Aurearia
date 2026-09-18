@@ -1,58 +1,61 @@
 # Implementation Plan: Coin Copilot Attribution Integration
 
 **Branch**: `beta` (existing; no create/switch) | **Date**: 2026-09-18 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `specs/362-coin-copilot-attribution/spec.md`
+**ADR**: [ADR 0017](../../docs/adr/0017-coin-copilot-deep-analysis-handoff.md)
+**Input**: `specs/362-coin-copilot-attribution/spec.md`
 
 ## Summary
 
-Integrate Coin Copilot with the shipped Deep Analysis workflow through one
-fixed, typed, Go-owned `deep_analysis_handoff` capability. Go resolves the exact
-owned coin or active Quick Capture draft, snapshots current input, reuses or
-admits the existing durable Deep job, and projects persisted results for
-conversation. Python remains stateless and database-free. Vue links from the
-existing Agent drawer to the existing `/deep-analysis/:jobId` review page; all
-apply operations remain exclusively in
-`DeepIdentificationProposalService.Apply`.
+Add one fixed, typed, Go-owned `deep_analysis_handoff` capability so Coin
+Copilot can resolve an exact owned coin or active Quick Capture draft, atomically
+reuse/create the existing durable Deep Analysis job, explain only its persisted
+validated result, and link to the existing `/deep-analysis/:jobId` review page.
+
+Go owns target snapshots, durable handoff idempotency, atomic admission,
+cancellation, repositories, providers, reports/proposals, and every confirmed
+write. Python remains stateless/database-free. Conversation has no apply
+operation. Existing-draft apply uses the new closed `copilot_draft` source and
+`source_draft_id` with `selected_replace_notes_append_refs_add`.
 
 ## Technical Context
 
 **Language/Version**: Go 1.26.1; Python 3.12; TypeScript/Vue 3
 **Primary Dependencies**: Gin, GORM/SQLite; FastAPI, Pydantic, LangGraph/LangChain; Vue Router, Pinia, Vite/PWA
-**Storage**: Existing SQLite Deep Identification and Coin Copilot tables; one nullable `source_draft_id` column on `deep_identification_jobs`; existing JSON checkpoints/events/reports/proposals
-**Testing**: Go `testing`/integration tests and `go vet`; Python pytest/ruff; Vitest/Vue Test Utils and `vue-tsc --build` via `npm run build`
-**Target Platform**: Self-hosted single-node Docker deployment; desktop and mobile/PWA browsers
-**Project Type**: Three-layer web application (Go API + Vue SPA + stateless Python agent)
-**Performance Goals**: No extra provider fan-out for equivalent/replayed requests; tool response remains within existing persisted-result bounds; normal chat and Deep streams start within existing PRD targets
-**Constraints**: Default-off flags; owner isolation; no Python DB/filesystem/generic HTTP/apply; fixed callback routes; independent bounded Copilot and Deep budgets; no new provider/dependency; current Fast Identify and legacy fallback unchanged
-**Scale/Scope**: Personal self-hosted deployment, fewer than 10 concurrent users; one new capability spanning existing Go/Python/Vue seams
+**Storage**: Existing Deep/Copilot tables plus additive `coin_copilot_deep_handoffs` and nullable indexed `deep_identification_jobs.source_draft_id`
+**Testing**: Go build/vet/testing/integration; Python dependency install, compile, strict Pydantic contract tests, ruff, pytest; web clean install, ESLint, `vue-tsc --build`, Vitest, Vite build; hosted mixed-binary migration/rollback matrix
+**Target Platform**: Self-hosted single-node Docker; desktop and mobile/PWA browsers
+**Project Type**: Three-service web application
+**Performance Goals**: Zero duplicate active jobs/provider work for equivalent/replayed requests; 64 KiB request/public-event limits; 32 KiB persisted handoff result; no additional provider fan-out
+**Constraints**: Feature 362 default off; canonical execution-token callback only; no Python database/filesystem/shell/generic HTTP/apply; no new provider/runtime dependency; independent Copilot and Deep budgets; Fast Identify and legacy fallback unchanged
+**Scale/Scope**: Personal self-hosted deployment, fewer than 10 concurrent users; one bounded cross-workflow capability
 
-There are no unresolved `NEEDS CLARIFICATION` items.
+No `NEEDS CLARIFICATION` item remains.
 
 ## Constitution Check
 
-*GATE: Passed before Phase 0; rechecked after Phase 1 design.*
+*GATE: Evaluated before research and re-evaluated after design.*
 
-| Authority/gate | Design response | Result |
+| Gate | Evidence | Result |
 |---|---|---|
-| §0 hierarchy | Constitution, PRD §5.3, Feature 362, Features 344/351/352/359/361, ADRs 0010-0013, and accepted decisions were read in order. | PASS |
-| Principle I, layered Go | New public/internal parsing stays in a thin handler; target/job business rules live in an HTTP-agnostic service; owner-scoped queries remain repositories; wiring is constructor-injected. | PASS |
-| Principle II, service boundaries | Go owns persistence, credentials, provider selection, job admission, and writes. Python receives one request and returns typed frames with no DB or browser-direct path. Vue calls Go only. | PASS |
-| Principle III, strict contracts | Go structs and `DisallowUnknownFields`, Pydantic `extra="forbid"`, TS types, Swagger/OpenAPI, enum/range/URL validation, and cross-language fixtures cover the capability. | PASS |
-| Principle IV, proportional reuse | One capability reuses the shipped job/report/proposal/review paths. No engine, provider router, proposal model, editor, or dependency is duplicated. | PASS |
-| Principle V, auth/privacy | Owner id comes only from the execution token. Foreign/unknown ids are indistinguishable. Callback auth, body caps, redaction, source URL validation, and fail-closed output remain mandatory. | PASS |
-| Principle VI, UX/PWA | Existing drawer and Deep Analysis page are reused with design tokens, Lucide icons, mobile layout, touch targets, and independent reconnect behavior. | PASS |
-| Principles VII/IX and §§17/21 | Plan includes full build/lint/type/test gates, exact-path regression tests, contract drift tests, tamper tests, and blast-radius coverage. | PASS |
-| Principle VIII | Existing ADRs govern the architecture/provider choices. The minimum additive draft-binding decision is documented here/research; implementation should add an ADR amendment only if maintainers classify it as a semantic migration under §21. | PASS |
+| §0 hierarchy | Constitution, PRD §5.3, clarified Feature 362, Features 344/351/352/359/361, and ADRs 0010-0013/0016 were applied in order. | PASS |
+| Principle I | Handler parses only; an HTTP-agnostic handoff service orchestrates; repositories own the cross-domain transaction and all GORM; composition root injects dependencies. | PASS |
+| Principle II | Go alone owns persistent state, callback authority, snapshots, providers, and writes. Python remains per-request/stateless; Vue calls Go only. | PASS |
+| Principle III | Closed Go/Pydantic/TypeScript contracts, unknown-field rejection, mirrored fixtures, finite confidence, URL validation, Swagger/OpenAPI drift tests, and exact byte bounds are required. | PASS |
+| Principle IV | Reuses the existing engine, job workers, proposal, write bridge, routes, and Vue review page. One capability/table/source binding is the smallest complete safe change. | PASS |
+| Principle V | Canonical execution-token owner/run/execution/tool binding, nondisclosing eligibility, atomic changed-target checks, body/result bounds, and tamper tests fail closed. | PASS |
+| Principle VI | Existing drawer and Deep page retain tokens, Lucide icons, narrow/mobile layout, 44 px controls, PWA navigation, and reconnect. | PASS |
+| Principle VIII / §21 | **ADR 0017 is required, not conditional. It must be accepted before any Feature 362 schema/row-producing implementation begins.** | GATE |
+| §§17/21 and Principle IX | Every local gate must pass or its equivalent hosted gate must pass; environment limitations are never waivers. Exact-path race, rollback, security, contract, and blast-radius suites are mandatory. | PASS |
 
-### Post-design re-evaluation
+### Post-design recheck
 
-PASS. Phase 1 introduces no boundary violation. The nullable draft binding is
-the only schema addition and is required to prevent an untyped/prunable target
-association; run-to-job linkage remains in the existing checkpoint payload.
+Design is constitution-aligned. Implementation entry remains blocked until ADR
+0017 is accepted and the compatibility-guard phase passes. No waiver is
+requested.
 
 ## Project Structure
 
-### Documentation (this feature)
+### Feature documentation
 
 ```text
 specs/362-coin-copilot-attribution/
@@ -63,11 +66,14 @@ specs/362-coin-copilot-attribution/
 ├── quickstart.md
 └── contracts/
     └── coin-copilot-deep-analysis.md
+
+docs/adr/
+└── 0017-coin-copilot-deep-analysis-handoff.md
 ```
 
-No `tasks.md` is created by this planning work.
+`tasks.md` is intentionally not revised by this planning pass.
 
-### Source Code (repository root)
+### Implementation paths
 
 ```text
 src/api/
@@ -88,13 +94,15 @@ src/api/
 │   ├── coin_copilot_worker.go
 │   ├── deep_identification_service.go
 │   ├── deep_identification_proposal.go
-│   └── quick_capture_service.go
+│   ├── quick_capture_service.go
+│   └── settings_service.go
 ├── handlers/
 │   ├── coin_copilot_internal_tools.go
 │   └── deep_identification.go
 └── integration/
 
 src/agent/
+├── pyproject.toml
 ├── app/models/requests.py
 ├── app/models/responses.py
 ├── app/tools/copilot_collection_tools.py
@@ -104,217 +112,354 @@ src/agent/
 src/web/
 ├── src/api/endpoints/agent.ts
 ├── src/types/agent.ts
-├── src/composables/
-│   ├── useCoinCopilot.ts
-│   └── useCoinSearchChat.ts
-├── src/components/
-│   ├── CoinSearchChat.vue
-│   └── chat/CopilotRunProgress.vue
+├── src/composables/useCoinCopilot.ts
+├── src/composables/useCoinSearchChat.ts
+├── src/components/CoinSearchChat.vue
+├── src/components/chat/CopilotRunProgress.vue
 ├── src/pages/DeepAnalysisPage.vue
 ├── src/router/index.ts
 └── src/**/__tests__/
 ```
 
-**Structure Decision**: Extend the existing three-service layout at its current
-composition points. Do not add a project, service, page, provider module, or
-generic tool router.
+**Structure Decision**: Extend existing domains at their explicit composition
+points. Do not add a service, page, provider, attribution engine, proposal
+model, editor, or generic callback router.
 
-## Existing Symbol Reuse Map
+## Architecture and Existing Symbol Reuse
 
-### Go authority
+### Coin Copilot
 
-| Existing symbol | Reuse |
-|---|---|
-| `services.CoinCopilotService.AuthorizeToolCall` / `FinishToolCall` | Preserve current execution, duplicate call, concurrency, timeout, and tool-budget enforcement; extend for the one serialized side-effect admission. |
-| `services.CoinCopilotAllowedTools`, `copilotCallbackTools` | Add exactly `deep_analysis_handoff`; no wildcard or route-prefix widening. |
-| `middleware.CoinCopilotExecutionTokenRequired` in `routes_internal.go` | Bind route to the exact capability and owner/execution claims. |
-| `services.DeepIdentificationService.CreateJobFromIntake`, `StartJob` | Sole job admission/active reuse path. |
-| `services.ComputeInputFingerprint` and `DeepIdentificationJob.ActiveKey` | Equivalent input identity and concurrent duplicate prevention. |
-| `repository.DeepIdentificationRepository.FindActiveByFingerprint`, `CreateJob` | Active reuse; add latest matching retained-terminal lookup. |
-| `services.DeepIdentificationService.GetJob`, `ListEventsSince`, `RequestCancel`, `RetryJob` | Preserve owner-scoped lifecycle/status/replay/cancel semantics; status does not restart work. |
-| `repository.DeepIdentificationRepository.SettleTerminal` | Preserve terminal/cancel race and exactly-one terminal event. |
-| `QuickCaptureRepository.GetDraftForOwner` and `QuickCaptureDraftStatusActive` | Authoritative draft ownership/liveness. |
-| `ImageRepository.FindCoinByOwner` / face-image lookup and `DeepIdentificationService` artifact validation | Current saved-coin face resolution, MIME/content hashes, and bounded artifacts. |
-| `DeepIdentificationProposalService.UpdateProposal` / `Apply` | Only review/apply boundary; retain scalar allowlists, `catalogReferences` validation, `CoinReferenceService.AppendForCoin`, and manual-field preservation. |
-| `toDeepJobEnvelope`/Deep report contract validation | Source material for the bounded conversation projection; do not expose raw storage or apply state. |
+- Extend `services.CoinCopilotAllowedTools`, `copilotCallbackTools`,
+  `AuthorizeToolCall`, `FinishToolCall`, and current-execution/cancellation
+  handling for exactly `deep_analysis_handoff`.
+- Reuse `CoinCopilotRun.AppContextJSON`, `ExecutionID`,
+  `CheckpointVersion`, snapshotted limits, cancellation, checkpoints, events,
+  broker, and worker.
+- Add `CoinCopilotDeepHandoff` and a repository admission transaction for
+  crash-safe Go-owned binding. Checkpoint `completed_tools` remains replay
+  material, not the sole idempotency authority.
+- Persist `PriorJobID` separately from the resulting `DeepJobID`. `rerun`
+  requires the prior id and revalidates that it belongs to the same owner and
+  target.
+- Register only
+  `CoinCopilotExecutionTokenRequired(..., "deep_analysis_handoff")` in
+  `routes_internal.go`.
 
-### Python stateless adapter
+### Deep Analysis
 
-| Existing symbol | Reuse |
-|---|---|
-| `COPILOT_ALLOWED_TOOLS`, `CopilotExecuteRequest`, `CopilotCompletedTool` | Add one literal and strict handoff result model; replay remains checkpoint-based. |
-| `CALLBACK_TOOLS`, `ARG_MODELS`, `RESULT_MODELS` | Register one fixed callback with mutual-field validation. |
-| `CopilotCollectionToolClient.execute` / `_execute_callback` | Reuse execution token, route construction, result bounding, digest, sanitization, and completed-call dedupe. |
-| `build_copilot_tool_definitions` | Bind the one typed schema to supported models. |
-| `run_coin_copilot` | Preserve iteration/tool/concurrency/wall-clock budgets and cancellation checks; handoff runs alone rather than in a parallel group because it may admit work. |
-| `COPILOT_SYSTEM_PROMPT`, `_TOOL_LABELS`, `_TOOL_SUMMARIES` | Authorize only request/status/rerun, require clarification first, forbid apply, and describe persisted Deep output honestly. |
+- Reuse `DeepIdentificationService` workers/artifacts/broker/janitor,
+  `ComputeInputFingerprint`, `DeepIdentificationRepository` active unique key,
+  `SettleTerminal`, `RequestCancel`, retained reports/proposals, and provider
+  budgets.
+- Add `DeepJobSourceCopilotDraft`, `SourceDraftID`, strict
+  `IsDeepJobSource`/source-binding validation, and latest eligible terminal
+  lookup.
+- Do not route a draft through `CreateJobFromIntake` with source `intake`.
+  Add a typed snapshot admission path that preserves artifact readiness and
+  worker wake-after-commit.
+- Reuse the existing citation/provider validators and proposal parsing to build
+  a non-authoritative conversational projection.
 
-### Vue handoff and review
+### Draft and proposal
 
-| Existing symbol | Reuse |
-|---|---|
-| `useCoinSearchChat.buildAppContext` / `AgentChatAppContext` | Continue route/coin hints; add bounded `activeDraftId` only on the exact draft route. |
-| `useCoinCopilot` | Existing capability fallback, idempotency, SSE replay, cancel/resume, and checkpoint handling. |
-| `CopilotRunProgress.vue` | Render a compact typed handoff status/result card and router link; no editor. |
-| `/deep-analysis/:jobId` in `router/index.ts` | Canonical relative review URL, unchanged. |
-| `DeepAnalysisPage.vue` | Existing report, coverage, conflicts, proposal editor, apply, retry, cancel, and independent reconnect. |
-| `useDeepAnalysisLauncher` and existing direct entry components | Regression baseline; direct Deep Analysis remains unchanged. |
+- Resolve drafts with `QuickCaptureRepository.GetDraftForOwner` and require
+  `QuickCaptureDraftStatusActive`.
+- Reuse the current exact scalar allowlists in
+  `deep_identification_proposal.go`.
+- Replace current `copilot_draft` behavior with merge into `SourceDraftID`;
+  ordinary `intake` continues to create a new draft.
+- Use a transaction-capable write seam so proposal/version/destination/
+  references and all selected writes commit or roll back together.
+- Stage draft references in accepted `ProposalJSON` linked by
+  `AppliedDraftID`; extend the existing validated promotion transaction to
+  append/dedupe them on the promoted coin.
 
-## Design and Implementation Phases
+### Python and Vue
 
-### Phase 1: Strict contracts and canonical fixtures
+- Extend strict `COPILOT_ALLOWED_TOOLS`, `CALLBACK_TOOLS`, `ARG_MODELS`,
+  `RESULT_MODELS`, `CopilotCompletedTool`, definitions, labels, and summaries.
+- The harness injects tool-call id and current checkpoint version; the model
+  cannot supply owner, app-context digest, snapshot, provider override, or
+  apply data.
+- Execute request/rerun alone, not in a parallel tool group. Preserve all
+  existing cancellation and budget checks.
+- Vue renders a bounded status/result card and validates/constructs
+  `/deep-analysis/{jobId}`. `DeepAnalysisPage.vue` remains the only review/
+  editor/apply surface.
 
-1. Define the Go/Pydantic/TypeScript request/result mirrors from
-   `contracts/coin-copilot-deep-analysis.md`.
-2. Add valid and tampered fixtures shared by contract-drift tests.
-3. Add the tool literal without registering a route or model behavior until all
-   validators fail closed.
-4. Update Swagger/OpenAPI for any modified public Coin Copilot event/result
-   projection; the callback itself remains internal.
+## Exact Field and Merge Contract
 
-**Gate**: unknown fields/states/providers, unsafe URLs, invalid confidence,
-oversize, and apply-like fields all fail closed.
+Every selected operation is revalidated and applied atomically.
 
-### Phase 2: Go-owned target and Deep job orchestration
+| Destination | Individually accepted scalars | Notes | References | Unsupported |
+|---|---|---|---|---|
+| Collection | `denomination`, `ruler`, `era`, `dateRange`, `mint`, `material`, `weightGrams`, `diameterMm`, `obverseInscription`, `reverseInscription`, `obverseDescription`, `reverseDescription`, `coin_type` | append dated/job/source block | registry-validate, append, case-insensitive dedupe | reject whole apply |
+| Wishlist | same existing Deep coin scalar allowlist; no acquisition/value/storage/privacy/status/image fields | append dated/job/source block | registry-validate, append, case-insensitive dedupe | reject whole apply |
+| Existing active draft | `workingTitle`, `era`, `dateRange` | append dated/job/source block | validate and stage in accepted proposal; promotion appends/dedupes transactionally | reject whole apply |
 
-1. Add `SourceDraftID` and additive migration/index coverage.
-2. Add an HTTP-agnostic attribution handoff service injected with existing
-   Coin Copilot, Deep Identification, image, settings, and Quick Capture
-   boundaries.
-3. Snapshot owned coin or active draft input, validate distinct usable faces,
-   compute v2 identity, reuse active/retained current jobs, or admit through
-   `CreateJobFromIntake`.
-4. Add latest owner/fingerprint retained-terminal repository lookup.
-5. Add per-execution cancellation/admission serialization; never compensate
-   after work starts as a substitute for ordering.
-6. Register only the exact callback route and handler.
+An accepted scalar replaces only itself. Notes use the existing job-id-keyed
+Deep block convention plus `Source: Coin Copilot Deep Analysis`; replay updates
+that block without duplication. Manual text outside it, images, unaccepted
+fields, relationships, and existing references remain unchanged.
 
-**Gate**: concurrent duplicates create one active Deep job; cancel-first creates
-zero; foreign/unknown resources disclose nothing.
+Immediately before write, the same transaction re-reads owner, destination kind
+and lifecycle, source/source-draft binding, target/context version, proposal
+version and selected applicability, and reference registry/equivalence. Any
+change returns `409 re_review_required` and zero writes.
 
-### Phase 3: Persisted result projection and proposal binding
+## Closed Status Eligibility
 
-1. Decode and validate only persisted Deep report/proposal data.
-2. Produce the bounded conversational projection with existing source-host
-   validation and provider/license vocabulary.
-3. Preserve no-match, image-only, low-confidence, conflict, partial, pruned-
-   events, failed/cancelled/stale, and missing-result states.
-4. For draft-origin jobs, make existing proposal apply target the exact bound,
-   still-active draft. Reuse destination allowlists and validated additive
-   references; reject inapplicable fields and changed/inactive targets.
+Eligible:
 
-**Gate**: no conversation path writes a target; only exact confirmed review
-fields change.
+1. validated durable handoff/checkpoint binding for the owner;
+2. current owned `saved_coin` job with existing coin; or
+3. `copilot_draft` with non-null active owned `source_draft_id`.
 
-### Phase 4: Python orchestration and replay
+Closed failures:
 
-1. Add strict Pydantic args/results and the one callback registration.
-2. Update prompt policy to clarify ambiguous targets, use `status` for known
-   jobs, reuse current results, and require explicit rerun intent.
-3. Execute the side-effect-capable handoff in its own group while retaining all
-   existing budgets and cancellation checks.
-4. Persist/replay the result through current completed-tool checkpoints; do not
-   call Go again during resume reconstruction.
+- unbound legacy `intake`, arbitrary foreign/unknown/unbound job, or unknown
+  source: `not_eligible`, no metadata;
+- previously validated binding whose coin is deleted or draft is deleted,
+  discarded, or promoted: `target_unavailable`, no target metadata;
+- failed/cancelled/stale/expired/missing report or changed current snapshot:
+  `retry_available`, never current success.
 
-**Gate**: malformed callback/model output is `invalid_tool_call`; unsupported
-models and pre-accept failures keep legacy fallback.
+Queued/running eligible jobs return lifecycle/link only. Pruned events do not
+invalidate a retained terminal report.
 
-### Phase 5: Vue conversation handoff
+## Server Snapshot and Atomic Admission
 
-1. Extend app context for the exact active draft route without making it
-   authoritative.
-2. Render lifecycle/result limitations and `Open Deep Analysis` on the existing
-   Copilot progress surface.
-3. Validate/construct the relative route from numeric job id.
-4. Keep report/proposal editing solely on `DeepAnalysisPage`.
+Go computes and canonicalizes:
 
-**Gate**: mobile/PWA layout, keyboard/touch behavior, both SSE reconnect loops,
-and design tokens remain intact.
+```text
+owner
+target kind/id/state/version
+obverse row id/version/content hash
+reverse row id/version/content hash
+bounded notes/context hash and version
+sorted effective providers
+provider configuration generation
+```
 
-### Phase 6: Regression, security, and documentation
+One linearizable repository boundary:
 
-Run the contract, tamper, race, owner-isolation, lifecycle, provider, apply
-preservation, full Go/Python/Vue, architecture, OpenAPI drift, and build gates
-listed in `quickstart.md`. Document the capability while explicitly preserving
-Fast Identify, direct Deep Analysis, current collection/specialist tools,
-legacy chat, flags, and provider boundaries.
+1. validates run/execution/checkpoint/cancellation and all live new-admission
+   flags;
+2. resolves the durable handoff key first;
+3. re-reads owner target, faces, context, provider generation, and active draft;
+4. compares snapshot and rejects change with HTTP 409;
+5. reuses an equivalent active or retained eligible job, or creates exactly one
+   job;
+6. persists artifacts and handoff binding before commit; and
+7. wakes workers only after commit.
 
-## Error, Status, URL, and Retry Behavior
+The operation-specific request fingerprint binds:
 
-The exact cross-layer vocabulary is normative in
-`contracts/coin-copilot-deep-analysis.md`.
+- request: operation + target kind/id + execution + checkpoint version +
+  stored app-context digest + current snapshot;
+- rerun: operation + target kind/id + prior job id + execution + checkpoint
+  version + stored app-context digest + current snapshot.
 
-- Owner/domain conditions are typed tool outcomes, not invented prose.
-- Foreign and missing target/job ids both produce `not_found`.
-- Queue/capacity/disabled states are `unavailable` with bounded reasons.
-- Unknown enums, malformed JSON, unsafe URLs, invalid confidence, or oversize
-  fail the tool/run closed.
-- Review URL is relative `/deep-analysis/{positive job id}` only.
-- Copilot reconnect uses its run sequence and checkpoint; Deep Analysis
-  reconnect uses its independent job sequence.
-- Active equivalent work is reused. Retained equivalent terminal work is
-  reopened. Failed/cancelled/stale/mismatched work requires an explicit new
-  request. Replay never repeats provider work.
+`PriorJobID` and resulting `DeepJobID` are distinct durable columns. Same key
+with any changed binding is `handoff_idempotency_conflict` and creates zero
+jobs. A new key with the same snapshot still reuses the Deep job.
+
+`status` is read-only, creates no handoff row, and has no handoff-key
+idempotency contract. It can read an existing durable binding or another
+closed-eligible job, and its replay comes from the existing completed-tool
+checkpoint.
+
+## Bounds and Projection
+
+- Request envelope: 65,536 canonical sanitized bytes.
+- Public event: 65,536 canonical sanitized bytes.
+- Persisted handoff result: 32,768 canonical bytes maximum, independent of a
+  larger general run setting.
+
+Go hashes the complete canonical result, then proactively retains whole entries
+in deterministic priority/stable order. The persisted result carries
+`truncated`, `original_bytes`, `persisted_bytes`, full-result SHA-256 digest,
+and omitted field/evidence/disagreement/question counts. Required lifecycle,
+limitation, and review-link fields cannot be omitted. JSON/UTF-8 is never
+sliced. Final answer and Vue disclose omissions.
+
+## Cancellation and Finish-Existing
+
+- Deterministic Go race tests are authored first.
+- Cancel-first: transaction observes cancellation; zero job/binding rows.
+- Admission-first: exactly one job/binding; later Copilot cancellation requests
+  the existing Deep cancel path while nonterminal. `SettleTerminal` makes late
+  provider/agent report/proposal settlement lose and late Copilot frames fail.
+- New admission/rerun requires live
+  `CoinCopilotAttributionEnabled`, `CoinCopilotEnabled`, model capability, and
+  `DeepIdentificationEnabled`.
+- Disable before admission: no work.
+- Disable after admission: worker may finish; owner status/events/cancel,
+  report/proposal review/edit, and confirmed existing-page apply remain.
+  New/rerun is rejected.
+
+## Compatibility and Rollback Interlock
+
+Code inspection shows the current old handler serializes arbitrary
+`job.Source`; current apply rejects an unknown source only incidentally through
+target mismatch. Therefore the current binary is not an approved rollback
+target.
+
+### Required sequence
+
+1. **Compatibility release first**: add strict known-source validation on
+   list/get/status/stream/retry/apply/worker adoption and the default-off
+   Feature 362 setting. At this point only `intake` and `saved_coin` are known.
+2. Seed `copilot_draft`/arbitrary future source through raw SQL in tests and
+   prove every adoption/read/apply path rejects without mutation.
+3. Deploy that guard release everywhere and retain its build artifact.
+4. Accept ADR 0017.
+5. Deploy additive handoff/source-draft migration and code recognizing
+   `copilot_draft`, still default off.
+6. Pass contract/migration/hosted mixed-binary tests, then enable.
+
+### Rollback
+
+1. Disable Feature 362/new handoffs.
+2. Keep a compatible binary while accepted jobs finish or are cancelled.
+3. Preserve all rows/report/proposal/artifacts.
+4. Roll back no earlier than the guard release.
+5. The guard binary must reject `copilot_draft` list/get/status/stream/retry/
+   apply/worker adoption and leave rows intact.
+6. Re-upgrade a compatible binary to restore review/apply.
+
+The hosted executable matrix described in `quickstart.md` is mandatory.
+Unavailable local tooling is not a waiver.
+
+## Implementation Phases
+
+### Phase 0 — ADR and compatibility guard
+
+- Obtain acceptance for ADR 0017.
+- Add tests first for unknown-source rejection across every Deep adoption/read/
+  apply/worker path.
+- Implement the guard and default-off Feature 362 setting with no new source
+  rows.
+- Build and archive the guard binary; pass the first half of the hosted
+  rollback matrix.
+
+**Gate**: no schema/row-producing Feature 362 work until this phase passes.
+
+### Phase 1 — Race/idempotency tests before orchestration
+
+- Add deterministic barrier/channel-based Go tests for cancel-first,
+  admission-first, simultaneous duplicates, same-key changed target kind/id,
+  changed prior rerun job id, changed stored app context, changed checkpoint,
+  face/context/provider/draft snapshot changes, and crash/replay after job
+  commit.
+- Tests assert exact row counts, zero worker wake/provider calls on conflict,
+  and no late terminal content after cancel.
+
+**Gate**: tests exist and fail for the intended missing seam before production
+orchestration is added.
+
+### Phase 2 — Schema, contracts, and atomic Go admission
+
+- Add `CoinCopilotDeepHandoff`, `source_draft_id`, `copilot_draft`, constraints/
+  validation, migrations, and rollback-preservation tests.
+- Add strict Go contract/projection types and 64 KiB/32 KiB enforcement.
+- Implement the atomic snapshot/idempotency/reuse/create transaction and
+  worker wake-after-commit.
+- Register the exact execution-token callback only after service tests pass.
+
+### Phase 3 — Result projection, eligibility, and cancellation
+
+- Build only from validated persisted Deep report/proposal/coverage.
+- Implement closed eligibility and non-disclosing outcomes.
+- Wire admission-first Copilot cancellation to Deep cancellation and prove late
+  settlement loses.
+- Preserve active/completed/partial/no-match/conflict/image-only/provider
+  attribution semantics.
+
+### Phase 4 — Existing-draft atomic merge
+
+- Route `copilot_draft` apply to `SourceDraftID`, never new-draft creation.
+- Implement all-or-nothing current-state revalidation and exact merge matrix.
+- Stage accepted draft references and integrate them into validated atomic
+  promotion.
+- Prove manual-field/reference preservation and replay idempotency.
+
+### Phase 5 — Python and Vue
+
+- Add strict Pydantic request/result mirrors, serial side-effect tool execution,
+  checkpoint replay, proactive omission disclosure, and tamper tests.
+- Add app-context draft hint without making it authoritative.
+- Render status/result/link in the existing drawer; retain the existing Deep
+  page and both independent reconnect loops.
+
+### Phase 6 — Finish-existing, compatibility, and full gates
+
+- Test every pre/post-accept flag transition and rerun rejection.
+- Run hosted upgrade/rollback with guard/current binaries.
+- Run all Go/Python/web build, lint, type/contract, test, security, provider,
+  Fast Identify, legacy, direct Deep, and mobile/PWA gates from quickstart.
 
 ## Test Strategy
 
 ### Go
 
-- Service/repository tests for v2 fingerprint identity, latest terminal reuse,
-  active uniqueness, image/note/provider changes, draft liveness, and nullable
-  migration rollback behavior.
-- Handler/contract tests for exact route authorization, unknown fields, body
-  caps, foreign/unknown equality, status vocabulary, URLs, confidence, and
-  redaction.
-- Deterministic race tests for cancel-before-admission, admission-before-cancel,
-  duplicate requests, replay, and late frames.
-- Proposal integration tests for collection, wishlist, and bound active draft:
-  one accepted field changes; all unaccepted/manual fields remain byte-for-byte;
-  references append/dedupe and never replace; inapplicable fields fail closed.
+- Deterministic race tests precede implementation.
+- Repository transaction tests: same key/same request, every changed binding,
+  changed snapshot, active/terminal reuse, crash replay, exact row counts.
+- Owner/eligibility tests: foreign/unknown equality, unbound intake, unknown
+  source, deleted coin, inactive draft, pruned events.
+- Contract tests: unknown fields/enums, user JWT vs execution token, wrong
+  owner/run/execution/tool, expiry/revocation, 64 KiB boundaries, finite
+  confidence, safe URLs, redaction.
+- Projection tests: 32 KiB exact cap, deterministic stable omission, complete
+  digest, byte counts, required lifecycle/link retention.
+- Apply transaction tests for the complete field matrix, note block,
+  case-insensitive ref append/dedupe, unsupported/stale rollback.
+- Mixed-binary migration/rollback and finish-existing flag transitions.
 
 ### Python
 
-- Pydantic valid/invalid mirrored fixtures and completed-tool replay tests.
-- Harness tests for ambiguity clarification, prompt/context disagreement,
-  request/status/rerun selection, serial execution, result truncation,
-  cancellation after each await, and no repeated callback on resume.
-- Security tests treating report/provider text as untrusted, rejecting prompt
-  injection, secrets, unknown fields, forged apply operations, and unsafe URLs.
+- Strict args/results/checkpoint fixtures and unknown-field rejection.
+- The tool client injects checkpoint/idempotency data; model cannot forge owner,
+  snapshot, provider, or apply properties.
+- No callback replay after checkpoint restore.
+- Cancellation at each await, serial request/rerun, 64 KiB public frame, 32 KiB
+  result disclosure, prompt-injection-as-data, and token redaction.
+- Dependency install, compile, Pydantic type/contract tests, ruff, and pytest
+  are mandatory.
 
 ### Vue
 
-- Typed handoff card/status/link rendering for queued/running/completed/partial/
-  no-match/failed/cancelled/stale/unavailable.
-- Safe route tests reject absolute, mismatched, or credential-bearing URLs.
-- Existing Coin Copilot fallback/cancel/resume/reconnect and Deep Analysis
-  report/proposal/retry/reconnect suites remain green.
-- Responsive tests assert no duplicate editor, design-system controls, keyboard
-  access, 44 px touch targets, and narrow viewport containment.
+- Closed outcome/status cards, truncation disclosure, and safe relative link.
+- No editor/apply in chat.
+- Existing capability fallback, cancel/resume/reconnect, Deep report/proposal/
+  retry/reconnect, design tokens, keyboard/44 px controls, and narrow PWA layout.
 
 ### Blast-radius regressions
 
-- Current four collection callbacks and bounded specialist tools.
-- `CoinCopilotEnabled` default-off and unsupported-model legacy fallback.
-- Direct Deep Analysis launch/history/status/retry/cancel/review/apply.
-- Fast Identify contract and entry points.
-- Numista/Nomisma/OCRE automation bounds and attribution; NGC link-out; RPC
-  unavailable.
-- Collection/wishlist/draft field applicability and manual field/reference
-  preservation.
+- Fast Identify unchanged.
+- Direct Deep intake/saved coin, history, events, cancel/retry/review/apply.
+- Coin Copilot default-off/unsupported legacy fallback, four collection
+  callbacks, and specialist tools.
+- Numista/Nomisma/OCRE bounds/attribution, NGC link-out, RPC unavailable.
+- Collection/wishlist/draft manual fields, notes, images, and references.
 
-## Schema and Rollback Decision
+## Mandatory Quality Evidence
 
-No Coin Copilot run/job linkage schema is required: the existing checkpoint
-completed-tool result is safe and replayable. One additive Deep job
-`source_draft_id` is required because no existing retained Deep-owned structure
-can bind a job to its source active draft after events are pruned. The migration
-is nullable, has no backfill, and is safe to leave on rollback. Feature flags
-remain kill switches; old jobs and direct paths are unchanged.
+Every command in `quickstart.md` must pass locally or in an equivalent hosted
+job. The PR records hosted run URLs/ids for any gate not run locally. A note
+that the environment lacked a tool is not passing evidence. Python evidence
+must include dependency installation and syntax/build validation in addition
+to lint/tests.
 
 ## Complexity Tracking
 
-No Constitution violation or waiver is required, so the template's violation
-table is intentionally empty. The only added complexity—one typed callback and
-one nullable draft-binding column—is justified by the safety boundaries above;
-generic tools, duplicate UI, a new engine, and schema-heavy linkage were
-rejected.
+| Added complexity | Why needed | Simpler alternative rejected because |
+|---|---|---|
+| Durable handoff table | Crash-safe Go-owned idempotency and changed-binding 409 | Checkpoint-only persistence leaves a create-before-checkpoint crash window |
+| `copilot_draft` + `source_draft_id` | Exact retained binding and existing-draft merge | Treating it as intake creates/targets the wrong draft and is unsafe on rollback |
+| Cross-domain admission transaction | Linearizable snapshot/reuse/create/cancel | Separate checks permit stale launch, duplicates, and cancel races |
+| Compatibility guard release | Verified fail-closed mixed-version rollback | Current old binary exposes arbitrary source on read/status paths |
+
+These are not constitution violations; they are the minimum controls required
+to satisfy Principles II, III, IV, V, and VIII.

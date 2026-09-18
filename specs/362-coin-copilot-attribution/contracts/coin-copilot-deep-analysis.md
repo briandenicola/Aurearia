@@ -1,57 +1,143 @@
 # Contract: Coin Copilot ↔ Deep Analysis Handoff
 
-## 1. Boundary and route
-
-One authenticated internal callback is added:
+## 1. Internal boundary and canonical authentication
 
 ```http
 POST /api/internal/copilot/tools/deep_analysis_handoff
-Authorization: Bearer <Coin Copilot execution token>
+Authorization: Bearer <execution_token>
 Content-Type: application/json
 ```
 
-The route is registered explicitly in `src/api/routes_internal.go` with
-`CoinCopilotExecutionTokenRequired(..., "deep_analysis_handoff")`. It does not
-introduce a wildcard route, a caller-supplied URL, or access to
-`/api/internal/tools/*`. The request body is capped at 64 KiB, decoded with
-unknown fields forbidden, and authorized against the current run/execution,
-tool-call id, allowlist, concurrency, timeout, and tool budget.
+The bearer value is the existing Coin Copilot execution token minted by
+`InternalTokenService` and verified by
+`CoinCopilotExecutionTokenRequired(tokenSvc, "deep_analysis_handoff")`. It is
+not a user JWT, internal service token, or Deep job token. Verification binds
+owner, run id, current execution id, exact allowed tool, expiry, and revocation.
+Owner identity is never accepted in the body.
 
-## 2. Request
+The route is explicit. No wildcard callback, caller URL, or access to the
+separate `/api/internal/tools/*` provider routes is added.
+
+## 2. Envelope limits
+
+- Canonically serialized, sanitized request: at most 65,536 bytes.
+- Canonically serialized, sanitized public Coin Copilot event: at most 65,536
+  bytes.
+- Persisted `completed_tools[].result` for this capability: at most 32,768
+  bytes, even if the run's general configured maximum is larger.
+
+Limits are independent. An over-limit request/public event fails closed. A
+valid result is proactively projected to 32 KiB as specified in §7; raw JSON is
+never sliced.
+
+## 3. Model-visible arguments and Go callback request
+
+Model-visible strict arguments:
 
 ```json
 {
-  "tool_call_id": "call_01",
   "operation": "request",
   "target": { "type": "coin", "id": 42 }
 }
 ```
 
-Strict schema:
+The Python harness, not the model, adds durable execution fields:
+
+```json
+{
+  "tool_call_id": "call_01",
+  "handoff_idempotency_key": "call_01",
+  "expected_checkpoint_version": 3,
+  "operation": "request",
+  "target": { "type": "coin", "id": 42 }
+}
+```
+
+For `status`, Python sends `tool_call_id`, `expected_checkpoint_version`,
+`operation`, and `job_id`; `handoff_idempotency_key` is forbidden because
+status admits no work and creates no handoff row.
+
+Closed fields:
 
 ```text
-operation = "request" | "status" | "rerun"
-target = { type: "coin" | "draft", id: uint>0 }
-job_id = optional uint>0
-tool_call_id = non-empty bounded string
+operation = request | status | rerun
+target.type = coin | draft
+target.id = positive integer
+job_id = positive integer
+tool_call_id = 1..200 characters
+handoff_idempotency_key = 1..128 printable ASCII
+expected_checkpoint_version = integer >= 0
 ```
 
 Mutual rules:
 
-- `request`: `target` required; `job_id` forbidden.
-- `status`: `job_id` required; `target` forbidden.
-- `rerun`: `target` and `job_id` required; the previous job must be bound to
-  the same resolved target.
-- Provider overrides, notes, image paths, URLs, apply targets, accepted fields,
-  and arbitrary options are forbidden.
+- `request`: target required; job id forbidden.
+- `status`: job id required; target forbidden. Status is read-only and does not
+  create a handoff admission row; it reads an existing binding or another job
+  satisfying §8. Its replay is the completed-tool checkpoint fact.
+- `rerun`: target and prior job id required.
+- `handoff_idempotency_key` is required for `request`/`rerun` and forbidden for
+  `status`.
+- Notes, provider overrides, owner ids, snapshot members, hashes, URLs, apply
+  targets, proposal edits, and accepted fields are forbidden.
 
-## 3. Result
+Unknown fields are rejected at Python and Go decoders.
+
+## 4. Go-owned idempotency
+
+The durable key is `(owner, run_id, sha256(handoff_idempotency_key))`. The
+request fingerprint binds:
+
+```text
+operation
+declared target kind/id
+prior job id for rerun
+current execution id
+expected checkpoint version
+digest of canonical app context stored on the run
+server-computed target snapshot fingerprint
+```
+
+- Same key, same binding: return the stored handoff/job result without new
+  provider work.
+- Same key with changed target kind/id, requested/prior job id, app context, checkpoint
+  version, operation, or current target snapshot: HTTP 409
+  `handoff_idempotency_conflict`; create no job.
+- A new key for an equivalent unchanged snapshot reuses the active or eligible
+  retained Deep job through atomic admission.
+- Python completed-call dedupe is defense in depth only.
+
+The durable handoff row stores `prior_job_id` separately from `deep_job_id`
+(the resulting selected/reused/new job). For `rerun`, `prior_job_id` is
+required, owner-scoped, and must bind to the same target; for `request` it is
+null. Changing it under the same key is a conflict with zero work.
+
+`status` has no durable handoff-key conflict contract because it cannot admit
+work. It is still owner/current-execution authorized and strictly eligible;
+replay uses the existing saved completed-tool result.
+
+## 5. Atomic snapshot and admission
+
+Go computes the target snapshot over owner and target kind/id, distinct
+obverse/reverse image row identities and immutable file/content versions,
+bounded notes/context value and version, provider selection/configuration
+generation, and active draft state. The client supplies none of these.
+
+The Go repository transaction/linearizable section verifies current
+run/execution/checkpoint/cancellation and live admission flags, resolves the
+idempotency binding, re-reads every snapshot token, and atomically reuses or
+creates the Deep job plus binding. Changed state returns HTTP 409
+`target_changed`; no worker wake or provider call occurs. Artifacts and binding
+must be durable before worker publication.
+
+## 6. Result contract
 
 ```json
 {
   "schema_version": 1,
   "operation": "request",
   "outcome": "reused_result",
+  "reason": null,
   "target": {
     "type": "coin",
     "id": 42,
@@ -59,6 +145,7 @@ Mutual rules:
   },
   "job": {
     "id": 314,
+    "source": "saved_coin",
     "status": "completed",
     "reused": true,
     "created_at": "2026-09-18T18:00:00Z",
@@ -72,151 +159,166 @@ Mutual rules:
     "narrative": "Persisted Deep Analysis narrative.",
     "partial_success": false,
     "image_only": false,
-    "fields": [
-      {
-        "name": "ruler",
-        "value": "Maximinus I",
-        "confidence": 0.91,
-        "evidence": [
-          {
-            "source": "numista",
-            "excerpt": "Bounded persisted excerpt",
-            "url": "https://en.numista.com/catalogue/pieces123.html"
-          }
-        ]
-      }
-    ],
+    "fields": [],
     "disagreements": [],
     "unresolved_questions": [],
-    "coverage": [
-      { "provider": "numista", "status": "contributed" },
-      { "provider": "ngc", "status": "not_automated", "link_out": "https://www.ngccoin.com/" },
-      { "provider": "rpc", "status": "unavailable" }
-    ],
+    "coverage": [],
     "attributions": [],
     "limitations": []
+  },
+  "truncation": {
+    "truncated": false,
+    "original_bytes": 1024,
+    "persisted_bytes": 1024,
+    "digest": "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    "omitted_fields": 0,
+    "omitted_evidence": 0,
+    "omitted_disagreements": 0,
+    "omitted_questions": 0
   },
   "limitations": []
 }
 ```
 
-### Outcome vocabulary
+### Closed handoff outcomes
 
-| Outcome | Meaning | Job created? |
-|---|---|---|
-| `accepted` | New Deep job admitted through existing queue | yes |
-| `reused_active` | Equivalent queued/running job returned | no |
-| `reused_result` | Equivalent retained completed/partial result returned | no |
-| `status` | Existing owner-scoped job state/result returned | no |
-| `retry_available` | Prior job is failed/cancelled/stale/missing-result or inputs changed | no |
-| `missing_images` | Required usable roles absent/not distinct | no |
-| `inactive_target` | Draft no longer active or target transitioned | no |
-| `unavailable` | Deep Analysis disabled/unavailable/capacity/queue condition | no |
-| `cancelled` | Coin Copilot cancellation won before admission | no |
-| `not_found` | Unknown or foreign target/job; identical response | no |
+| Outcome | Meaning |
+|---|---|
+| `accepted` | new Deep job committed |
+| `reused_active` | equivalent queued/running job |
+| `reused_result` | equivalent current retained completed/partial result |
+| `status` | eligible owner-scoped status/result |
+| `retry_available` | prior failed/cancelled/stale/missing/mismatched result |
+| `missing_images` | one or both distinct usable faces absent |
+| `target_unavailable` | previously validated binding, but coin deleted or draft no longer active |
+| `not_eligible` | unknown/foreign/unbound job or legacy unbound intake; no metadata |
+| `unavailable` | live admission capability/queue/capacity unavailable |
+| `cancelled` | cancellation linearized before admission |
 
-### Deep job status vocabulary
+Initial unknown/foreign target resolution also returns `not_eligible`, with the
+same generic text and no target/job metadata.
 
-Exactly `queued`, `running`, `completed`, `partial`, `failed`, `cancelled`.
-Unknown states fail the tool closed as `invalid_tool_call`; they are never
-coerced.
+Allowed `reason` values are:
 
-### Result-state vocabulary
+```text
+missing_obverse | missing_reverse | missing_both | duplicate_faces |
+target_changed | draft_inactive | source_coin_missing |
+legacy_unbound_intake | unknown_source | deep_disabled |
+copilot_disabled | attribution_disabled | model_unsupported |
+job_at_capacity | queue_full | result_missing | result_expired |
+stale | cancelled
+```
 
-Exactly `not_ready`, `complete`, `partial`, `no_match`, `failed`, `cancelled`,
-`stale`, `missing_result`. Confidence is numeric and inclusive `[0.0,1.0]`.
+Unknown outcomes/reasons fail closed.
 
-### Provider vocabulary
+### Deep vocabularies
 
+- Sources: `intake`, `saved_coin`, `copilot_draft`.
+- Job status: `queued`, `running`, `completed`, `partial`, `failed`,
+  `cancelled`.
+- Result state: `not_ready`, `complete`, `partial`, `no_match`, `failed`,
+  `cancelled`, `stale`, `missing_result`.
 - Providers: `numista`, `nomisma`, `ngc`, `ocre`, `rpc`.
 - Coverage: `pending`, `running`, `contributed`, `no_match`, `failed`,
   `timed_out`, `skipped`, `not_automated`, `unavailable`.
-- OCRE appears only when enabled and retains its ODbL/ANS attribution.
-- NGC remains official quick evidence/link-out; no automated catalog search.
-- RPC remains unavailable.
 
-## 4. HTTP/error mapping
+Confidence must be finite and within `[0,1]`. Citations must pass the existing
+Deep host/scheme validator. Invalid citations are omitted and add a limitation;
+they are never repaired.
 
-Expected domain outcomes above return HTTP 200 so Coin Copilot can explain them.
-Malformed/tampered requests never become model-visible internal details:
+## 7. Deterministic proactive projection
 
-| HTTP | Code/condition | Behavior |
-|---|---|---|
-| 400 | malformed JSON, unknown field/value, invalid mutual fields | `invalid_tool_call` |
-| 401 | invalid/expired/revoked execution token | generic unauthorized |
-| 404 | route unavailable | `agent_unavailable`; no fallback route |
-| 409 | duplicate tool-call id, stale/current-execution conflict | `invalid_tool_call` or replayed checkpoint fact |
-| 413 | request/result bound exceeded | `invalid_tool_call` |
-| 503 | internal capability unavailable | `agent_unavailable`, retryable |
+Go builds a complete, canonical, validated projection from persisted
+report/proposal data and computes SHA-256 over those complete bytes. It then
+builds the persisted form in this priority/stable order:
 
-Deep queue/capacity/disabled conditions are typed `outcome:"unavailable"` with
-one of these bounded reasons: `deep_disabled`, `job_at_capacity`, `queue_full`,
-`temporarily_unavailable`. Raw errors are logged server-side only.
+1. schema, operation, outcome/reason, target/job identity, digest, review URL,
+   lifecycle and freshness;
+2. result state, partial/image-only flags and limitations;
+3. fields sorted by existing Deep field order/name;
+4. disagreements sorted by field;
+5. coverage/attributions sorted by provider;
+6. evidence sorted by field, provider/source, canonical URL;
+7. unresolved questions in stored order.
 
-## 5. Replay, retry, reconnect, and freshness
+Whole entries are omitted from the tail until canonical bytes are at most
+32,768. Required lifecycle/link/limitation fields are never omitted. Text is
+bounded before sizing and JSON is never sliced. Metadata records complete
+`original_bytes`, actual `persisted_bytes`, omitted counts, and the complete
+digest. The final Copilot answer and Vue card disclose truncation. A minimal
+envelope that cannot fit fails `invalid_tool_call`.
 
-- The existing Coin Copilot start/resume idempotency keys remain authoritative.
-- A completed tool call is restored from
-  `checkpoint.completed_tools`; Python must not call it again.
-- A repeated new tool call with the same target is safe because Deep active
-  fingerprint uniqueness returns `reused_active`.
-- `reused_result` requires matching current v2 input digest and retained valid
-  result. It offers `fresh_analysis_available:true`; only `operation:"rerun"`
-  spends another run.
-- `status` never starts or retries work.
-- The chat SSE reconnect continues with
-  `/api/agent/copilot/runs/{runId}/events?since={seq}`. The review link opens
-  `/deep-analysis/{jobId}`, whose existing stream independently reconnects with
-  its Deep event sequence.
-- Pruned Deep events do not invalidate a retained terminal report; status uses
-  the job snapshot and states that detailed activity history is unavailable.
-- Changed target input yields `retry_available`/`inputs_changed`, never an old
-  result represented as current.
+## 8. Status eligibility
 
-## 6. Cancellation ordering
+Status/result access requires one:
 
-Go linearizes Copilot cancellation and `request`/`rerun` admission per
-execution:
+1. validated owner/run/checkpoint handoff binding to the job;
+2. owned `saved_coin` job with a currently existing owned coin; or
+3. owned `copilot_draft` job with non-null currently active owned
+   `source_draft_id`.
 
-1. cancellation first: `cancelled`, no Deep job;
-2. admission first: accepted/reused job id is durable; later Copilot
-   cancellation prevents late Copilot frames but does not silently cancel the
-   independent Deep job;
-3. Deep cancellation remains available only through the existing Deep
-   lifecycle endpoint/UI.
+Legacy unbound `intake` and every unknown source are not eligible. Arbitrary
+unknown/foreign/unbound job ids all return `not_eligible` with no metadata.
+Only a validated prior binding may receive `target_unavailable`, also without
+target metadata.
 
-## 7. Browser/UI contract
+## 9. Apply matrix (existing Deep review UI only)
 
-- Public Coin Copilot `tool_completed.result` may include this projection after
-  Go revalidation/sanitization.
-- Vue renders a compact status/result handoff card in the existing Agent drawer.
-- `review_url` must match `^/deep-analysis/[1-9][0-9]*$`; Vue constructs or
-  validates the route from the numeric job id and never follows an absolute,
-  protocol-relative, credential-bearing, or mismatched URL.
-- The link label is `Open Deep Analysis`; it uses the existing router.
-- No conversational accept/apply control is rendered.
-- `/deep-analysis/:jobId` remains the only report/proposal editor and retains
-  existing responsive layout, 44 px touch targets, design tokens, dark theme,
-  PWA behavior, stream reconnect, retry, and cancellation controls.
+The handoff contract has no apply operation. The existing proposal service
+uses this normative transaction:
 
-## 8. Tamper requirements
+| Destination | Exact valid scalars | Notes | Catalog references |
+|---|---|---|---|
+| Collection coin | `denomination`, `ruler`, `era`, `dateRange`, `mint`, `material`, `weightGrams`, `diameterMm`, `obverseInscription`, `reverseInscription`, `obverseDescription`, `reverseDescription`, `coin_type` | Append job-id-keyed dated/source block | Registry-validate, append, case-insensitive dedupe |
+| Wishlist coin | Same existing Deep coin scalar allowlist; no acquisition/value/storage/privacy/status/image fields | Append job-id-keyed dated/source block | Registry-validate, append, case-insensitive dedupe |
+| Bound active draft | `workingTitle`, `era`, `dateRange` | Append job-id-keyed dated/source block | Validate/stage in accepted proposal; promotion appends/dedupes transactionally |
 
-Contract tests must reject:
+Each accepted scalar replaces only itself. Manual notes outside the block,
+images, unaccepted fields, relationships, and all pre-existing references are
+preserved. Any unsupported field or changed owner/lifecycle/context/proposal/
+registry state rejects the entire selected set with `409 re_review_required`
+and zero partial writes.
 
-- unknown request/result properties, operations, outcomes, states, providers,
-  coverage values, and target types;
-- zero/negative/foreign target or job ids;
-- target/job mismatch on rerun;
-- non-finite or out-of-range confidence;
-- duplicate fields/evidence/tool-call ids;
-- oversized arrays, strings, events, or checkpoint results;
-- unsafe/malformed/unapproved citation and review URLs;
-- prompt-injection text being treated as instructions;
-- secrets or raw provider/internal errors in output;
-- forged acceptance/apply fields or provider overrides;
-- cancellation races and late frames.
+## 10. Cancellation and finish-existing transitions
 
-## 9. Explicitly absent operations
+| Transition | Behavior |
+|---|---|
+| cancellation commits before admission | zero Deep jobs; `cancelled` |
+| admission commits before cancellation | exactly one bound job; subsequent Copilot cancel requests Deep cancel if nonterminal |
+| late Deep/provider result after authoritative cancel | cannot win terminal settlement; no report/proposal/event publication |
+| any required flag disabled before admission | no handoff/provider work |
+| flag disabled after durable admission | job may finish; status/events/cancel/review/edit/confirmed review-page apply remain |
+| `rerun` after disable | rejected `unavailable` |
 
-There is no `apply`, `accept`, `edit`, `cancel_deep_job`, provider query,
-arbitrary fetch, database, filesystem, shell, or generic HTTP operation.
+## 11. HTTP mapping
+
+| HTTP | Code/behavior |
+|---|---|
+| 200 | typed expected outcome |
+| 400 | malformed/unknown fields or enum: `invalid_tool_call` |
+| 401 | missing/wrong scheme, expired/revoked/wrong owner/run/execution/tool token |
+| 409 | `handoff_idempotency_conflict`, `target_changed`, cancellation/state race |
+| 413 | request/public envelope over 64 KiB |
+| 503 | internal admission unavailable |
+
+A user JWT presented as the execution token is 401. Errors never contain
+ownership, paths, provider bodies, queries, secrets, or raw database failures.
+
+## 12. Review URL and reconnect
+
+`review_url` is exactly `^/deep-analysis/[1-9][0-9]*$` and must match `job.id`.
+Vue constructs/validates the relative route and rejects absolute,
+protocol-relative, credential-bearing, or mismatched URLs. The Agent drawer has
+no proposal controls.
+
+Coin Copilot reconnects from its run event sequence/checkpoint. Deep Analysis
+reconnects independently from its job event sequence. Replayed completed tools
+do not execute callbacks or providers again.
+
+## 13. Compatibility interlock
+
+Before any `copilot_draft` row can exist, a compatibility release must reject
+unknown source on list/get/status/stream/retry/apply/worker claim. The Feature
+362 flag is default off. Rollback targets that guard release only after
+handoffs are disabled and accepted work is terminal/cancelled. Rows remain
+untouched and become usable after re-upgrade.
