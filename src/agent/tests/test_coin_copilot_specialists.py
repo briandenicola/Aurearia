@@ -191,6 +191,44 @@ async def test_market_search_returns_source_backed_success():
 
 
 @pytest.mark.asyncio
+async def test_specialist_wire_payload_serializes_money_as_json_numbers():
+    market = await run_market_search(
+        {"query": "Domitian denarius"},
+        provider_runners=[_provider("cng_dealer_search", [_dealer_candidate()])],
+        observed_at=OBSERVED_AT,
+    )
+    auction = await run_auction_search(
+        {"query": "Domitian denarius"},
+        provider_runners=[_provider("numisbids", [_auction_candidate()])],
+        observed_at=OBSERVED_AT,
+    )
+    trend = await run_price_trends(
+        {"query": "Domitian denarius"},
+        provider_runners=[
+            _provider(
+                "numisbids",
+                [
+                    _sale_candidate(1, "2026-01-01", 200),
+                    _sale_candidate(2, "2026-02-01", 250),
+                    _sale_candidate(3, "2026-03-15", 300),
+                ],
+            )
+        ],
+        observed_at=OBSERVED_AT,
+    )
+
+    market_payload = market.model_dump(mode="json")
+    auction_payload = auction.model_dump(mode="json")
+    trend_payload = trend.model_dump(mode="json")
+
+    assert isinstance(market_payload["items"][0]["listed_price"], (int, float))
+    assert isinstance(auction_payload["items"][0]["estimate"], (int, float))
+    assert isinstance(auction_payload["items"][0]["current_bid"], (int, float))
+    assert isinstance(trend_payload["items"][0]["amount"], (int, float))
+    assert isinstance(trend_payload["trend"]["median"], (int, float))
+
+
+@pytest.mark.asyncio
 async def test_market_search_returns_no_match_for_successful_zero_results():
     result = await run_market_search(
         {"query": "Domitian denarius"},

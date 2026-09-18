@@ -20,6 +20,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PlainSerializer,
     StringConstraints,
     field_validator,
     model_validator,
@@ -57,6 +58,10 @@ BoundedWarning = Annotated[str, StringConstraints(min_length=1, max_length=500)]
 BoundedSourceURL = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
 Currency = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 SHA256Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+JSONDecimal = Annotated[
+    Decimal,
+    PlainSerializer(lambda value: float(value), return_type=float, when_used="json"),
+]
 
 _DEGRADED_PROVIDER_STATUSES = {"timeout", "failure", "unavailable", "malformed"}
 _NON_PUBLIC_HOSTS = {"localhost", "metadata.google.internal"}
@@ -348,7 +353,7 @@ class EvidenceItem(StrictSpecialistModel):
 class DealerListing(EvidenceItem):
     kind: Literal["dealer_listing"]
     dealer_name: BoundedText | None = None
-    listed_price: Decimal | None = Field(default=None, ge=0)
+    listed_price: JSONDecimal | None = Field(default=None, ge=0)
     currency: Currency | None = None
     availability: Literal["available", "sold", "unknown"] | None = None
     ruler: BoundedText | None = None
@@ -363,8 +368,8 @@ class AuctionLot(EvidenceItem):
     sale_name: BoundedText | None = None
     lot_number: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
     sale_date: date | None = None
-    estimate: Decimal | None = Field(default=None, ge=0)
-    current_bid: Decimal | None = Field(default=None, ge=0)
+    estimate: JSONDecimal | None = Field(default=None, ge=0)
+    current_bid: JSONDecimal | None = Field(default=None, ge=0)
     currency: Currency | None = None
     lot_status: Annotated[str, StringConstraints(min_length=1, max_length=64)] | None = None
     ruler: BoundedText | None = None
@@ -376,14 +381,14 @@ class AuctionLot(EvidenceItem):
 class SaleObservation(EvidenceItem):
     kind: Literal["sale_observation"]
     sale_date: date
-    amount: Decimal = Field(ge=0)
+    amount: JSONDecimal = Field(ge=0)
     currency: Currency
     price_basis: Literal["hammer", "realized_including_premium"]
 
 
 class SimilarLot(EvidenceItem):
     kind: Literal["similar_lot"]
-    similarity_score: Decimal = Field(ge=0, le=1)
+    similarity_score: JSONDecimal = Field(ge=0, le=1)
     matched_attributes: list[BoundedText] = Field(min_length=1, max_length=20)
     material_differences: list[BoundedText] = Field(max_length=20)
 
@@ -401,9 +406,9 @@ class PriceTrendSummary(StrictSpecialistModel):
     date_to: date | None = None
     currency: Currency | None = None
     price_basis: Literal["hammer", "realized_including_premium"] | None = None
-    low: Decimal | None = Field(default=None, ge=0)
-    median: Decimal | None = Field(default=None, ge=0)
-    high: Decimal | None = Field(default=None, ge=0)
+    low: JSONDecimal | None = Field(default=None, ge=0)
+    median: JSONDecimal | None = Field(default=None, ge=0)
+    high: JSONDecimal | None = Field(default=None, ge=0)
     confidence: Confidence
     limitations: list[BoundedWarning] = Field(default_factory=list, max_length=10)
     supporting_source_ids: list[BoundedSourceURL] = Field(default_factory=list, max_length=10)
