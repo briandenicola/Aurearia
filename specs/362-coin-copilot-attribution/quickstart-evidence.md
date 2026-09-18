@@ -31,9 +31,15 @@ Date: 2026-09-18
 
 ## Hosted artifact evidence
 
-- Workflow run: pending.
-- Guard artifact digest: pending.
-- Guard artifact commit: pending.
+- Workflow run:
+  [Feature 362 Compatibility 35393314716](https://github.com/briandenicola/Aurearia/actions/runs/35393314716)
+  passed, including immutable build, guard-only harness, and artifact upload.
+- Guard artifact: `feature362-guard-35393314716-1` (artifact id
+  `10567285694`, 30,009,704 bytes).
+- Guard artifact digest:
+  `sha256:9e7a9993eb5b8a5440006fa105b1b17810fbe43b09b29febe2c963a248c7141e`.
+- Guard artifact commit:
+  `0910bc7b86e6d5a567c62f8b25000c64fca493a2`.
 
 ## External/manual Release A checkpoint
 
