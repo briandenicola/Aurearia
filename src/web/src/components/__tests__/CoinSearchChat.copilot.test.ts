@@ -2,13 +2,15 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import CoinSearchChat from '../CoinSearchChat.vue'
-import type { CoinCopilotRun } from '@/types'
+import type { CoinCopilotRun, CoinCopilotSpecialistResult } from '@/types'
+import type { CoinCopilotToolProgress } from '@/composables/useCoinCopilot'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   resume: vi.fn(),
   active: false,
   run: null as CoinCopilotRun | null,
+  tools: [] as CoinCopilotToolProgress[],
   clarification: null as null | {
     question: string
     inputType: 'text' | 'single_choice' | 'boolean'
@@ -46,9 +48,7 @@ vi.mock('@/composables/useCoinSearchChat', () => ({
       { id: 'step_1', title: 'Summarize holdings', status: 'completed' },
       { id: 'step_2', title: 'Identify gaps', status: 'in_progress' },
     ]),
-    copilotTools: ref([
-      { toolCallId: 'call_1', toolName: 'collection_summary', stepId: 'step_1', status: 'succeeded', resultSummary: 'Collection summary returned.', truncated: false },
-    ]),
+    copilotTools: ref(mocks.tools),
     copilotClarification: ref(mocks.clarification),
     copilotCanCancel: ref(Boolean(mocks.run && ['queued', 'running', 'paused'].includes(mocks.run.status))),
     copilotCanResume: ref(Boolean(mocks.run?.status === 'paused' && mocks.clarification)),
@@ -105,12 +105,63 @@ function mountChat() {
   })
 }
 
+function specialistResult(
+  outcome: CoinCopilotSpecialistResult['outcome'],
+): CoinCopilotSpecialistResult {
+  return {
+    capability: 'market_search',
+    outcome,
+    items: outcome === 'complete' || outcome === 'partial' ? [{
+      kind: 'dealer_listing',
+      title: 'Domitian denarius',
+      sourceUrl: 'https://www.cngcoins.com/Coin.aspx?CoinID=400001',
+      observedAt: '2026-09-18T12:00:00Z',
+      confidence: 'high',
+      verificationState: 'verified',
+      facts: ['Dealer: Classical Numismatic Group', 'Price: USD 275'],
+      matchedAttributes: [],
+      materialDifferences: [],
+    }] : [],
+    trend: null,
+    warnings: outcome === 'partial' || outcome === 'unavailable'
+      ? ['One configured source was unavailable.']
+      : [],
+    truncation: {
+      truncated: false,
+      originalBytes: 100,
+      persistedBytes: 100,
+      digest: 'a'.repeat(64),
+      omittedItems: 0,
+    },
+  }
+}
+
+function specialistTool(result: CoinCopilotSpecialistResult): CoinCopilotToolProgress {
+  return {
+    toolCallId: `call_${result.outcome}`,
+    toolName: 'market_search',
+    stepId: 'step_1',
+    status: 'succeeded',
+    resultSummary: 'Market search complete.',
+    truncated: false,
+    specialistResult: result,
+  }
+}
+
 describe('CoinSearchChat Coin Copilot drawer integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.active = false
     mocks.run = null
     mocks.clarification = null
+    mocks.tools = [{
+      toolCallId: 'call_1',
+      toolName: 'collection_summary',
+      stepId: 'step_1',
+      status: 'succeeded',
+      resultSummary: 'Collection summary returned.',
+      truncated: false,
+    }]
   })
 
   it('preserves the legacy drawer without Copilot UI when fallback mode is active', () => {
@@ -168,5 +219,35 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     await card.findAll('button').find(button => button.text() === 'Owned only')!.trigger('click')
     await card.findAll('button').find(button => button.text() === 'Continue')!.trigger('click')
     expect(mocks.resume).toHaveBeenCalledWith('Owned only')
+  })
+
+  it.each([
+    ['complete', 'Complete'],
+    ['partial', 'Partial'],
+    ['no_match', 'No matching evidence'],
+    ['unavailable', 'Sources unavailable'],
+  ] as const)('renders accessible %s specialist evidence', (outcome, label) => {
+    mocks.active = true
+    mocks.run = activeRun('running')
+    mocks.tools = [specialistTool(specialistResult(outcome))]
+
+    const progress = mountChat().get('[data-testid="copilot-run-progress"]')
+    const specialist = progress.get('[data-testid="copilot-specialist-result"]')
+    expect(specialist.text()).toContain(label)
+
+    if (outcome === 'complete' || outcome === 'partial') {
+      expect(specialist.text()).toContain('Domitian denarius')
+      expect(specialist.text()).toContain('Observed Sep 18, 2026')
+      expect(specialist.text()).toContain('High confidence')
+      expect(specialist.text()).toContain('Verified')
+      const source = specialist.get('a')
+      expect(source.attributes()).toMatchObject({
+        href: 'https://www.cngcoins.com/Coin.aspx?CoinID=400001',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      })
+    } else {
+      expect(specialist.find('a').exists()).toBe(false)
+    }
   })
 })

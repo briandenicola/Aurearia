@@ -206,3 +206,42 @@ node .\node_modules\eslint\bin\eslint.js `
 ```
 
 Result: **PASS**, `16 passed`; strict TypeScript and ESLint exited `0`.
+
+## User Story 1 controlled-fixture evidence
+
+Scenarios 1 and 2 were exercised without live provider dependencies. The
+Python tests use fixed provider runners to cover valid dealer and auction
+evidence, zero matches, timeout, transport failure, unavailable and malformed
+providers, mixed-source partial outcomes, redirect revalidation, source-host
+policy, deterministic deduplication, and conflicting observations. A focused
+regression also proves the specialist host policy does not narrow the legacy
+coin-search path.
+
+```powershell
+# src/agent
+uv run ruff check app/ tests/
+uv run pytest tests/test_coin_copilot_specialists.py `
+  tests/test_coin_copilot_security.py `
+  tests/test_coin_copilot_contract.py `
+  tests/test_coin_copilot_harness.py -q
+```
+
+Result: **PASS**, `170 passed`; the post-review dealer-path regression subset
+passed `81` tests and Ruff remained clean.
+
+```powershell
+# src/api
+go test ./services -run 'CoinCopilot|Specialist'
+go vet ./services
+
+# src/web
+node .\node_modules\vitest\vitest.mjs run `
+  src\components\__tests__\CoinSearchChat.copilot.test.ts `
+  src\composables\__tests__\useCoinCopilot.test.ts
+node .\node_modules\vue-tsc\bin\vue-tsc.js --build
+```
+
+Result: **PASS**. Go accepted and projected only strict provider/provenance
+evidence and rejected raw errors and capability/provider mismatches. Vue passed
+`24` tests across both files and rendered complete, partial, no-match, and
+unavailable states with safe source links and no mutation controls.

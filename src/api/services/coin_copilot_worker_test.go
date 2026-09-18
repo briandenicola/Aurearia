@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -122,6 +123,57 @@ func TestCoinCopilotWorkerPersistsCheckpointAndSingleTerminalEvent(t *testing.T)
 	}
 	if terminal != 1 {
 		t.Fatalf("terminal events = %d, events=%#v", terminal, events)
+	}
+}
+
+func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	repo := repository.NewCoinCopilotRepository(db)
+	thread := &models.CoinCopilotThread{ID: "cct_specialist", UserID: 7, Title: "Specialist"}
+	run := &models.CoinCopilotRun{
+		ID: "ccr_specialist", ThreadID: thread.ID, UserID: thread.UserID, Status: models.CopilotRunRunning,
+		Goal: "Find market examples", StartIdempotencyKeyHash: "specialist-key", StartRequestFingerprint: "fingerprint",
+		ExecutionID: "cce_specialist", ExecutionAttempt: 1, MaxIterations: 8, MaxToolCalls: 12,
+		MaxConcurrentTools: 1, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+	}
+	if err := repo.CreateRun(thread, run); err != nil {
+		t.Fatal(err)
+	}
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "market_search_complete.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"tool_call_id": "call_market", "tool_name": "market_search", "step_id": "step_market",
+		"status": "succeeded", "duration_ms": 25, "result_summary": "One market result.", "result": result,
+	})
+	frame := CopilotAgentFrame{
+		SchemaVersion: 1, RunID: run.ID, ExecutionID: run.ExecutionID,
+		FrameID: "frm_market", Type: "tool_completed", Payload: payload,
+	}
+	if err := service.applyFrame(run, frame); err != nil {
+		t.Fatal(err)
+	}
+	events, err := repo.ListEventsSince(run.ID, run.UserID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Type != models.CopilotEventToolCompleted {
+		t.Fatalf("events = %#v", events)
+	}
+	var public struct {
+		SpecialistResult CopilotSpecialistPublicResult `json:"specialistResult"`
+	}
+	if err := json.Unmarshal([]byte(events[0].PayloadJSON), &public); err != nil {
+		t.Fatal(err)
+	}
+	if public.SpecialistResult.Capability != "market_search" ||
+		len(public.SpecialistResult.Items) != 1 ||
+		public.SpecialistResult.Items[0].SourceURL != result.Items[0].SourceURL {
+		t.Fatalf("specialist projection = %#v", public.SpecialistResult)
 	}
 }
 

@@ -7,8 +7,11 @@ Phase 3: Format results into structured AuctionLotSuggestion JSON.
 
 import asyncio
 import logging
-from typing import Annotated, TypedDict
+from collections.abc import Mapping, Sequence
+from datetime import datetime
+from typing import Annotated, Any, TypedDict
 
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
@@ -16,6 +19,13 @@ from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.safety import with_safety
+from app.teams.specialist_contracts import (
+    ProviderMalformedError,
+    ProviderRunner,
+    SpecialistQuery,
+    SpecialistResult,
+    run_provider_search,
+)
 from app.tools.numisbids import scrape_numisbids_lot, search_numisbids
 
 logger = logging.getLogger(__name__)
@@ -68,6 +78,75 @@ class AuctionSearchState(TypedDict):
     user_message: str
 
 
+async def _search_auction_lots(query: str) -> list[dict[str, Any]]:
+    results = await search_numisbids.ainvoke({"query": query})
+    if not isinstance(results, list):
+        raise ProviderMalformedError
+    if any(not isinstance(result, dict) for result in results):
+        raise ProviderMalformedError
+    if len(results) == 1 and isinstance(results[0], dict) and "error" in results[0]:
+        raise httpx.TransportError("auction provider failed")
+    return results
+
+
+async def _fetch_auction_lots(
+    search_results: Sequence[Mapping[str, Any]],
+    limit: int,
+) -> list[dict[str, Any]]:
+    urls = [
+        str(result.get("url") or "")
+        for result in search_results
+        if str(result.get("url") or "").startswith("https://")
+    ][:limit]
+    if not urls:
+        return []
+    results = await asyncio.gather(
+        *(scrape_numisbids_lot.ainvoke({"url": url}) for url in urls),
+        return_exceptions=True,
+    )
+    lots: list[dict[str, Any]] = []
+    failures = 0
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning("[auction_search] lot fetch failed")
+            failures += 1
+            continue
+        if isinstance(result, dict) and "error" not in result:
+            lots.append(result)
+        else:
+            failures += 1
+    if failures and not lots:
+        raise httpx.TransportError("auction provider fetch failed")
+    return lots
+
+
+async def _collect_auction_candidates(
+    query: str,
+    limit: int,
+) -> Sequence[Mapping[str, Any]]:
+    search_results = await _search_auction_lots(query)
+    return await _fetch_auction_lots(search_results, limit)
+
+
+async def run_auction_search(
+    query: SpecialistQuery | Mapping[str, Any],
+    *,
+    provider_runners: Sequence[ProviderRunner] | None = None,
+    observed_at: datetime | None = None,
+) -> SpecialistResult:
+    """Run the canonical NumisBids workflow and return a strict specialist result."""
+    if provider_runners is None:
+        provider_runners = [
+            ProviderRunner(provider="numisbids", run=_collect_auction_candidates)
+        ]
+    return await run_provider_search(
+        capability="auction_search",
+        query=query,
+        provider_runners=provider_runners,
+        observed_at=observed_at,
+    )
+
+
 def create_auction_search_team(llm_config: LLMConfig):
     """Create the auction search pipeline.
 
@@ -80,11 +159,11 @@ def create_auction_search_team(llm_config: LLMConfig):
         user_msg = state.get("user_message", "")
         logger.debug("[auction_search] search_node start — query: %.100s", user_msg)
 
-        results = await search_numisbids.ainvoke({"query": user_msg})
-        if not isinstance(results, list):
+        try:
+            results = await _search_auction_lots(user_msg)
+        except (ProviderMalformedError, httpx.TransportError):
             results = []
-
-        if not results or (len(results) == 1 and "error" in results[0]):
+        if not results:
             logger.debug("[auction_search] search returned no results or error")
             return {"search_results": "", "messages": []}
 
@@ -111,31 +190,24 @@ def create_auction_search_team(llm_config: LLMConfig):
         if not search_results.strip():
             return {"fetched_lots": "", "messages": []}
 
-        # Extract URLs from the search summary lines
-        urls = []
+        search_items = []
         for line in search_results.split("\n"):
             parts = line.rsplit("| ", 1)
             if len(parts) == 2:
                 url = parts[1].strip()
                 if url.startswith("https://"):
-                    urls.append(url)
+                    search_items.append({"url": url})
 
-        logger.debug("[auction_search] fetch_node — found %d URLs to fetch", len(urls))
+        logger.debug("[auction_search] fetch_node — found %d URLs to fetch", len(search_items))
 
-        if not urls:
+        if not search_items:
             return {"fetched_lots": "", "messages": []}
 
-        # Fetch up to 5 lot pages in parallel
-        tasks = [scrape_numisbids_lot.ainvoke({"url": u}) for u in urls[:5]]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        fetched = []
-        for url, result in zip(urls[:5], results):
-            if isinstance(result, Exception):
-                logger.warning("Failed to fetch lot %s: %s", url, result)
-                continue
-            if isinstance(result, dict) and "error" not in result:
-                fetched.append(f"--- Lot: {url} ---\n{result}")
+        results = await _fetch_auction_lots(search_items, 5)
+        fetched = [
+            f"--- Lot: {result.get('url', '')} ---\n{result}"
+            for result in results
+        ]
 
         logger.debug("[auction_search] fetched %d lot details", len(fetched))
         return {"fetched_lots": "\n\n".join(fetched), "messages": []}

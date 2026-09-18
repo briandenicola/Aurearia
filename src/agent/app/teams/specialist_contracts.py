@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import ipaddress
+import json
 import re
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from statistics import median
-from typing import Annotated, Literal
-from urllib.parse import urlsplit
+from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 
+import httpx
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -55,7 +61,17 @@ SHA256Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 _DEGRADED_PROVIDER_STATUSES = {"timeout", "failure", "unavailable", "malformed"}
 _NON_PUBLIC_HOSTS = {"localhost", "metadata.google.internal"}
 _REGISTERED_SOURCE_HOSTS = {
-    "cng_dealer_search": frozenset({"cngcoins.com"}),
+    "cng_dealer_search": frozenset(
+        {
+            "biddr.com",
+            "catawiki.com",
+            "cngcoins.com",
+            "forumancientcoins.com",
+            "hjbltd.com",
+            "ma-shops.com",
+            "vcoins.com",
+        }
+    ),
     "numisbids": frozenset({"numisbids.com"}),
 }
 _CAPABILITY_PROVIDERS = {
@@ -120,6 +136,37 @@ _SOURCE_BACKED_FIELDS = {
     "amount",
     "price_basis",
 }
+_SAFE_PROVIDER_WARNINGS = {
+    "timeout": "One configured source timed out; available evidence may be incomplete.",
+    "failure": "One configured source could not be reached; available evidence may be incomplete.",
+    "unavailable": "One configured source is unavailable; available evidence may be incomplete.",
+    "malformed": "One configured source returned unusable data; available evidence may be incomplete.",
+}
+_WARNING_CODES: dict[str, ProviderWarningCode] = {
+    "timeout": "provider_timeout",
+    "failure": "provider_failure",
+    "unavailable": "provider_unavailable",
+    "malformed": "provider_malformed",
+}
+
+
+class ProviderUnavailableError(RuntimeError):
+    """A configured specialist provider is not available for this execution."""
+
+
+class ProviderMalformedError(RuntimeError):
+    """A specialist provider returned a response that cannot be normalized."""
+
+
+ProviderCallable = Callable[[str, int], Awaitable[Sequence[Mapping[str, Any]]]]
+
+
+@dataclass(frozen=True)
+class ProviderRunner:
+    """One fixed provider boundary used by a specialist runner."""
+
+    provider: str
+    run: ProviderCallable
 
 
 class StrictSpecialistModel(BaseModel):
@@ -558,3 +605,442 @@ class SpecialistResult(StrictSpecialistModel):
             if self.items != ordered:
                 raise ValueError("similar lots must use deterministic ranking")
         return self
+
+
+def canonical_source_identity(url: str) -> str:
+    """Return the stable comparison identity without changing the display URL."""
+    validated = _validate_source_url(url)
+    parsed = urlsplit(validated)
+    host = (parsed.hostname or "").rstrip(".").lower()
+    port = parsed.port
+    netloc = host if port in {None, 443} else f"{host}:{port}"
+    return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, ""))
+
+
+def validate_registered_source_url(provider: str, url: str) -> str:
+    """Validate a source URL against the provider's fixed source boundary."""
+    validated = _validate_source_url(url)
+    _validate_registered_source(provider, validated)
+    return validated
+
+
+def _clean_optional_text(value: object, *, maximum: int = 300) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text[:maximum] if text else None
+
+
+def _parse_decimal(value: object) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, int | float):
+        return Decimal(str(value))
+    match = re.search(r"[\d,]+(?:\.\d+)?", str(value))
+    if not match:
+        return None
+    try:
+        return Decimal(match.group(0).replace(",", ""))
+    except Exception:
+        return None
+
+
+def _parse_currency(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).upper()
+    for token in ("USD", "EUR", "GBP", "CHF"):
+        if token in text:
+            return token
+    if "$" in text:
+        return "USD"
+    return None
+
+
+def _parse_sale_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for pattern in ("%Y-%m-%d", "%d %b %Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(text, pattern).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _provenance(
+    fields: Sequence[str],
+    *,
+    source_url: str,
+    observed_at: datetime,
+    confidence: Confidence,
+    verification_state: VerificationState,
+) -> list[FieldProvenance]:
+    return [
+        FieldProvenance(
+            field=field,
+            source_url=source_url,
+            observed_at=observed_at,
+            confidence=confidence,
+            verification_state=verification_state,
+        )
+        for field in fields
+    ]
+
+
+def adapt_dealer_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    provider: str,
+    observed_at: datetime,
+) -> DealerListing:
+    """Normalize one provider-observed dealer candidate without enrichment."""
+    source_url = validate_registered_source_url(
+        provider,
+        str(candidate.get("sourceUrl") or candidate.get("source_url") or candidate.get("url") or "").strip(),
+    )
+    title = _clean_optional_text(candidate.get("name") or candidate.get("title"))
+    if not title:
+        raise ValueError("dealer candidate requires a source-backed title")
+
+    price_value = candidate.get("listed_price")
+    if price_value is None:
+        price_value = candidate.get("estPrice") or candidate.get("price")
+    listed_price = _parse_decimal(price_value)
+    currency = _parse_currency(candidate.get("currency") or price_value)
+    raw_availability = str(candidate.get("availability") or "").strip().lower()
+    availability = {
+        "available": "available",
+        "in stock": "available",
+        "sold": "sold",
+        "sold out": "sold",
+        "unknown": "unknown",
+    }.get(raw_availability)
+
+    values = {
+        "description": _clean_optional_text(candidate.get("description"), maximum=500),
+        "dealer_name": _clean_optional_text(candidate.get("sourceName") or candidate.get("dealer_name")),
+        "listed_price": listed_price,
+        "currency": currency,
+        "availability": availability,
+        "ruler": _clean_optional_text(candidate.get("ruler")),
+        "denomination": _clean_optional_text(candidate.get("denomination")),
+        "era": _clean_optional_text(candidate.get("era")),
+        "material": _clean_optional_text(candidate.get("material")),
+    }
+    proven_fields = ["title", *(field for field, value in values.items() if value is not None)]
+    return DealerListing(
+        kind="dealer_listing",
+        source_url=source_url,
+        canonical_source_id=canonical_source_identity(source_url),
+        provider=provider,
+        observed_at=observed_at,
+        confidence="high",
+        verification_state="verified",
+        title=title,
+        provenance=_provenance(
+            proven_fields,
+            source_url=source_url,
+            observed_at=observed_at,
+            confidence="high",
+            verification_state="verified",
+        ),
+        **values,
+    )
+
+
+def adapt_auction_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    provider: str,
+    observed_at: datetime,
+) -> AuctionLot:
+    """Normalize one provider-observed auction candidate without enrichment."""
+    source_url = validate_registered_source_url(
+        provider,
+        str(candidate.get("url") or candidate.get("sourceUrl") or candidate.get("source_url") or "").strip(),
+    )
+    title = _clean_optional_text(candidate.get("title") or candidate.get("name"))
+    if not title:
+        raise ValueError("auction candidate requires a source-backed title")
+
+    estimate = _parse_decimal(candidate.get("estimate"))
+    current_bid = _parse_decimal(candidate.get("currentBid") or candidate.get("current_bid"))
+    currency = _parse_currency(candidate.get("currency"))
+    values = {
+        "description": _clean_optional_text(candidate.get("description"), maximum=500),
+        "auction_house": _clean_optional_text(candidate.get("auctionHouse") or candidate.get("auction_house")),
+        "sale_name": _clean_optional_text(candidate.get("saleName") or candidate.get("sale_name")),
+        "lot_number": _clean_optional_text(candidate.get("lotNumber") or candidate.get("lot_number"), maximum=100),
+        "sale_date": _parse_sale_date(candidate.get("saleDate") or candidate.get("sale_date")),
+        "estimate": estimate,
+        "current_bid": current_bid,
+        "currency": currency,
+        "lot_status": _clean_optional_text(candidate.get("lotStatus") or candidate.get("lot_status"), maximum=64),
+        "ruler": _clean_optional_text(candidate.get("ruler")),
+        "denomination": _clean_optional_text(candidate.get("denomination")),
+        "era": _clean_optional_text(candidate.get("era")),
+        "material": _clean_optional_text(candidate.get("material")),
+    }
+    proven_fields = ["title", *(field for field, value in values.items() if value is not None)]
+    return AuctionLot(
+        kind="auction_lot",
+        source_url=source_url,
+        canonical_source_id=canonical_source_identity(source_url),
+        provider=provider,
+        observed_at=observed_at,
+        confidence="high",
+        verification_state="verified",
+        title=title,
+        provenance=_provenance(
+            proven_fields,
+            source_url=source_url,
+            observed_at=observed_at,
+            confidence="high",
+            verification_state="verified",
+        ),
+        **values,
+    )
+
+
+def _merge_duplicate(
+    existing: DealerListing | AuctionLot,
+    candidate: DealerListing | AuctionLot,
+) -> tuple[DealerListing | AuctionLot, bool]:
+    fields = (
+        (
+            "description",
+            "dealer_name",
+            "listed_price",
+            "currency",
+            "availability",
+            "ruler",
+            "denomination",
+            "era",
+            "material",
+        )
+        if isinstance(existing, DealerListing)
+        else (
+            "description",
+            "auction_house",
+            "sale_name",
+            "lot_number",
+            "sale_date",
+            "estimate",
+            "current_bid",
+            "currency",
+            "lot_status",
+            "ruler",
+            "denomination",
+            "era",
+            "material",
+        )
+    )
+    verification_rank = {"partial": 0, "verified": 1}
+    confidence_rank = {"low": 0, "medium": 1, "high": 2}
+
+    def strength(item: DealerListing | AuctionLot) -> tuple[int, int, int]:
+        return (
+            verification_rank[item.verification_state],
+            confidence_rank[item.confidence],
+            len(item.provenance),
+        )
+
+    base, other = (candidate, existing) if strength(candidate) > strength(existing) else (existing, candidate)
+    updates: dict[str, Any] = {}
+    conflict = existing.title != candidate.title
+    for field in fields:
+        base_value = getattr(base, field)
+        other_value = getattr(other, field)
+        if base_value is None and other_value is not None:
+            updates[field] = other_value
+        elif base_value is not None and other_value is not None and base_value != other_value:
+            conflict = True
+    if not updates:
+        return base, conflict
+    merged = base.model_copy(update=updates)
+    proven_fields = [
+        field
+        for field in type(merged).model_fields
+        if field in _SOURCE_BACKED_FIELDS and getattr(merged, field, None) is not None
+    ]
+    merged = merged.model_copy(
+        update={
+            "provenance": _provenance(
+                proven_fields,
+                source_url=merged.source_url,
+                observed_at=merged.observed_at,
+                confidence=merged.confidence,
+                verification_state=merged.verification_state,
+            )
+        }
+    )
+    return type(merged).model_validate(merged.model_dump()), conflict
+
+
+def _deduplicate_items(
+    items: Sequence[DealerListing | AuctionLot],
+) -> tuple[list[DealerListing | AuctionLot], list[str]]:
+    deduplicated: dict[str, DealerListing | AuctionLot] = {}
+    warnings: list[str] = []
+    for item in items:
+        existing = deduplicated.get(item.canonical_source_id)
+        if existing is None:
+            deduplicated[item.canonical_source_id] = item
+            continue
+        merged, conflict = _merge_duplicate(existing, item)
+        deduplicated[item.canonical_source_id] = merged
+        if conflict and "Duplicate source observations contained conflicting facts." not in warnings:
+            warnings.append("Duplicate source observations contained conflicting facts.")
+    return list(deduplicated.values()), warnings
+
+
+def _finalize_result(
+    *,
+    capability: Literal["market_search", "auction_search"],
+    outcome: SpecialistOutcome,
+    items: Sequence[DealerListing | AuctionLot],
+    provider_attempts: Sequence[ProviderAttempt],
+    warnings: Sequence[str],
+    omitted_items: int,
+) -> SpecialistResult:
+    core = {
+        "schema_version": 1,
+        "capability": capability,
+        "outcome": outcome,
+        "items": [item.model_dump(mode="json") for item in items],
+        "trend": None,
+        "provider_attempts": [attempt.model_dump(mode="json") for attempt in provider_attempts],
+        "warnings": list(warnings)[:10],
+    }
+    digest = hashlib.sha256(
+        json.dumps(core, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    size = 0
+    for _ in range(5):
+        result = SpecialistResult.model_validate(
+            {
+                **core,
+                "truncation": {
+                    "truncated": omitted_items > 0,
+                    "original_bytes": size,
+                    "persisted_bytes": size,
+                    "digest": digest,
+                    "omitted_items": omitted_items,
+                },
+            }
+        )
+        encoded_size = len(result.model_dump_json().encode())
+        if encoded_size == size:
+            return result
+        size = encoded_size
+    return result
+
+
+async def run_provider_search(
+    *,
+    capability: Literal["market_search", "auction_search"],
+    query: SpecialistQuery | Mapping[str, Any],
+    provider_runners: Sequence[ProviderRunner],
+    observed_at: datetime | None = None,
+) -> SpecialistResult:
+    """Run fixed provider adapters and aggregate only normalized evidence."""
+    parsed_query = query if isinstance(query, SpecialistQuery) else SpecialistQuery.model_validate(query)
+    timestamp = _validate_utc(observed_at or datetime.now(timezone.utc))
+    attempts: list[ProviderAttempt] = []
+    accepted: list[DealerListing | AuctionLot] = []
+    warnings: list[str] = []
+    omitted_items = 0
+
+    for provider_runner in provider_runners:
+        status: ProviderStatus
+        try:
+            raw_candidates = await provider_runner.run(parsed_query.query, parsed_query.limit)
+            if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
+                raise ProviderMalformedError
+            normalized: list[DealerListing | AuctionLot] = []
+            invalid_count = 0
+            for candidate in raw_candidates:
+                if not isinstance(candidate, Mapping):
+                    invalid_count += 1
+                    continue
+                try:
+                    item = (
+                        adapt_dealer_candidate(candidate, provider=provider_runner.provider, observed_at=timestamp)
+                        if capability == "market_search"
+                        else adapt_auction_candidate(
+                            candidate,
+                            provider=provider_runner.provider,
+                            observed_at=timestamp,
+                        )
+                    )
+                except (ValueError, TypeError):
+                    invalid_count += 1
+                    continue
+                normalized.append(item)
+            if invalid_count and not normalized:
+                raise ProviderMalformedError
+            if invalid_count:
+                warnings.append(_SAFE_PROVIDER_WARNINGS["malformed"])
+            accepted.extend(normalized)
+            status = "success" if normalized else "no_match"
+            attempts.append(
+                ProviderAttempt(
+                    provider=provider_runner.provider,
+                    status=status,
+                    observed_at=timestamp,
+                    accepted_items=min(len(normalized), 10),
+                    warning_code=None,
+                )
+            )
+        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException):
+            status = "timeout"
+        except ProviderUnavailableError:
+            status = "unavailable"
+        except ProviderMalformedError:
+            status = "malformed"
+        except ValueError:
+            status = "malformed"
+        except httpx.TransportError:
+            status = "failure"
+        except Exception:
+            status = "failure"
+        if status in _DEGRADED_PROVIDER_STATUSES:
+            attempts.append(
+                ProviderAttempt(
+                    provider=provider_runner.provider,
+                    status=status,
+                    observed_at=timestamp,
+                    accepted_items=0,
+                    warning_code=_WARNING_CODES[status],
+                )
+            )
+            warnings.append(_SAFE_PROVIDER_WARNINGS[status])
+
+    deduplicated, duplicate_warnings = _deduplicate_items(accepted)
+    warnings.extend(duplicate_warnings)
+    result_limit = min(parsed_query.limit, 10)
+    omitted_items += max(0, len(deduplicated) - result_limit)
+    items = deduplicated[:result_limit]
+    degraded = any(attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in attempts)
+    if items:
+        outcome: SpecialistOutcome = "partial" if degraded else "complete"
+    elif degraded:
+        outcome = "unavailable"
+    else:
+        outcome = "no_match"
+    return _finalize_result(
+        capability=capability,
+        outcome=outcome,
+        items=items,
+        provider_attempts=attempts,
+        warnings=warnings,
+        omitted_items=omitted_items,
+    )

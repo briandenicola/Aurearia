@@ -1,15 +1,27 @@
 """Coin Copilot callback and untrusted-result security tests."""
 
 import json
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 
+from app.teams.coin_search import run_market_search
+from app.teams.specialist_contracts import ProviderRunner
 from app.tools.copilot_collection_tools import (
     CopilotCollectionToolClient,
     CopilotToolError,
     bound_tool_result,
 )
+from app.tools.numisbids import validate_numisbids_url
+from app.tools.search import fetch_registered_dealer_page, validate_dealer_url
+
+
+def _provider(provider, candidates):
+    async def run(_query, _limit):
+        return candidates
+
+    return ProviderRunner(provider=provider, run=run)
 
 
 def _client(transport, **kwargs):
@@ -137,3 +149,117 @@ def test_injected_tool_output_is_neutralized_when_not_truncated():
     assert truncated is False
     assert "ignore previous instructions" not in bounded["note"].lower()
     assert "[UNTRUSTED INSTRUCTION REMOVED]" in bounded["note"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://www.cngcoins.com/Coin.aspx?CoinID=1",
+        "https://user:password@www.cngcoins.com/Coin.aspx?CoinID=1",
+        "https://localhost/listing",
+        "https://127.0.0.1/listing",
+        "https://10.0.0.1/listing",
+        "https://169.254.1.1/listing",
+        "https://169.254.169.254/latest/meta-data",
+        "https://metadata.google.internal/computeMetadata/v1/",
+        "https://unregistered.example/listing",
+    ],
+)
+def test_dealer_url_policy_rejects_unsafe_or_unregistered_targets(url):
+    with pytest.raises(ValueError):
+        validate_dealer_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://www.numisbids.com/sale/1/lot/1",
+        "https://user:password@www.numisbids.com/sale/1/lot/1",
+        "https://localhost/sale/1/lot/1",
+        "https://192.168.1.20/sale/1/lot/1",
+        "https://169.254.169.254/latest/meta-data",
+        "https://example.com/sale/1/lot/1",
+    ],
+)
+def test_numisbids_url_policy_rejects_unsafe_or_unregistered_targets(url):
+    with pytest.raises(ValueError):
+        validate_numisbids_url(url)
+
+
+def test_registered_https_source_urls_are_accepted():
+    assert validate_dealer_url("https://www.cngcoins.com/Coin.aspx?CoinID=1")
+    assert validate_dealer_url("https://www.vcoins.com/en/stores/example/1/product/coin/1")
+    assert validate_numisbids_url("https://www.numisbids.com/sale/1/lot/1")
+
+
+@pytest.mark.asyncio
+async def test_market_search_canonicalizes_fragments_and_deduplicates():
+    first = {
+        "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1#details",
+        "name": "Domitian denarius",
+        "estPrice": "USD 250",
+    }
+    duplicate = {
+        "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1#shipping",
+        "name": "Domitian denarius",
+        "estPrice": "USD 250",
+        "sourceName": "Classical Numismatic Group",
+    }
+
+    result = await run_market_search(
+        {"query": "Domitian denarius"},
+        provider_runners=[_provider("cng_dealer_search", [first, duplicate])],
+    )
+
+    assert len(result.items) == 1
+    assert result.items[0].canonical_source_id == "https://www.cngcoins.com/Coin.aspx?CoinID=1"
+    assert result.items[0].dealer_name == "Classical Numismatic Group"
+
+
+@pytest.mark.asyncio
+async def test_market_search_discloses_conflicting_duplicate_observations():
+    first = {
+        "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1",
+        "name": "Domitian denarius",
+        "estPrice": "USD 250",
+    }
+    conflict = {
+        "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1#alternate",
+        "name": "Domitian denarius",
+        "estPrice": "USD 300",
+    }
+
+    result = await run_market_search(
+        {"query": "Domitian denarius"},
+        provider_runners=[_provider("cng_dealer_search", [first, conflict])],
+    )
+
+    assert len(result.items) == 1
+    assert result.items[0].listed_price == 250
+    assert any("conflicting" in warning.lower() for warning in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_market_search_rejects_unregistered_redirect_destination(monkeypatch):
+    redirect_response = httpx.Response(
+        302,
+        headers={"Location": "https://evil.example/redirected"},
+        request=httpx.Request(
+            "GET",
+            "https://www.cngcoins.com/Coin.aspx?CoinID=1",
+        )
+    )
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.__aexit__.return_value = None
+    mock_client.get.return_value = redirect_response
+
+    monkeypatch.setattr(
+        "app.tools.search.validate_public_outbound_url",
+        lambda url, _field_name: url,
+    )
+    monkeypatch.setattr("app.tools.search.httpx.AsyncClient", lambda **_kwargs: mock_client)
+
+    with pytest.raises(ValueError):
+        await fetch_registered_dealer_page("https://www.cngcoins.com/Coin.aspx?CoinID=1")
+    mock_client.get.assert_awaited_once()

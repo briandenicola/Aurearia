@@ -364,3 +364,70 @@ func TestCoinCopilotSharedSpecialistFixturesRejectInvalidEvidence(t *testing.T) 
 		})
 	}
 }
+
+func TestProjectCopilotSpecialistResultOmitsUnsupportedFactsAndPreservesPartialEvidence(t *testing.T) {
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "auction_search_partial.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Items[0].CurrentBid = floatPointer(175)
+
+	public, err := ProjectCopilotSpecialistResult(result, "auction_search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if public.Outcome != "partial" || len(public.Items) != 1 || len(public.Warnings) != 1 {
+		t.Fatalf("partial projection lost valid evidence: %#v", public)
+	}
+	for _, fact := range public.Items[0].Facts {
+		if strings.Contains(fact, "175") {
+			t.Fatalf("unsupported current bid was projected: %q", fact)
+		}
+	}
+}
+
+func TestDecodeCopilotSpecialistResultRejectsInvalidProvenanceAndRawErrors(t *testing.T) {
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "market_search_complete.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Items[0].Provenance[0].SourceURL = "https://attacker.example/listing"
+	raw, _ := json.Marshal(result)
+	if _, err := DecodeCopilotSpecialistResult(raw, "market_search"); !errors.Is(err, ErrInvalidCopilotFrame) {
+		t.Fatal("mismatched provenance was accepted")
+	}
+
+	result.Items[0].Provenance[0].SourceURL = result.Items[0].SourceURL
+	raw, _ = json.Marshal(result)
+	raw = append(raw[:len(raw)-1], []byte(`,"raw_error":"dial tcp provider.internal:443: timeout"}`)...)
+	if _, err := DecodeCopilotSpecialistResult(raw, "market_search"); !errors.Is(err, ErrInvalidCopilotFrame) {
+		t.Fatal("raw provider error was accepted")
+	}
+}
+
+func TestValidateCopilotSpecialistResultRejectsCapabilityProviderMismatch(t *testing.T) {
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "market_search_complete.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Items[0].Provider = "numisbids"
+	result.Items[0].SourceURL = "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1"
+	result.Items[0].CanonicalSourceID = result.Items[0].SourceURL
+	for i := range result.Items[0].Provenance {
+		result.Items[0].Provenance[i].SourceURL = result.Items[0].SourceURL
+	}
+	if !errors.Is(ValidateCopilotSpecialistResult(result, "market_search"), ErrInvalidCopilotFrame) {
+		t.Fatal("market search accepted an auction-only provider and host")
+	}
+}
+
+func floatPointer(value float64) *float64 { return &value }

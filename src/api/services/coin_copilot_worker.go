@@ -231,6 +231,11 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			return ErrInvalidCopilotFrame
 		}
 		for i := range state.CompletedTools {
+			if isCoinCopilotSpecialistTool(state.CompletedTools[i].ToolName) {
+				if _, err := DecodeCopilotSpecialistResult(state.CompletedTools[i].Result, state.CompletedTools[i].ToolName); err != nil {
+					return err
+				}
+			}
 			bounded, originalBytes, truncated, digest, err := SanitizeCopilotJSON(state.CompletedTools[i].Result, run.MaxPersistedToolResultBytes)
 			if err != nil {
 				return err
@@ -314,11 +319,23 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 		if err != nil {
 			return err
 		}
-		public, _ := json.Marshal(map[string]any{
+		publicPayload := map[string]any{
 			"toolCallId": payload.ToolCallID, "toolName": payload.ToolName, "stepId": payload.StepID,
 			"status": payload.Status, "durationMs": payload.DurationMS,
 			"resultSummary": SanitizeCopilotText(payload.Summary, 300), "truncated": truncated,
-		})
+		}
+		if isCoinCopilotSpecialistTool(payload.ToolName) && payload.Status == "succeeded" {
+			result, err := DecodeCopilotSpecialistResult(payload.Result, payload.ToolName)
+			if err != nil {
+				return err
+			}
+			specialistResult, err := ProjectCopilotSpecialistResult(result, payload.ToolName)
+			if err != nil {
+				return err
+			}
+			publicPayload["specialistResult"] = specialistResult
+		}
+		public, _ := json.Marshal(publicPayload)
 		return s.appendFrameEvent(run, models.CopilotEventToolCompleted, public)
 	case "clarification_required":
 		var payload struct {

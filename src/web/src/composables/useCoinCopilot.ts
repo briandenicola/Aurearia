@@ -16,6 +16,7 @@ import type {
   CoinCopilotEvent,
   CoinCopilotPlanItem,
   CoinCopilotRun,
+  CoinCopilotSpecialistResult,
   CoinCopilotThread,
   CoinCopilotToolCompletedEvent,
 } from '@/types'
@@ -37,6 +38,7 @@ export type CoinCopilotToolProgress = {
   durationMs?: number
   resultSummary?: string
   truncated?: boolean
+  specialistResult?: CoinCopilotSpecialistResult
 }
 
 export type CoinCopilotStartResult =
@@ -193,6 +195,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
       durationMs: event.payload.durationMs,
       resultSummary: event.payload.resultSummary,
       truncated: event.payload.truncated,
+      specialistResult: event.payload.specialistResult,
     })
     tools.value = next
   }

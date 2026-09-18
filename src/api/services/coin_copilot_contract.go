@@ -1,11 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"regexp"
@@ -454,6 +456,9 @@ func validateCopilotSpecialistEvidence(item CopilotSpecialistEvidence, expectedK
 		}
 		seenFields[provenance.Field] = true
 	}
+	if !seenFields["title"] {
+		return false
+	}
 	if expectedKind == "similar_lot" {
 		return item.SimilarityScore >= 0 && item.SimilarityScore <= 1 &&
 			len(item.MatchedAttributes) >= 1 &&
@@ -461,6 +466,36 @@ func validateCopilotSpecialistEvidence(item CopilotSpecialistEvidence, expectedK
 			validateBoundedSpecialistStrings(item.MaterialDifferences, 20, 200)
 	}
 	return len(item.MatchedAttributes) == 0 && len(item.MaterialDifferences) == 0
+}
+
+func validCopilotSpecialistSource(capability string, item CopilotSpecialistEvidence) bool {
+	parsed, err := url.Parse(item.SourceURL)
+	if err != nil {
+		return false
+	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	hostMatches := func(allowed string) bool {
+		return host == allowed || strings.HasSuffix(host, "."+allowed)
+	}
+	switch capability {
+	case "market_search":
+		if item.Provider != "cng_dealer_search" {
+			return false
+		}
+		for _, allowed := range []string{
+			"biddr.com", "catawiki.com", "cngcoins.com", "forumancientcoins.com",
+			"hjbltd.com", "ma-shops.com", "vcoins.com",
+		} {
+			if hostMatches(allowed) {
+				return true
+			}
+		}
+		return false
+	case "auction_search", "price_trends", "similar_lots":
+		return item.Provider == "numisbids" && hostMatches("numisbids.com")
+	default:
+		return false
+	}
 }
 
 func validateCopilotPriceTrend(trend *CopilotPriceTrend, items []CopilotSpecialistEvidence) bool {
@@ -545,7 +580,8 @@ func ValidateCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapa
 		return ErrInvalidCopilotFrame
 	}
 	for _, item := range result.Items {
-		if !validateCopilotSpecialistEvidence(item, expectedKind) {
+		if !validateCopilotSpecialistEvidence(item, expectedKind) ||
+			!validCopilotSpecialistSource(result.Capability, item) {
 			return ErrInvalidCopilotFrame
 		}
 	}
@@ -566,6 +602,123 @@ func ValidateCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapa
 		return ErrInvalidCopilotFrame
 	}
 	return nil
+}
+
+func isCoinCopilotSpecialistTool(toolName string) bool {
+	switch toolName {
+	case "market_search", "auction_search", "price_trends", "similar_lots":
+		return true
+	default:
+		return false
+	}
+}
+
+func DecodeCopilotSpecialistResult(raw json.RawMessage, invokedCapability string) (CopilotSpecialistResult, error) {
+	var result CopilotSpecialistResult
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return result, ErrInvalidCopilotFrame
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return result, ErrInvalidCopilotFrame
+	}
+	if err := ValidateCopilotSpecialistResult(result, invokedCapability); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func ProjectCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapability string) (CopilotSpecialistPublicResult, error) {
+	if err := ValidateCopilotSpecialistResult(result, invokedCapability); err != nil {
+		return CopilotSpecialistPublicResult{}, err
+	}
+	public := CopilotSpecialistPublicResult{
+		Capability: result.Capability,
+		Outcome:    result.Outcome,
+		Items:      make([]CopilotSpecialistPublicEvidence, 0, len(result.Items)),
+		Warnings:   sanitizeSpecialistStrings(result.Warnings, 500),
+		Truncation: CopilotSpecialistPublicTruncation{
+			Truncated: result.Truncation.Truncated, OriginalBytes: result.Truncation.OriginalBytes,
+			PersistedBytes: result.Truncation.PersistedBytes, Digest: result.Truncation.Digest,
+			OmittedItems: result.Truncation.OmittedItems,
+		},
+	}
+	for _, item := range result.Items {
+		proven := make(map[string]bool, len(item.Provenance))
+		for _, provenance := range item.Provenance {
+			proven[provenance.Field] = true
+		}
+		projected := CopilotSpecialistPublicEvidence{
+			Kind: item.Kind, Title: SanitizeCopilotText(item.Title, 300),
+			SourceURL: item.SourceURL, ObservedAt: item.ObservedAt,
+			Confidence: item.Confidence, VerificationState: item.VerificationState,
+			Facts: []string{}, MatchedAttributes: sanitizeSpecialistStrings(item.MatchedAttributes, 200),
+			MaterialDifferences: sanitizeSpecialistStrings(item.MaterialDifferences, 200),
+		}
+		addSpecialistFact := func(field, label, value string) {
+			if proven[field] && value != "" {
+				projected.Facts = append(projected.Facts, label+": "+SanitizeCopilotText(value, 300))
+			}
+		}
+		addSpecialistFact("dealer_name", "Dealer", pointerString(item.DealerName))
+		if proven["listed_price"] && item.ListedPrice != nil {
+			addSpecialistFact("listed_price", "Price", specialistMoney(item.Currency, *item.ListedPrice))
+		}
+		addSpecialistFact("availability", "Availability", pointerString(item.Availability))
+		addSpecialistFact("auction_house", "Auction house", pointerString(item.AuctionHouse))
+		addSpecialistFact("sale_name", "Sale", pointerString(item.SaleName))
+		addSpecialistFact("lot_number", "Lot", pointerString(item.LotNumber))
+		addSpecialistFact("sale_date", "Sale date", pointerString(item.SaleDate))
+		if proven["estimate"] && item.Estimate != nil {
+			addSpecialistFact("estimate", "Estimate", specialistMoney(item.Currency, *item.Estimate))
+		}
+		if proven["current_bid"] && item.CurrentBid != nil {
+			addSpecialistFact("current_bid", "Current bid", specialistMoney(item.Currency, *item.CurrentBid))
+		}
+		addSpecialistFact("lot_status", "Lot status", pointerString(item.LotStatus))
+		addSpecialistFact("ruler", "Ruler", pointerString(item.Ruler))
+		addSpecialistFact("denomination", "Denomination", pointerString(item.Denomination))
+		addSpecialistFact("era", "Era", pointerString(item.Era))
+		addSpecialistFact("material", "Material", pointerString(item.Material))
+		public.Items = append(public.Items, projected)
+	}
+	if result.Trend != nil {
+		public.Trend = &CopilotSpecialistPublicTrend{
+			State: result.Trend.State, SampleSize: result.Trend.SampleSize,
+			DateFrom: result.Trend.DateFrom, DateTo: result.Trend.DateTo,
+			Currency: result.Trend.Currency, PriceBasis: result.Trend.PriceBasis,
+			Low: result.Trend.Low, Median: result.Trend.Median, High: result.Trend.High,
+			Confidence:          result.Trend.Confidence,
+			Limitations:         sanitizeSpecialistStrings(result.Trend.Limitations, 500),
+			SupportingSourceIDs: append([]string(nil), result.Trend.SupportingSourceIDs...),
+		}
+	}
+	return public, nil
+}
+
+func pointerString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func specialistMoney(currency *string, amount float64) string {
+	value := fmt.Sprintf("%.2f", amount)
+	value = strings.TrimSuffix(strings.TrimSuffix(value, "0"), ".")
+	if currency == nil || *currency == "" {
+		return value
+	}
+	return *currency + " " + value
+}
+
+func sanitizeSpecialistStrings(values []string, maximum int) []string {
+	sanitized := make([]string, len(values))
+	for i, value := range values {
+		sanitized[i] = SanitizeCopilotText(value, maximum)
+	}
+	return sanitized
 }
 
 func ValidateCopilotCheckpoint(state CopilotCheckpointState, run *models.CoinCopilotRun) error {

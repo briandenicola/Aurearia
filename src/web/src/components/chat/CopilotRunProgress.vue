@@ -24,15 +24,62 @@
     </ol>
 
     <div v-if="tools.length" class="mt-3 flex flex-col gap-2 border-t border-border-subtle pt-3">
-      <div v-for="tool in tools" :key="tool.toolCallId" class="flex items-start gap-2 text-sm text-text-secondary">
-        <LoaderCircle v-if="tool.status === 'running'" :size="15" class="mt-0.5 shrink-0 animate-spin text-gold" />
-        <CheckCircle2 v-else-if="tool.status === 'succeeded'" :size="15" class="mt-0.5 shrink-0 text-gold" />
-        <CircleX v-else :size="15" class="mt-0.5 shrink-0 text-[var(--color-negative)]" />
-        <span>
-          <strong class="font-medium text-text-primary">{{ toolLabel(tool.toolName) }}</strong>
-          <span v-if="tool.resultSummary"> — {{ tool.resultSummary }}</span>
-          <span v-if="tool.truncated" class="text-text-muted"> Result details were shortened.</span>
-        </span>
+      <div v-for="tool in tools" :key="tool.toolCallId" class="flex flex-col gap-2 text-sm text-text-secondary">
+        <div class="flex items-start gap-2">
+          <LoaderCircle v-if="tool.status === 'running'" :size="15" class="mt-0.5 shrink-0 animate-spin text-gold" />
+          <CheckCircle2 v-else-if="tool.status === 'succeeded'" :size="15" class="mt-0.5 shrink-0 text-gold" />
+          <CircleX v-else :size="15" class="mt-0.5 shrink-0 text-[var(--color-negative)]" />
+          <span>
+            <strong class="font-medium text-text-primary">{{ toolLabel(tool.toolName) }}</strong>
+            <span v-if="tool.resultSummary"> — {{ tool.resultSummary }}</span>
+            <span v-if="tool.truncated" class="text-text-muted"> Result details were shortened.</span>
+          </span>
+        </div>
+
+        <section
+          v-if="tool.specialistResult"
+          class="ml-6 flex flex-col gap-2 rounded-sm border border-border-subtle bg-input p-3"
+          :aria-label="`${toolLabel(tool.toolName)} evidence`"
+          data-testid="copilot-specialist-result"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="section-label mb-0">Source evidence</span>
+            <span class="chip-sm">{{ outcomeLabel(tool.specialistResult.outcome) }}</span>
+          </div>
+
+          <article
+            v-for="item in tool.specialistResult.items"
+            :key="item.sourceUrl"
+            class="flex flex-col gap-2 border-t border-border-subtle pt-2"
+          >
+            <a
+              :href="item.sourceUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="font-medium text-gold"
+            >
+              {{ item.title }}
+            </a>
+            <p class="mb-0 text-xs text-text-muted">
+              Observed {{ formatObservedAt(item.observedAt) }} ·
+              {{ titleCase(item.confidence) }} confidence ·
+              {{ titleCase(item.verificationState) }}
+            </p>
+            <ul v-if="item.facts.length" class="mb-0 flex list-none flex-col gap-1 p-0 text-xs">
+              <li v-for="fact in item.facts" :key="fact">{{ fact }}</li>
+            </ul>
+          </article>
+
+          <p v-if="tool.specialistResult.outcome === 'no_match'" class="mb-0 text-text-secondary">
+            No matching evidence was found in the checked sources.
+          </p>
+          <p v-else-if="tool.specialistResult.outcome === 'unavailable'" class="mb-0 text-text-secondary">
+            Sources unavailable. Try again later.
+          </p>
+          <ul v-if="tool.specialistResult.warnings.length" class="mb-0 flex list-none flex-col gap-1 p-0 text-xs text-text-muted">
+            <li v-for="warning in tool.specialistResult.warnings" :key="warning">{{ warning }}</li>
+          </ul>
+        </section>
       </div>
     </div>
 
@@ -91,5 +138,26 @@ function toolLabel(name: string) {
     .split('_')
     .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : part)
     .join(' ')
+}
+
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1).replaceAll('_', ' ')
+}
+
+function outcomeLabel(outcome: 'complete' | 'partial' | 'no_match' | 'unavailable') {
+  switch (outcome) {
+    case 'complete': return 'Complete'
+    case 'partial': return 'Partial'
+    case 'no_match': return 'No matching evidence'
+    case 'unavailable': return 'Sources unavailable'
+  }
+}
+
+function formatObservedAt(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(value))
 }
 </script>
