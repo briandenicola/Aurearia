@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  FEATURE362_GUARD_COMMIT: 4119693ba1a3a2652f1e5253df2fe19154494a3d
+  FEATURE362_GUARD_COMMIT: 0910bc7b86e6d5a567c62f8b25000c64fca493a2
 
 jobs:
   guard-release:

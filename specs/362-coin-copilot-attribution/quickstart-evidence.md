@@ -8,7 +8,7 @@
   any Feature 362 schema, source value, callback, or row-producing work.
 - `CoinCopilotAttributionEnabled` exists and defaults to `false`.
 - Minimum compatibility-guard commit:
-  `4119693ba1a3a2652f1e5253df2fe19154494a3d`.
+  `0910bc7b86e6d5a567c62f8b25000c64fca493a2`.
 
 ## Local guard evidence
 
