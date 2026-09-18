@@ -60,10 +60,7 @@ services:
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_ORIGIN: http://localhost
     ports:
-      - name: web
-        target: 8080
-        host_ip: 127.0.0.1
-        protocol: tcp
+      - "127.0.0.1::8080"
     volumes:
       - exploration-db:/app/data
       - exploration-uploads:/app/uploads

@@ -304,3 +304,9 @@ project resource assertion still passed. The configuration now omits
 `published` so Compose selects an ephemeral port and supplies non-sensitive
 cleanup-only interpolation values to the outer teardown; runtime acceptance
 remains pending the corrected hosted rerun.
+
+The second hosted run, Actions run `35351151858`, proved the outer teardown and
+resource assertion pass, but Docker Compose still created no host binding when
+the long port syntax omitted `published`. The stack now uses Compose's
+documented short random-port form, `127.0.0.1::8080`; the isolation guard
+accepts only that exact string or an equivalent resolved long form.

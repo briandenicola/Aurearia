@@ -130,8 +130,10 @@ export function assertComposeIsolation(value: unknown, origin: string, project: 
     }
   }
   const appPort = services.app?.ports?.[0]
-  if (!appPort || typeof appPort === 'string') throw new Error('App must declare structured loopback random port')
-  if (appPort.host_ip !== '127.0.0.1' || ![0, '0', undefined].includes(appPort.published)) {
+  if (!appPort) throw new Error('App must declare a loopback random port')
+  if (typeof appPort === 'string') {
+    if (appPort !== '127.0.0.1::8080') throw new Error('App port must be loopback-only and OS-assigned')
+  } else if (appPort.host_ip !== '127.0.0.1' || ![0, '0', '', undefined].includes(appPort.published)) {
     throw new Error('App port must be loopback-only and OS-assigned')
   }
   for (const [name, volume] of Object.entries(compose.volumes ?? {})) {

@@ -6,7 +6,7 @@ const safe = {
   services: {
     app: {
       build: '.',
-      ports: [{ host_ip: '127.0.0.1', target: 8080 }],
+      ports: ['127.0.0.1::8080'],
       volumes: ['db:/app/data', 'uploads:/app/uploads'],
       networks: ['internal'],
     },
@@ -33,7 +33,7 @@ describe('Compose isolation guards', () => {
   }
   it.each([
     ['non-loopback origin', { origin: 'https://beta.example.com' }],
-    ['fixed public port', { mutate: (v) => { v.services.app.ports[0] = { published: 8080, target: 8080 } } }],
+    ['fixed public port', { mutate: (v) => { v.services.app.ports[0] = '0.0.0.0:8080:8080' } }],
     ['remote image', { mutate: (v) => { Object.assign(v.services.app, { image: 'registry/app:latest', build: undefined }) } }],
     ['agent host exposure', { mutate: (v) => { Object.assign(v.services.agent, { ports: ['8081:8081'] }) } }],
     ['external database path', { mutate: (v) => { v.services.app.volumes = ['C:/prod/data:/app/data'] } }],
