@@ -289,7 +289,7 @@ func (s *SettingsService) GetCoinCopilotSettings() CoinCopilotSettings {
 			return fallback
 		}
 	}
-	timeoutSeconds := readInt(SettingCoinCopilotHardTimeoutSeconds, 120, 15, 600)
+	timeoutSeconds := readInt(SettingCoinCopilotHardTimeoutSeconds, 120, 15, int(coinCopilotMaxExecutionTimeout.Seconds()))
 	eventHours := readInt(SettingCoinCopilotEventRetentionHours, 168, 1, 720)
 	checkpointDays := readInt(SettingCoinCopilotCheckpointRetentionDays, 30, 1, 365)
 	resumeHours := readInt(SettingCoinCopilotResumeWindowHours, 168, 1, 720)

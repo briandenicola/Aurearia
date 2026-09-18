@@ -89,7 +89,7 @@ func (s *CoinCopilotService) runExecution(parent context.Context, run *models.Co
 		s.failExecution(run, "model_tool_calling_unsupported", "The configured model is unavailable.")
 		return
 	}
-	tokenTTL := timeout + coinCopilotExecutionTokenBuffer
+	tokenTTL := coinCopilotExecutionTokenTTL(ctx, time.Now().UTC())
 	token, err := s.tokenSvc.MintForCopilotExecution(run.UserID, run.ID, run.ExecutionID, CoinCopilotAllowedTools, tokenTTL)
 	if err != nil {
 		s.failExecution(run, "internal", "Coin Copilot could not authorize this execution.")
@@ -143,6 +143,14 @@ func (s *CoinCopilotService) runExecution(parent context.Context, run *models.Co
 		message = "Coin Copilot returned an invalid execution frame."
 	}
 	s.failExecution(fresh, code, message)
+}
+
+func coinCopilotExecutionTokenTTL(ctx context.Context, now time.Time) time.Duration {
+	remaining := time.Duration(0)
+	if deadline, ok := ctx.Deadline(); ok {
+		remaining = deadline.Sub(now)
+	}
+	return min(remaining+coinCopilotExecutionTokenBuffer, coinCopilotExecutionTokenMaxTTL)
 }
 
 func (s *CoinCopilotService) executionRequest(run *models.CoinCopilotRun, llm LLMConfig, token string, limits CopilotLimitsProxy) (CopilotExecuteProxyRequest, error) {

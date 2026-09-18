@@ -211,3 +211,50 @@ func TestCoinCopilotWorkerHeartbeatsAndLeavesShutdownForRecovery(t *testing.T) {
 		t.Fatalf("shutdown status = %q, want running for stale recovery", stored.Status)
 	}
 }
+
+func TestCoinCopilotExecutionTokenTTLUsesRemainingBudgetAndAbsoluteCap(t *testing.T) {
+	now := time.Date(2026, 9, 17, 20, 0, 0, 0, time.UTC)
+	ctx, cancel := context.WithDeadline(context.Background(), now.Add(100*time.Second))
+	defer cancel()
+	if got := coinCopilotExecutionTokenTTL(ctx, now); got != 130*time.Second {
+		t.Fatalf("remaining-budget TTL = %v, want 130s", got)
+	}
+	ctx, cancel = context.WithDeadline(context.Background(), now.Add(200*time.Second))
+	defer cancel()
+	if got := coinCopilotExecutionTokenTTL(ctx, now); got != 180*time.Second {
+		t.Fatalf("capped TTL = %v, want 180s", got)
+	}
+}
+
+func TestCoinCopilotWorkerStartupRecoversStaleCancellationAndReleasesCapacity(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	repo := repository.NewCoinCopilotRepository(db)
+	thread := &models.CoinCopilotThread{ID: "cct_startup_cancel", UserID: 23, Title: "Startup cancel"}
+	oldHeartbeat := time.Now().UTC().Add(-time.Minute)
+	run := &models.CoinCopilotRun{
+		ID: "ccr_startup_cancel", ThreadID: thread.ID, UserID: thread.UserID, Status: models.CopilotRunCancelRequested,
+		Goal: "Cancel at startup", StartIdempotencyKeyHash: "startup-cancel-key", StartRequestFingerprint: "fingerprint",
+		ExecutionID: "cce_startup_cancel", HeartbeatAt: &oldHeartbeat,
+		MaxIterations: 8, MaxToolCalls: 12, MaxConcurrentTools: 1,
+		HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+	}
+	if err := repo.CreateRun(thread, run); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	service.StartWorkers(ctx)
+	stored, err := repo.GetRun(run.ID, run.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != models.CopilotRunCancelled {
+		t.Fatalf("startup recovery status = %q, want cancelled", stored.Status)
+	}
+	next, _, err := service.Start(run.UserID, CoinCopilotStartInput{
+		Goal: "Capacity after cancellation recovery", IdempotencyKey: "after-startup-recovery",
+	})
+	if err != nil || next == nil {
+		t.Fatalf("start after recovery run=%#v err=%v", next, err)
+	}
+}

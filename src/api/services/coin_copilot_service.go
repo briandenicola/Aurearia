@@ -136,20 +136,6 @@ func (s *CoinCopilotService) Start(userID uint, input CoinCopilotStartInput) (*m
 	if !repository.IsRecordNotFound(err) {
 		return nil, false, err
 	}
-	active, err := s.repo.CountActiveRuns(userID)
-	if err != nil {
-		return nil, false, err
-	}
-	if active >= int64(settings.MaxActivePerUser) {
-		return nil, false, ErrCopilotCapacity
-	}
-	queued, err := s.repo.CountQueuedRuns()
-	if err != nil {
-		return nil, false, err
-	}
-	if queued >= int64(settings.QueueDepth) {
-		return nil, false, ErrCopilotQueueFull
-	}
 	thread := &models.CoinCopilotThread{UserID: userID}
 	if input.ThreadID == "" {
 		thread.ID = newCopilotID("cct_")
@@ -172,17 +158,21 @@ func (s *CoinCopilotService) Start(userID uint, input CoinCopilotStartInput) (*m
 		MaxConcurrentTools: 1, HardTimeoutSeconds: int(settings.HardTimeout.Seconds()),
 		MaxPersistedToolResultBytes: settings.MaxPersistedToolResultBytes,
 	}
-	if err := s.repo.CreateRun(thread, run); err != nil {
-		if replay, lookupErr := s.repo.FindRunByStartKey(userID, keyHash); lookupErr == nil {
-			if replay.StartRequestFingerprint != fingerprint {
-				return nil, false, ErrCopilotIdempotencyConflict
-			}
-			return replay, true, nil
-		}
+	admitted, reused, err := s.repo.AdmitRun(thread, run, settings.MaxActivePerUser, settings.QueueDepth)
+	switch {
+	case errors.Is(err, repository.ErrCopilotStartKeyConflict):
+		return nil, false, ErrCopilotIdempotencyConflict
+	case errors.Is(err, repository.ErrCopilotOwnerCapacity):
+		return nil, false, ErrCopilotCapacity
+	case errors.Is(err, repository.ErrCopilotQueueCapacity):
+		return nil, false, ErrCopilotQueueFull
+	case err != nil:
 		return nil, false, err
+	case reused:
+		return admitted, true, nil
 	}
 	s.notifyWorkers()
-	return run, false, nil
+	return admitted, false, nil
 }
 
 func (s *CoinCopilotService) GetRun(userID uint, runID string) (*models.CoinCopilotRun, error) {

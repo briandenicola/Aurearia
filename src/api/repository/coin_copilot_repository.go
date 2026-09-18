@@ -12,6 +12,9 @@ import (
 var (
 	ErrCopilotTransitionConflict = errors.New("coin copilot transition conflict")
 	ErrCopilotThreadActive       = errors.New("coin copilot thread has an active run")
+	ErrCopilotOwnerCapacity      = errors.New("coin copilot owner capacity reached")
+	ErrCopilotQueueCapacity      = errors.New("coin copilot queue capacity reached")
+	ErrCopilotStartKeyConflict   = errors.New("coin copilot start key conflict")
 )
 
 type CoinCopilotRepository struct {
@@ -24,28 +27,94 @@ func NewCoinCopilotRepository(db *gorm.DB) *CoinCopilotRepository {
 
 func (r *CoinCopilotRepository) CreateRun(thread *models.CoinCopilotThread, run *models.CoinCopilotRun) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if thread.CreatedAt.IsZero() {
-			if err := tx.Create(thread).Error; err != nil {
-				return err
-			}
-		} else {
-			var owned models.CoinCopilotThread
-			if err := tx.Where("id = ? AND user_id = ?", thread.ID, thread.UserID).First(&owned).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Model(&models.CoinCopilotRun{}).
-			Where("user_id = ? AND start_idempotency_key_hash = ? AND created_at < ?", run.UserID, run.StartIdempotencyKeyHash, time.Now().UTC().Add(-24*time.Hour)).
-			Update("start_idempotency_key_hash", gorm.Expr("id")).Error; err != nil {
+		if err := expireCopilotStartKey(tx, run.UserID, run.StartIdempotencyKeyHash, time.Now().UTC()); err != nil {
 			return err
 		}
-		if err := tx.Create(run).Error; err != nil {
-			return err
-		}
-		return tx.Model(&models.CoinCopilotThread{}).
-			Where("id = ? AND user_id = ?", thread.ID, thread.UserID).
-			Updates(map[string]interface{}{"last_run_id": run.ID, "updated_at": time.Now().UTC()}).Error
+		return createCopilotRun(tx, thread, run)
 	})
+}
+
+// AdmitRun relies on the production SQLite _txlock=immediate DSN so the
+// capacity reads and run insert execute under one serialized write transaction.
+func (r *CoinCopilotRepository) AdmitRun(thread *models.CoinCopilotThread, run *models.CoinCopilotRun, maxActivePerUser, queueDepth int) (*models.CoinCopilotRun, bool, error) {
+	var admitted *models.CoinCopilotRun
+	reused := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		now := time.Now().UTC()
+		if err := expireCopilotStartKey(tx, run.UserID, run.StartIdempotencyKeyHash, now); err != nil {
+			return err
+		}
+		var existing models.CoinCopilotRun
+		err := tx.Where("user_id = ? AND start_idempotency_key_hash = ? AND created_at >= ?",
+			run.UserID, run.StartIdempotencyKeyHash, now.Add(-24*time.Hour)).First(&existing).Error
+		switch {
+		case err == nil:
+			if existing.StartRequestFingerprint != run.StartRequestFingerprint {
+				return ErrCopilotStartKeyConflict
+			}
+			admitted = &existing
+			reused = true
+			return nil
+		case !errors.Is(err, gorm.ErrRecordNotFound):
+			return err
+		}
+
+		var active int64
+		if err := tx.Model(&models.CoinCopilotRun{}).
+			Where("user_id = ? AND status IN ?", run.UserID, copilotActiveStatuses()).
+			Count(&active).Error; err != nil {
+			return err
+		}
+		if active >= int64(maxActivePerUser) {
+			return ErrCopilotOwnerCapacity
+		}
+		var queued int64
+		if err := tx.Model(&models.CoinCopilotRun{}).
+			Where("status = ?", models.CopilotRunQueued).
+			Count(&queued).Error; err != nil {
+			return err
+		}
+		if queued >= int64(queueDepth) {
+			return ErrCopilotQueueCapacity
+		}
+		if err := createCopilotRun(tx, thread, run); err != nil {
+			return err
+		}
+		admitted = run
+		return nil
+	})
+	return admitted, reused, err
+}
+
+func createCopilotRun(tx *gorm.DB, thread *models.CoinCopilotThread, run *models.CoinCopilotRun) error {
+	if thread.CreatedAt.IsZero() {
+		if err := tx.Create(thread).Error; err != nil {
+			return err
+		}
+	} else {
+		var owned models.CoinCopilotThread
+		if err := tx.Where("id = ? AND user_id = ?", thread.ID, thread.UserID).First(&owned).Error; err != nil {
+			return err
+		}
+	}
+	if err := tx.Create(run).Error; err != nil {
+		return err
+	}
+	return tx.Model(&models.CoinCopilotThread{}).
+		Where("id = ? AND user_id = ?", thread.ID, thread.UserID).
+		Updates(map[string]interface{}{"last_run_id": run.ID, "updated_at": time.Now().UTC()}).Error
+}
+
+func expireCopilotStartKey(tx *gorm.DB, userID uint, keyHash string, now time.Time) error {
+	return tx.Model(&models.CoinCopilotRun{}).
+		Where("user_id = ? AND start_idempotency_key_hash = ? AND created_at < ?", userID, keyHash, now.Add(-24*time.Hour)).
+		Update("start_idempotency_key_hash", gorm.Expr("id")).Error
+}
+
+func copilotActiveStatuses() []models.CopilotRunStatus {
+	return []models.CopilotRunStatus{
+		models.CopilotRunQueued, models.CopilotRunRunning, models.CopilotRunPaused, models.CopilotRunCancelRequested,
+	}
 }
 
 func (r *CoinCopilotRepository) FindRunByStartKey(userID uint, keyHash string) (*models.CoinCopilotRun, error) {
@@ -92,9 +161,7 @@ func (r *CoinCopilotRepository) ListSettledRunsForHistory(threadID, currentRunID
 func (r *CoinCopilotRepository) CountActiveRuns(userID uint) (int64, error) {
 	var count int64
 	err := r.db.Model(&models.CoinCopilotRun{}).
-		Where("user_id = ? AND status IN ?", userID, []models.CopilotRunStatus{
-			models.CopilotRunQueued, models.CopilotRunRunning, models.CopilotRunPaused, models.CopilotRunCancelRequested,
-		}).Count(&count).Error
+		Where("user_id = ? AND status IN ?", userID, copilotActiveStatuses()).Count(&count).Error
 	return count, err
 }
 
@@ -115,11 +182,15 @@ func (r *CoinCopilotRepository) ClaimNextQueuedRun(workerID, executionID string)
 			return err
 		}
 		now := time.Now().UTC()
+		claimedExecutionID := run.ExecutionID
+		if claimedExecutionID == "" {
+			claimedExecutionID = executionID
+		}
 		result := tx.Model(&models.CoinCopilotRun{}).
 			Where("id = ? AND status = ?", run.ID, models.CopilotRunQueued).
 			Updates(map[string]interface{}{
 				"status":               models.CopilotRunRunning,
-				"execution_id":         executionID,
+				"execution_id":         claimedExecutionID,
 				"execution_attempt":    gorm.Expr("execution_attempt + 1"),
 				"worker_id":            workerID,
 				"heartbeat_at":         now,
@@ -455,11 +526,25 @@ func (r *CoinCopilotRepository) DeleteThread(threadID string, userID uint) error
 
 func (r *CoinCopilotRepository) RecoverStale(staleBefore time.Time, resumeWindow time.Duration) ([]string, error) {
 	var runs []models.CoinCopilotRun
-	if err := r.db.Where("status = ? AND (heartbeat_at IS NULL OR heartbeat_at < ?)", models.CopilotRunRunning, staleBefore).Find(&runs).Error; err != nil {
+	if err := r.db.Where("status IN ? AND (heartbeat_at IS NULL OR heartbeat_at < ?)",
+		[]models.CopilotRunStatus{models.CopilotRunRunning, models.CopilotRunCancelRequested}, staleBefore).Find(&runs).Error; err != nil {
 		return nil, err
 	}
 	recovered := make([]string, 0, len(runs))
 	for _, run := range runs {
+		if run.Status == models.CopilotRunCancelRequested {
+			won, _, err := r.TransitionWithEvent(run.ID, run.UserID, run.ExecutionID,
+				[]models.CopilotRunStatus{models.CopilotRunCancelRequested}, models.CopilotRunCancelled,
+				map[string]interface{}{"worker_id": "", "heartbeat_at": nil},
+				models.CopilotEventRunCancelled, `{"reason":"owner_cancelled"}`)
+			if err != nil {
+				return nil, err
+			}
+			if won {
+				recovered = append(recovered, run.ID)
+			}
+			continue
+		}
 		if run.CheckpointVersion > 0 {
 			now := time.Now().UTC()
 			deadline := now.Add(resumeWindow)

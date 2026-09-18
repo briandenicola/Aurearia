@@ -91,6 +91,39 @@ func TestCoinCopilotRepositoryHistoryIsOwnerScopedAndBounded(t *testing.T) {
 	}
 }
 
+func TestCoinCopilotRepositoryClaimPreservesResumeExecutionID(t *testing.T) {
+	_, repo := newCopilotRepositoryTestDB(t)
+	run := seedCopilotRun(t, repo, 7, models.CopilotRunQueued)
+	run.ExecutionID = "cce_resume"
+	if err := repo.db.Model(&models.CoinCopilotRun{}).Where("id = ?", run.ID).
+		Update("execution_id", run.ExecutionID).Error; err != nil {
+		t.Fatal(err)
+	}
+	claimed, ok, err := repo.ClaimNextQueuedRun("worker", "cce_worker_generated")
+	if err != nil || !ok {
+		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if claimed.ExecutionID != "cce_resume" {
+		t.Fatalf("claimed execution ID = %q, want resume identity", claimed.ExecutionID)
+	}
+}
+
+func TestCoinCopilotRepositoryClaimAssignsInitialExecutionID(t *testing.T) {
+	db, repo := newCopilotRepositoryTestDB(t)
+	run := seedCopilotRun(t, repo, 7, models.CopilotRunQueued)
+	if err := db.Model(&models.CoinCopilotRun{}).Where("id = ?", run.ID).
+		Update("execution_id", "").Error; err != nil {
+		t.Fatal(err)
+	}
+	claimed, ok, err := repo.ClaimNextQueuedRun("worker", "cce_initial")
+	if err != nil || !ok {
+		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if claimed.ExecutionID != "cce_initial" {
+		t.Fatalf("claimed execution ID = %q, want generated initial identity", claimed.ExecutionID)
+	}
+}
+
 func TestCoinCopilotRepositoryEventSequenceAndTerminalUniqueness(t *testing.T) {
 	db, repo := newCopilotRepositoryTestDB(t)
 	run := seedCopilotRun(t, repo, 7, models.CopilotRunRunning)

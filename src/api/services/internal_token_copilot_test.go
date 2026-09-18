@@ -41,8 +41,8 @@ func TestCopilotExecutionTokenBindingExpiryAllowlistAndRevocation(t *testing.T) 
 	if err != nil || claims.ExpiresAt != now.Add(coinCopilotExecutionTokenMaxTTL).Unix() {
 		t.Fatalf("maximum TTL claims=%#v err=%v", claims, err)
 	}
-	if _, err := service.MintForCopilotExecution(7, "ccr_1", "cce_too_long", []string{"get_coin"}, coinCopilotExecutionTokenMaxTTL+time.Second); !errors.Is(err, ErrInvalidInternalToken) {
-		t.Fatalf("over-maximum TTL accepted: %v", err)
+	if _, err := service.MintForCopilotExecution(7, "ccr_1", "cce_too_long", []string{"get_coin"}, 181*time.Second); !errors.Is(err, ErrInvalidInternalToken) {
+		t.Fatalf("181-second TTL accepted: %v", err)
 	}
 	expired, err := service.MintForCopilotExecution(7, "ccr_1", "cce_expired", []string{"get_coin"}, time.Second)
 	if err != nil {

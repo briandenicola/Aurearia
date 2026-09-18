@@ -34,8 +34,8 @@ const jobTokenHKDFInfo = "ancient-coins-api:deep-identification-job-token:v1"
 const copilotTokenHKDFInfo = "ancient-coins-api:coin-copilot-execution-token:v1"
 const (
 	coinCopilotExecutionTokenBuffer = 30 * time.Second
-	coinCopilotMaxExecutionTimeout  = 600 * time.Second
-	coinCopilotExecutionTokenMaxTTL = coinCopilotMaxExecutionTimeout + coinCopilotExecutionTokenBuffer
+	coinCopilotMaxExecutionTimeout  = 150 * time.Second
+	coinCopilotExecutionTokenMaxTTL = 180 * time.Second
 )
 
 // jobTokenRevocationRetention bounds how long a settled job's revocation

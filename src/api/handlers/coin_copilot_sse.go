@@ -84,8 +84,12 @@ func (h *CoinCopilotHandler) StreamEvents(c *gin.Context) {
 	for _, event := range replay {
 		writeEvent(event)
 	}
-	if models.IsCopilotRunTerminal(run.Status) {
-		writeEnd(run)
+	fresh, err := h.service.GetRun(userID, runID)
+	if err != nil {
+		return
+	}
+	if models.IsCopilotRunTerminal(fresh.Status) {
+		writeEnd(fresh)
 		return
 	}
 	ticker := time.NewTicker(copilotSSEPingInterval)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -17,10 +18,26 @@ import (
 
 func newCopilotServiceTest(t *testing.T) (*gorm.DB, *CoinCopilotService) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	path := fmt.Sprintf("coin_copilot_service_%d.db", time.Now().UnixNano())
+	dsn := path + "?" + models.SQLiteConcurrencyDSNParams
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(16)
+	if err := db.Exec("PRAGMA journal_mode=WAL").Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		_ = os.Remove(path)
+		_ = os.Remove(path + "-wal")
+		_ = os.Remove(path + "-shm")
+	})
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
 		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
@@ -82,6 +99,120 @@ func TestCoinCopilotQueueBackpressure(t *testing.T) {
 	}
 	if _, _, err := service.Start(8, CoinCopilotStartInput{Goal: "Second queued run", IdempotencyKey: "queue-second"}); !errors.Is(err, ErrCopilotQueueFull) {
 		t.Fatalf("queue backpressure error=%v", err)
+	}
+}
+
+func TestCoinCopilotConcurrentStartsEnforceOwnerCapacity(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	type result struct {
+		run *models.CoinCopilotRun
+		err error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		go func(i int) {
+			<-start
+			run, _, err := service.Start(7, CoinCopilotStartInput{
+				Goal: fmt.Sprintf("Concurrent owner request %d", i), IdempotencyKey: fmt.Sprintf("owner-key-%d", i),
+			})
+			results <- result{run: run, err: err}
+		}(i)
+	}
+	close(start)
+	var accepted, rejected int
+	for i := 0; i < 2; i++ {
+		outcome := <-results
+		switch {
+		case outcome.err == nil:
+			accepted++
+		case errors.Is(outcome.err, ErrCopilotCapacity):
+			rejected++
+		default:
+			t.Fatalf("unexpected concurrent owner result: run=%#v err=%v", outcome.run, outcome.err)
+		}
+	}
+	if accepted != 1 || rejected != 1 {
+		t.Fatalf("accepted=%d rejected=%d, want 1 each", accepted, rejected)
+	}
+	var count int64
+	if err := db.Model(&models.CoinCopilotRun{}).Where("user_id = ?", 7).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("owner run count=%d err=%v", count, err)
+	}
+}
+
+func TestCoinCopilotConcurrentStartsEnforceGlobalQueueDepth(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	if err := service.settingsSvc.SetSetting(SettingCoinCopilotQueueDepth, "1"); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		run *models.CoinCopilotRun
+		err error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	for i, userID := range []uint{7, 8} {
+		go func(i int, userID uint) {
+			<-start
+			run, _, err := service.Start(userID, CoinCopilotStartInput{
+				Goal: fmt.Sprintf("Concurrent queue request %d", i), IdempotencyKey: fmt.Sprintf("queue-key-%d", i),
+			})
+			results <- result{run: run, err: err}
+		}(i, userID)
+	}
+	close(start)
+	var accepted, rejected int
+	for i := 0; i < 2; i++ {
+		outcome := <-results
+		switch {
+		case outcome.err == nil:
+			accepted++
+		case errors.Is(outcome.err, ErrCopilotQueueFull):
+			rejected++
+		default:
+			t.Fatalf("unexpected concurrent queue result: run=%#v err=%v", outcome.run, outcome.err)
+		}
+	}
+	if accepted != 1 || rejected != 1 {
+		t.Fatalf("accepted=%d rejected=%d, want 1 each", accepted, rejected)
+	}
+	var count int64
+	if err := db.Model(&models.CoinCopilotRun{}).Where("status = ?", models.CopilotRunQueued).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("queued run count=%d err=%v", count, err)
+	}
+}
+
+func TestCoinCopilotConcurrentStartReplayPreservesIdempotency(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	type result struct {
+		run    *models.CoinCopilotRun
+		reused bool
+		err    error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			<-start
+			run, reused, err := service.Start(7, CoinCopilotStartInput{
+				Goal: "Same concurrent request", IdempotencyKey: "same-concurrent-key",
+			})
+			results <- result{run: run, reused: reused, err: err}
+		}()
+	}
+	close(start)
+	first := <-results
+	second := <-results
+	if first.err != nil || second.err != nil || first.run == nil || second.run == nil || first.run.ID != second.run.ID {
+		t.Fatalf("concurrent replay results: first=%#v second=%#v", first, second)
+	}
+	if first.reused == second.reused {
+		t.Fatalf("reused flags = %v,%v, want one original and one replay", first.reused, second.reused)
+	}
+	var count int64
+	if err := db.Model(&models.CoinCopilotRun{}).Where("user_id = ?", 7).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("idempotent run count=%d err=%v", count, err)
 	}
 }
 
@@ -223,14 +354,19 @@ func TestCoinCopilotResumedExecutionUsesFreshTimeoutForCallbacks(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := service.Resume(7, run.ID, CoinCopilotResumeInput{
+	resumed, _, err := service.Resume(7, run.ID, CoinCopilotResumeInput{
 		Answer: "Yes", ExpectedCheckpointVersion: 1, IdempotencyKey: "resume-timeout",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	claimed, ok, err := repo.ClaimNextQueuedRun("worker", "cce_resumed")
+	resumeExecutionID := resumed.ExecutionID
+	claimed, ok, err := repo.ClaimNextQueuedRun("worker", "cce_worker_generated")
 	if err != nil || !ok {
 		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if claimed.ExecutionID != resumeExecutionID || claimed.ExecutionID == "cce_worker_generated" {
+		t.Fatalf("claim execution ID = %q, want persisted resume ID %q", claimed.ExecutionID, resumeExecutionID)
 	}
 	if claimed.StartedAt == nil || !claimed.StartedAt.Equal(oldStart) {
 		t.Fatalf("initial started_at changed: %#v", claimed.StartedAt)
@@ -345,13 +481,14 @@ func TestCoinCopilotRecoverExpireAndPrune(t *testing.T) {
 	}
 	staleWithoutCheckpoint := create("stale_empty", models.CopilotRunRunning, "cce_stale_empty")
 	staleWithCheckpoint := create("stale_checkpoint", models.CopilotRunRunning, "cce_stale_checkpoint")
+	staleCancelRequested := create("stale_cancel_requested", models.CopilotRunCancelRequested, "cce_stale_cancel_requested")
 	state := `{"schema_version":1,"messages":[],"plan":[],"completed_tools":[],"pending_clarification":null,"next_action":"continue","counters":{"iterations":0,"tool_calls":0,"input_tokens":0,"output_tokens":0}}`
 	if _, err := repo.CommitCheckpoint(staleWithCheckpoint.ID, 7, staleWithCheckpoint.ExecutionID, state, CopilotCheckpointDigest(state)); err != nil {
 		t.Fatal(err)
 	}
 	oldHeartbeat := time.Now().UTC().Add(-time.Minute)
 	if err := db.Model(&models.CoinCopilotRun{}).
-		Where("id IN ?", []string{staleWithoutCheckpoint.ID, staleWithCheckpoint.ID}).
+		Where("id IN ?", []string{staleWithoutCheckpoint.ID, staleWithCheckpoint.ID, staleCancelRequested.ID}).
 		Update("heartbeat_at", oldHeartbeat).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +531,23 @@ func TestCoinCopilotRecoverExpireAndPrune(t *testing.T) {
 	}
 	assertStatus(staleWithoutCheckpoint.ID, models.CopilotRunFailed)
 	assertStatus(staleWithCheckpoint.ID, models.CopilotRunPaused)
+	assertStatus(staleCancelRequested.ID, models.CopilotRunCancelled)
 	assertStatus(expired.ID, models.CopilotRunFailed)
+	if err := service.RecoverAndPrune(); err != nil {
+		t.Fatal(err)
+	}
+	var cancelledEvents int64
+	if err := db.Model(&models.CoinCopilotEvent{}).
+		Where("run_id = ? AND type = ?", staleCancelRequested.ID, models.CopilotEventRunCancelled).
+		Count(&cancelledEvents).Error; err != nil {
+		t.Fatal(err)
+	}
+	if cancelledEvents != 1 {
+		t.Fatalf("cancelled event count = %d, want 1", cancelledEvents)
+	}
+	if err := service.DeleteThread(7, staleCancelRequested.ThreadID); err != nil {
+		t.Fatalf("delete recovered cancelled thread: %v", err)
+	}
 	var eventCount, checkpointCount int64
 	if err := db.Model(&models.CoinCopilotEvent{}).Where("run_id = ?", oldTerminal.ID).Count(&eventCount).Error; err != nil {
 		t.Fatal(err)
@@ -404,5 +557,52 @@ func TestCoinCopilotRecoverExpireAndPrune(t *testing.T) {
 	}
 	if eventCount != 0 || checkpointCount != 0 {
 		t.Fatalf("retained old data: events=%d checkpoints=%d", eventCount, checkpointCount)
+	}
+}
+
+func TestCoinCopilotConcurrentRecoverySettlesCancellationOnce(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	repo := repository.NewCoinCopilotRepository(db)
+	thread := &models.CoinCopilotThread{ID: "cct_recovery_race", UserID: 17, Title: "Recovery race"}
+	oldHeartbeat := time.Now().UTC().Add(-time.Minute)
+	run := &models.CoinCopilotRun{
+		ID: "ccr_recovery_race", ThreadID: thread.ID, UserID: thread.UserID, Status: models.CopilotRunCancelRequested,
+		Goal: "Cancel me", StartIdempotencyKeyHash: "recovery-race-key", StartRequestFingerprint: "fingerprint",
+		ExecutionID: "cce_recovery_race", HeartbeatAt: &oldHeartbeat,
+		MaxIterations: 8, MaxToolCalls: 12, MaxConcurrentTools: 1,
+		HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+	}
+	if err := repo.CreateRun(thread, run); err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			<-start
+			errs <- service.RecoverAndPrune()
+		}()
+	}
+	close(start)
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent recovery error: %v", err)
+		}
+	}
+	stored, err := repo.GetRun(run.ID, run.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != models.CopilotRunCancelled {
+		t.Fatalf("recovered status = %q, want cancelled", stored.Status)
+	}
+	var events int64
+	if err := db.Model(&models.CoinCopilotEvent{}).
+		Where("run_id = ? AND type = ?", run.ID, models.CopilotEventRunCancelled).
+		Count(&events).Error; err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 {
+		t.Fatalf("run_cancelled events = %d, want 1", events)
 	}
 }

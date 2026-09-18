@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,17 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+type flushCallbackRecorder struct {
+	*httptest.ResponseRecorder
+	once    sync.Once
+	onFlush func()
+}
+
+func (r *flushCallbackRecorder) Flush() {
+	r.once.Do(r.onFlush)
+	r.ResponseRecorder.Flush()
+}
 
 func setupCoinCopilotHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB, *services.CoinCopilotService) {
 	t.Helper()
@@ -150,6 +162,60 @@ func TestCoinCopilotSSETerminalReplayAndSincePrecedence(t *testing.T) {
 	if recorder.Code != http.StatusOK || bytes.Contains(recorder.Body.Bytes(), []byte("run_started")) ||
 		!bytes.Contains(recorder.Body.Bytes(), []byte("run_completed")) || !bytes.Contains(recorder.Body.Bytes(), []byte("event: end")) {
 		t.Fatalf("SSE status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCoinCopilotSSESettlementBetweenInitialLoadAndReplayCloses(t *testing.T) {
+	router, db, service := setupCoinCopilotHandlerTest(t)
+	run, _, err := service.Start(7, services.CoinCopilotStartInput{Goal: "Summary", IdempotencyKey: "sse-race"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.CoinCopilotRun{}).Where("id = ?", run.ID).Updates(map[string]any{
+		"status": models.CopilotRunRunning, "execution_id": "cce_sse_race",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	repo := repository.NewCoinCopilotRepository(db)
+	if _, err := repo.AppendEvent(run.ID, 7, "cce_sse_race", models.CopilotEventRunStarted, `{"status":"running"}`); err != nil {
+		t.Fatal(err)
+	}
+
+	settleErr := make(chan error, 1)
+	recorder := &flushCallbackRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		onFlush: func() {
+			_, _, err := repo.TransitionWithEvent(
+				run.ID, 7, "cce_sse_race",
+				[]models.CopilotRunStatus{models.CopilotRunRunning},
+				models.CopilotRunCompleted,
+				map[string]interface{}{"final_answer": "done"},
+				models.CopilotEventRunCompleted,
+				`{"answer":"done"}`,
+			)
+			settleErr <- err
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/runs/"+run.ID+"/events?since=1", nil).WithContext(ctx))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("SSE stream did not close after replaying the terminal event")
+	}
+	if err := <-settleErr; err != nil {
+		t.Fatalf("settle run during initial flush: %v", err)
+	}
+	body := recorder.Body.String()
+	if recorder.Code != http.StatusOK ||
+		!bytes.Contains([]byte(body), []byte("event: run_completed")) ||
+		!bytes.Contains([]byte(body), []byte("event: end")) {
+		t.Fatalf("SSE status=%d body=%s", recorder.Code, body)
 	}
 }
 

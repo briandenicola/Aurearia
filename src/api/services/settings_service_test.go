@@ -339,12 +339,19 @@ func TestCoinCopilotSettingsDefaultsAndIndependentFallbacks(t *testing.T) {
 func TestCoinCopilotSettingsAcceptMaximumHardTimeout(t *testing.T) {
 	db := setupSettingsTestDB(t)
 	svc := NewSettingsService(repository.NewSettingsRepository(db))
-	if err := svc.SetSetting(SettingCoinCopilotHardTimeoutSeconds, "600"); err != nil {
+	if err := svc.SetSetting(SettingCoinCopilotHardTimeoutSeconds, "150"); err != nil {
 		t.Fatal(err)
 	}
 	settings := svc.GetCoinCopilotSettings()
 	if !settings.Valid || settings.HardTimeout != coinCopilotMaxExecutionTimeout {
 		t.Fatalf("maximum hard timeout settings = %#v", settings)
+	}
+	if err := svc.SetSetting(SettingCoinCopilotHardTimeoutSeconds, "151"); err != nil {
+		t.Fatal(err)
+	}
+	settings = svc.GetCoinCopilotSettings()
+	if settings.Valid || settings.HardTimeout != 120*time.Second {
+		t.Fatalf("over-maximum hard timeout settings = %#v", settings)
 	}
 }
 
