@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.llm.capabilities import CopilotCapabilityError, bind_coin_copilot_model
 from app.main import app
 from app.models.requests import COPILOT_ALLOWED_TOOLS, LLMConfig
+from app.tools.copilot_collection_tools import build_copilot_tool_definitions
 
 client = TestClient(app)
 AUTH_HEADERS = {"X-Internal-Service-Token": "test-agent-service-token"}
@@ -27,7 +28,7 @@ class _Model:
 async def test_anthropic_binds_fixed_tools_strictly(monkeypatch):
     model = _Model()
     monkeypatch.setattr("app.llm.capabilities.get_chat_model", lambda _config: model)
-    tools = [Mock(name="collection_summary")]
+    tools = build_copilot_tool_definitions()
 
     bound = await bind_coin_copilot_model(
         LLMConfig(provider="anthropic", api_key="key", model="claude-sonnet-5"),
@@ -35,7 +36,38 @@ async def test_anthropic_binds_fixed_tools_strictly(monkeypatch):
     )
 
     assert bound == "bound"
-    assert model.calls == [(tools, {"tool_choice": "auto", "strict": True})]
+    bound_tools, options = model.calls[0]
+    assert options == {"tool_choice": "auto", "strict": True}
+    assert {tool["name"] for tool in bound_tools} == set(COPILOT_ALLOWED_TOOLS)
+
+    unsupported = {
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "format",
+        "maxItems",
+        "maxLength",
+        "maxProperties",
+        "maximum",
+        "minItems",
+        "minLength",
+        "minProperties",
+        "minimum",
+        "multipleOf",
+        "pattern",
+        "uniqueItems",
+    }
+
+    def schema_keys(value):
+        if isinstance(value, dict):
+            return set(value).union(*(schema_keys(item) for item in value.values()))
+        if isinstance(value, list):
+            return set().union(*(schema_keys(item) for item in value))
+        return set()
+
+    assert all(not (schema_keys(tool["input_schema"]) & unsupported) for tool in bound_tools)
+    get_coin = next(tool for tool in bound_tools if tool["name"] == "get_coin")
+    assert get_coin["input_schema"]["properties"]["coin_id"]["type"] == "integer"
+    assert get_coin["input_schema"]["required"] == ["coin_id"]
 
 
 @pytest.mark.asyncio

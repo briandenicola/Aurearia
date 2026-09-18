@@ -1,8 +1,11 @@
 """Fail-closed model capability checks for Coin Copilot."""
 
 import logging
+from copy import deepcopy
+from typing import Any
 
 import httpx
+from langchain_anthropic.chat_models import convert_to_anthropic_tool
 
 from app.llm.provider import get_chat_model
 from app.models.requests import LLMConfig
@@ -13,6 +16,48 @@ logger = logging.getLogger(__name__)
 
 class CopilotCapabilityError(RuntimeError):
     """The configured model cannot safely run the tool-calling harness."""
+
+
+_ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
+    {
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "format",
+        "maxItems",
+        "maxLength",
+        "maxProperties",
+        "maximum",
+        "minItems",
+        "minLength",
+        "minProperties",
+        "minimum",
+        "multipleOf",
+        "pattern",
+        "uniqueItems",
+    }
+)
+
+
+def _anthropic_compatible_tools(tools: list) -> list[dict[str, Any]]:
+    """Remove unsupported JSON Schema validators from Anthropic tool inputs."""
+
+    def sanitize(value: Any) -> Any:
+        if isinstance(value, list):
+            return [sanitize(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        return {
+            key: sanitize(item)
+            for key, item in value.items()
+            if key not in _ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS
+        }
+
+    compatible = []
+    for tool in tools:
+        definition = deepcopy(convert_to_anthropic_tool(tool, strict=True))
+        definition["input_schema"] = sanitize(definition["input_schema"])
+        compatible.append(definition)
+    return compatible
 
 
 async def bind_coin_copilot_model(
@@ -53,10 +98,12 @@ async def bind_coin_copilot_model(
 
     try:
         model = get_chat_model(config)
+        provider_tools = tools
         binding_options = {"tool_choice": "auto"}
         if config.provider == "anthropic":
+            provider_tools = _anthropic_compatible_tools(tools)
             binding_options["strict"] = True
-        return model.bind_tools(tools, **binding_options)
+        return model.bind_tools(provider_tools, **binding_options)
     except Exception as exc:
         logger.warning(
             "Coin Copilot model binding failed provider=%s model=%s",
