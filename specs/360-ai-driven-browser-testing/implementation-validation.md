@@ -269,3 +269,24 @@ is unavailable. The ignored diagnostic files are under
 deletion was performed. T036, T037, and T038 are deliberately left unchecked
 until a Docker-capable host can render the resolved Compose targets, start the
 fresh stack, execute the fake-model run, inspect targets, and confirm teardown.
+
+### Docker-capable acceptance location
+
+The project owner confirmed this development machine will not have Docker.
+Runtime acceptance therefore runs in the separately named advisory
+`.github/workflows/ai-browser-exploration.yml` workflow on a GitHub-hosted
+Linux runner. The local runner remains responsible for static isolation,
+contract, type, lint, and unit checks.
+
+The CI acceptance uses a deterministic fake model and one low-budget F013
+workflow. It supplies a known unique Compose project name, runs the same CLI,
+always executes `down -v --remove-orphans`, asserts that no containers,
+networks, or volumes with the exact project label remain, and uploads evidence
+for 14 days. The workflow has only `contents: read`, is advisory, and uses
+immutable 40-character action pins.
+
+The workflow policy guard was tamper-tested by removing
+`--remove-orphans`: one of four tests failed on the exact missing cleanup
+requirement. After restoration, all four policy tests passed; the Docker
+runtime test remains skipped locally by design and must pass on GitHub before
+T036-T038 can be completed.

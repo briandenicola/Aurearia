@@ -1,0 +1,101 @@
+name: AI Browser Exploration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-browser-exploration
+  cancel-in-progress: false
+
+jobs:
+  isolated-runtime-acceptance:
+    name: Isolated runtime acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AI_BROWSER_CI_ACCEPTANCE: 'true'
+      AI_BROWSER_COMPOSE_PROJECT: ai-browser-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      AI_BROWSER_RUN_CONFIG: ${{ github.workspace }}/.tmp/ai-browser/ci-run-config.json
+      AI_BROWSER_FAKE_MODEL: 'true'
+      AI_BROWSER_TRIGGER: ${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 20.19.0
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: src/web
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: src/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Create bounded fake-model configuration
+        shell: bash
+        run: |
+          mkdir -p "$(dirname "$AI_BROWSER_RUN_CONFIG")"
+          cat > "$AI_BROWSER_RUN_CONFIG" <<JSON
+          {
+            "schemaVersion": "aurearia.browser-exploration-config/v1",
+            "trigger": "$AI_BROWSER_TRIGGER",
+            "provider": "anthropic",
+            "model": "fake-browser-explorer",
+            "workflowScope": ["login-session"],
+            "limits": {
+              "steps": 3,
+              "wallTimeSeconds": 900,
+              "modelCalls": 3,
+              "modelTokens": 1000,
+              "browserActions": 20,
+              "issueAttempts": 0
+            },
+            "createIssues": false,
+            "seededDefect": null
+          }
+          JSON
+
+      - name: Run isolated Compose acceptance
+        working-directory: src/web
+        run: node ./node_modules/vitest/vitest.mjs run e2e/exploration/__tests__/ci-runtime.test.ts
+
+      - name: Tear down exact Compose project
+        if: always()
+        shell: bash
+        run: |
+          docker compose \
+            -f docker-compose.exploration.yml \
+            -p "$AI_BROWSER_COMPOSE_PROJECT" \
+            down -v --remove-orphans
+
+      - name: Assert no project resources remain
+        if: always()
+        shell: bash
+        run: |
+          containers="$(docker ps -aq --filter "label=com.docker.compose.project=$AI_BROWSER_COMPOSE_PROJECT")"
+          volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=$AI_BROWSER_COMPOSE_PROJECT")"
+          networks="$(docker network ls -q --filter "label=com.docker.compose.project=$AI_BROWSER_COMPOSE_PROJECT")"
+          if [[ -n "$containers$volumes$networks" ]]; then
+            echo "Compose resources remain for $AI_BROWSER_COMPOSE_PROJECT" >&2
+            exit 1
+          fi
+
+      - name: Upload sanitized exploration evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ai-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/ai-browser/${{ env.AI_BROWSER_COMPOSE_PROJECT }}/
+          if-no-files-found: warn
+          retention-days: 14

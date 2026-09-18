@@ -83,6 +83,11 @@ Use lower values for a smoke run. Values above a hard maximum are rejected.
 
 ## Run locally
 
+Local Docker is optional. On development machines without Docker, run the
+static contract, isolation, and unit suites locally and use the advisory
+**AI Browser Exploration** GitHub Actions workflow as the authoritative
+ephemeral-stack runtime acceptance.
+
 From the repository root:
 
 ```powershell
@@ -162,7 +167,13 @@ results in zero issue calls. Tests always use the fake publisher.
 
 ## Manual CI
 
-Run the planned **AI Browser Exploration** workflow from GitHub Actions:
+Run the **AI Browser Exploration** workflow from GitHub Actions. Its initial
+fake-model acceptance job exercises the Docker-only Phase 3 lifecycle on a
+GitHub-hosted Linux runner, always tears down the exact Compose project, checks
+for leaked containers/networks/volumes, and uploads finite-retention evidence.
+
+As later report and publication phases land, the same workflow will expose the
+full bounded inputs:
 
 1. Choose provider and model.
 2. Choose an F013 workflow scope or the baseline scope.

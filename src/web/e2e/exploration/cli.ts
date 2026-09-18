@@ -307,7 +307,8 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const composeFile = 'docker-compose.exploration.yml'
   const compactTime = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
   const runId = `aibr_${compactTime}_${randomBytes(6).toString('hex')}`
-  const project = `ai-browser-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`
+  const project = process.env.AI_BROWSER_COMPOSE_PROJECT ??
+    `ai-browser-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`
   const env = generatedEnvironment(project)
   const budget = new BudgetGuard(config.limits)
   const artifactDir = resolve(repoRoot, '.artifacts', 'ai-browser', project)
