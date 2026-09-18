@@ -44,14 +44,15 @@ No `NEEDS CLARIFICATION` item remains.
 | Principle IV | Reuses the existing engine, job workers, proposal, write bridge, routes, and Vue review page. One capability/table/source binding is the smallest complete safe change. | PASS |
 | Principle V | Canonical execution-token owner/run/execution/tool binding, nondisclosing eligibility, atomic changed-target checks, body/result bounds, and tamper tests fail closed. | PASS |
 | Principle VI | Existing drawer and Deep page retain tokens, Lucide icons, narrow/mobile layout, 44 px controls, PWA navigation, and reconnect. | PASS |
-| Principle VIII / §21 | **ADR 0017 is required, not conditional. It must be accepted before any Feature 362 schema/row-producing implementation begins.** | GATE |
+| Principle VIII / §21 | **ADR 0017 is required, not conditional. Its acceptance gate is satisfied. Phase 0 guard evidence and the separately approved Release A deployment checkpoint remain mandatory before schema/row-producing work.** | PASS |
 | §§17/21 and Principle IX | Every local gate must pass or its equivalent hosted gate must pass; environment limitations are never waivers. Exact-path race, rollback, security, contract, and blast-radius suites are mandatory. | PASS |
 
 ### Post-design recheck
 
-Design is constitution-aligned. Implementation entry remains blocked until ADR
-0017 is accepted and the compatibility-guard phase passes. No waiver is
-requested.
+Design is constitution-aligned and the ADR 0017 acceptance gate is satisfied.
+Implementation is blocked only on passing the Phase 0 compatibility-guard
+evidence and completing the separately approved Release A deployment
+checkpoint before schema/row-producing work. No waiver is requested.
 
 ## Project Structure
 
@@ -82,6 +83,7 @@ src/api/
 ├── routes_protected.go
 ├── database/database.go
 ├── models/
+│   ├── appsetting.go
 │   ├── coin_copilot.go
 │   └── deep_identification_job.go
 ├── repository/
@@ -144,6 +146,9 @@ model, editor, or generic callback router.
 - Register only
   `CoinCopilotExecutionTokenRequired(..., "deep_analysis_handoff")` in
   `routes_internal.go`.
+- Add the default-off setting through the current
+  `models/appsetting.go` model and setting-key/default constants in
+  `services/settings_service.go`.
 
 ### Deep Analysis
 
@@ -217,12 +222,17 @@ Eligible:
 
 Closed failures:
 
-- unbound legacy `intake`, arbitrary foreign/unknown/unbound job, or unknown
-  source: `not_eligible`, no metadata;
-- previously validated binding whose coin is deleted or draft is deleted,
-  discarded, or promoted: `target_unavailable`, no target metadata;
+- unbound legacy `intake`, arbitrary foreign/unknown/unbound job, unknown
+  source, or a previously validated binding whose coin/draft was deleted or
+  whose draft was discarded/promoted: the exact canonical public body
+  `{"reason":null,"status":"not_eligible"}` with no metadata;
 - failed/cancelled/stale/expired/missing report or changed current snapshot:
   `retry_available`, never current success.
+
+All status-ineligibility causes are public-byte-equivalent after canonical
+serialization. Privacy-safe internal diagnostic codes may distinguish causes
+in protected telemetry only; they cannot change the public HTTP status, body,
+headers, timing policy, or event projection.
 
 Queued/running eligible jobs return lifecycle/link only. Pruned events do not
 invalidate a retained terminal report.
@@ -312,9 +322,13 @@ target.
    Feature 362 setting. At this point only `intake` and `saved_coin` are known.
 2. Seed `copilot_draft`/arbitrary future source through raw SQL in tests and
    prove every adoption/read/apply path rejects without mutation.
-3. Deploy that guard release everywhere and retain its build artifact.
-4. Accept ADR 0017.
-5. Deploy additive handoff/source-draft migration and code recognizing
+3. Build/archive Release A and pass the required local or hosted guard and
+   rollback evidence. CI or image publication alone is not deployment.
+4. At an explicit external/manual checkpoint, obtain separate user approval
+   to deploy Release A, deploy it everywhere, and record the deployed
+   version/commit plus verification run URLs/ids and results.
+5. Only after that recorded checkpoint, deploy additive handoff/source-draft
+   migration and code recognizing
    `copilot_draft`, still default off.
 6. Pass contract/migration/hosted mixed-binary tests, then enable.
 
@@ -333,17 +347,24 @@ Unavailable local tooling is not a waiver.
 
 ## Implementation Phases
 
-### Phase 0 — ADR and compatibility guard
+### Phase 0 — compatibility guard and Release A checkpoint
 
-- Obtain acceptance for ADR 0017.
+- Record that the ADR 0017 acceptance gate is satisfied.
 - Add tests first for unknown-source rejection across every Deep adoption/read/
   apply/worker path.
 - Implement the guard and default-off Feature 362 setting with no new source
   rows.
 - Build and archive the guard binary; pass the first half of the hosted
   rollback matrix.
+- Stop at an explicit external/manual deployment checkpoint. Deployment
+  requires separate user approval and cannot be inferred from CI success,
+  artifact creation, registry/image publication, or merge. After approval,
+  deploy Release A everywhere and record its deployed version/commit and
+  verification evidence.
 
-**Gate**: no schema/row-producing Feature 362 work until this phase passes.
+**Gate**: no schema, `source_draft_id`, `copilot_draft` recognition/row, or
+other row-producing Feature 362 work until guard evidence passes and the
+approved Release A deployment plus recorded verification is complete.
 
 ### Phase 1 — Race/idempotency tests before orchestration
 
@@ -407,7 +428,9 @@ orchestration is added.
 - Repository transaction tests: same key/same request, every changed binding,
   changed snapshot, active/terminal reuse, crash replay, exact row counts.
 - Owner/eligibility tests: foreign/unknown equality, unbound intake, unknown
-  source, deleted coin, inactive draft, pruned events.
+  source, deleted coin, inactive draft, and pruned events all prove the
+  canonical byte-equivalent `{"reason":null,"status":"not_eligible"}` public
+  body for ineligible status calls.
 - Contract tests: unknown fields/enums, user JWT vs execution token, wrong
   owner/run/execution/tool, expiry/revocation, 64 KiB boundaries, finite
   confidence, safe URLs, redaction.

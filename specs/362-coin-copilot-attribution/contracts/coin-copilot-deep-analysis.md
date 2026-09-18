@@ -100,7 +100,7 @@ server-computed target snapshot fingerprint
 
 - Same key, same binding: return the stored handoff/job result without new
   provider work.
-- Same key with changed target kind/id, requested/prior job id, app context, checkpoint
+- Same key with changed target kind/id, prior rerun job id, app context, checkpoint
   version, operation, or current target snapshot: HTTP 409
   `handoff_idempotency_conflict`; create no job.
 - A new key for an equivalent unchanged snapshot reuses the active or eligible
@@ -190,26 +190,39 @@ must be durable before worker publication.
 | `status` | eligible owner-scoped status/result |
 | `retry_available` | prior failed/cancelled/stale/missing/mismatched result |
 | `missing_images` | one or both distinct usable faces absent |
-| `target_unavailable` | previously validated binding, but coin deleted or draft no longer active |
-| `not_eligible` | unknown/foreign/unbound job or legacy unbound intake; no metadata |
+| `target_unavailable` | request/rerun target resolution failed before admission; never emitted to distinguish an ineligible status lookup |
+| `not_eligible` | every ineligible status lookup; canonical public body below |
 | `unavailable` | live admission capability/queue/capacity unavailable |
 | `cancelled` | cancellation linearized before admission |
 
-Initial unknown/foreign target resolution also returns `not_eligible`, with the
-same generic text and no target/job metadata.
+Every ineligible `status` response—unknown id, foreign-owned id, unbound job,
+legacy unbound intake, unknown source, deleted coin, or deleted/discarded/
+promoted draft—has exactly this canonical public body:
+
+```json
+{"reason":null,"status":"not_eligible"}
+```
+
+The canonical UTF-8 bytes are byte-equivalent for all such cases. No job,
+target, source, ownership, lifecycle, existence, or cause field is present.
+The HTTP status, public headers, timing policy, and event projection also
+cannot vary by cause.
 
 Allowed `reason` values are:
 
 ```text
 missing_obverse | missing_reverse | missing_both | duplicate_faces |
 target_changed | draft_inactive | source_coin_missing |
-legacy_unbound_intake | unknown_source | deep_disabled |
-copilot_disabled | attribution_disabled | model_unsupported |
+deep_disabled | copilot_disabled | attribution_disabled | model_unsupported |
 job_at_capacity | queue_full | result_missing | result_expired |
 stale | cancelled
 ```
 
-Unknown outcomes/reasons fail closed.
+`reason` is always null when `status=not_eligible`. Privacy-safe internal
+diagnostic codes such as `legacy_unbound_intake` or `unknown_source` may be
+written only to access-controlled telemetry; they are not public contract
+values and cannot influence public output. Unknown public outcomes/reasons
+fail closed.
 
 ### Deep vocabularies
 
@@ -258,9 +271,10 @@ Status/result access requires one:
    `source_draft_id`.
 
 Legacy unbound `intake` and every unknown source are not eligible. Arbitrary
-unknown/foreign/unbound job ids all return `not_eligible` with no metadata.
-Only a validated prior binding may receive `target_unavailable`, also without
-target metadata.
+unknown/foreign/unbound job ids, deleted bound coins, and deleted/discarded/
+promoted bound drafts all return the exact canonical
+`{"reason":null,"status":"not_eligible"}` body. Validated prior binding never
+changes that public ineligibility shape.
 
 ## 9. Apply matrix (existing Deep review UI only)
 
@@ -319,6 +333,11 @@ do not execute callbacks or providers again.
 
 Before any `copilot_draft` row can exist, a compatibility release must reject
 unknown source on list/get/status/stream/retry/apply/worker claim. The Feature
-362 flag is default off. Rollback targets that guard release only after
+362 flag is default off. Release A must pass guard/hosted evidence, then cross
+an explicit external/manual deployment checkpoint with separate user approval;
+record the deployed version/commit and verification evidence. CI or image
+publication alone is not deployment. Only then may schema, `source_draft_id`,
+source recognition, or `copilot_draft` row work begin. Rollback targets that
+guard release only after
 handoffs are disabled and accepted work is terminal/cancelled. Rows remain
 untouched and become usable after re-upgrade.

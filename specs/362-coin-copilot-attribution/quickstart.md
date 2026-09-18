@@ -2,11 +2,20 @@
 
 ## 1. Mandatory pre-implementation gates
 
-1. ADR 0017 is reviewed and has status `Accepted`.
-2. The compatibility-guard change is deployed and proves all unknown Deep
-   sources fail closed before migrations or `copilot_draft` writes.
-3. `CoinCopilotAttributionEnabled` exists, defaults false, and admits zero work.
-4. Deterministic Go race tests for cancellation-first, admission-first,
+1. Record that the ADR 0017 acceptance gate is satisfied.
+2. Build/archive the Phase 0 compatibility-guard Release A artifact and pass
+   all required local or hosted guard/rollback evidence.
+3. Stop at an explicit external/manual checkpoint and obtain separate user
+   approval before deploying Release A. CI success, merge, artifact creation,
+   or registry/image publication cannot be treated as deployment.
+4. Deploy Release A everywhere and record the deployed version/commit,
+   environment, approval reference, verification run URLs/ids, and results.
+   No migration, `source_draft_id`, source recognition, or `copilot_draft` row
+   work may begin until this record exists.
+5. `CoinCopilotAttributionEnabled` exists, defaults false, and admits zero work
+   through `models/appsetting.go` and constants in
+   `services/settings_service.go`.
+6. Deterministic Go race tests for cancellation-first, admission-first,
    changed-target idempotency, and duplicate admission are red before
    orchestration implementation and green before the callback is registered.
 
@@ -16,8 +25,14 @@ PR before merge or release.
 
 ## 2. Compatibility and rollback matrix
 
-The implementation must add an executable matrix (for example
-`scripts/compat/feature362-rollback.ps1`) invoked by a hosted job:
+Before Release A deployment, its hosted guard gate runs only the pre-schema
+unknown-source/default-off checks and archives the exact guard artifact. It
+must not run a Feature 362 migration or create `source_draft_id`,
+`copilot_draft`, or handoff rows.
+
+After the separately approved Release A deployment is recorded, the
+implementation must run the full executable matrix (for example
+`scripts/compat/feature362-rollback.ps1`) in a hosted job:
 
 ```powershell
 pwsh scripts/compat/feature362-rollback.ps1 `
@@ -90,10 +105,12 @@ selected reference.
 
 ## 5. Eligibility, cancellation, flags, and bounds
 
-- Unbound legacy intake, unknown/foreign job, and unknown source:
-  `not_eligible`, no metadata.
-- Previously bound deleted coin or promoted/discarded/deleted draft:
-  `target_unavailable`, no target metadata.
+- Unbound legacy intake, unknown/foreign/unbound job, unknown source,
+  previously bound deleted coin, and promoted/discarded/deleted bound draft
+  all return canonical public bytes
+  `{"reason":null,"status":"not_eligible"}` with no metadata.
+- Verify privacy-safe internal diagnostic codes, if emitted, cannot change
+  public status/body/headers/event projection or appear in public logs/events.
 - Cancel-first race: zero handoff/job rows.
 - Admission-first race: exactly one binding/job; cancellation requests Deep
   cancel and late report/proposal/event settlement loses.

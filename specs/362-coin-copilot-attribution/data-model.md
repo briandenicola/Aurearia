@@ -76,8 +76,9 @@ Closed invariant:
 | unknown | rejected | rejected |
 
 The `copilot_draft` row keeps its source binding after the draft is promoted or
-deleted so history remains auditable, but it becomes `target_unavailable` and
-cannot be adopted/applied.
+deleted so protected history remains auditable, but it cannot be adopted or
+applied. Public status lookup uses the same canonical `not_eligible`/null-reason
+body as every other ineligible case.
 
 ## 4. Server-computed target snapshot
 
@@ -139,15 +140,20 @@ Staged artifact files are cleaned on rollback.
 | Valid owner handoff/checkpoint binding and current target | eligible |
 | Owned `saved_coin` job and coin still exists | eligible |
 | Owned `copilot_draft`, non-null source draft, draft active | eligible |
-| Legacy unbound `intake` | `not_eligible` |
-| Unknown/foreign/unbound job id | `not_eligible`, no metadata |
-| Previously bound coin deleted | `target_unavailable`, no target metadata |
-| Previously bound draft deleted/promoted/discarded | `target_unavailable`, no target metadata |
-| Unknown Deep source | fail closed; no projection/adoption/apply |
+| Legacy unbound `intake` | canonical `status=not_eligible`, `reason=null` |
+| Unknown/foreign/unbound job id | same canonical ineligible body |
+| Previously bound coin deleted | same canonical ineligible body |
+| Previously bound draft deleted/promoted/discarded | same canonical ineligible body |
+| Unknown Deep source | same canonical ineligible body; no projection/adoption/apply |
 
 Queued/running jobs return lifecycle only plus the review URL. Completed/
 partial jobs require a retained, valid report. Failed/cancelled/stale/
 missing-result or snapshot-mismatched jobs are never current success.
+
+All ineligible status rows map to the canonical serialized public body
+`{"reason":null,"status":"not_eligible"}` and expose no metadata. Optional
+privacy-safe internal diagnostic codes are telemetry-only and cannot affect
+the public response.
 
 ## 7. Apply field matrix
 
@@ -217,6 +223,12 @@ byte-sliced.
 Release A (no new rows): strict known-source guard plus default-off setting.
 Release B: additive handoff table, source-draft column/index, and new source
 recognition. No backfill is required.
+
+Release A must first pass its guard artifact and hosted evidence gates. A
+separate external/manual checkpoint then requires user approval to deploy it;
+CI success or image publication does not satisfy this checkpoint. Record the
+deployed version/commit and verification evidence before Release B schema,
+`source_draft_id`, source recognition, or `copilot_draft` row work begins.
 
 Rollback preserves rows and targets Release A only after disabling handoffs and
 draining/cancelling accepted jobs. Release A rejects `copilot_draft` on all

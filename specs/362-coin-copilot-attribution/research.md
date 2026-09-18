@@ -84,10 +84,13 @@
 
 - **Decision**: A status/result is eligible only through a validated durable
   checkpoint/handoff binding, a current owned `saved_coin`, or an active owned
-  `copilot_draft`. Legacy unbound intake is `not_eligible`; a previously bound
-  deleted coin or deleted/promoted draft is `target_unavailable`.
+  `copilot_draft`. Every ineligible status case—including legacy unbound
+  intake, unknown/foreign/unbound jobs, unknown source, and a previously bound
+  deleted coin or deleted/discarded/promoted draft—returns the same canonical
+  public `status=not_eligible`, `reason=null` body.
 - **Rationale**: Owner scope alone does not authorize adopting arbitrary intake
-  history into a conversation.
+  history into a conversation. Privacy-safe cause codes may exist only in
+  protected internal diagnostics and cannot affect public bytes or behavior.
 - **Alternatives considered**: any owner job id and label-based adoption were
   rejected.
 
@@ -116,13 +119,18 @@
 - **Alternatives considered**: letting an admitted job ignore Copilot
   cancellation and disabling reads/review were rejected by the clarification.
 
-## Decision: mandatory evidence gates
+## Decision: mandatory evidence and Release A deployment gates
 
-- **Decision**: ADR 0017 must be accepted before implementation that writes new
-  rows. Go build/vet/tests, web install/lint/type/build/tests, Python dependency
+- **Decision**: The ADR 0017 acceptance gate is satisfied. Go build/vet/tests,
+  web install/lint/type/build/tests, Python dependency
   install/syntax-or-build/type/lint/tests, compatibility migration/rollback,
   contract, owner-isolation, tamper, and regression gates must pass locally or
-  in an equivalent hosted job. A local limitation never waives a gate.
+  in an equivalent hosted job. After the Phase 0 guard artifact and hosted
+  evidence pass, an explicit external/manual checkpoint requires separate user
+  approval to deploy Release A. The deployed version/commit and verification
+  evidence must be recorded before any schema, `source_draft_id`, or
+  `copilot_draft` row work. CI success or image publication is not deployment.
+  A local limitation never waives a gate.
 - **Rationale**: This is a multi-service semantic migration and security
   boundary.
 - **Alternatives considered**: documenting an unrun gate as an environment
