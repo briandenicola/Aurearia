@@ -5,9 +5,11 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from app.teams.coin_search import run_market_search
-from app.teams.specialist_contracts import ProviderRunner
+from app.teams.price_trends import run_price_trends
+from app.teams.specialist_contracts import ProviderRunner, SpecialistResult
 from app.tools.copilot_collection_tools import (
     CopilotCollectionToolClient,
     CopilotToolError,
@@ -263,3 +265,95 @@ async def test_market_search_rejects_unregistered_redirect_destination(monkeypat
     with pytest.raises(ValueError):
         await fetch_registered_dealer_page("https://www.cngcoins.com/Coin.aspx?CoinID=1")
     mock_client.get.assert_awaited_once()
+
+
+def _trend_sale(lot, amount, *, currency="USD", price_basis="hammer"):
+    return {
+        "url": f"https://www.numisbids.com/sale/9000/lot/{lot}",
+        "title": f"Verified sale {lot}",
+        "saleDate": f"2026-0{lot}-01",
+        "amount": amount,
+        "currency": currency,
+        "priceBasis": price_basis,
+    }
+
+
+@pytest.mark.asyncio
+async def test_price_trends_keeps_mixed_currencies_separate_without_conversion():
+    result = await run_price_trends(
+        {"query": "Domitian denarius"},
+        provider_runners=[
+            _provider(
+                "numisbids",
+                [
+                    _trend_sale(1, 200, currency="USD"),
+                    _trend_sale(2, 225, currency="EUR"),
+                    _trend_sale(3, 250, currency="USD"),
+                ],
+            )
+        ],
+    )
+
+    assert result.trend is not None
+    assert result.trend.state == "unknown"
+    assert result.trend.currency is None
+    assert result.trend.low is None
+    assert {item.currency for item in result.items} == {"USD", "EUR"}
+    assert any("currency" in limitation.lower() for limitation in result.trend.limitations)
+
+
+@pytest.mark.asyncio
+async def test_price_trends_keeps_price_bases_separate():
+    result = await run_price_trends(
+        {"query": "Domitian denarius"},
+        provider_runners=[
+            _provider(
+                "numisbids",
+                [
+                    _trend_sale(1, 200, price_basis="hammer"),
+                    _trend_sale(2, 225, price_basis="realized_including_premium"),
+                    _trend_sale(3, 250, price_basis="hammer"),
+                ],
+            )
+        ],
+    )
+
+    assert result.trend is not None
+    assert result.trend.state == "unknown"
+    assert result.trend.price_basis is None
+    assert {item.price_basis for item in result.items} == {
+        "hammer",
+        "realized_including_premium",
+    }
+    assert any("price basis" in limitation.lower() for limitation in result.trend.limitations)
+
+
+@pytest.mark.asyncio
+async def test_mixed_trend_evidence_rejects_invented_conversion_or_direction():
+    result = await run_price_trends(
+        {"query": "Domitian denarius"},
+        provider_runners=[
+            _provider(
+                "numisbids",
+                [
+                    _trend_sale(1, 200, currency="USD"),
+                    _trend_sale(2, 225, currency="EUR"),
+                    _trend_sale(3, 250, currency="USD"),
+                ],
+            )
+        ],
+    )
+    payload = result.model_dump(mode="json")
+    payload["trend"].update(
+        {
+            "state": "rising",
+            "currency": "USD",
+            "price_basis": "hammer",
+            "low": 200,
+            "median": 225,
+            "high": 250,
+        }
+    )
+
+    with pytest.raises(ValidationError):
+        SpecialistResult.model_validate(payload)

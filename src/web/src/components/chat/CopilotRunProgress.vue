@@ -47,6 +47,52 @@
             <span class="chip-sm">{{ outcomeLabel(tool.specialistResult.outcome) }}</span>
           </div>
 
+          <section
+            v-if="tool.specialistResult.trend"
+            class="flex flex-col gap-2 border-t border-border-subtle pt-2"
+            aria-label="Price trend summary"
+            data-testid="copilot-price-trend"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <strong class="font-medium text-text-primary">
+                {{ titleCase(tool.specialistResult.trend.state) }}
+              </strong>
+              <span class="text-xs text-text-muted">
+                {{ tool.specialistResult.trend.sampleSize }} verified sales
+              </span>
+            </div>
+            <p class="mb-0 text-xs text-text-secondary">
+              <template v-if="tool.specialistResult.trend.dateFrom && tool.specialistResult.trend.dateTo">
+                {{ formatDate(tool.specialistResult.trend.dateFrom) }} to
+                {{ formatDate(tool.specialistResult.trend.dateTo) }} ·
+              </template>
+              <template v-if="tool.specialistResult.trend.currency">
+                {{ tool.specialistResult.trend.currency }} ·
+              </template>
+              <template v-if="tool.specialistResult.trend.priceBasis">
+                {{ titleCase(tool.specialistResult.trend.priceBasis) }}
+              </template>
+            </p>
+            <p
+              v-if="tool.specialistResult.trend.low !== null &&
+                tool.specialistResult.trend.median !== null &&
+                tool.specialistResult.trend.high !== null"
+              class="mb-0 text-xs text-text-secondary"
+            >
+              Range {{ formatAmount(tool.specialistResult.trend.low, tool.specialistResult.trend.currency) }}
+              to {{ formatAmount(tool.specialistResult.trend.high, tool.specialistResult.trend.currency) }};
+              median {{ formatAmount(tool.specialistResult.trend.median, tool.specialistResult.trend.currency) }}
+            </p>
+            <ul
+              v-if="tool.specialistResult.trend.limitations.length"
+              class="mb-0 flex list-none flex-col gap-1 p-0 text-xs text-text-muted"
+            >
+              <li v-for="limitation in tool.specialistResult.trend.limitations" :key="limitation">
+                {{ limitation }}
+              </li>
+            </ul>
+          </section>
+
           <article
             v-for="item in tool.specialistResult.items"
             :key="item.sourceUrl"
@@ -154,10 +200,24 @@ function outcomeLabel(outcome: 'complete' | 'partial' | 'no_match' | 'unavailabl
 }
 
 function formatObservedAt(value: string) {
+  return formatDate(value)
+}
+
+function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    timeZone: 'UTC',
   }).format(new Date(value))
+}
+
+function formatAmount(value: number, currency: string | null) {
+  if (!currency) return String(value)
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value)
 }
 </script>

@@ -430,4 +430,37 @@ func TestValidateCopilotSpecialistResultRejectsCapabilityProviderMismatch(t *tes
 	}
 }
 
+func TestProjectCopilotPriceTrendPreservesTypedEvidenceAndSources(t *testing.T) {
+	for _, name := range []string{"price_trends_complete.json", "price_trends_no_match.json", "price_trends_unavailable.json"} {
+		t.Run(name, func(t *testing.T) {
+			result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+				t,
+				filepath.Join("specialists", name),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			public, err := ProjectCopilotSpecialistResult(result, "price_trends")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Trend == nil {
+				if public.Trend != nil {
+					t.Fatalf("unavailable trend projection was not nil: %#v", public.Trend)
+				}
+				return
+			}
+			if public.Trend == nil || public.Trend.State != result.Trend.State ||
+				public.Trend.SampleSize != result.Trend.SampleSize ||
+				len(public.Trend.SupportingSourceIDs) != len(result.Trend.SupportingSourceIDs) {
+				t.Fatalf("trend projection lost typed evidence: %#v", public.Trend)
+			}
+			if len(public.Items) != len(result.Items) || len(public.Items) > 10 ||
+				len(public.Trend.Limitations) > 10 {
+				t.Fatalf("trend projection exceeded bounds: %#v", public)
+			}
+		})
+	}
+}
+
 func floatPointer(value float64) *float64 { return &value }

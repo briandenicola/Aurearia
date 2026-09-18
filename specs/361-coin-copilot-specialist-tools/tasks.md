@@ -82,19 +82,19 @@ description: "Dependency-ordered implementation tasks for Feature 361 Coin Copil
 
 ### Tests for User Story 2
 
-- [ ] T029 [P] [US2] Add price-trend provider outcome tests for success, no-match, timeout, failure, unavailable, malformed, partial, and prompt-injection-bearing evidence in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_specialists.py`
-- [ ] T030 [US2] Add trend sufficiency tests for fewer than three verified sales, fewer than two sale dates, less than 30-day coverage, duplicate samples, and qualifying rising/stable/declining samples in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_specialists.py`
-- [ ] T031 [P] [US2] Add tests proving currencies and hammer versus premium-inclusive price bases stay separate and unsupported conversion or direction claims are rejected in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_security.py`
-- [ ] T032 [P] [US2] Add Go tests for sale-observation provenance, supporting-source references, typed unknown/unavailable states, and bounded trend projection in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
-- [ ] T033 [P] [US2] Add Vue tests for trend direction/unknown state, sample metadata, limitations, grouped incomparable evidence, and safe source links in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\components\__tests__\CoinSearchChat.copilot.test.ts`
+- [X] T029 [P] [US2] Add price-trend provider outcome tests for success, no-match, timeout, failure, unavailable, malformed, partial, and prompt-injection-bearing evidence in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_specialists.py`
+- [X] T030 [US2] Add trend sufficiency tests for fewer than three verified sales, fewer than two sale dates, less than 30-day coverage, duplicate samples, and qualifying rising/stable/declining samples in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_specialists.py`
+- [X] T031 [P] [US2] Add tests proving currencies and hammer versus premium-inclusive price bases stay separate and unsupported conversion or direction claims are rejected in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_security.py`
+- [X] T032 [P] [US2] Add Go tests for sale-observation provenance, supporting-source references, typed unknown/unavailable states, and bounded trend projection in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_contract_test.go`
+- [X] T033 [P] [US2] Add Vue tests for trend direction/unknown state, sample metadata, limitations, grouped incomparable evidence, and safe source links in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\components\__tests__\CoinSearchChat.copilot.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Extract a typed callable trend runner that reuses existing search/analysis functions and preserves legacy team behavior in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\price_trends.py`
-- [ ] T035 [US2] Normalize completed-sale observations and compute deterministic comparable groups, sufficiency, range, median, confidence, and limitations in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\specialist_contracts.py`
-- [ ] T036 [US2] Register `price_trends` with the bounded in-process dispatcher and expose only normalized untrusted evidence to the model in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\coin_copilot.py`
-- [ ] T037 [US2] Render the typed trend summary and its supporting observations without inferred conversion or uncited claims in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\components\chat\CopilotRunProgress.vue`
-- [ ] T038 [US2] Run and record Quickstart Scenario 3 against comparable and incomparable controlled fixtures in `C:\Users\brian.denicolafamily\Code\AncientCoins\specs\361-coin-copilot-specialist-tools\quickstart.md`
+- [X] T034 [US2] Extract a typed callable trend runner that reuses existing search/analysis functions and preserves legacy team behavior in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\price_trends.py`
+- [X] T035 [US2] Normalize completed-sale observations and compute deterministic comparable groups, sufficiency, range, median, confidence, and limitations in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\specialist_contracts.py`
+- [X] T036 [US2] Register `price_trends` with the bounded in-process dispatcher and expose only normalized untrusted evidence to the model in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\coin_copilot.py`
+- [X] T037 [US2] Render the typed trend summary and its supporting observations without inferred conversion or uncited claims in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\components\chat\CopilotRunProgress.vue`
+- [X] T038 [US2] Run and record Quickstart Scenario 3 against comparable and incomparable controlled fixtures in `C:\Users\brian.denicolafamily\Code\AncientCoins\specs\361-coin-copilot-specialist-tools\quickstart.md`
 
 **Checkpoint**: Price trends are independently testable and never overstate sparse, duplicated, or incomparable evidence.
 

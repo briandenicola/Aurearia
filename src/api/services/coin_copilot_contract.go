@@ -586,7 +586,11 @@ func ValidateCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapa
 		}
 	}
 	if result.Capability == "price_trends" {
-		if !validateCopilotPriceTrend(result.Trend, result.Items) {
+		if result.Trend == nil {
+			if result.Outcome != "unavailable" {
+				return ErrInvalidCopilotFrame
+			}
+		} else if !validateCopilotPriceTrend(result.Trend, result.Items) {
 			return ErrInvalidCopilotFrame
 		}
 	} else if result.Trend != nil {

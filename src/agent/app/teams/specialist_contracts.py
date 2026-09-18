@@ -810,6 +810,68 @@ def adapt_auction_candidate(
     )
 
 
+def adapt_sale_observation(
+    candidate: Mapping[str, Any],
+    *,
+    provider: str,
+    observed_at: datetime,
+) -> SaleObservation:
+    """Normalize one completed-sale observation without conversion or inference."""
+    source_url = validate_registered_source_url(
+        provider,
+        str(candidate.get("url") or candidate.get("sourceUrl") or candidate.get("source_url") or "").strip(),
+    )
+    title = _clean_optional_text(candidate.get("title") or candidate.get("name"))
+    sale_date = _parse_sale_date(candidate.get("saleDate") or candidate.get("sale_date"))
+    amount_value = candidate.get("amount")
+    if amount_value is None:
+        amount_value = candidate.get("hammerPrice")
+    if amount_value is None:
+        amount_value = candidate.get("realizedPrice")
+    amount = _parse_decimal(amount_value)
+    currency = _parse_currency(candidate.get("currency"))
+    raw_basis = str(candidate.get("priceBasis") or candidate.get("price_basis") or "").strip().lower()
+    price_basis = {
+        "hammer": "hammer",
+        "realized_including_premium": "realized_including_premium",
+        "including premium": "realized_including_premium",
+        "realized including premium": "realized_including_premium",
+    }.get(raw_basis)
+    if not title or sale_date is None or amount is None or currency is None or price_basis is None:
+        raise ValueError("sale observation requires complete source-backed sale fields")
+
+    description = _clean_optional_text(candidate.get("description"), maximum=500)
+    verification_state = str(candidate.get("verificationState") or "verified").strip().lower()
+    confidence = str(candidate.get("confidence") or "high").strip().lower()
+    if verification_state not in {"verified", "partial"} or confidence not in {"high", "medium", "low"}:
+        raise ValueError("sale observation verification metadata is invalid")
+    fields = ["title", "sale_date", "amount", "currency", "price_basis"]
+    if description is not None:
+        fields.append("description")
+    return SaleObservation(
+        kind="sale_observation",
+        source_url=source_url,
+        canonical_source_id=canonical_source_identity(source_url),
+        provider=provider,
+        observed_at=observed_at,
+        confidence=confidence,
+        verification_state=verification_state,
+        title=title,
+        description=description,
+        sale_date=sale_date,
+        amount=amount,
+        currency=currency,
+        price_basis=price_basis,
+        provenance=_provenance(
+            fields,
+            source_url=source_url,
+            observed_at=observed_at,
+            confidence=confidence,
+            verification_state=verification_state,
+        ),
+    )
+
+
 def _merge_duplicate(
     existing: DealerListing | AuctionLot,
     candidate: DealerListing | AuctionLot,
@@ -902,21 +964,129 @@ def _deduplicate_items(
     return list(deduplicated.values()), warnings
 
 
+def _sale_strength(item: SaleObservation) -> tuple[int, int]:
+    return (
+        {"partial": 0, "verified": 1}[item.verification_state],
+        {"low": 0, "medium": 1, "high": 2}[item.confidence],
+    )
+
+
+def _deduplicate_sales(
+    items: Sequence[SaleObservation],
+) -> tuple[list[SaleObservation], list[str]]:
+    deduplicated: dict[str, SaleObservation] = {}
+    warnings: list[str] = []
+    for item in items:
+        existing = deduplicated.get(item.canonical_source_id)
+        if existing is None:
+            deduplicated[item.canonical_source_id] = item
+            continue
+        fields_match = (
+            existing.title == item.title
+            and existing.sale_date == item.sale_date
+            and existing.amount == item.amount
+            and existing.currency == item.currency
+            and existing.price_basis == item.price_basis
+        )
+        if not fields_match and "Duplicate sale observations contained conflicting facts." not in warnings:
+            warnings.append("Duplicate sale observations contained conflicting facts.")
+        if _sale_strength(item) > _sale_strength(existing):
+            deduplicated[item.canonical_source_id] = item
+    return list(deduplicated.values()), warnings
+
+
+def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
+    if not items:
+        return PriceTrendSummary(
+            state="unknown",
+            sample_size=0,
+            confidence="low",
+            limitations=["No verified completed-sale observations were available."],
+            supporting_source_ids=[],
+        )
+
+    dates = [item.sale_date for item in items]
+    currencies = {item.currency for item in items}
+    price_bases = {item.price_basis for item in items}
+    limitations: list[str] = []
+    comparable = len(currencies) == 1 and len(price_bases) == 1
+    all_verified = all(item.verification_state == "verified" for item in items)
+    enough_samples = len(items) >= 3
+    enough_dates = len(set(dates)) >= 2
+    enough_coverage = (max(dates) - min(dates)).days >= 30
+
+    if len(currencies) > 1:
+        limitations.append("Currency observations are not comparable and were not converted.")
+    if len(price_bases) > 1:
+        limitations.append("Price basis observations kept hammer and premium-inclusive values separate.")
+    if not enough_samples:
+        limitations.append("Fewer than three verified completed sales were available.")
+    if not enough_dates:
+        limitations.append("Completed sales covered fewer than two distinct sale dates.")
+    if not enough_coverage:
+        limitations.append("Completed sales covered less than 30 days.")
+    if not all_verified:
+        limitations.append("At least one completed-sale observation was only partially verified.")
+
+    state: Literal["rising", "stable", "declining", "unknown"] = "unknown"
+    aggregate: dict[str, Any] = {
+        "currency": None,
+        "price_basis": None,
+        "low": None,
+        "median": None,
+        "high": None,
+    }
+    if comparable:
+        amounts = [item.amount for item in items]
+        aggregate = {
+            "currency": next(iter(currencies)),
+            "price_basis": next(iter(price_bases)),
+            "low": min(amounts),
+            "median": median(amounts),
+            "high": max(amounts),
+        }
+        if enough_samples and enough_dates and enough_coverage and all_verified:
+            by_date: dict[date, list[Decimal]] = {}
+            for item in items:
+                by_date.setdefault(item.sale_date, []).append(item.amount)
+            ordered = [median(by_date[sale_date]) for sale_date in sorted(by_date)]
+            state = "rising" if ordered[-1] > ordered[0] else "declining" if ordered[-1] < ordered[0] else "stable"
+
+    confidence: Confidence = (
+        "high"
+        if state != "unknown"
+        else "medium"
+        if comparable and len(items) >= 3
+        else "low"
+    )
+    return PriceTrendSummary(
+        state=state,
+        sample_size=len(items),
+        date_from=min(dates),
+        date_to=max(dates),
+        confidence=confidence,
+        limitations=limitations,
+        supporting_source_ids=[item.canonical_source_id for item in items],
+        **aggregate,
+    )
+
+
 def _finalize_result(
     *,
-    capability: Literal["market_search", "auction_search"],
+    capability: Literal["market_search", "auction_search", "price_trends"],
     outcome: SpecialistOutcome,
-    items: Sequence[DealerListing | AuctionLot],
+    items: Sequence[DealerListing | AuctionLot | SaleObservation],
     provider_attempts: Sequence[ProviderAttempt],
     warnings: Sequence[str],
     omitted_items: int,
+    trend: PriceTrendSummary | None = None,
 ) -> SpecialistResult:
     core = {
         "schema_version": 1,
         "capability": capability,
         "outcome": outcome,
         "items": [item.model_dump(mode="json") for item in items],
-        "trend": None,
+        "trend": trend.model_dump(mode="json") if trend is not None else None,
         "provider_attempts": [attempt.model_dump(mode="json") for attempt in provider_attempts],
         "warnings": list(warnings)[:10],
     }
@@ -1040,6 +1210,102 @@ async def run_provider_search(
         capability=capability,
         outcome=outcome,
         items=items,
+        provider_attempts=attempts,
+        warnings=warnings,
+        omitted_items=omitted_items,
+    )
+
+
+async def run_price_trend_search(
+    *,
+    query: SpecialistQuery | Mapping[str, Any],
+    provider_runners: Sequence[ProviderRunner],
+    observed_at: datetime | None = None,
+) -> SpecialistResult:
+    """Run fixed completed-sale providers and compute a deterministic trend."""
+    parsed_query = query if isinstance(query, SpecialistQuery) else SpecialistQuery.model_validate(query)
+    timestamp = _validate_utc(observed_at or datetime.now(timezone.utc))
+    attempts: list[ProviderAttempt] = []
+    accepted: list[SaleObservation] = []
+    warnings: list[str] = []
+
+    for provider_runner in provider_runners:
+        status: ProviderStatus
+        try:
+            raw_candidates = await provider_runner.run(parsed_query.query, parsed_query.limit)
+            if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
+                raise ProviderMalformedError
+            normalized: list[SaleObservation] = []
+            invalid_count = 0
+            for candidate in raw_candidates:
+                if not isinstance(candidate, Mapping):
+                    invalid_count += 1
+                    continue
+                try:
+                    normalized.append(
+                        adapt_sale_observation(
+                            candidate,
+                            provider=provider_runner.provider,
+                            observed_at=timestamp,
+                        )
+                    )
+                except (TypeError, ValueError):
+                    invalid_count += 1
+            if invalid_count and not normalized:
+                raise ProviderMalformedError
+            if invalid_count:
+                warnings.append(_SAFE_PROVIDER_WARNINGS["malformed"])
+            accepted.extend(normalized)
+            status = "success" if normalized else "no_match"
+            attempts.append(
+                ProviderAttempt(
+                    provider=provider_runner.provider,
+                    status=status,
+                    observed_at=timestamp,
+                    accepted_items=min(len(normalized), 10),
+                    warning_code=None,
+                )
+            )
+        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException):
+            status = "timeout"
+        except ProviderUnavailableError:
+            status = "unavailable"
+        except (ProviderMalformedError, ValueError):
+            status = "malformed"
+        except httpx.TransportError:
+            status = "failure"
+        except Exception:
+            status = "failure"
+        if status in _DEGRADED_PROVIDER_STATUSES:
+            attempts.append(
+                ProviderAttempt(
+                    provider=provider_runner.provider,
+                    status=status,
+                    observed_at=timestamp,
+                    accepted_items=0,
+                    warning_code=_WARNING_CODES[status],
+                )
+            )
+            warnings.append(_SAFE_PROVIDER_WARNINGS[status])
+
+    deduplicated, duplicate_warnings = _deduplicate_sales(accepted)
+    warnings.extend(duplicate_warnings)
+    result_limit = min(parsed_query.limit, 10)
+    omitted_items = max(0, len(deduplicated) - result_limit)
+    items = deduplicated[:result_limit]
+    trend = _build_price_trend(items)
+    degraded = any(attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in attempts)
+    if items:
+        outcome: SpecialistOutcome = "partial" if degraded else "complete"
+    elif degraded:
+        outcome = "unavailable"
+    else:
+        outcome = "no_match"
+    return _finalize_result(
+        capability="price_trends",
+        outcome=outcome,
+        items=items,
+        trend=trend,
         provider_attempts=attempts,
         warnings=warnings,
         omitted_items=omitted_items,

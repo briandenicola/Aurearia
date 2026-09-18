@@ -245,3 +245,42 @@ Result: **PASS**. Go accepted and projected only strict provider/provenance
 evidence and rejected raw errors and capability/provider mismatches. Vue passed
 `24` tests across both files and rendered complete, partial, no-match, and
 unavailable states with safe source links and no mutation controls.
+
+## User Story 2 controlled-fixture evidence
+
+Scenario 3 was exercised with fixed completed-sale observations. Python tests
+cover every provider outcome, deterministic deduplication, fewer than three
+verified sales, fewer than two sale dates, less than 30 days of coverage, and
+qualifying rising/stable/declining samples. Mixed currencies and hammer versus
+premium-inclusive observations remain separate; unsupported conversion,
+direction, and prompt-injection-bearing evidence fail closed.
+
+```powershell
+# src/agent
+uv run ruff check app/ tests/
+uv run pytest tests/test_coin_copilot_specialists.py `
+  tests/test_coin_copilot_security.py `
+  tests/test_coin_copilot_contract.py `
+  tests/test_coin_copilot_harness.py `
+  tests/test_coin_copilot_architecture.py -q
+```
+
+Result: **PASS**, `190 passed`; Ruff reported `All checks passed!`.
+
+```powershell
+# src/api
+go test ./services -run 'CoinCopilot|Specialist'
+go vet ./services
+
+# src/web
+node .\node_modules\vitest\vitest.mjs run `
+  src\components\__tests__\CoinSearchChat.copilot.test.ts `
+  src\composables\__tests__\useCoinCopilot.test.ts
+node .\node_modules\vue-tsc\bin\vue-tsc.js --build
+```
+
+Result: **PASS**. Go preserved typed complete, unknown, no-match, and
+unavailable trend projections with bounded supporting sources. Vue passed
+`26` tests and showed direction, sample/date/currency/price-basis context,
+range and median only when supported, limitations, warnings, and safe source
+links.

@@ -148,6 +148,47 @@ function specialistTool(result: CoinCopilotSpecialistResult): CoinCopilotToolPro
   }
 }
 
+function priceTrendResult(): CoinCopilotSpecialistResult {
+  const sourceUrl = 'https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1'
+  return {
+    capability: 'price_trends',
+    outcome: 'complete',
+    items: [{
+      kind: 'sale_observation',
+      title: 'Domitian denarius sold at auction',
+      sourceUrl,
+      observedAt: '2026-09-18T12:00:00Z',
+      confidence: 'high',
+      verificationState: 'verified',
+      facts: ['Amount: USD 275', 'Price basis: Hammer'],
+      matchedAttributes: [],
+      materialDifferences: [],
+    }],
+    trend: {
+      state: 'rising',
+      sampleSize: 3,
+      dateFrom: '2026-05-01',
+      dateTo: '2026-09-01',
+      currency: 'USD',
+      priceBasis: 'hammer',
+      low: 200,
+      median: 250,
+      high: 300,
+      confidence: 'high',
+      limitations: ['The sample contains three verified auction sales.'],
+      supportingSourceIds: [sourceUrl],
+    },
+    warnings: [],
+    truncation: {
+      truncated: false,
+      originalBytes: 300,
+      persistedBytes: 300,
+      digest: 'b'.repeat(64),
+      omittedItems: 0,
+    },
+  }
+}
+
 describe('CoinSearchChat Coin Copilot drawer integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -249,5 +290,62 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     } else {
       expect(specialist.find('a').exists()).toBe(false)
     }
+  })
+
+  it('renders cited trend direction, sample context, limitations, and safe supporting links', () => {
+    mocks.active = true
+    mocks.run = activeRun('running')
+    const result = priceTrendResult()
+    mocks.tools = [{
+      ...specialistTool(result),
+      toolCallId: 'call_trend',
+      toolName: 'price_trends',
+    }]
+
+    const specialist = mountChat().get('[data-testid="copilot-specialist-result"]')
+    const trend = specialist.get('[data-testid="copilot-price-trend"]')
+    expect(trend.text()).toContain('Rising')
+    expect(trend.text()).toContain('3 verified sales')
+    expect(trend.text()).toContain('May 1, 2026')
+    expect(trend.text()).toContain('Sep 1, 2026')
+    expect(trend.text()).toContain('USD')
+    expect(trend.text()).toContain('Hammer')
+    expect(trend.text()).toContain('200')
+    expect(trend.text()).toContain('250')
+    expect(trend.text()).toContain('300')
+    expect(trend.text()).toContain('The sample contains three verified auction sales.')
+    expect(specialist.get('a').attributes()).toMatchObject({
+      href: result.items[0]?.sourceUrl,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+  })
+
+  it('renders unknown trend limitations without converting incomparable evidence', () => {
+    mocks.active = true
+    mocks.run = activeRun('running')
+    const result = priceTrendResult()
+    result.outcome = 'partial'
+    result.trend = {
+      ...result.trend!,
+      state: 'unknown',
+      sampleSize: 2,
+      low: null,
+      median: null,
+      high: null,
+      limitations: ['Fewer than three comparable verified sales were available.'],
+    }
+    result.warnings = ['EUR premium-inclusive observations were kept separate.']
+    mocks.tools = [{
+      ...specialistTool(result),
+      toolCallId: 'call_unknown_trend',
+      toolName: 'price_trends',
+    }]
+
+    const specialist = mountChat().get('[data-testid="copilot-specialist-result"]')
+    expect(specialist.text()).toContain('Unknown')
+    expect(specialist.text()).toContain('Fewer than three comparable verified sales were available.')
+    expect(specialist.text()).toContain('EUR premium-inclusive observations were kept separate.')
+    expect(specialist.text()).not.toContain('Range')
   })
 })
