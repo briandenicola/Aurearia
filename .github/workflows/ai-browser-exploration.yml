@@ -34,6 +34,12 @@ jobs:
       AI_BROWSER_RUN_CONFIG: ${{ github.workspace }}/.tmp/ai-browser/ci-run-config.json
       AI_BROWSER_FAKE_MODEL: 'true'
       AI_BROWSER_TRIGGER: ${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+      JWT_SECRET: cleanup-only
+      AGENT_INTERNAL_SERVICE_TOKEN: cleanup-only
+      AI_BROWSER_INTERNAL_BEARER_TOKEN: cleanup-only
+      AI_BROWSER_TEST_USERNAME: cleanup-only
+      AI_BROWSER_TEST_PASSWORD: cleanup-only
+      AI_BROWSER_TEST_EMAIL: cleanup-only@example.test
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

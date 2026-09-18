@@ -295,3 +295,12 @@ The workflow policy guard was tamper-tested by removing
 requirement. After restoration, all four policy tests passed; the Docker
 runtime test remains skipped locally by design and must pass on GitHub before
 T036-T038 can be completed.
+
+The first hosted run, Actions run `35350617252`, built the stack but exposed
+two CI portability defects before browser execution: Compose did not create a
+host mapping when `published: 0` was explicit, and the workflow's redundant
+always-run cleanup could not parse required Compose variables. The exact
+project resource assertion still passed. The configuration now omits
+`published` so Compose selects an ephemeral port and supplies non-sensitive
+cleanup-only interpolation values to the outer teardown; runtime acceptance
+remains pending the corrected hosted rerun.

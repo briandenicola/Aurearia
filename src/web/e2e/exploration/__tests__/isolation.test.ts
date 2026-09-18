@@ -6,7 +6,7 @@ const safe = {
   services: {
     app: {
       build: '.',
-      ports: [{ host_ip: '127.0.0.1', published: 0, target: 8080 }],
+      ports: [{ host_ip: '127.0.0.1', target: 8080 }],
       volumes: ['db:/app/data', 'uploads:/app/uploads'],
       networks: ['internal'],
     },
