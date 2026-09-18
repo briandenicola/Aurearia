@@ -44,6 +44,16 @@ The following accepted decisions are binding:
   service boundaries, strict contracts, proportional reuse, owner isolation,
   and regression coverage remain mandatory.
 
+## Clarifications
+
+### Session 2026-09-18
+
+- Q: How are accepted proposal values merged into an existing source draft? → A: `draftMergePolicy=selected_replace_notes_append_refs_add`
+- Q: What compatibility and rollback policy governs draft-backed Deep jobs? → A: `rollbackPolicy=new_source_fail_closed`
+- Q: What happens to handoffs and accepted jobs when a feature is disabled? → A: `featureDisablePolicy=finish_existing`
+- Q: What architectural record is required before implementation? → A: Feature 362 ADR required
+- Q: Which service owns durable handoff idempotency? → A: Go owns durable idempotency
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Ask Copilot to attribute a specific coin (Priority: P1)
@@ -188,6 +198,14 @@ fallback and no duplicate mutation or provider execution.
    requested, **Then** the existing safe fallback remains usable, the
    unavailable capability is explained, and no partial job, write, or invented
    result is produced.
+6. **Given** a handoff has already been accepted into a durable Deep Analysis
+   job, **When** Coin Copilot or Deep Analysis is disabled, **Then** that job may
+   finish and remains owner-readable, cancellable, and reviewable, while no new
+   handoff or provider work from a not-yet-accepted handoff is admitted.
+7. **Given** cancellation and Deep-job admission race, **When** cancellation
+   linearizes first, **Then** zero Deep jobs are created; **When** admission
+   linearizes first, **Then** exactly one durable job exists and cancellation
+   prevents every later settlement from publishing or committing a result.
 
 ### Edge Cases
 
@@ -198,6 +216,14 @@ fallback and no duplicate mutation or provider execution.
 - A draft is discarded or promoted while target resolution is in progress.
 - A coin is deleted or its face images change between target resolution and job
   launch.
+- A draft is discarded or promoted, or a coin is deleted, after a status
+  checkpoint was saved but before status lookup or proposal apply; the request
+  returns the closed `target_unavailable`/`not_eligible` outcome without
+  disclosing whether a foreign or deleted target ever existed.
+- Destination fields, notes/context, references, ownership, or active-draft
+  state change after review opens but before apply; the entire selected apply
+  set is revalidated atomically against current state or rejected without a
+  partial write.
 - The obverse and reverse resolve to the same image, an unsupported image, or a
   missing file.
 - An equivalent job is active but its event history has been pruned.
@@ -206,9 +232,14 @@ fallback and no duplicate mutation or provider execution.
 - A completed proposal was already applied, or its linked coin was later
   deleted.
 - A request is replayed with the same idempotency key but a different target or
-  changed input fingerprint.
+  changed target kind/id, app context, checkpoint version, or input
+  fingerprint.
 - Deep Analysis is disabled after a job starts.
 - Coin Copilot is disabled after a durable run starts.
+- Coin Copilot or Deep Analysis is disabled while a resolved handoff is waiting
+  for durable admission.
+- An older binary reads a `copilot_draft` Deep job or attempts to apply its
+  proposal.
 - Every automated provider returns no match; one provider times out; or sources
   contradict one another.
 - A citation uses an unapproved host, unsafe scheme, embedded credentials, or a
@@ -249,11 +280,17 @@ fallback and no duplicate mutation or provider execution.
 #### Reuse and lifecycle behavior
 
 - **FR-006**: Equivalence MUST use the existing owner-bound Deep Analysis input
-  identity, including target, current face-image content, bounded notes/context,
-  and provider selection. A target identifier alone is insufficient.
+  identity and a server-computed immutable target snapshot/fingerprint. The
+  fingerprint MUST cover target kind/id, owner, obverse and reverse image
+  identities and content versions, bounded notes/context version, provider
+  selection and configuration generation, and active-draft state. A target
+  identifier alone is insufficient.
 - **FR-007**: An equivalent queued or running job MUST be reused. Duplicate or
   replayed Copilot requests MUST NOT create concurrent equivalent jobs or repeat
-  provider orchestration (Feature 344).
+  provider orchestration (Feature 344). The Go repository/service boundary MUST
+  recheck the immutable fingerprint and atomically reuse or create the job in
+  one transaction or linearizable critical section. A changed snapshot MUST
+  return conflict/re-resolve and MUST NOT launch work from stale inputs.
 - **FR-008**: An equivalent completed or partial job MAY be reused only when
   its report is retained and its target/input identity still matches. Coin
   Copilot MUST identify the result as existing and give the owner a distinct,
@@ -265,7 +302,23 @@ fallback and no duplicate mutation or provider execution.
 - **FR-010**: Coin Copilot and Deep Analysis cancellation, replay, stale
   recovery, terminal-state, and idempotency rules MUST remain authoritative in
   their respective durable workflows. A replay or resume MUST not repeat
-  completed Deep Analysis work solely to reconstruct conversation state.
+  completed Deep Analysis work solely to reconstruct conversation state. Go
+  MUST durably own handoff idempotency: reuse of an idempotency key with a
+  changed target kind/id, app context, or checkpoint version MUST return HTTP
+  409 and create no job. Python deduplication is defense in depth only.
+- **FR-010a**: Admission and cancellation MUST be linearizable. If cancellation
+  wins before admission, zero Deep jobs may be created. If admission wins,
+  exactly one durable Deep job MUST exist; a later cancellation MUST prevent
+  late provider or agent settlement from publishing or committing any result
+  after cancellation becomes authoritative.
+- **FR-010b**: A job status/result handoff is eligible only when one of these
+  owner-scoped conditions holds: (a) the job is already bound in a validated
+  Coin Copilot checkpoint; (b) it is a saved-coin Deep job owned by the caller;
+  or (c) it has source type `copilot_draft` and an active `source_draft_id`
+  owned by the caller. Legacy unbound intake jobs MUST NOT be adopted. Deleted
+  coins and deleted or promoted drafts MUST close lookup with
+  `target_unavailable` or `not_eligible`, using the same non-disclosing behavior
+  for foreign, unknown, and formerly existing targets.
 
 #### Evidence and conversational explanation
 
@@ -302,14 +355,18 @@ fallback and no duplicate mutation or provider execution.
 - **FR-018**: No target field may change unless the owner individually accepts
   that exact proposal field and explicitly confirms apply. Rejecting, leaving
   undecided, explaining, opening, cancelling, or replaying MUST write nothing.
+  An accepted scalar replaces only that exact destination scalar.
 - **FR-019**: Applying one accepted field MUST preserve every unaccepted scalar
   field and all manually entered images, acquisition/provenance fields,
   valuation fields, storage fields, privacy/status fields, and relationships.
+  Accepted notes MUST append a dated, source-attributed block and MUST NOT
+  replace or rewrite manual notes.
 - **FR-020**: Structured catalog references MUST use the existing validated
-  additive/deduplicating path. They MUST never use destructive reference
-  replacement, and replaying an equivalent accepted reference MUST leave one
-  equivalent reference without deleting any existing row (Feature 352 FR-013/14
-  and ADR 0013).
+  additive/deduplicating path with registry validation and case-insensitive
+  equivalence. They MUST never use destructive reference replacement, and
+  replaying an equivalent accepted reference MUST leave one equivalent
+  reference without deleting any existing row (Feature 352 FR-013/14 and ADR
+  0013).
 - **FR-021**: Destination applicability MUST come from the existing Deep
   Proposal allowlists and MUST NOT be widened by Coin Copilot. Collection
   targets may review existing collection-valid proposal fields; wishlist
@@ -321,12 +378,32 @@ fallback and no duplicate mutation or provider execution.
   collection-only/manual data such as acquisition facts, valuation, storage,
   ownership status, privacy, or images. Wishlist references remain valid only
   through the existing confirmed, validated path (ADR 0013).
+- **FR-022a**: Immediately before apply, the write bridge MUST re-read and
+  revalidate ownership, destination kind and lifecycle, proposal applicability,
+  selected scalars, note context/version, and reference registry state in the
+  same transaction or linearizable critical section as the write. If current
+  state invalidates any selected operation, the whole apply MUST fail with a
+  conflict/re-review outcome and no partial mutation.
+
+The following matrix is normative; “accepted” always means individually
+selected and explicitly confirmed in the existing Deep Proposal editor:
+
+| Destination | Accepted scalar fields | Accepted notes | Accepted catalog references | Unsupported fields |
+|---|---|---|---|---|
+| Collection coin | Replace only each exact collection-valid scalar selected by the owner | Append one dated, source-attributed block; preserve manual notes | Registry-validate, append, and case-insensitively deduplicate; never replace/delete | Reject; do not coerce or partially apply |
+| Wishlist coin | Replace only each exact wishlist-valid scalar selected by the owner | Append one dated, source-attributed block; preserve manual notes | Registry-validate, append, and case-insensitively deduplicate; never replace/delete | Reject, including collection-only/manual fields |
+| Existing active draft | Replace only each exact draft-valid scalar selected by the owner | Append one dated, source-attributed block; preserve manual notes | Stage through the validated draft reference path, append, and case-insensitively deduplicate; never replace/delete | Reject, including collection-only/manual fields |
 
 #### Safety, bounds, compatibility, and tests
 
 - **FR-023**: All target, job, report, and proposal reads MUST be scoped to the
   authenticated owner derived server-side. Foreign and unknown identifiers
   MUST be indistinguishable and disclose no existence or metadata.
+- **FR-023a**: Internal callbacks MUST use the existing canonical Coin Copilot
+  execution-token scheme and its owner/run/execution/tool binding, expiry, and
+  revocation checks. The handoff MUST NOT introduce a new bearer convention,
+  accept a user JWT as an execution token, or derive owner identity from request
+  content.
 - **FR-024**: The handoff contract and all returned lifecycle/result data MUST
   be strictly typed, reject unknown critical fields and invalid state values,
   validate confidence ranges and URLs, treat text as untrusted data, and fail
@@ -335,10 +412,20 @@ fallback and no duplicate mutation or provider execution.
   iteration, tool-call, concurrency, wall-clock, token-observation, credential,
   event, checkpoint, and payload bounds. Deep Analysis MUST retain its own
   existing job/provider/image/note/retention bounds; nesting MUST NOT create an
-  unbounded combined budget.
+  unbounded combined budget. Request envelopes and public event envelopes MUST
+  be at most 64 KiB after canonical serialization and sanitization. A persisted
+  Copilot tool result MUST be at most 32 KiB. When a valid result exceeds the
+  persistence bound, truncation MUST be deterministic and preserve a disclosure
+  containing the truncation flag, original and persisted byte counts, omitted
+  item/count information when applicable, and a digest of the complete
+  canonical result; the final explanation MUST disclose omitted evidence.
 - **FR-026**: The current default-off Coin Copilot flag, model-capability check,
   pre-accept legacy-chat fallback, and safe behavior when Deep Analysis is
-  disabled or unavailable MUST remain intact (Features 359/361).
+  disabled or unavailable MUST remain intact (Features 359/361). Disabling Coin
+  Copilot or Deep Analysis MUST reject new handoffs and MUST admit no provider
+  work from a handoff that was not already durably accepted. A previously
+  accepted Deep job MAY finish and MUST remain owner-readable, cancellable, and
+  reviewable. Feature 362 remains default-off.
 - **FR-027**: The existing fast Identify flow MUST remain available and
   unchanged in behavior, contract, and independence. A Copilot attribution
   request MUST NOT replace, delay, or implicitly invoke the fast flow.
@@ -355,6 +442,31 @@ fallback and no duplicate mutation or provider execution.
   and specialist tools, legacy fallback, Deep Analysis direct entry points,
   proposal review/apply, provider attribution, and fast Identify behavior
   remain unchanged outside this handoff.
+- **FR-031**: Before implementation begins, Feature 362 MUST have an accepted
+  ADR covering the multi-service handoff, `copilot_draft` source and apply
+  semantics, schema migration, mixed-version compatibility, feature-disable
+  behavior, and rollback procedure. Planning or implementation MUST NOT treat
+  this decision as implicit in earlier ADRs.
+- **FR-032**: Draft-originated jobs created by this feature MUST use the new
+  closed Deep Identification source type `copilot_draft` paired with nullable
+  `source_draft_id`; that id MUST be non-null and owner-active whenever the
+  source is `copilot_draft`, and MUST be null where another source type does not
+  permit it. Unknown source values MUST be rejected rather than coerced or
+  interpreted as legacy intake.
+- **FR-033**: Rollback MUST fail closed. Older binaries used during rollback
+  MUST reject or decline apply/status adoption for the unknown `copilot_draft`
+  source before the Feature 362 flag can admit traffic. Rollback MUST first
+  disable new handoffs, allow already accepted jobs the finish-existing
+  behavior in FR-026, and preserve their durable records for a compatible
+  binary. Compatibility MUST NOT be claimed unless this unknown-source
+  interlock is verified.
+- **FR-034**: Security and quality gates are mandatory release criteria. Local
+  environment limitations MUST NOT waive a gate; when a required gate cannot
+  run locally, the equivalent hosted gate MUST pass before merge or release.
+  Applicable gates MUST include Go build/tests, web install/build/tests and
+  lint/type checks, Python dependency installation plus Python syntax/build,
+  type/lint, and test checks, migration/rollback tests, contract tests,
+  owner-isolation/security tests, and the regression suites in FR-029/FR-030.
 
 ### Key Entities
 
@@ -374,6 +486,15 @@ fallback and no duplicate mutation or provider execution.
 - **Deep Proposal**: The existing persisted, per-field review document. It
   remains the only source of accepted fields and the only route into the
   existing apply bridge.
+- **Target Snapshot/Fingerprint**: The immutable, server-computed admission
+  identity over target kind/id, owner, face-image identities/content versions,
+  notes/context version, provider selection/configuration generation, and
+  active-draft state; it is atomically rechecked when a job is reused or
+  created.
+- **Copilot Draft Source**: The closed Deep Identification source value
+  `copilot_draft`, paired with an owned active `source_draft_id`, used only for
+  draft-originated Feature 362 jobs and rejected by binaries that do not
+  recognize it.
 
 ## Non-Goals
 
@@ -426,6 +547,20 @@ fallback and no duplicate mutation or provider execution.
 - **SC-010**: No accepted test run exceeds the pre-existing Coin Copilot or Deep
   Analysis limits for duration, tool calls, concurrency, payload size, provider
   calls, image count/size, or retained result data.
+- **SC-011**: Admission-race tests produce zero jobs when cancellation wins and
+  exactly one durable job when admission wins; changed snapshots and changed
+  idempotency-key bindings produce conflicts and zero stale provider launches.
+- **SC-012**: Payload tests reject request/public envelopes over 64 KiB and keep
+  every persisted tool result at or below 32 KiB with deterministic byte counts,
+  omission metadata, full-result digest, and user-visible truncation
+  disclosure.
+- **SC-013**: Mixed-version and rollback tests prove unrecognized
+  `copilot_draft` records fail closed, default-off rollout admits no work, and
+  disabling either feature admits zero new handoffs while accepted jobs remain
+  owner-readable, cancellable, and reviewable.
+- **SC-014**: The Feature 362 ADR is accepted and every applicable mandatory
+  local or hosted security/quality gate passes before implementation is merged
+  or released.
 
 ## Assumptions
 
@@ -443,5 +578,6 @@ fallback and no duplicate mutation or provider execution.
 - Existing Deep Analysis and Coin Copilot retention windows, feature settings,
   provider availability, and per-run limits remain authoritative and are not
   retuned by this feature.
-- There are no unresolved product clarifications for specification-stage
-  planning.
+- The binding merge, rollback, feature-disable, admission, eligibility,
+  idempotency, payload, authorization, and quality-gate decisions are recorded
+  above; no remaining product clarification is assumed by implementation.
