@@ -43,7 +43,7 @@ Date: 2026-09-18
 
 ## External/manual Release A checkpoint
 
-Status: **DEPLOYED AND VERIFIED - SCHEMA APPROVAL PENDING**
+Status: **COMPLETE - SCHEMA WORK APPROVED**
 
 Deployment date: 2026-09-18
 
@@ -84,6 +84,7 @@ Deployment date: 2026-09-18
   file. All three were confirmed absent afterward. The backup remains retained.
 
 No Feature 362 schema, `copilot_draft` model constant, callback, handoff row, or
-source-draft binding has been added. T022 and all schema/row-producing work
-remain blocked until the owner separately approves proceeding beyond this
-verified Release A checkpoint.
+source-draft binding had been added at the checkpoint. After reviewing the
+completed deployment evidence, the owner explicitly directed: "Take F014 all
+the way to completion." This separately authorizes the additive Feature 362
+schema and row-producing work after the mandatory Phase 1-2 red tests.
