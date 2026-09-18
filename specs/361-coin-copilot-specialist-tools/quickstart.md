@@ -289,3 +289,61 @@ unavailable trend projections with bounded supporting sources. Vue passed
 `26` tests and showed direction, sample/date/currency/price-basis context,
 range and median only when supported, limitations, warnings, and safe source
 links.
+
+## User Story 4 controlled safety evidence
+
+Scenarios 5–8 were exercised on 2026-09-18 with controlled provider fixtures
+and in-memory Go repositories. No live provider, user collection, deployment,
+or mutable external listing was used.
+
+- **Scenario 5 — injection and unsafe sources:** provider instructions,
+  token-shaped strings, owner/tool escalation fields, unsafe URLs, fabricated
+  provenance, extra fields, and capability/result-kind mismatches failed
+  closed. Python architecture guards confirmed the harness imports no write,
+  approval, Deep Identification, shell, filesystem, database, or arbitrary
+  execution capability.
+- **Scenario 6 — cancellation race:** cancellation before model dispatch and
+  after every awaited dealer, auction, and price-trend provider operation
+  emitted no completion, checkpoint, or final-answer frame. The Go restart
+  seam retained exactly one terminal cancellation event.
+- **Scenario 7 — replay and resume:** a full specialist result and a
+  deterministically truncated specialist fallback survived Go-owned
+  checkpoint restart/resume without a repeated completion. Replayed specialist
+  call IDs and altered digest/size/truncation metadata failed closed. Vue
+  retained sequence de-duplication and terminal replay behavior.
+- **Scenario 8 — isolation and fallback:** read, event stream, cancel, and
+  resume returned identical `404` behavior for foreign and unknown runs.
+  Disabled, unavailable, unsupported, ambiguous, missing, malformed, and
+  timed-out capability responses used legacy fallback without starting a run.
+  A startup `503` before acceptance also fell back with no accepted durable
+  run.
+
+The cancellation and replay guards were tamper-tested. Removing the
+post-search cancellation check caused the dealer fetch to run after
+cancellation and failed the exact regression. Removing duplicate specialist
+call-ID rejection changed the expected `invalid_agent_frame` failure and
+failed the replay regression. Both guards passed after restoration.
+
+```powershell
+# src/api
+go build ./...
+go vet ./...
+go test ./... -count=1
+
+# src/agent
+python -m ruff check app/ tests/
+python -m pytest tests/ -q
+
+# src/web
+node .\node_modules\eslint\bin\eslint.js .
+node .\node_modules\vue-tsc\bin\vue-tsc.js --build
+node .\node_modules\vitest\vitest.mjs run
+node .\node_modules\vite\bin\vite.js build
+```
+
+Result: **PASS**. Go build, vet, and all packages passed. Python passed
+`602` tests with only pre-existing dependency deprecation warnings. Vue passed
+ESLint, strict TypeScript, production/PWA build, and `1,550` tests with one
+pre-existing skipped test. Go race and container/security acceptance remain
+hosted Quality Gate responsibilities because the Windows workstation has no
+local race toolchain or Docker runtime.

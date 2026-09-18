@@ -121,11 +121,11 @@ description: "Dependency-ordered implementation tasks for Feature 361 Coin Copil
 
 ### Implementation for User Story 4
 
-- [ ] T049 [US4] Apply shared run deadline, iteration/tool/concurrency counters, cancellation checks, checkpoint hydration, untrusted-data delimiters, and exact ten-tool selection in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\coin_copilot.py`
-- [ ] T050 [US4] Enforce authoritative post-await cancellation, specialist result validation, deterministic bounds/digest, replay idempotency, and append-before-publish semantics in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_worker.go`
-- [ ] T051 [US4] Emit privacy-safe observability fields for capability, provider id/outcome, aggregate outcome, duration, count, bytes, truncation, digest, run id, and execution id while excluding query/content/URL/prompt/credential/raw-error data in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_worker.go`
-- [ ] T052 [US4] Preserve replay sequence de-duplication, terminal handling, cancellation, and feature/model fallback behavior for specialist projections in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\composables\useCoinCopilot.ts`
-- [ ] T053 [US4] Run and record Quickstart Scenarios 5-8, including cancellation race, replay/resume, owner isolation, unsupported models, and feature-off fallback, in `C:\Users\brian.denicolafamily\Code\AncientCoins\specs\361-coin-copilot-specialist-tools\quickstart.md`
+- [X] T049 [US4] Apply shared run deadline, iteration/tool/concurrency counters, cancellation checks, checkpoint hydration, untrusted-data delimiters, and exact ten-tool selection in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\app\teams\coin_copilot.py`
+- [X] T050 [US4] Enforce authoritative post-await cancellation, specialist result validation, deterministic bounds/digest, replay idempotency, and append-before-publish semantics in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_worker.go`
+- [X] T051 [US4] Emit privacy-safe observability fields for capability, provider id/outcome, aggregate outcome, duration, count, bytes, truncation, digest, run id, and execution id while excluding query/content/URL/prompt/credential/raw-error data in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\services\coin_copilot_worker.go`
+- [X] T052 [US4] Preserve replay sequence de-duplication, terminal handling, cancellation, and feature/model fallback behavior for specialist projections in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\web\src\composables\useCoinCopilot.ts`
+- [X] T053 [US4] Run and record Quickstart Scenarios 5-8, including cancellation race, replay/resume, owner isolation, unsupported models, and feature-off fallback, in `C:\Users\brian.denicolafamily\Code\AncientCoins\specs\361-coin-copilot-specialist-tools\quickstart.md`
 
 **Checkpoint**: Specialist work has the same durable, bounded, owner-scoped, cancellable, replayable, default-off behavior as Feature 359.
 

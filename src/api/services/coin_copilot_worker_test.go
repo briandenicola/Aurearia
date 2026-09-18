@@ -176,6 +176,40 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 		public.SpecialistResult.Items[0].SourceURL != result.Items[0].SourceURL {
 		t.Fatalf("specialist projection = %#v", public.SpecialistResult)
 	}
+	logs := service.logger.GetLogs(10)
+	if len(logs) != 1 {
+		t.Fatalf("specialist logs=%#v", logs)
+	}
+	message := logs[0].Message
+	for _, field := range []string{
+		"run_id=ccr_specialist",
+		"execution_id=cce_specialist",
+		"capability=market_search",
+		"provider_id=cng_dealer_search",
+		"provider_outcome=success",
+		"aggregate_outcome=complete",
+		"duration_ms=25",
+		"item_count=1",
+		"original_bytes=",
+		"persisted_bytes=",
+		"truncated=false",
+		"digest=",
+	} {
+		if !strings.Contains(message, field) {
+			t.Fatalf("specialist log missing %q: %s", field, message)
+		}
+	}
+	for _, forbidden := range []string{
+		result.Items[0].SourceURL,
+		result.Items[0].Title,
+		"Find market examples",
+		"credential",
+		"prompt",
+	} {
+		if strings.Contains(message, forbidden) {
+			t.Fatalf("specialist log leaked %q: %s", forbidden, message)
+		}
+	}
 }
 
 func TestCoinCopilotWorkerRejectsTamperedSpecialistCheckpointMetadata(t *testing.T) {

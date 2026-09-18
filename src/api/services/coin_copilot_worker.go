@@ -176,6 +176,56 @@ func coinCopilotExecutionTokenTTL(ctx context.Context, now time.Time) time.Durat
 	return min(remaining+coinCopilotExecutionTokenBuffer, coinCopilotExecutionTokenMaxTTL)
 }
 
+func (s *CoinCopilotService) logSpecialistCompletion(
+	run *models.CoinCopilotRun,
+	capability string,
+	durationMS int64,
+	result CopilotSpecialistResult,
+) {
+	attempts := result.ProviderAttempts
+	if len(attempts) == 0 {
+		attempts = []CopilotProviderAttempt{{Provider: "none", Status: "none"}}
+	}
+	for _, attempt := range attempts {
+		s.logger.Info(
+			"coin-copilot-specialist",
+			"run_id=%s execution_id=%s capability=%s provider_id=%s provider_outcome=%s aggregate_outcome=%s duration_ms=%d item_count=%d original_bytes=%d persisted_bytes=%d truncated=%t digest=%s",
+			run.ID,
+			run.ExecutionID,
+			capability,
+			attempt.Provider,
+			attempt.Status,
+			result.Outcome,
+			durationMS,
+			len(result.Items),
+			result.Truncation.OriginalBytes,
+			result.Truncation.PersistedBytes,
+			result.Truncation.Truncated,
+			result.Truncation.Digest,
+		)
+	}
+}
+
+func (s *CoinCopilotService) logTruncatedSpecialistCompletion(
+	run *models.CoinCopilotRun,
+	capability string,
+	durationMS int64,
+	result CopilotBoundedToolResult,
+	persistedBytes int,
+) {
+	s.logger.Info(
+		"coin-copilot-specialist",
+		"run_id=%s execution_id=%s capability=%s provider_id=none provider_outcome=none aggregate_outcome=truncated duration_ms=%d item_count=0 original_bytes=%d persisted_bytes=%d truncated=true digest=%s",
+		run.ID,
+		run.ExecutionID,
+		capability,
+		durationMS,
+		result.OriginalBytes,
+		persistedBytes,
+		result.Digest,
+	)
+}
+
 func (s *CoinCopilotService) executionRequest(run *models.CoinCopilotRun, llm LLMConfig, token string, limits CopilotLimitsProxy) (CopilotExecuteProxyRequest, error) {
 	state := CopilotCheckpointState{
 		SchemaVersion: 1,
@@ -374,9 +424,10 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			"resultSummary": SanitizeCopilotText(payload.Summary, 300), "truncated": truncated,
 		}
 		if isCoinCopilotSpecialistTool(payload.ToolName) && payload.Status == "succeeded" {
-			if _, fallbackErr := DecodeCopilotBoundedToolResult(payload.Result); fallbackErr == nil {
+			if fallback, fallbackErr := DecodeCopilotBoundedToolResult(payload.Result); fallbackErr == nil {
 				truncated = true
 				publicPayload["truncated"] = true
+				s.logTruncatedSpecialistCompletion(run, payload.ToolName, payload.DurationMS, fallback, len(payload.Result))
 			} else {
 				result, err := DecodeCopilotSpecialistResult(payload.Result, payload.ToolName)
 				if err != nil {
@@ -387,6 +438,7 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 					return err
 				}
 				publicPayload["specialistResult"] = specialistResult
+				s.logSpecialistCompletion(run, payload.ToolName, payload.DurationMS, result)
 			}
 		}
 		public, _ := json.Marshal(publicPayload)
