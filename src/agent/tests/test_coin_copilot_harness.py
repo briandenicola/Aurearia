@@ -52,6 +52,44 @@ class _ToolClient:
         return bound_tool_result(value, 32768)
 
 
+class _ConcurrentToolClient:
+    def __init__(self):
+        self.calls = []
+        self.active = 0
+        self.max_active = 0
+
+    async def execute(self, name, call_id, args):
+        self.calls.append((name, call_id, args))
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        await asyncio.sleep(0.02)
+        self.active -= 1
+        if name in {"market_search", "auction_search", "price_trends"}:
+            value = json.loads(
+                (
+                    FIXTURE.parent
+                    / "specialists"
+                    / f"{name}_complete.json"
+                ).read_text(encoding="utf-8")
+            )
+        else:
+            value = {"coins": []}
+        return bound_tool_result(value, 32768)
+
+
+class _FailingConcurrentToolClient:
+    def __init__(self):
+        self.settled = []
+
+    async def execute(self, _name, call_id, _args):
+        if call_id == "call_1":
+            await asyncio.sleep(0.005)
+            raise CopilotToolError("invalid_tool_call", "The collection tool failed.")
+        await asyncio.sleep(0.02)
+        self.settled.append(call_id)
+        return bound_tool_result({"coins": []}, 32768)
+
+
 async def _frames(request, model, tool_client, cancellation_check=None):
     return [
         frame
@@ -102,6 +140,99 @@ async def test_multi_tool_completion_is_sequential_and_typed():
     assert frames[-1].type == "completed"
     assert frames[-1].payload.usage.tool_calls == 2
     assert frames[-1].payload.usage.iterations == 3
+
+
+@pytest.mark.asyncio
+async def test_model_tool_batch_runs_three_at_a_time_and_preserves_result_order():
+    calls = [
+        {"name": "market_search", "args": {"query": "Caesar"}, "id": "call_1", "type": "tool_call"},
+        {"name": "auction_search", "args": {"query": "Caesar"}, "id": "call_2", "type": "tool_call"},
+        {"name": "price_trends", "args": {"query": "Caesar"}, "id": "call_3", "type": "tool_call"},
+        {"name": "search_my_collection", "args": {"query": "Caesar"}, "id": "call_4", "type": "tool_call"},
+    ]
+    model = _SequenceModel([
+        AIMessage(content="", tool_calls=calls),
+        AIMessage(content="Combined evidence is ready."),
+    ])
+    tools = _ConcurrentToolClient()
+    request = _request(max_concurrent_tools=3)
+    request.allowed_tools.extend(["market_search", "auction_search", "price_trends"])
+
+    frames = await _frames(request, model, tools)
+
+    assert tools.max_active == 3
+    assert [frame.payload.tool_call_id for frame in frames if frame.type == "tool_completed"] == [
+        "call_1",
+        "call_2",
+        "call_3",
+        "call_4",
+    ]
+    assert [message.tool_call_id for message in model.messages[1][-4:]] == [
+        "call_1",
+        "call_2",
+        "call_3",
+        "call_4",
+    ]
+    assert frames[-1].type == "completed"
+    assert frames[-1].payload.usage.tool_calls == 4
+
+
+@pytest.mark.asyncio
+async def test_model_tool_batch_respects_snapshotted_maximum_of_five():
+    calls = [
+        {
+            "name": "search_my_collection",
+            "args": {"query": f"query {index}"},
+            "id": f"call_{index}",
+            "type": "tool_call",
+        }
+        for index in range(1, 7)
+    ]
+    model = _SequenceModel([
+        AIMessage(content="", tool_calls=calls),
+        AIMessage(content="Combined evidence is ready."),
+    ])
+    tools = _ConcurrentToolClient()
+
+    frames = await _frames(_request(max_concurrent_tools=5), model, tools)
+
+    assert tools.max_active == 5
+    assert [frame.payload.tool_call_id for frame in frames if frame.type == "tool_completed"] == [
+        f"call_{index}" for index in range(1, 7)
+    ]
+    assert frames[-1].type == "completed"
+    assert frames[-1].payload.usage.tool_calls == 6
+
+
+@pytest.mark.asyncio
+async def test_concurrent_batch_settles_sibling_calls_before_failing():
+    model = _SequenceModel([
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "search_my_collection",
+                    "args": {"query": "Caesar"},
+                    "id": "call_1",
+                    "type": "tool_call",
+                },
+                {
+                    "name": "search_my_collection",
+                    "args": {"query": "Augustus"},
+                    "id": "call_2",
+                    "type": "tool_call",
+                },
+            ],
+        )
+    ])
+    tools = _FailingConcurrentToolClient()
+
+    frames = await _frames(_request(max_concurrent_tools=3), model, tools)
+
+    assert tools.settled == ["call_2"]
+    assert frames[-1].type == "failed"
+    assert frames[-1].payload.code == "invalid_tool_call"
+    assert frames[-1].payload.usage.tool_calls == 2
 
 
 @pytest.mark.asyncio
@@ -312,6 +443,23 @@ async def test_tool_and_iteration_budgets_stop_before_next_operation():
         _ToolClient([summary]),
     )
     assert tool_frames[-1].payload.code == "tool_limit_exceeded"
+
+    batch_tools = _ToolClient([])
+    batch_frames = await _frames(
+        _request(max_tool_calls=1),
+        _SequenceModel([
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": "collection_summary", "args": {}, "id": "batch_1", "type": "tool_call"},
+                    {"name": "get_coin", "args": {"coin_id": 1}, "id": "batch_2", "type": "tool_call"},
+                ],
+            )
+        ]),
+        batch_tools,
+    )
+    assert batch_frames[-1].payload.code == "tool_limit_exceeded"
+    assert batch_tools.calls == []
 
     iteration_frames = await _frames(
         _request(max_iterations=1),

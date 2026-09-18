@@ -70,7 +70,7 @@ new run.
   "limits": {
     "max_iterations": 8,
     "max_tool_calls": 12,
-    "max_concurrent_tools": 1,
+    "max_concurrent_tools": 3,
     "hard_timeout_seconds": 120,
     "max_persisted_tool_result_bytes": 32768
   },
@@ -89,10 +89,12 @@ new run.
 
 Strict Pydantic models use `extra="forbid"`. Python validates ids, lengths,
 enum values, limits, cumulative counters, and that `allowed_tools` is a subset
-of the compiled MVP allowlist. `hard_timeout_seconds` defaults to 120 and MUST
+of the compiled MVP allowlist. `max_concurrent_tools` defaults to 3 and MUST
+be between 1 and 5 inclusive; Feature 361 supersedes the original sequential
+default while preserving snapshotted bounds. `hard_timeout_seconds` defaults to 120 and MUST
 be between 15 and 150 inclusive. Dollar-cost enforcement is deferred; reliable
 provider-reported input/output token usage remains observable, while iteration,
-tool-call, wall-clock, sequential-concurrency, and payload limits remain
+tool-call, wall-clock, bounded-concurrency, and payload limits remain
 enforced.
 
 ## 3. Internal execution frames

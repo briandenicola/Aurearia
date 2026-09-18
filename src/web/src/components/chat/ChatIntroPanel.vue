@@ -8,15 +8,15 @@
       <div class="mt-2 flex w-full flex-col gap-2">
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'Find me Roman silver denarii of Julius Caesar')"
+          @click="$emit('send', 'Find current dealer listings and upcoming auctions online for Julius Caesar denarii')"
         >
-          Roman denarii of Julius Caesar
+          Julius Caesar denarii online
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'I\'m looking for Byzantine gold solidi under $1000')"
+          @click="$emit('send', 'Find current dealer listings for Byzantine gold solidi under $1,000')"
         >
-          Byzantine gold solidi under $1000
+          Byzantine solidi under $1,000
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
@@ -26,15 +26,15 @@
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'Show me ancient Greek tetradrachms from Athens')"
+          @click="$emit('send', 'What are the clearest gaps in my coin collection?')"
         >
-          Greek tetradrachms from Athens
+          Collection gaps
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'What ancient coin shows are coming up near me?')"
+          @click="$emit('send', 'What is the completed-sale price trend for Athenian owl tetradrachms?')"
         >
-          Upcoming coin shows near me
+          Athenian owl price trend
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"

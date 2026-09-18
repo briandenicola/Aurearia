@@ -20,6 +20,11 @@
 5. Verify the result is visibly `complete`, `partial`, `no_match`, or
    `unavailable`.
 6. Verify no wishlist/save/purchase/approval action is offered.
+7. Ask:
+   `Find current dealer listings and upcoming auctions online for Julius Caesar denarii.`
+8. Verify `market_search` and `auction_search` can overlap, no more than three
+   tool calls are in flight, results are persisted in model call order, and
+   the combined request does not fail as a concurrent-tool error.
 
 ## Scenario 2 — Auction search with partial provider failure
 

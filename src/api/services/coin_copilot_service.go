@@ -29,6 +29,8 @@ var (
 	ErrCopilotThreadHasActiveRun  = errors.New("coin copilot thread has an active run")
 )
 
+const copilotDefaultMaxConcurrentTools = 3
+
 type CoinCopilotStartInput struct {
 	ThreadID       string
 	Goal           string
@@ -155,7 +157,7 @@ func (s *CoinCopilotService) Start(userID uint, input CoinCopilotStartInput) (*m
 		ID: newCopilotID("ccr_"), ThreadID: thread.ID, UserID: userID, Status: models.CopilotRunQueued,
 		Goal: goal, AppContextJSON: appContext, StartIdempotencyKeyHash: keyHash, StartRequestFingerprint: fingerprint,
 		MaxIterations: settings.MaxReasoningIterations, MaxToolCalls: settings.MaxToolCalls,
-		MaxConcurrentTools: 1, HardTimeoutSeconds: int(settings.HardTimeout.Seconds()),
+		MaxConcurrentTools: copilotDefaultMaxConcurrentTools, HardTimeoutSeconds: int(settings.HardTimeout.Seconds()),
 		MaxPersistedToolResultBytes: settings.MaxPersistedToolResultBytes,
 	}
 	admitted, reused, err := s.repo.AdmitRun(thread, run, settings.MaxActivePerUser, settings.QueueDepth)

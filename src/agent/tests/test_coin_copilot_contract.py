@@ -60,10 +60,20 @@ def test_valid_execute_request_fixture_is_strict_and_current():
     assert request.schema_version == 1
     assert request.limits.max_iterations == 8
     assert request.limits.max_tool_calls == 12
+    assert request.limits.max_concurrent_tools == 3
     assert request.limits.hard_timeout_seconds == 120
     assert request.limits.max_persisted_tool_result_bytes == 32768
     assert request.app_context is not None
     assert request.app_context.active_coin_id is None
+
+
+def test_concurrent_tool_limit_accepts_five_and_rejects_six():
+    payload = _load("valid_execute_request.json")
+    payload["limits"]["max_concurrent_tools"] = 5
+    assert CopilotExecuteRequest.model_validate(payload).limits.max_concurrent_tools == 5
+    payload["limits"]["max_concurrent_tools"] = 6
+    with pytest.raises(ValidationError):
+        CopilotExecuteRequest.model_validate(payload)
 
 
 def test_request_accepts_exact_go_serialized_app_context():

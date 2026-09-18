@@ -6,10 +6,10 @@
 ## Scope and rollout
 
 Coin Copilot can sequence collection search, coin detail, collection summary,
-top-value, portfolio-review, and structural gap-analysis capabilities. It does
-not expose writes, approvals, dealer/auction search, price trends, similar
-lots, deep-identification handoff, long-term memory, arbitrary HTTP,
-filesystem, shell, code execution, or direct database access.
+top-value, portfolio-review, structural gap-analysis, dealer search, auction
+search, and completed-sale price-trend capabilities. It does not expose
+writes, approvals, similar lots, deep-identification handoff, long-term memory,
+arbitrary HTTP, filesystem, shell, code execution, or direct database access.
 
 The existing drawer calls `GET /api/agent/copilot/capability` before starting a
 run. Copilot mode is selected only when `CoinCopilotEnabled` is on (it defaults
@@ -39,16 +39,26 @@ collection payloads, and raw tool arguments/results.
 
 ## Limits and observability
 
-Defaults are 8 reasoning iterations, 12 tool calls, one tool at a time, 120
-seconds per execution, one active run per owner, and 32 KiB persisted tool
-results. Execution timeout is valid from 15 through 150 seconds. The maximum
+Defaults are 8 reasoning iterations, 12 total tool calls, at most 3 concurrent
+read-only tools, 120 seconds per execution, one active run per owner, and
+32 KiB persisted tool results. Concurrency snapshots from 1 through 5 are
+accepted. Execution timeout is valid from 15 through 150 seconds. The maximum
 plus the 30-second credential buffer stays within the token's absolute
 180-second TTL.
 
 Dollar-cost enforcement is deferred until Aurearia has a trustworthy, current
 provider/model pricing source. Reliable provider-reported input/output token
-usage remains observable. Iteration, tool-call, wall-clock,
-sequential-concurrency, and payload limits remain enforced.
+usage remains observable. Iteration, tool-call, wall-clock, bounded
+concurrency, and payload limits remain enforced. Concurrent results are
+validated before dispatch, executed in bounded groups, and returned to the
+model in its original call order.
+
+Example prompts:
+
+- `Find current dealer listings and upcoming auctions online for Julius Caesar denarii.`
+- `Find current dealer listings for Byzantine gold solidi under $1,000.`
+- `What is the completed-sale price trend for Athenian owl tetradrachms?`
+- `Which coins in my collection are missing an era?`
 
 ## Disconnect, cancellation, and resume
 

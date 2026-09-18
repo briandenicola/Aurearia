@@ -108,7 +108,7 @@ description: "Dependency-ordered implementation tasks for Feature 361 Coin Copil
 
 ### Tests for User Story 4
 
-- [ ] T039 [P] [US4] Add run-budget tests proving specialist calls consume one shared tool call, preserve 8-iteration/12-tool defaults, one-at-a-time execution, 120-second default/150-second maximum, cumulative token observations, and no nested retry budget in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_harness.py`
+- [ ] T039 [P] [US4] Add run-budget tests proving specialist calls consume one shared tool call, preserve 8-iteration/12-tool defaults, deterministic batches with 3 concurrent tools by default and 5 maximum, 120-second default/150-second maximum, cumulative token observations, and no nested retry budget in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_harness.py`
 - [ ] T040 [P] [US4] Add payload-bound tests for query/item/provider-attempt/warning/provenance/URL/text limits plus deterministic 32 KiB digest truncation and final-answer omitted-evidence disclosure in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_contract.py`
 - [ ] T041 [US4] Add cancellation-race tests for pre-dispatch cancellation, cancellation after each awaited provider operation, and zero completion/checkpoint/final-answer frames after cancellation wins in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\agent\tests\test_coin_copilot_harness.py`
 - [ ] T042 [P] [US4] Add restart/resume tests proving completed specialist call ids and truncated results hydrate from checkpoints without repeating provider execution in `C:\Users\brian.denicolafamily\Code\AncientCoins\src\api\integration\coin_copilot_seam_test.go`

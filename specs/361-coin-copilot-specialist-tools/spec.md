@@ -28,6 +28,13 @@ legacy fallback, owner scoping, credential binding, cancellation behavior,
 replay behavior, and all existing step, tool-call, time, token-observation,
 concurrency, and payload bounds.
 
+Product-owner validation on 2026-09-18 superseded Feature 359's original
+single-tool execution default after a combined dealer-and-auction request
+failed instead of using both approved read-only tools. New runs permit at most
+three concurrent tool executions; the internal contract accepts snapshots from
+one through five so existing runs remain replayable and future tuning remains
+bounded.
+
 Deep Identification handoff is explicitly deferred because starting it creates
 a durable side effect. All collection, wishlist, auction, and settings writes;
 proposal or approval cards; durable memory; and replacement of the legacy
@@ -205,7 +212,8 @@ post-cancellation commit, and no cross-user visibility.
   unsupported or ambiguous, or harness startup fails before run acceptance.
 - **FR-005**: The feature MUST preserve the existing snapshotted execution
   bounds: 8 reasoning iterations by default, 12 total tool calls by default,
-  one tool at a time, 120 seconds by default with a 150-second maximum, one
+  at most 3 concurrent tools by default with an accepted maximum of 5, 120
+  seconds by default with a 150-second maximum, one
   active run per owner by default, provider-reported input/output token usage,
   and 32 KiB persisted result data per tool call by default.
 - **FR-006**: Specialist calls MUST count against the existing run-wide

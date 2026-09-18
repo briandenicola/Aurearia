@@ -9,7 +9,8 @@ Extend Coin Copilot with exactly four read-only model-callable capabilities:
 `market_search`, `auction_search`, `price_trends`, and `similar_lots`. Each
 capability adapts the existing canonical Python specialist team and its
 existing outbound-provider boundary into strict Pydantic input/output models.
-The Coin Copilot loop remains bounded and sequential; a specialist invocation
+The Coin Copilot loop remains bounded; independent read-only calls execute in
+deterministic groups of at most three by default, while a specialist invocation
 consumes one existing run-wide tool call and receives no independent budget.
 
 Go remains the durable authority. It expands the execution allowlist, validates
@@ -28,7 +29,7 @@ route, run state, retention rule, or legacy-chat contract changes.
 **Target Platform**: Existing two-container self-hosted web/PWA deployment
 **Project Type**: Go API + Vue SPA + stateless Python agent service
 **Performance Goals**: Every specialist call settles inside the existing 120-second default/150-second maximum execution budget; cancellation is checked before the specialist call and after each awaited provider operation; replay performs zero provider calls; UI remains responsive while rendering at most 10 evidence items per specialist result
-**Constraints**: Exactly four new read-only capabilities; one top-level tool call at a time; 12 run-wide tool calls by default; 32 KiB persisted result per call by default; 64 KiB public event maximum; strict source validation; no arbitrary HTTP; no provider-native/raw payload persistence; no chain-of-thought; owner/run/execution binding; feature flag and legacy fallback preserved
+**Constraints**: Exactly four new read-only capabilities; at most 3 concurrent tool calls by default and 5 for accepted snapshots; 12 run-wide tool calls by default; 32 KiB persisted result per call by default; 64 KiB public event maximum; strict source validation; no arbitrary HTTP; no provider-native/raw payload persistence; no chain-of-thought; owner/run/execution binding; feature flag and legacy fallback preserved
 **Scale/Scope**: Personal-scale single-node deployment; one active run per owner by default; existing queue depth 16; at most 10 normalized evidence items and 10 warnings per specialist result
 
 There are no unresolved technical-context items. Phase 0 decisions are recorded
@@ -162,7 +163,7 @@ Vue existing CoinSearchChat drawer
                specialistResult public projection
                     │
                     v
-Python bounded Coin Copilot loop (one top-level tool at a time)
+Python bounded Coin Copilot loop (deterministic groups, 3 concurrent by default)
   ├─ collection tools → existing Go internal callback routes
   └─ exactly four specialist adapters
        ├─ market_search  → existing coin_search team/provider functions

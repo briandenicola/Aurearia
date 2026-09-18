@@ -71,6 +71,9 @@ func TestCoinCopilotStartIdempotencyOwnerScopeAndCancel(t *testing.T) {
 	if err != nil || reused {
 		t.Fatalf("start run=%#v reused=%v err=%v", first, reused, err)
 	}
+	if first.MaxConcurrentTools != 3 {
+		t.Fatalf("max concurrent tools=%d, want 3", first.MaxConcurrentTools)
+	}
 	second, reused, err := service.Start(7, input)
 	if err != nil || !reused || second.ID != first.ID {
 		t.Fatalf("idempotent replay run=%#v reused=%v err=%v", second, reused, err)
@@ -459,6 +462,39 @@ func TestCoinCopilotToolLimitCountsPersistedAndInflightCallsOnce(t *testing.T) {
 	}
 	if err := service.AuthorizeToolCall(claims, "call_13", "get_coin"); !errors.Is(err, ErrCopilotStateConflict) {
 		t.Fatalf("limit+1 error = %v", err)
+	}
+}
+
+func TestCoinCopilotToolConcurrencyAllowsThreeInflightCalls(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	repo := repository.NewCoinCopilotRepository(db)
+	now := time.Now().UTC()
+	thread := &models.CoinCopilotThread{ID: "cct_tool_concurrency", UserID: 7, Title: "Tool concurrency"}
+	run := &models.CoinCopilotRun{
+		ID: "ccr_tool_concurrency", ThreadID: thread.ID, UserID: 7, Status: models.CopilotRunRunning,
+		Goal: "Use independent tools", StartIdempotencyKeyHash: "tool-concurrency-key",
+		StartRequestFingerprint: "fingerprint", ExecutionID: "cce_tool_concurrency",
+		MaxIterations: 8, MaxToolCalls: 12, MaxConcurrentTools: 3,
+		HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+		StartedAt: &now, ExecutionStartedAt: &now,
+	}
+	if err := repo.CreateRun(thread, run); err != nil {
+		t.Fatal(err)
+	}
+	claims := &CopilotExecutionClaims{
+		UserID: 7, RunID: run.ID, ExecutionID: run.ExecutionID, AllowedTools: []string{"get_coin"},
+	}
+	for i := 1; i <= 3; i++ {
+		if err := service.AuthorizeToolCall(claims, fmt.Sprintf("call_%d", i), "get_coin"); err != nil {
+			t.Fatalf("authorize concurrent call %d: %v", i, err)
+		}
+	}
+	if err := service.AuthorizeToolCall(claims, "call_4", "get_coin"); !errors.Is(err, ErrCopilotStateConflict) {
+		t.Fatalf("fourth concurrent call error=%v, want state conflict", err)
+	}
+	service.FinishToolCall(run.ExecutionID, "call_1", true)
+	if err := service.AuthorizeToolCall(claims, "call_4", "get_coin"); err != nil {
+		t.Fatalf("replacement call after completion: %v", err)
 	}
 }
 

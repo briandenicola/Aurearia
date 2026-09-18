@@ -30,7 +30,9 @@
 
 - **Decision**: A specialist invocation is one top-level Coin Copilot tool
   call. It consumes the existing run-wide iteration, tool-call, wall-clock,
-  sequential-concurrency, and persisted-result budgets. Internal provider
+  bounded-concurrency, and persisted-result budgets. New runs execute at most
+  three independent read-only tools concurrently; snapshots from one through
+  five are accepted. Internal provider
   attempts are fixed by the canonical team, capped, share the same deadline,
   and do not create a second retry or token budget.
 - **Rationale**: This preserves Feature 359 accounting while allowing a

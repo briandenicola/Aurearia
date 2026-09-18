@@ -37,7 +37,7 @@
   "limits": {
     "max_iterations": 8,
     "max_tool_calls": 12,
-    "max_concurrent_tools": 1,
+    "max_concurrent_tools": 3,
     "hard_timeout_seconds": 120,
     "max_persisted_tool_result_bytes": 32768
   },
