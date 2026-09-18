@@ -1,15 +1,17 @@
 ---
 id: F014
 title: "Build attribution and reference assistant"
-status: backlog
+status: promoted
 priority: P1
 effort: XL
 value: 5
 risk: 4
 owner: unassigned
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-09-18
 ---
+
+**Promoted to**: [Feature 362 — Coin Copilot Attribution Integration](../362-coin-copilot-attribution/)
 
 # F014 — Build attribution and reference assistant
 
@@ -46,13 +48,13 @@ evidence. Users review before anything is saved.
   exposure; source URLs are validated.
 - §17 Quality Gate, §21 Definition of Done.
 
-## Open questions
+## Historical open questions (resolved before promotion)
 
-- [ ] Which external reference sources are in v1: NGC, Numista, Wildwinds, RPC,
-      OCRE/RIC, ACSearch, dealer pages, or a smaller starter set?
-- [ ] Should confidence be numeric, low/medium/high, or both?
-- [ ] Should attribution drafts be persisted as separate review records before
-      being applied to a coin?
+- [x] Automated sources are Numista, Nomisma, and enabled OCRE; NGC remains
+      official link-out/quick evidence and RPC automation remains paused.
+- [x] Confidence is numeric on the existing 0.0–1.0 scale.
+- [x] Attribution proposals are persisted as separate Deep Analysis review
+      records before confirm-gated application.
 
 ## Notes
 
@@ -63,3 +65,7 @@ and evidence-backed reference drafting.
 ## History
 
 - 2026-06-09: created (status: backlog).
+- 2026-09-18: promoted to Feature 362 using the product-owner-selected
+  `copilot_integration` direction. Features 344, 351, and 352 already delivered
+  the attribution/proposal foundations; Feature 362 integrates those foundations
+  into Coin Copilot rather than creating a second pipeline.
