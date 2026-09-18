@@ -112,6 +112,15 @@ describe('App sidebar navigation', () => {
     expect(routerSource).toContain("path: '/coin/:id/shipment'")
   })
 
+  it('keeps the same app-wide Agent drawer entry points for legacy chat and Coin Copilot', () => {
+    const source = fs.readFileSync(appPath, 'utf8')
+
+    expect(source).toContain('{ id: \'agent\', label: \'Agent\'')
+    expect(source).toContain('handleAgentFabClick')
+    expect(source).toContain('<CoinSearchChat v-if="showChat"')
+    expect(source.match(/<CoinSearchChat v-if="showChat"/g) ?? []).toHaveLength(1)
+  })
+
   it('merges pinned sets into the existing Sets children branch without a second computed', () => {
     const source = fs.readFileSync(appPath, 'utf8')
 

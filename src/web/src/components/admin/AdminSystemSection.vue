@@ -150,6 +150,57 @@
 
       <section
         class="mt-6 min-w-0 rounded-md border border-border-subtle bg-input p-4 md:p-6"
+        aria-labelledby="coin-copilot-section-heading"
+        data-testid="coin-copilot-section"
+      >
+        <div class="mb-5">
+          <p class="section-label">Beta Agent Harness</p>
+          <h3 id="coin-copilot-section-heading" class="m-0 text-lg font-medium text-heading">Coin Copilot</h3>
+          <p class="mt-1 text-sm text-text-muted">
+            Enables durable, read-only collection analysis in the existing app-wide Agent drawer when the selected model supports tools. Legacy chat remains the fallback.
+          </p>
+        </div>
+
+        <div class="form-group min-w-0">
+          <label class="flex items-center gap-3" for="coin-copilot-enabled">
+            <input
+              id="coin-copilot-enabled"
+              v-model="localCoinCopilotEnabled"
+              type="checkbox"
+              name="CoinCopilotEnabled"
+              aria-describedby="coin-copilot-enabled-help"
+            />
+            <span class="form-label m-0">Enable Coin Copilot beta</span>
+          </label>
+          <span id="coin-copilot-enabled-help" class="mt-1 block text-sm text-text-muted">
+            Off by default. Disabling blocks new runs and resumes while keeping existing runs readable and cancellable.
+          </span>
+        </div>
+
+        <fieldset class="mb-2 min-w-0">
+          <legend class="section-label mb-3">Coin Copilot Limits</legend>
+          <div class="grid min-w-0 gap-4 md:grid-cols-2">
+            <div v-for="setting in coinCopilotSettingFields" :key="setting.name" class="form-group min-w-0">
+              <label class="form-label" :for="setting.name">{{ setting.label }}</label>
+              <input
+                :id="setting.name"
+                v-model="setting.model.value"
+                class="form-input"
+                type="number"
+                :name="setting.name"
+                :min="setting.min"
+                :max="setting.max"
+                step="1"
+                required
+              />
+              <span class="mt-1 block text-sm text-text-muted">{{ setting.hint }}</span>
+            </div>
+          </div>
+        </fieldset>
+      </section>
+
+      <section
+        class="mt-6 min-w-0 rounded-md border border-border-subtle bg-input p-4 md:p-6"
         aria-labelledby="ocre-section-heading"
         data-testid="ocre-section"
       >
@@ -364,6 +415,17 @@ const props = withDefaults(defineProps<{
   deepIdentificationNumistaCallBudget?: string
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
+  coinCopilotEnabled?: string
+  coinCopilotWorkerCount?: string
+  coinCopilotMaxActivePerUser?: string
+  coinCopilotQueueDepth?: string
+  coinCopilotMaxReasoningIterations?: string
+  coinCopilotMaxToolCalls?: string
+  coinCopilotHardTimeoutSeconds?: string
+  coinCopilotMaxPersistedToolResultBytes?: string
+  coinCopilotEventRetentionHours?: string
+  coinCopilotCheckpointRetentionDays?: string
+  coinCopilotResumeWindowHours?: string
   pushoverAppToken: string
   publicAppUrl: string
   uspsApiBaseUrl: string
@@ -396,6 +458,17 @@ const props = withDefaults(defineProps<{
   deepIdentificationResultRetentionDays: '90',
   deepIdentificationMaxProviders: '4',
   deepIdentificationNumistaCallBudget: '4',
+  coinCopilotEnabled: 'false',
+  coinCopilotWorkerCount: '1',
+  coinCopilotMaxActivePerUser: '1',
+  coinCopilotQueueDepth: '16',
+  coinCopilotMaxReasoningIterations: '8',
+  coinCopilotMaxToolCalls: '12',
+  coinCopilotHardTimeoutSeconds: '120',
+  coinCopilotMaxPersistedToolResultBytes: '32768',
+  coinCopilotEventRetentionHours: '168',
+  coinCopilotCheckpointRetentionDays: '30',
+  coinCopilotResumeWindowHours: '168',
 })
 
 const emit = defineEmits<{
@@ -418,6 +491,17 @@ const emit = defineEmits<{
     deepIdentificationNumistaCallBudget: string
     deepIdentificationOCREEnabled: string
     deepIdentificationOCRECallBudget: string
+    coinCopilotEnabled: string
+    coinCopilotWorkerCount: string
+    coinCopilotMaxActivePerUser: string
+    coinCopilotQueueDepth: string
+    coinCopilotMaxReasoningIterations: string
+    coinCopilotMaxToolCalls: string
+    coinCopilotHardTimeoutSeconds: string
+    coinCopilotMaxPersistedToolResultBytes: string
+    coinCopilotEventRetentionHours: string
+    coinCopilotCheckpointRetentionDays: string
+    coinCopilotResumeWindowHours: string
     logLevel: string
     pushoverAppToken: string
     publicAppUrl: string
@@ -455,6 +539,17 @@ const localDeepIdentificationMaxProviders = ref(props.deepIdentificationMaxProvi
 const localDeepIdentificationNumistaCallBudget = ref(props.deepIdentificationNumistaCallBudget)
 const localOCREEnabled = ref((props.deepIdentificationOCREEnabled || 'false') === 'true')
 const localOCRECallBudget = ref(props.deepIdentificationOCRECallBudget || '3')
+const localCoinCopilotEnabled = ref((props.coinCopilotEnabled || 'false') === 'true')
+const localCoinCopilotWorkerCount = ref(props.coinCopilotWorkerCount)
+const localCoinCopilotMaxActivePerUser = ref(props.coinCopilotMaxActivePerUser)
+const localCoinCopilotQueueDepth = ref(props.coinCopilotQueueDepth)
+const localCoinCopilotMaxReasoningIterations = ref(props.coinCopilotMaxReasoningIterations)
+const localCoinCopilotMaxToolCalls = ref(props.coinCopilotMaxToolCalls)
+const localCoinCopilotHardTimeoutSeconds = ref(props.coinCopilotHardTimeoutSeconds)
+const localCoinCopilotMaxPersistedToolResultBytes = ref(props.coinCopilotMaxPersistedToolResultBytes)
+const localCoinCopilotEventRetentionHours = ref(props.coinCopilotEventRetentionHours)
+const localCoinCopilotCheckpointRetentionDays = ref(props.coinCopilotCheckpointRetentionDays)
+const localCoinCopilotResumeWindowHours = ref(props.coinCopilotResumeWindowHours)
 const localPushoverAppToken = ref(props.pushoverAppToken)
 const localPublicAppUrl = ref(props.publicAppUrl)
 const localUSPSAPIBaseURL = ref(props.uspsApiBaseUrl)
@@ -523,6 +618,19 @@ const deepIdentificationSettingFields = [
   { name: 'DeepIdentificationNumistaCallBudget', label: 'Numista call budget', min: 1, max: 20, fallback: 4, model: localDeepIdentificationNumistaCallBudget, hint: 'Requests per job; 1–20. Default 4.' },
 ] as const
 
+const coinCopilotSettingFields = [
+  { name: 'CoinCopilotWorkerCount', label: 'Worker count', min: 1, max: 4, fallback: 1, model: localCoinCopilotWorkerCount, hint: 'Concurrent workers; 1–4. Default 1.' },
+  { name: 'CoinCopilotMaxActivePerUser', label: 'Active runs per user', min: 1, max: 3, fallback: 1, model: localCoinCopilotMaxActivePerUser, hint: 'Non-terminal runs per owner; 1–3. Default 1.' },
+  { name: 'CoinCopilotQueueDepth', label: 'Queue depth', min: 1, max: 100, fallback: 16, model: localCoinCopilotQueueDepth, hint: 'Queued runs; 1–100. Default 16.' },
+  { name: 'CoinCopilotMaxReasoningIterations', label: 'Reasoning iterations', min: 1, max: 20, fallback: 8, model: localCoinCopilotMaxReasoningIterations, hint: 'Planning steps per run; 1–20. Default 8.' },
+  { name: 'CoinCopilotMaxToolCalls', label: 'Tool-call limit', min: 1, max: 40, fallback: 12, model: localCoinCopilotMaxToolCalls, hint: 'Read-only tool calls per run; 1–40. Default 12.' },
+  { name: 'CoinCopilotHardTimeoutSeconds', label: 'Execution timeout', min: 15, max: 600, fallback: 120, model: localCoinCopilotHardTimeoutSeconds, hint: 'Seconds per execution; 15–600. Default 120.' },
+  { name: 'CoinCopilotMaxPersistedToolResultBytes', label: 'Persisted result bytes', min: 4096, max: 131072, fallback: 32768, model: localCoinCopilotMaxPersistedToolResultBytes, hint: 'Bytes retained per tool call; 4,096–131,072. Default 32,768.' },
+  { name: 'CoinCopilotEventRetentionHours', label: 'Event retention', min: 1, max: 720, fallback: 168, model: localCoinCopilotEventRetentionHours, hint: 'Hours after terminal state; 1–720. Default 168.' },
+  { name: 'CoinCopilotCheckpointRetentionDays', label: 'Checkpoint retention', min: 1, max: 365, fallback: 30, model: localCoinCopilotCheckpointRetentionDays, hint: 'Days after terminal state; 1–365. Default 30.' },
+  { name: 'CoinCopilotResumeWindowHours', label: 'Resume window', min: 1, max: 720, fallback: 168, model: localCoinCopilotResumeWindowHours, hint: 'Hours a paused run can resume; 1–720. Default 168.' },
+] as const
+
 const statusRows: { key: NumistaLookupStatus; label: string }[] = [
   { key: 'success', label: 'Success' },
   { key: 'empty', label: 'Empty' },
@@ -533,7 +641,9 @@ const statusRows: { key: NumistaLookupStatus; label: string }[] = [
 ]
 
 function boundedValue(value: string, min: number, max: number, fallback: number) {
-  const parsed = Number(value)
+  const normalized = String(value ?? '').trim()
+  if (!normalized) return String(fallback)
+  const parsed = Number(normalized)
   if (!Number.isInteger(parsed)) return String(fallback)
   return String(Math.min(max, Math.max(min, parsed)))
 }
@@ -543,6 +653,9 @@ function save() {
     setting.model.value = boundedValue(setting.model.value, setting.min, setting.max, setting.fallback)
   }
   for (const setting of deepIdentificationSettingFields) {
+    setting.model.value = boundedValue(setting.model.value, setting.min, setting.max, setting.fallback)
+  }
+  for (const setting of coinCopilotSettingFields) {
     setting.model.value = boundedValue(setting.model.value, setting.min, setting.max, setting.fallback)
   }
   localOCRECallBudget.value = boundedValue(localOCRECallBudget.value, 1, 20, 3)
@@ -565,6 +678,17 @@ function save() {
     deepIdentificationNumistaCallBudget: localDeepIdentificationNumistaCallBudget.value,
     deepIdentificationOCREEnabled: localOCREEnabled.value ? 'true' : 'false',
     deepIdentificationOCRECallBudget: localOCRECallBudget.value,
+    coinCopilotEnabled: localCoinCopilotEnabled.value ? 'true' : 'false',
+    coinCopilotWorkerCount: localCoinCopilotWorkerCount.value,
+    coinCopilotMaxActivePerUser: localCoinCopilotMaxActivePerUser.value,
+    coinCopilotQueueDepth: localCoinCopilotQueueDepth.value,
+    coinCopilotMaxReasoningIterations: localCoinCopilotMaxReasoningIterations.value,
+    coinCopilotMaxToolCalls: localCoinCopilotMaxToolCalls.value,
+    coinCopilotHardTimeoutSeconds: localCoinCopilotHardTimeoutSeconds.value,
+    coinCopilotMaxPersistedToolResultBytes: localCoinCopilotMaxPersistedToolResultBytes.value,
+    coinCopilotEventRetentionHours: localCoinCopilotEventRetentionHours.value,
+    coinCopilotCheckpointRetentionDays: localCoinCopilotCheckpointRetentionDays.value,
+    coinCopilotResumeWindowHours: localCoinCopilotResumeWindowHours.value,
     logLevel: localLogLevel.value,
     pushoverAppToken: localPushoverAppToken.value,
     publicAppUrl: localPublicAppUrl.value,
@@ -690,6 +814,17 @@ watch(() => props.deepIdentificationMaxProviders, (value) => { localDeepIdentifi
 watch(() => props.deepIdentificationNumistaCallBudget, (value) => { localDeepIdentificationNumistaCallBudget.value = value })
 watch(() => props.deepIdentificationOCREEnabled, (value) => { localOCREEnabled.value = (value || 'false') === 'true' })
 watch(() => props.deepIdentificationOCRECallBudget, (value) => { localOCRECallBudget.value = value || '3' })
+watch(() => props.coinCopilotEnabled, (value) => { localCoinCopilotEnabled.value = (value || 'false') === 'true' })
+watch(() => props.coinCopilotWorkerCount, (value) => { localCoinCopilotWorkerCount.value = value })
+watch(() => props.coinCopilotMaxActivePerUser, (value) => { localCoinCopilotMaxActivePerUser.value = value })
+watch(() => props.coinCopilotQueueDepth, (value) => { localCoinCopilotQueueDepth.value = value })
+watch(() => props.coinCopilotMaxReasoningIterations, (value) => { localCoinCopilotMaxReasoningIterations.value = value })
+watch(() => props.coinCopilotMaxToolCalls, (value) => { localCoinCopilotMaxToolCalls.value = value })
+watch(() => props.coinCopilotHardTimeoutSeconds, (value) => { localCoinCopilotHardTimeoutSeconds.value = value })
+watch(() => props.coinCopilotMaxPersistedToolResultBytes, (value) => { localCoinCopilotMaxPersistedToolResultBytes.value = value })
+watch(() => props.coinCopilotEventRetentionHours, (value) => { localCoinCopilotEventRetentionHours.value = value })
+watch(() => props.coinCopilotCheckpointRetentionDays, (value) => { localCoinCopilotCheckpointRetentionDays.value = value })
+watch(() => props.coinCopilotResumeWindowHours, (value) => { localCoinCopilotResumeWindowHours.value = value })
 watch(() => props.pushoverAppToken, (value) => { localPushoverAppToken.value = value })
 watch(() => props.publicAppUrl, (value) => { localPublicAppUrl.value = value })
 watch(() => props.uspsApiBaseUrl, (value) => { localUSPSAPIBaseURL.value = value })

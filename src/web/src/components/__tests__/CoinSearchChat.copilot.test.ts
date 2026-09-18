@@ -1,0 +1,172 @@
+import { mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
+import CoinSearchChat from '../CoinSearchChat.vue'
+import type { CoinCopilotRun } from '@/types'
+
+const mocks = vi.hoisted(() => ({
+  cancel: vi.fn(),
+  resume: vi.fn(),
+  active: false,
+  run: null as CoinCopilotRun | null,
+  clarification: null as null | {
+    question: string
+    inputType: 'text' | 'single_choice' | 'boolean'
+    choices: string[]
+    checkpointVersion: number
+  },
+}))
+
+vi.mock('@/api/client', () => ({
+  createNote: vi.fn(),
+  getApiErrorMessage: () => '',
+}))
+
+vi.mock('@/composables/useDialog', () => ({
+  useDialog: () => ({ showAlert: vi.fn() }),
+}))
+
+vi.mock('@/composables/useCoinSearchChat', () => ({
+  useCoinSearchChat: () => ({
+    messages: ref([{ role: 'user', content: 'Review my collection' }, { role: 'assistant', content: '', streaming: true }]),
+    input: ref(''),
+    loading: ref(false),
+    addingIdx: ref(null),
+    addedSet: ref(new Set()),
+    savedShows: ref(new Set()),
+    savingShow: ref(null),
+    conversationId: ref(null),
+    saving: ref(false),
+    saveLabel: ref('Save'),
+    providerConfigured: ref(true),
+    categoryEraConfirmRequest: ref(null),
+    copilotActive: ref(mocks.active),
+    copilotRun: ref(mocks.run),
+    copilotPlan: ref([
+      { id: 'step_1', title: 'Summarize holdings', status: 'completed' },
+      { id: 'step_2', title: 'Identify gaps', status: 'in_progress' },
+    ]),
+    copilotTools: ref([
+      { toolCallId: 'call_1', toolName: 'collection_summary', stepId: 'step_1', status: 'succeeded', resultSummary: 'Collection summary returned.', truncated: false },
+    ]),
+    copilotClarification: ref(mocks.clarification),
+    copilotCanCancel: ref(Boolean(mocks.run && ['queued', 'running', 'paused'].includes(mocks.run.status))),
+    copilotCanResume: ref(Boolean(mocks.run?.status === 'paused' && mocks.clarification)),
+    copilotTruncated: ref(false),
+    copilotError: ref(''),
+    copilotCancelling: ref(false),
+    copilotResuming: ref(false),
+    chooseCategoryEraConfirmation: vi.fn(),
+    cancelCategoryEraConfirmation: vi.fn(),
+    sendMessage: vi.fn(),
+    cancelCopilotRun: mocks.cancel,
+    resumeCopilotRun: mocks.resume,
+    sendExample: vi.fn(),
+    sendPortfolioAnalysis: vi.fn(),
+    handleSave: vi.fn(),
+    addToWishlist: vi.fn(),
+    confirmCollectionProposal: vi.fn(),
+    cancelCollectionProposalMessage: vi.fn(),
+    pickDisambiguationCandidate: vi.fn(),
+    formatMessage: (message: string) => message,
+    isCoinShowResults: () => false,
+    saveShowToCalendar: vi.fn(),
+  }),
+}))
+
+function activeRun(status: CoinCopilotRun['status']): CoinCopilotRun {
+  return {
+    id: 'ccr_1',
+    threadId: 'cct_1',
+    status,
+    goal: 'Review my collection',
+    checkpointVersion: 4,
+    lastSeq: 3,
+    attempt: 1,
+    finalAnswer: null,
+    failureCode: null,
+    failureMessage: null,
+    resumeDeadline: status === 'paused' ? '2026-09-24T00:00:00Z' : null,
+    usage: { iterations: 1, toolCalls: 1, inputTokens: 1, outputTokens: 1 },
+    createdAt: '',
+    updatedAt: '',
+  }
+}
+
+function mountChat() {
+  return mount(CoinSearchChat, {
+    global: {
+      stubs: {
+        CoinSuggestionGrid: true,
+        CoinShowResultsGrid: true,
+        CategoryEraConfirmModal: true,
+      },
+    },
+  })
+}
+
+describe('CoinSearchChat Coin Copilot drawer integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.active = false
+    mocks.run = null
+    mocks.clarification = null
+  })
+
+  it('preserves the legacy drawer without Copilot UI when fallback mode is active', () => {
+    const wrapper = mountChat()
+
+    expect(wrapper.text()).toContain('Coin Agent')
+    expect(wrapper.find('[data-testid="copilot-run-progress"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copilot-clarification"]').exists()).toBe(false)
+    expect(wrapper.findAll('button').some(button => button.text() === 'Save')).toBe(true)
+  })
+
+  it('keeps an accepted run readable and cancellable after capability falls back', async () => {
+    mocks.active = false
+    mocks.run = activeRun('running')
+    const wrapper = mountChat()
+
+    const progress = wrapper.get('[data-testid="copilot-run-progress"]')
+    expect(progress.text()).toContain('Beta')
+    await progress.get('button').trigger('click')
+    expect(mocks.cancel).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('button').some(button => button.text() === 'Save')).toBe(false)
+  })
+
+  it('renders compact beta plan/tool progress and cancellation in the same responsive drawer', async () => {
+    mocks.active = true
+    mocks.run = activeRun('running')
+    const wrapper = mountChat()
+
+    const progress = wrapper.get('[data-testid="copilot-run-progress"]')
+    expect(progress.text()).toContain('Beta')
+    expect(progress.text()).toContain('Summarize holdings')
+    expect(progress.text()).toContain('Identify gaps')
+    expect(progress.text()).toContain('Collection Summary')
+    const cancel = progress.get('button')
+    expect(cancel.classes()).toContain('min-h-[44px]')
+    await cancel.trigger('click')
+    expect(mocks.cancel).toHaveBeenCalledTimes(1)
+    expect(wrapper.classes()).toContain('fixed')
+    expect(wrapper.findAll('button').some(button => button.text() === 'Save')).toBe(false)
+  })
+
+  it('renders an accessible clarification card and resumes with the selected answer', async () => {
+    mocks.active = true
+    mocks.run = activeRun('paused')
+    mocks.clarification = {
+      question: 'Should sold coins be included?',
+      inputType: 'single_choice',
+      choices: ['Owned only', 'Include sold'],
+      checkpointVersion: 4,
+    }
+    const wrapper = mountChat()
+
+    const card = wrapper.get('[data-testid="copilot-clarification"]')
+    expect(card.attributes('aria-labelledby')).toBe('copilot-clarification-heading')
+    await card.findAll('button').find(button => button.text() === 'Owned only')!.trigger('click')
+    await card.findAll('button').find(button => button.text() === 'Continue')!.trigger('click')
+    expect(mocks.resume).toHaveBeenCalledWith('Owned only')
+  })
+})

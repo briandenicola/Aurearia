@@ -5,6 +5,13 @@ import type {
   AgentChatAppContext,
   AgentChatMessage,
   ApplyDeepIdentificationProposalInput,
+  CoinCopilotCapability,
+  CoinCopilotEvent,
+  CoinCopilotRunEnvelope,
+  CoinCopilotRunStatus,
+  CoinCopilotStreamEnd,
+  CoinCopilotStreamTruncated,
+  CoinCopilotThreadEnvelope,
   CoinSuggestion,
   CollectionChatResponse,
   CreateDeepIdentificationJobInput,
@@ -210,6 +217,252 @@ export const getAIStatus = () =>
 export const getAgentStatus = () =>
   api.get<{ provider: string; configured: boolean }>('/agent/status')
 
+export const getCoinCopilotCapability = () =>
+  api.get<CoinCopilotCapability>('/agent/copilot/capability')
+
+export const startCoinCopilotRun = (
+  input: { goal: string; threadId?: string; appContext?: AgentChatAppContext },
+  idempotencyKey: string,
+) => api.post<CoinCopilotRunEnvelope>('/agent/copilot/runs', input, {
+  headers: { 'Idempotency-Key': idempotencyKey },
+})
+
+export const getCoinCopilotRun = (runId: string) =>
+  api.get<CoinCopilotRunEnvelope>(`/agent/copilot/runs/${runId}`)
+
+export const getCoinCopilotThread = (threadId: string) =>
+  api.get<CoinCopilotThreadEnvelope>(`/agent/copilot/threads/${threadId}`)
+
+export const deleteCoinCopilotThread = (threadId: string) =>
+  api.delete<void>(`/agent/copilot/threads/${threadId}`)
+
+export const cancelCoinCopilotRun = (runId: string) =>
+  api.post<CoinCopilotRunEnvelope>(`/agent/copilot/runs/${runId}/cancel`)
+
+export const resumeCoinCopilotRun = (
+  runId: string,
+  input: { answer: string; expectedCheckpointVersion: number },
+  idempotencyKey: string,
+) => api.post<CoinCopilotRunEnvelope>(`/agent/copilot/runs/${runId}/resume`, input, {
+  headers: { 'Idempotency-Key': idempotencyKey },
+})
+
+type CoinCopilotStreamHandlers = {
+  onEvent: (event: CoinCopilotEvent) => void | boolean
+  onTruncated?: (event: CoinCopilotStreamTruncated) => void
+  onEnd?: (event: CoinCopilotStreamEnd) => void
+}
+
+type CoinCopilotStreamOptions = {
+  since?: number
+  signal?: AbortSignal
+  seenSeqs?: Set<number>
+}
+
+const COPILOT_EVENT_TYPES = new Set<CoinCopilotEvent['type']>([
+  'run_started',
+  'plan_updated',
+  'tool_started',
+  'tool_completed',
+  'clarification_required',
+  'run_paused',
+  'run_resumed',
+  'run_cancelled',
+  'run_completed',
+  'run_failed',
+])
+
+const COPILOT_RUN_STATUSES = new Set<CoinCopilotRunStatus>([
+  'queued',
+  'running',
+  'paused',
+  'cancel_requested',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+const COPILOT_TERMINAL_STATUSES = new Set<CoinCopilotRunStatus>(['completed', 'failed', 'cancelled'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNonNegativeInteger(value: unknown) {
+  return Number.isSafeInteger(value) && Number(value) >= 0
+}
+
+function isCoinCopilotUsage(value: unknown) {
+  if (!isRecord(value)) return false
+  return isNonNegativeInteger(value.iterations) && isNonNegativeInteger(value.toolCalls) &&
+    isNonNegativeInteger(value.inputTokens) && isNonNegativeInteger(value.outputTokens) &&
+    !('estimatedCostMicros' in value)
+}
+
+function isCoinCopilotLimits(value: unknown) {
+  if (!isRecord(value)) return false
+  return isNonNegativeInteger(value.maxIterations) && isNonNegativeInteger(value.maxToolCalls) &&
+    isNonNegativeInteger(value.maxConcurrentTools) && isNonNegativeInteger(value.hardTimeoutSeconds) &&
+    isNonNegativeInteger(value.maxPersistedToolResultBytes) && !('maxEstimatedCostMicros' in value)
+}
+
+function isSafeCopilotEvent(value: unknown, eventType: string, eventId?: string): value is CoinCopilotEvent {
+  if (!isRecord(value) || !COPILOT_EVENT_TYPES.has(eventType as CoinCopilotEvent['type'])) return false
+  if (value.type !== eventType || !Number.isSafeInteger(value.seq) || Number(value.seq) < 1) return false
+  if (eventId !== undefined && Number(eventId) !== value.seq) return false
+  if (typeof value.threadId !== 'string' || typeof value.runId !== 'string' ||
+      typeof value.executionId !== 'string' || typeof value.ts !== 'string' || !isRecord(value.payload)) {
+    return false
+  }
+
+  const payload = value.payload
+  switch (eventType) {
+    case 'run_started':
+      return payload.status === 'running' && typeof payload.executionId === 'string' &&
+        isNonNegativeInteger(payload.attempt) && isCoinCopilotLimits(payload.limits)
+    case 'plan_updated':
+      return Array.isArray(payload.plan) && payload.plan.every((item) =>
+        isRecord(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
+        ['pending', 'in_progress', 'completed', 'skipped', 'failed'].includes(String(item.status)))
+    case 'tool_started':
+      return typeof payload.toolCallId === 'string' && typeof payload.toolName === 'string' && typeof payload.stepId === 'string'
+    case 'tool_completed':
+      return typeof payload.toolCallId === 'string' && typeof payload.toolName === 'string' &&
+        typeof payload.stepId === 'string' && ['succeeded', 'failed', 'cancelled', 'rejected'].includes(String(payload.status)) &&
+        Number.isFinite(payload.durationMs) && typeof payload.resultSummary === 'string' && typeof payload.truncated === 'boolean'
+    case 'clarification_required':
+      return typeof payload.question === 'string' && ['text', 'single_choice', 'boolean'].includes(String(payload.inputType)) &&
+        Array.isArray(payload.choices) && payload.choices.every(choice => typeof choice === 'string') &&
+        isNonNegativeInteger(payload.checkpointVersion)
+    case 'run_paused':
+      return payload.reason === 'clarification_required' && isNonNegativeInteger(payload.checkpointVersion) &&
+        typeof payload.resumeDeadline === 'string'
+    case 'run_resumed':
+      return typeof payload.executionId === 'string' && isNonNegativeInteger(payload.attempt) &&
+        isNonNegativeInteger(payload.checkpointVersion)
+    case 'run_cancelled':
+      return payload.reason === 'owner_cancelled'
+    case 'run_completed':
+      return typeof payload.answer === 'string' && isCoinCopilotUsage(payload.usage)
+    case 'run_failed':
+      return typeof payload.code === 'string' && typeof payload.message === 'string' &&
+        typeof payload.retryable === 'boolean' && isCoinCopilotUsage(payload.usage)
+    default:
+      return false
+  }
+}
+
+export function createCoinCopilotSSEParser(
+  handlers: CoinCopilotStreamHandlers,
+  seenSeqs = new Set<number>(),
+) {
+  let buffer = ''
+  let stopped = false
+
+  function handleFrame(frame: string) {
+    if (!frame.trim() || frame.startsWith(':')) return
+    let eventType = 'message'
+    let eventId: string | undefined
+    const dataLines: string[] = []
+    for (const rawLine of frame.split('\n')) {
+      const line = rawLine.replace(/\r$/, '')
+      if (!line || line.startsWith(':')) continue
+      if (line.startsWith('event:')) eventType = line.slice(6).trim()
+      else if (line.startsWith('id:')) eventId = line.slice(3).trim()
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+    }
+    if (dataLines.length === 0) return
+
+    let data: unknown
+    try {
+      data = JSON.parse(dataLines.join('\n'))
+    } catch {
+      return
+    }
+
+    if (eventType === 'stream_truncated') {
+      if (isRecord(data) && typeof data.runId === 'string' &&
+          COPILOT_RUN_STATUSES.has(data.status as CoinCopilotRunStatus) &&
+          Number.isSafeInteger(data.earliestSeq) && Number.isSafeInteger(data.lastSeq)) {
+        handlers.onTruncated?.(data as unknown as CoinCopilotStreamTruncated)
+      }
+      return
+    }
+    if (eventType === 'end') {
+      if (isRecord(data) && typeof data.runId === 'string' &&
+          COPILOT_TERMINAL_STATUSES.has(data.status as CoinCopilotRunStatus)) {
+        stopped = true
+        handlers.onEnd?.(data as unknown as CoinCopilotStreamEnd)
+      }
+      return
+    }
+    if (!isSafeCopilotEvent(data, eventType, eventId) || seenSeqs.has(data.seq)) return
+
+    seenSeqs.add(data.seq)
+    if (handlers.onEvent(data) === false) stopped = true
+  }
+
+  return {
+    push(chunk: string) {
+      if (stopped) return
+      buffer += chunk
+      const frames = buffer.split(/\r?\n\r?\n/)
+      buffer = frames.pop() ?? ''
+      for (const frame of frames) handleFrame(frame)
+    },
+    finish() {
+      if (!stopped && buffer.trim()) handleFrame(buffer)
+      buffer = ''
+    },
+    get stopped() {
+      return stopped
+    },
+  }
+}
+
+async function fetchCopilotStreamWithAuthRetry(url: string, signal?: AbortSignal): Promise<Response> {
+  const headersFor = (token: string | null) => {
+    const headers = new Headers({ Accept: 'text/event-stream' })
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    return headers
+  }
+  const first = await fetch(url, { headers: headersFor(localStorage.getItem('token')), signal })
+  if (first.status !== 401) return first
+  const refreshed = await refreshAccessToken()
+  return fetch(url, { headers: headersFor(refreshed), signal })
+}
+
+export async function streamCoinCopilotRunEvents(
+  runId: string,
+  handlers: CoinCopilotStreamHandlers,
+  options: CoinCopilotStreamOptions = {},
+) {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+  const since = options.since ?? 0
+  const query = since > 0 ? `?since=${encodeURIComponent(String(since))}` : ''
+  const response = await fetchCopilotStreamWithAuthRetry(
+    `${baseURL}/api/agent/copilot/runs/${encodeURIComponent(runId)}/events${query}`,
+    options.signal,
+  )
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(formatAgentServiceError(body, `Unable to open Coin Copilot stream (HTTP ${response.status}).`))
+  }
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('Streaming is not supported in this browser.')
+
+  const parser = createCoinCopilotSSEParser(handlers, options.seenSeqs)
+  const decoder = new TextDecoder()
+  while (!parser.stopped) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parser.push(decoder.decode(value, { stream: true }))
+  }
+  parser.push(decoder.decode())
+  parser.finish()
+  if (parser.stopped) await reader.cancel().catch(() => undefined)
+}
+
 // Deep Agentic Coin Identification (344-deep-agentic-coin-identification).
 export async function createDeepIdentificationJob(input: CreateDeepIdentificationJobInput) {
   const formData = new FormData()
@@ -256,4 +509,3 @@ export const deleteDeepIdentificationJob = (id: number) =>
   api.delete<void>(`/deep-identification/jobs/${id}`)
 
 export default api
-

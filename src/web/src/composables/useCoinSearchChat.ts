@@ -4,6 +4,7 @@ import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, cr
 import type { CoinMutationPayload, CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinOptions } from '@/composables/useCoinOptions'
+import { useCoinCopilot } from '@/composables/useCoinCopilot'
 import { renderSafeChatMarkdown } from '@/composables/useMarkdown'
 
 type ChatSuggestion = CoinSuggestion | CoinShow
@@ -197,8 +198,32 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   const saveLabel = ref('Save')
   const providerConfigured = ref(true)
   const categoryEraConfirmRequest = ref<CategoryEraConfirmRequest | null>(null)
+  const copilotCancelling = ref(false)
+  const copilotResuming = ref(false)
   let pendingCategoryEraConfirm: ((value: string | null) => void) | null = null
   let saveLabelTimer: ReturnType<typeof setTimeout> | null = null
+  let copilotAssistantIdx: number | null = null
+
+  const copilot = useCoinCopilot({
+    onRecoveredThread(thread) {
+      if (options.loadConversation || messages.value.length > 0) return
+      messages.value = thread.messages.map(message => ({
+        role: message.role,
+        content: message.content,
+      }))
+      const currentRun = thread.runs.find(candidate => candidate.id === copilot.run.value?.id)
+      if (currentRun && !['completed', 'failed', 'cancelled'].includes(currentRun.status)) {
+        copilotAssistantIdx = messages.value.length
+        messages.value.push({
+          role: 'assistant',
+          content: '',
+          streaming: currentRun.status !== 'paused',
+          statusText: currentRun.status === 'paused' ? 'Waiting for your answer' : 'Reconnecting to Coin Copilot...',
+        })
+      }
+      scrollToBottom()
+    },
+  })
 
   function requestCategoryEraConfirmation(request: CategoryEraConfirmRequest): Promise<string | null> {
     return new Promise((resolve) => {
@@ -247,20 +272,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     }
   }
 
-  async function sendMessage() {
-    const text = input.value.trim()
-    if (!text || loading.value) return
-
-    messages.value.push({ role: 'user', content: text })
-    const history = buildHistory().slice(0, -1)
-    input.value = ''
-    loading.value = true
-    scrollToBottom()
-
-    const assistantIdx = messages.value.length
-    messages.value.push({ role: 'assistant', content: '', streaming: true })
-    scrollToBottom()
-
+  async function sendLegacyMessage(text: string, history: AgentChatMessage[], assistantIdx: number) {
     await agentChatStream(
       text,
       history,
@@ -297,6 +309,105 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       },
       buildAppContext(),
     )
+  }
+
+  function settleCopilotMessage(result: { status: string; answer?: string; error?: string }) {
+    const assistantIdx = copilotAssistantIdx
+    if (assistantIdx === null) return
+    const msg = messages.value[assistantIdx]
+    if (!msg) return
+
+    if (result.status === 'completed') {
+      msg.content = result.answer || copilot.run.value?.finalAnswer || 'Coin Copilot completed without a response.'
+    } else if (result.status === 'failed') {
+      msg.content = result.error || copilot.run.value?.failureMessage || 'Coin Copilot could not complete this request.'
+    } else if (result.status === 'cancelled') {
+      msg.content = 'Coin Copilot run cancelled.'
+    }
+    msg.streaming = result.status === 'queued' || result.status === 'running' || result.status === 'cancel_requested'
+    msg.statusText = result.status === 'paused' ? 'Waiting for your answer' : ''
+    loading.value = Boolean(msg.streaming)
+    scrollToBottom()
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim()
+    if (!text || loading.value) return
+
+    const mode = await copilot.resolveCapability()
+    messages.value.push({ role: 'user', content: text })
+    const history = buildHistory().slice(0, -1)
+    input.value = ''
+    loading.value = true
+    scrollToBottom()
+
+    const assistantIdx = messages.value.length
+    messages.value.push({ role: 'assistant', content: '', streaming: true })
+    scrollToBottom()
+
+    if (mode.mode !== 'copilot') {
+      await sendLegacyMessage(text, history, assistantIdx)
+      return
+    }
+
+    copilotAssistantIdx = assistantIdx
+    const result = await copilot.start(text, buildAppContext(), copilot.run.value?.threadId)
+    if (!result.accepted && result.fallback) {
+      await sendLegacyMessage(text, history, assistantIdx)
+      return
+    }
+    if (!result.accepted) {
+      const msg = messages.value[assistantIdx]!
+      msg.content = result.error
+      msg.streaming = false
+      msg.statusText = ''
+      loading.value = false
+      scrollToBottom()
+      return
+    }
+    settleCopilotMessage(result)
+  }
+
+  async function cancelCopilotRun() {
+    if (!copilot.canCancel.value || copilotCancelling.value) return
+    copilotCancelling.value = true
+    try {
+      const cancelled = await copilot.cancel()
+      if (cancelled && copilot.run.value?.status === 'cancelled') {
+        settleCopilotMessage({ status: 'cancelled' })
+      }
+    } finally {
+      copilotCancelling.value = false
+    }
+  }
+
+  async function resumeCopilotRun(answer: string) {
+    if (!copilot.canResume.value || copilotResuming.value) return
+    copilotResuming.value = true
+    loading.value = true
+    const assistantIdx = copilotAssistantIdx
+    if (assistantIdx !== null && messages.value[assistantIdx]) {
+      messages.value[assistantIdx]!.streaming = true
+      messages.value[assistantIdx]!.statusText = 'Resuming Coin Copilot...'
+    }
+    try {
+      const resumed = await copilot.resume(answer)
+      if (resumed && copilot.run.value) {
+        settleCopilotMessage({
+          status: copilot.run.value.status,
+          answer: copilot.run.value.finalAnswer ?? undefined,
+          error: copilot.run.value.failureMessage ?? (copilot.error.value || undefined),
+        })
+      } else {
+        loading.value = false
+        if (assistantIdx !== null && messages.value[assistantIdx]) {
+          messages.value[assistantIdx]!.streaming = false
+          messages.value[assistantIdx]!.statusText = 'Waiting for your answer'
+        }
+      }
+    } finally {
+      copilotResuming.value = false
+    }
   }
 
   function sendExample(text: string) {
@@ -583,6 +694,10 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     } catch {
       providerConfigured.value = true
     }
+    await copilot.resolveCapability()
+    if (!options.loadConversation) {
+      await copilot.restoreActiveRun()
+    }
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportResize)
       window.visualViewport.addEventListener('scroll', handleViewportResize)
@@ -595,6 +710,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       window.visualViewport.removeEventListener('scroll', handleViewportResize)
     }
     if (saveLabelTimer) clearTimeout(saveLabelTimer)
+    copilot.disconnect()
   })
 
   return {
@@ -610,9 +726,22 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     saveLabel,
     providerConfigured,
     categoryEraConfirmRequest,
+    copilotActive: copilot.active,
+    copilotRun: copilot.run,
+    copilotPlan: copilot.plan,
+    copilotTools: copilot.tools,
+    copilotClarification: copilot.clarification,
+    copilotCanCancel: copilot.canCancel,
+    copilotCanResume: copilot.canResume,
+    copilotTruncated: copilot.truncated,
+    copilotError: copilot.error,
+    copilotCancelling,
+    copilotResuming,
     chooseCategoryEraConfirmation,
     cancelCategoryEraConfirmation,
     sendMessage,
+    cancelCopilotRun,
+    resumeCopilotRun,
     sendExample,
     sendPortfolioAnalysis,
     handleSave,

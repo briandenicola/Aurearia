@@ -131,3 +131,215 @@ export interface AgentChatResponse {
   suggestions: CoinSuggestion[]
   collection?: CollectionChatResponse
 }
+
+export type CoinCopilotCapabilityReason =
+  | 'disabled'
+  | 'provider_unconfigured'
+  | 'model_tool_calling_unsupported'
+  | 'temporarily_unavailable'
+
+export type CoinCopilotCapability =
+  | {
+      mode: 'copilot'
+      enabled: true
+      modelToolCallingSupported: true
+      reason?: null
+    }
+  | {
+      mode: 'legacy'
+      enabled: boolean
+      modelToolCallingSupported: false
+      reason: CoinCopilotCapabilityReason
+    }
+
+export type CoinCopilotRunStatus =
+  | 'queued'
+  | 'running'
+  | 'paused'
+  | 'cancel_requested'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface CoinCopilotUsage {
+  iterations: number
+  toolCalls: number
+  inputTokens: number
+  outputTokens: number
+}
+
+export type CoinCopilotPlanStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
+
+export interface CoinCopilotPlanItem {
+  id: string
+  title: string
+  status: CoinCopilotPlanStatus
+}
+
+export type CoinCopilotClarificationInputType = 'text' | 'single_choice' | 'boolean'
+
+export interface CoinCopilotClarification {
+  question: string
+  inputType: CoinCopilotClarificationInputType
+  choices: string[]
+  checkpointVersion: number
+}
+
+export interface CoinCopilotCheckpointSummary {
+  version: number
+  plan: CoinCopilotPlanItem[]
+  pendingClarification: CoinCopilotClarification | null
+}
+
+export interface CoinCopilotRun {
+  id: string
+  threadId: string
+  status: CoinCopilotRunStatus
+  goal: string
+  checkpointVersion: number
+  lastSeq: number
+  attempt: number
+  finalAnswer: string | null
+  failureCode: string | null
+  failureMessage: string | null
+  resumeDeadline: string | null
+  usage: CoinCopilotUsage
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CoinCopilotRunEnvelope {
+  run: CoinCopilotRun
+  reused: boolean
+}
+
+export interface CoinCopilotThreadMessage {
+  role: 'user' | 'assistant'
+  content: string
+  runId: string | null
+  createdAt: string
+}
+
+export interface CoinCopilotThread {
+  id: string
+  title: string
+  messages: CoinCopilotThreadMessage[]
+  runs: CoinCopilotRun[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CoinCopilotThreadEnvelope {
+  thread: CoinCopilotThread
+}
+
+export interface CoinCopilotRunLimits {
+  maxIterations: number
+  maxToolCalls: number
+  maxConcurrentTools: number
+  hardTimeoutSeconds: number
+  maxPersistedToolResultBytes: number
+}
+
+interface CoinCopilotEventBase<TType extends string, TPayload> {
+  seq: number
+  threadId: string
+  runId: string
+  executionId: string
+  type: TType
+  ts: string
+  payload: TPayload
+}
+
+export type CoinCopilotRunStartedEvent = CoinCopilotEventBase<'run_started', {
+  status: 'running'
+  executionId: string
+  attempt: number
+  limits: CoinCopilotRunLimits
+}>
+
+export type CoinCopilotPlanUpdatedEvent = CoinCopilotEventBase<'plan_updated', {
+  plan: CoinCopilotPlanItem[]
+}>
+
+export type CoinCopilotToolStartedEvent = CoinCopilotEventBase<'tool_started', {
+  toolCallId: string
+  toolName: string
+  stepId: string
+}>
+
+export type CoinCopilotToolCompletedEvent = CoinCopilotEventBase<'tool_completed', {
+  toolCallId: string
+  toolName: string
+  stepId: string
+  status: 'succeeded' | 'failed' | 'cancelled' | 'rejected'
+  durationMs: number
+  resultSummary: string
+  truncated: boolean
+}>
+
+export type CoinCopilotClarificationRequiredEvent = CoinCopilotEventBase<'clarification_required', CoinCopilotClarification>
+
+export type CoinCopilotRunPausedEvent = CoinCopilotEventBase<'run_paused', {
+  reason: 'clarification_required'
+  checkpointVersion: number
+  resumeDeadline: string
+}>
+
+export type CoinCopilotRunResumedEvent = CoinCopilotEventBase<'run_resumed', {
+  executionId: string
+  attempt: number
+  checkpointVersion: number
+}>
+
+export type CoinCopilotRunCancelledEvent = CoinCopilotEventBase<'run_cancelled', {
+  reason: 'owner_cancelled'
+}>
+
+export type CoinCopilotRunCompletedEvent = CoinCopilotEventBase<'run_completed', {
+  answer: string
+  usage: CoinCopilotUsage
+}>
+
+export type CoinCopilotFailureCode =
+  | 'agent_unavailable'
+  | 'execution_lost'
+  | 'invalid_agent_frame'
+  | 'invalid_tool_call'
+  | 'iteration_limit_exceeded'
+  | 'tool_limit_exceeded'
+  | 'time_limit_exceeded'
+  | 'model_tool_calling_unsupported'
+  | 'resume_window_expired'
+  | 'internal'
+
+export type CoinCopilotRunFailedEvent = CoinCopilotEventBase<'run_failed', {
+  code: CoinCopilotFailureCode
+  message: string
+  retryable: boolean
+  usage: CoinCopilotUsage
+}>
+
+export type CoinCopilotEvent =
+  | CoinCopilotRunStartedEvent
+  | CoinCopilotPlanUpdatedEvent
+  | CoinCopilotToolStartedEvent
+  | CoinCopilotToolCompletedEvent
+  | CoinCopilotClarificationRequiredEvent
+  | CoinCopilotRunPausedEvent
+  | CoinCopilotRunResumedEvent
+  | CoinCopilotRunCancelledEvent
+  | CoinCopilotRunCompletedEvent
+  | CoinCopilotRunFailedEvent
+
+export interface CoinCopilotStreamTruncated {
+  runId: string
+  status: CoinCopilotRunStatus
+  earliestSeq: number
+  lastSeq: number
+}
+
+export interface CoinCopilotStreamEnd {
+  runId: string
+  status: CoinCopilotRunStatus
+}

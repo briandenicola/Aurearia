@@ -1,10 +1,29 @@
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CoinSuggestion } from '@/types'
-import { buildWishlistCoinPayload, normalizeSuggestionEra, resolveCategoryAndEra } from '../useCoinSearchChat'
+import { buildWishlistCoinPayload, normalizeSuggestionEra, resolveCategoryAndEra, useCoinSearchChat } from '../useCoinSearchChat'
 
 const mockMatchCategoryEra = vi.fn()
+const mockAgentChatStream = vi.fn()
+const mockGetCoinCopilotCapability = vi.fn()
 vi.mock('@/api/client', () => ({
   matchCategoryEra: (type: 'category' | 'era', value: string) => mockMatchCategoryEra(type, value),
+  getCoinCopilotCapability: () => mockGetCoinCopilotCapability(),
+  getAgentStatus: vi.fn(async () => ({ data: { configured: true } })),
+  agentChatStream: (...args: unknown[]) => mockAgentChatStream(...args),
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ params: {}, fullPath: '/collection' }),
+}))
+
+vi.mock('@/composables/useDialog', () => ({
+  useDialog: () => ({ showAlert: vi.fn() }),
+}))
+
+vi.mock('@/composables/useCoinOptions', () => ({
+  useCoinOptions: () => ({ categoryOptions: ref([]), eraOptions: ref([]), loadOptions: vi.fn() }),
 }))
 
 function makeSuggestion(overrides: Partial<CoinSuggestion> = {}): CoinSuggestion {
@@ -30,6 +49,50 @@ describe('useCoinSearchChat wishlist payload', () => {
     expect(normalizeSuggestionEra('Byzantine')).toBe('medieval')
     expect(normalizeSuggestionEra('Modern commemorative')).toBe('modern')
     expect(normalizeSuggestionEra('Unknown period')).toBe('')
+  })
+
+  describe('useCoinSearchChat legacy fallback', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      mockGetCoinCopilotCapability.mockResolvedValue({
+        data: {
+          mode: 'legacy',
+          enabled: true,
+          modelToolCallingSupported: false,
+          reason: 'model_tool_calling_unsupported',
+        },
+      })
+      mockAgentChatStream.mockImplementation(async (
+        _message: string,
+        _history: unknown[],
+        _onText: unknown,
+        onDone: (message: string, suggestions: unknown[]) => void,
+      ) => {
+        onDone('Legacy response', [])
+      })
+    })
+
+    it('uses the unchanged legacy stream when the feature/model capability falls back', async () => {
+      let chat: ReturnType<typeof useCoinSearchChat> | undefined
+      const Host = defineComponent({
+        setup() {
+          chat = useCoinSearchChat({
+            messagesEl: ref(),
+            inputBarEl: ref(),
+            onAdded: vi.fn(),
+          })
+          return () => null
+        },
+      })
+      mount(Host)
+      await flushPromises()
+      chat!.input.value = 'Find a Roman coin'
+
+      await chat!.sendMessage()
+
+      expect(mockAgentChatStream).toHaveBeenCalledTimes(1)
+      expect(chat!.messages.value.at(-1)?.content).toBe('Legacy response')
+    })
   })
 
   it('builds a create-coin payload with only supported era values', () => {

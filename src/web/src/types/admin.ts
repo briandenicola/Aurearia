@@ -25,6 +25,17 @@ export interface AppSettings extends Partial<NumistaSettings> {
   CoinEras?: string
   DeepIdentificationOCREEnabled?: string
   DeepIdentificationOCRECallBudget?: string
+  CoinCopilotEnabled?: string
+  CoinCopilotWorkerCount?: string
+  CoinCopilotMaxActivePerUser?: string
+  CoinCopilotQueueDepth?: string
+  CoinCopilotMaxReasoningIterations?: string
+  CoinCopilotMaxToolCalls?: string
+  CoinCopilotHardTimeoutSeconds?: string
+  CoinCopilotMaxPersistedToolResultBytes?: string
+  CoinCopilotEventRetentionHours?: string
+  CoinCopilotCheckpointRetentionDays?: string
+  CoinCopilotResumeWindowHours?: string
   [key: string]: string | undefined
 }
 

@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-[1400] flex h-dvh justify-end bg-black/50" @click.self="$emit('close')">
     <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_rgba(0,0,0,0.3)] sm:w-[480px]">
       <ChatHeader
-        :has-messages="messages.length > 0"
+        :has-messages="messages.length > 0 && !copilotRun"
         :saving="saving"
         :conversation-id="conversationId"
         :save-label="saveLabel"
@@ -110,6 +110,35 @@
           </div>
         </template>
 
+        <CopilotRunProgress
+          v-if="copilotRun"
+          :run="copilotRun"
+          :plan="copilotPlan"
+          :tools="copilotTools"
+          :can-cancel="copilotCanCancel"
+          :cancelling="copilotCancelling"
+          :truncated="copilotTruncated"
+          @cancel="cancelCopilotRun"
+        />
+
+        <CopilotClarificationCard
+          v-if="copilotRun && copilotClarification && copilotCanResume"
+          :clarification="copilotClarification"
+          :submitting="copilotResuming"
+          :cancelling="copilotCancelling"
+          :error="copilotError"
+          @resume="resumeCopilotRun"
+          @cancel="cancelCopilotRun"
+        />
+
+        <p
+          v-else-if="copilotRun && copilotError"
+          class="w-full rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]"
+          role="alert"
+        >
+          {{ copilotError }}
+        </p>
+
         <div v-if="loading && !messages[messages.length - 1]?.streaming" class="max-w-[85%] self-start rounded-md border border-border-subtle bg-card px-[0.85rem] py-[0.65rem] text-text-primary">
           <div class="flex items-center gap-1.5 italic text-text-muted">
             <span class="h-1.5 w-1.5 rounded-full bg-gold animate-pulse"></span>
@@ -121,7 +150,7 @@
 
       <ChatInputBar
         v-model="input"
-        :loading="loading"
+        :loading="loading || copilotRun?.status === 'paused'"
         :provider-configured="providerConfigured"
         ref="inputBarEl"
         @send="sendMessage"
@@ -181,6 +210,8 @@ import ChatInputBar from '@/components/chat/ChatInputBar.vue'
 import CoinShowResultsGrid from '@/components/chat/CoinShowResultsGrid.vue'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 import CategoryEraConfirmModal from '@/components/chat/CategoryEraConfirmModal.vue'
+import CopilotRunProgress from '@/components/chat/CopilotRunProgress.vue'
+import CopilotClarificationCard from '@/components/chat/CopilotClarificationCard.vue'
 
 const props = defineProps<{
   loadConversation?: { id: number; title: string; messages: string } | null
@@ -216,9 +247,21 @@ const {
   saveLabel,
   providerConfigured,
   categoryEraConfirmRequest,
+  copilotRun,
+  copilotPlan,
+  copilotTools,
+  copilotClarification,
+  copilotCanCancel,
+  copilotCanResume,
+  copilotTruncated,
+  copilotError,
+  copilotCancelling,
+  copilotResuming,
   chooseCategoryEraConfirmation,
   cancelCategoryEraConfirmation,
   sendMessage,
+  cancelCopilotRun,
+  resumeCopilotRun,
   sendExample,
   sendPortfolioAnalysis,
   handleSave,
