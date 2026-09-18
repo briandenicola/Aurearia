@@ -53,6 +53,7 @@ The following accepted decisions are binding:
 - Q: What happens to handoffs and accepted jobs when a feature is disabled? → A: `featureDisablePolicy=finish_existing`
 - Q: What architectural record is required before implementation? → A: Feature 362 ADR required
 - Q: Which service owns durable handoff idempotency? → A: Go owns durable idempotency
+- Q: What public response covers every ineligible or unbound job lookup? → A: `status: not_eligible`, `reason: null`
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -206,6 +207,12 @@ fallback and no duplicate mutation or provider execution.
    linearizes first, **Then** zero Deep jobs are created; **When** admission
    linearizes first, **Then** exactly one durable job exists and cancellation
    prevents every later settlement from publishing or committing a result.
+8. **Given** status lookups for unknown job IDs, foreign-owned jobs, legacy
+   unbound intake jobs, jobs with unknown source values, jobs whose targets were
+   deleted or promoted, and arbitrary unbound jobs, **When** their public
+   responses are compared, **Then** every response has `status: not_eligible`
+   and `reason: null`, and the sanitized serialized bodies are byte-equivalent
+   with no job-existence, source, ownership, or target disclosure.
 
 ### Edge Cases
 
@@ -218,8 +225,9 @@ fallback and no duplicate mutation or provider execution.
   launch.
 - A draft is discarded or promoted, or a coin is deleted, after a status
   checkpoint was saved but before status lookup or proposal apply; the request
-  returns the closed `target_unavailable`/`not_eligible` outcome without
-  disclosing whether a foreign or deleted target ever existed.
+  returns the same public `not_eligible` response used for every unknown,
+  foreign-owned, legacy unbound, unknown-source, or otherwise unbound job,
+  without disclosing whether any job or target ever existed.
 - Destination fields, notes/context, references, ownership, or active-draft
   state change after review opens but before apply; the entire selected apply
   set is revalidated atomically against current state or rejected without a
@@ -316,9 +324,14 @@ fallback and no duplicate mutation or provider execution.
   Coin Copilot checkpoint; (b) it is a saved-coin Deep job owned by the caller;
   or (c) it has source type `copilot_draft` and an active `source_draft_id`
   owned by the caller. Legacy unbound intake jobs MUST NOT be adopted. Deleted
-  coins and deleted or promoted drafts MUST close lookup with
-  `target_unavailable` or `not_eligible`, using the same non-disclosing behavior
-  for foreign, unknown, and formerly existing targets.
+  or promoted targets, unknown job IDs, foreign-owned jobs, legacy unbound
+  intake jobs, jobs with unknown source values, and every other unbound job
+  MUST close public status lookup with the identical sanitized response:
+  `status: not_eligible` and `reason: null`. After canonical serialization,
+  these public response bodies MUST be byte-equivalent and MUST omit every
+  field or variation that could reveal job existence, source, ownership, or
+  target history. Internal logs MAY classify the cause using privacy-safe
+  codes, but those classifications MUST NOT affect or appear in public output.
 
 #### Evidence and conversational explanation
 
@@ -435,9 +448,13 @@ selected and explicitly confirmed in the existing Deep Proposal editor:
 - **FR-029**: Automated tests MUST cover low confidence, conflicting sources,
   no match, manual-field preservation, wishlist-versus-collection-versus-draft
   field applicability, reference append/dedupe, duplicate and replayed
-  requests, foreign and unknown target IDs, malformed output, cancellation
-  races, completed/active/failed/cancelled/stale jobs, changed inputs,
-  missing images, and safe capability fallback.
+  requests, malformed output, cancellation races,
+  completed/active/failed/cancelled/stale jobs, changed inputs, missing images,
+  and safe capability fallback. A nondisclosure matrix MUST compare unknown job
+  IDs, foreign-owned jobs, legacy unbound intake jobs, unknown source values,
+  deleted or promoted targets, and arbitrary unbound jobs and MUST assert the
+  same public `not_eligible` status, `reason: null`, and byte-equivalent
+  sanitized serialized response body for every case.
 - **FR-030**: Regression tests MUST prove that existing Coin Copilot collection
   and specialist tools, legacy fallback, Deep Analysis direct entry points,
   proposal review/apply, provider attribution, and fast Identify behavior
@@ -535,8 +552,12 @@ selected and explicitly confirmed in the existing Deep Proposal editor:
 - **SC-005**: In preservation tests, 100% of unaccepted manual fields remain
   byte-for-byte unchanged, all pre-existing structured references remain
   present, and an equivalent accepted reference appears at most once.
-- **SC-006**: Unknown and foreign target/job tests disclose zero target, image,
-  report, proposal, job-state, or ownership information.
+- **SC-006**: Across unknown job IDs, foreign-owned jobs, legacy unbound intake
+  jobs, unknown source values, deleted or promoted targets, and arbitrary
+  unbound jobs, 100% of public status responses use `status: not_eligible` and
+  `reason: null`; their sanitized serialized bodies are byte-equivalent and
+  disclose zero job existence, source, ownership, target history, image,
+  report, proposal, or job-state information.
 - **SC-007**: Missing-image, malformed-output, disabled-capability, unsupported-
   model, failed, cancelled, and stale-state tests produce a clear safe next step
   with zero invented result, partial write, or orphaned job.
