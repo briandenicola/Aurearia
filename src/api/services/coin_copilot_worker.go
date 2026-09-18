@@ -406,6 +406,9 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			Summary    string          `json:"result_summary"`
 			Result     json.RawMessage `json:"result"`
 		}
+		var completedSpecialist *CopilotSpecialistResult
+		var completedFallback *CopilotBoundedToolResult
+		persistedSpecialistBytes := 0
 		if err := json.Unmarshal(frame.Payload, &payload); err != nil || payload.ToolCallID == "" || payload.StepID == "" || !IsCoinCopilotToolAllowed(payload.ToolName) || payload.DurationMS < 0 {
 			return ErrInvalidCopilotFrame
 		}
@@ -414,10 +417,11 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 		default:
 			return ErrInvalidCopilotFrame
 		}
-		_, _, truncated, _, err := SanitizeCopilotJSON(payload.Result, run.MaxPersistedToolResultBytes)
+		boundedResult, _, truncated, _, err := SanitizeCopilotJSON(payload.Result, run.MaxPersistedToolResultBytes)
 		if err != nil {
 			return err
 		}
+		persistedSpecialistBytes = len(boundedResult)
 		publicPayload := map[string]any{
 			"toolCallId": payload.ToolCallID, "toolName": payload.ToolName, "stepId": payload.StepID,
 			"status": payload.Status, "durationMs": payload.DurationMS,
@@ -427,7 +431,7 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			if fallback, fallbackErr := DecodeCopilotBoundedToolResult(payload.Result); fallbackErr == nil {
 				truncated = true
 				publicPayload["truncated"] = true
-				s.logTruncatedSpecialistCompletion(run, payload.ToolName, payload.DurationMS, fallback, len(payload.Result))
+				completedFallback = &fallback
 			} else {
 				result, err := DecodeCopilotSpecialistResult(payload.Result, payload.ToolName)
 				if err != nil {
@@ -438,11 +442,19 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 					return err
 				}
 				publicPayload["specialistResult"] = specialistResult
-				s.logSpecialistCompletion(run, payload.ToolName, payload.DurationMS, result)
+				completedSpecialist = &result
 			}
 		}
 		public, _ := json.Marshal(publicPayload)
-		return s.appendFrameEvent(run, models.CopilotEventToolCompleted, public)
+		if err := s.appendFrameEvent(run, models.CopilotEventToolCompleted, public); err != nil {
+			return err
+		}
+		if completedFallback != nil {
+			s.logTruncatedSpecialistCompletion(run, payload.ToolName, payload.DurationMS, *completedFallback, persistedSpecialistBytes)
+		} else if completedSpecialist != nil {
+			s.logSpecialistCompletion(run, payload.ToolName, payload.DurationMS, *completedSpecialist)
+		}
+		return nil
 	case "clarification_required":
 		var payload struct {
 			Question  string   `json:"question"`

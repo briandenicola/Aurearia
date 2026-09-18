@@ -212,6 +212,42 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 	}
 }
 
+func TestCoinCopilotWorkerDoesNotLogSpecialistCompletionBeforePersistence(t *testing.T) {
+	db, service := newCopilotServiceTest(t)
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "market_search_complete.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"tool_call_id": "call_market", "tool_name": "market_search", "step_id": "step_market",
+		"status": "succeeded", "duration_ms": 25, "result_summary": "One market result.", "result": result,
+	})
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	run := &models.CoinCopilotRun{
+		ID: "ccr_failed_persistence", UserID: 7, ExecutionID: "cce_failed_persistence",
+		MaxPersistedToolResultBytes: 32768,
+	}
+	frame := CopilotAgentFrame{
+		SchemaVersion: 1, RunID: run.ID, ExecutionID: run.ExecutionID,
+		FrameID: "frm_market", Type: "tool_completed", Payload: payload,
+	}
+	if err := service.applyFrame(run, frame); err == nil {
+		t.Fatal("applyFrame succeeded after the event store was closed")
+	}
+	if logs := service.logger.GetLogs(10); len(logs) != 0 {
+		t.Fatalf("specialist completion was logged before persistence: %#v", logs)
+	}
+}
+
 func TestCoinCopilotWorkerRejectsTamperedSpecialistCheckpointMetadata(t *testing.T) {
 	mutations := map[string]func(*CopilotCompletedTool){
 		"digest":          func(tool *CopilotCompletedTool) { tool.ResultDigest = strings.Repeat("0", 64) },
