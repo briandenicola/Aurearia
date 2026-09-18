@@ -1,0 +1,56 @@
+name: Feature 362 Compatibility
+
+on:
+  pull_request:
+    branches: [main, beta]
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FEATURE362_GUARD_COMMIT: 4119693ba1a3a2652f1e5253df2fe19154494a3d
+
+jobs:
+  guard-release:
+    name: Release A guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: src/api/go.mod
+
+      - name: Build immutable compatibility guard
+        shell: bash
+        run: |
+          git worktree add --detach .compat/guard "$FEATURE362_GUARD_COMMIT"
+          mkdir -p artifacts/feature362-guard
+          (
+            cd .compat/guard/src/api
+            go build -trimpath -o "$GITHUB_WORKSPACE/artifacts/feature362-guard/aurearia" .
+          )
+          printf '%s\n' "$FEATURE362_GUARD_COMMIT" > artifacts/feature362-guard/aurearia.commit
+
+      - name: Run guard-only rollback harness
+        shell: pwsh
+        run: |
+          ./scripts/compat/feature362-rollback.ps1 `
+            -GuardBinary ./artifacts/feature362-guard/aurearia `
+            -GuardCommit $env:FEATURE362_GUARD_COMMIT `
+            -GuardSourceRoot ./.compat/guard `
+            -GuardOnly |
+            Tee-Object -FilePath ./artifacts/feature362-guard/evidence.txt
+
+      - name: Upload immutable guard artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: feature362-guard-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/feature362-guard/
+          if-no-files-found: error
+          retention-days: 30

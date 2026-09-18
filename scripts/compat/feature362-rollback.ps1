@@ -6,6 +6,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$GuardCommit,
 
+    [string]$GuardSourceRoot,
+
     [string]$FeatureBinary,
 
     [switch]$GuardOnly
@@ -15,6 +17,10 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+if ([string]::IsNullOrWhiteSpace($GuardSourceRoot)) {
+    $GuardSourceRoot = $repoRoot
+}
+$guardApiRoot = Join-Path (Resolve-Path $GuardSourceRoot).Path "src\api"
 $apiRoot = Join-Path $repoRoot "src\api"
 
 function Invoke-CheckedNative {
@@ -22,7 +28,7 @@ function Invoke-CheckedNative {
         [Parameter(Mandatory = $true)]
         [string]$Executable,
 
-        [Parameter(ValueFromRemainingArguments = $true)]
+        [Parameter(Mandatory = $true)]
         [string[]]$Arguments
     )
 
@@ -57,7 +63,7 @@ function Assert-ContainsGuard {
     )
 
     $binaryCommit = Get-BinaryCommit -BinaryPath $BinaryPath
-    Invoke-CheckedNative git -C $repoRoot cat-file -e "$GuardCommit`^{commit}"
+    Invoke-CheckedNative -Executable git -Arguments @("-C", $repoRoot, "cat-file", "-e", "$GuardCommit`^{commit}")
     & git -C $repoRoot merge-base --is-ancestor $GuardCommit $binaryCommit
     if ($LASTEXITCODE -ne 0) {
         throw "Binary commit $binaryCommit predates required compatibility guard $GuardCommit"
@@ -69,10 +75,10 @@ $guardPath = (Resolve-Path $GuardBinary).Path
 $guardBinaryCommit = Assert-ContainsGuard -BinaryPath $guardPath
 $guardDigest = (Get-FileHash -LiteralPath $guardPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
-Push-Location $apiRoot
+Push-Location $guardApiRoot
 try {
     $guardPattern = "UnknownSource|UnknownSources|CoinCopilotSettingsDefaultsAndIndependentFallbacks"
-    Invoke-CheckedNative go test ./handlers ./repository ./services -run $guardPattern -count=1
+    Invoke-CheckedNative -Executable go -Arguments @("test", "./handlers", "./repository", "./services", "-run", $guardPattern, "-count=1")
 }
 finally {
     Pop-Location
@@ -104,7 +110,7 @@ try {
     if (-not ($listed | Select-String -Pattern "^Test(Feature362MixedBinary|RollbackCompatibility|AttributionHandoff)")) {
         throw "The post-schema mixed-binary suite is not present; full compatibility cannot pass yet"
     }
-    Invoke-CheckedNative go test ./integration -run $fullPattern -count=1
+    Invoke-CheckedNative -Executable go -Arguments @("test", "./integration", "-run", $fullPattern, "-count=1")
 }
 finally {
     Pop-Location

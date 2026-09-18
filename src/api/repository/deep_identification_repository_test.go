@@ -100,6 +100,15 @@ func TestDeepIdentificationRepository_UnknownSourcesRemainInert(t *testing.T) {
 	if err := db.Create(&running).Error; err != nil {
 		t.Fatal(err)
 	}
+	artifact := models.DeepIdentificationArtifact{
+		JobID: queued.ID, UserID: owner.ID, Role: models.DeepArtifactRoleHint,
+		Origin: models.DeepArtifactOriginUploaded, FilePath: "must-remain.bin",
+		ContentHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		ByteSize:    17, MimeType: "image/png", Ephemeral: true,
+	}
+	if err := db.Create(&artifact).Error; err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := repo.GetJob(queued.ID, owner.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("unknown-source GetJob error = %v, want record not found", err)
@@ -129,12 +138,19 @@ func TestDeepIdentificationRepository_UnknownSourcesRemainInert(t *testing.T) {
 	if err := db.First(&runningAfter, running.ID).Error; err != nil {
 		t.Fatal(err)
 	}
+	var artifactAfter models.DeepIdentificationArtifact
+	if err := db.First(&artifactAfter, artifact.ID).Error; err != nil {
+		t.Fatal(err)
+	}
 	if queuedAfter.Status != models.DeepJobStatusQueued ||
 		queuedAfter.ReportJSON != queued.ReportJSON ||
 		queuedAfter.ProposalJSON != queued.ProposalJSON ||
 		runningAfter.Status != models.DeepJobStatusRunning ||
-		runningAfter.ReportJSON != running.ReportJSON {
-		t.Fatalf("unknown-source rows mutated: queued=%#v running=%#v", queuedAfter, runningAfter)
+		runningAfter.ReportJSON != running.ReportJSON ||
+		artifactAfter.FilePath != artifact.FilePath ||
+		artifactAfter.ContentHash != artifact.ContentHash ||
+		artifactAfter.DeletedAt != nil {
+		t.Fatalf("unknown-source rows mutated: queued=%#v running=%#v artifact=%#v", queuedAfter, runningAfter, artifactAfter)
 	}
 }
 
