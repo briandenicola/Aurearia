@@ -53,7 +53,7 @@ The following accepted decisions are binding:
 - Q: What happens to handoffs and accepted jobs when a feature is disabled? → A: `featureDisablePolicy=finish_existing`
 - Q: What architectural record is required before implementation? → A: Feature 362 ADR required
 - Q: Which service owns durable handoff idempotency? → A: Go owns durable idempotency
-- Q: What public response covers every ineligible or unbound job lookup? → A: `status: not_eligible`, `reason: null`
+- Q: What public result distinguishes anonymous ineligibility from a previously bound target that disappeared? → A: Anonymous lookups return exactly `{"outcome":"not_eligible","reason":null}`; only a previously validated durable owner binding may return `target_unavailable`, without target metadata.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -87,8 +87,10 @@ Analysis job without invoking a second attribution pipeline.
    request is evaluated, **Then** Coin Copilot states exactly what is missing,
    directs the owner to add or select the required images, and creates no job.
 5. **Given** an unknown or foreign coin, draft, or job identifier, **When** the
-   request is evaluated, **Then** it receives the same not-found behavior and
-   reveals no target, image, job, or ownership information.
+   request is evaluated without a previously validated durable Coin Copilot
+   binding for this owner, **Then** it returns exactly
+   `{"outcome":"not_eligible","reason":null}` and reveals no target, image, job,
+   ownership, or destination information.
 
 ---
 
@@ -208,11 +210,17 @@ fallback and no duplicate mutation or provider execution.
    linearizes first, **Then** exactly one durable job exists and cancellation
    prevents every later settlement from publishing or committing a result.
 8. **Given** status lookups for unknown job IDs, foreign-owned jobs, legacy
-   unbound intake jobs, jobs with unknown source values, jobs whose targets were
-   deleted or promoted, and arbitrary unbound jobs, **When** their public
-   responses are compared, **Then** every response has `status: not_eligible`
-   and `reason: null`, and the sanitized serialized bodies are byte-equivalent
-   with no job-existence, source, ownership, or target disclosure.
+   unbound intake jobs, jobs with unknown source values, deleted or promoted
+   identifiers without a previously validated durable Coin Copilot binding for
+   this owner, and arbitrary unbound jobs, **When** their public responses are
+   compared, **Then** every response is the exact canonical byte-equivalent
+   body `{"outcome":"not_eligible","reason":null}` with no metadata or
+   job-existence, source, ownership, target, or destination disclosure.
+9. **Given** a job was already bound by a previously validated durable Coin
+   Copilot handoff/checkpoint for this owner, **When** its bound coin or draft
+   has since disappeared or the draft has been promoted, **Then** the result
+   has `outcome: target_unavailable`, contains no target metadata, and is not
+   collapsed into the anonymous `not_eligible` outcome class.
 
 ### Edge Cases
 
@@ -223,11 +231,15 @@ fallback and no duplicate mutation or provider execution.
 - A draft is discarded or promoted while target resolution is in progress.
 - A coin is deleted or its face images change between target resolution and job
   launch.
-- A draft is discarded or promoted, or a coin is deleted, after a status
-  checkpoint was saved but before status lookup or proposal apply; the request
-  returns the same public `not_eligible` response used for every unknown,
-  foreign-owned, legacy unbound, unknown-source, or otherwise unbound job,
-  without disclosing whether any job or target ever existed.
+- A draft is discarded or promoted, or a coin is deleted, after a previously
+  validated durable Coin Copilot handoff/checkpoint bound the job for this
+  owner; status lookup returns `outcome: target_unavailable` without target
+  metadata.
+- The same deleted or promoted identifier supplied without a previously
+  validated durable Coin Copilot binding for this owner remains anonymous and
+  returns exactly `{"outcome":"not_eligible","reason":null}`, byte-equivalent
+  to unknown IDs, foreign-owned jobs, legacy unbound intake jobs, unknown-source
+  jobs, and arbitrary unbound jobs, with no metadata or destination disclosure.
 - Destination fields, notes/context, references, ownership, or active-draft
   state change after review opens but before apply; the entire selected apply
   set is revalidated atomically against current state or rejected without a
@@ -252,7 +264,7 @@ fallback and no duplicate mutation or provider execution.
   contradict one another.
 - A citation uses an unapproved host, unsafe scheme, embedded credentials, or a
   malformed URL.
-- Tool output contains unknown fields, an unknown status, an out-of-range
+- Tool output contains unknown fields, an unknown outcome, an out-of-range
   confidence value, an oversized payload, or prompt-injection text.
 - Cancellation races job creation, provider completion, result explanation, or
   opening the review surface.
@@ -323,15 +335,20 @@ fallback and no duplicate mutation or provider execution.
   owner-scoped conditions holds: (a) the job is already bound in a validated
   Coin Copilot checkpoint; (b) it is a saved-coin Deep job owned by the caller;
   or (c) it has source type `copilot_draft` and an active `source_draft_id`
-  owned by the caller. Legacy unbound intake jobs MUST NOT be adopted. Deleted
-  or promoted targets, unknown job IDs, foreign-owned jobs, legacy unbound
-  intake jobs, jobs with unknown source values, and every other unbound job
-  MUST close public status lookup with the identical sanitized response:
-  `status: not_eligible` and `reason: null`. After canonical serialization,
-  these public response bodies MUST be byte-equivalent and MUST omit every
-  field or variation that could reveal job existence, source, ownership, or
-  target history. Internal logs MAY classify the cause using privacy-safe
-  codes, but those classifications MUST NOT affect or appear in public output.
+  owned by the caller. Legacy unbound intake jobs MUST NOT be adopted. Unknown
+  job IDs, foreign-owned jobs, legacy unbound intake jobs, jobs with unknown
+  source values, arbitrary unbound jobs, and deleted or promoted identifiers
+  without a previously validated durable Coin Copilot binding for this owner
+  MUST return the exact canonical body
+  `{"outcome":"not_eligible","reason":null}`. The serialized bodies for all
+  these anonymous classes MUST be byte-equivalent and MUST contain no metadata
+  or variation that could reveal job existence, source, ownership, target
+  history, or destination. Only when the job was already bound by a previously
+  validated durable Coin Copilot handoff/checkpoint for this owner MAY a coin
+  or draft that has since disappeared, or a draft that has since been promoted,
+  return `outcome: target_unavailable`; that result MUST contain no target
+  metadata. Internal logs MAY classify the cause using privacy-safe codes, but
+  those classifications MUST NOT affect or appear in public output.
 
 #### Evidence and conversational explanation
 
@@ -411,7 +428,12 @@ selected and explicitly confirmed in the existing Deep Proposal editor:
 
 - **FR-023**: All target, job, report, and proposal reads MUST be scoped to the
   authenticated owner derived server-side. Foreign and unknown identifiers
-  MUST be indistinguishable and disclose no existence or metadata.
+  MUST be indistinguishable from every anonymous class in FR-010b and return
+  exactly `{"outcome":"not_eligible","reason":null}` with no metadata. A
+  deleted or promoted identifier MUST remain in that anonymous class unless a
+  previously validated durable Coin Copilot handoff/checkpoint already bound
+  the job for this owner; only that binding unlocks
+  `outcome: target_unavailable`, still without target metadata.
 - **FR-023a**: Internal callbacks MUST use the existing canonical Coin Copilot
   execution-token scheme and its owner/run/execution/tool binding, expiry, and
   revocation checks. The handoff MUST NOT introduce a new bearer convention,
@@ -420,7 +442,9 @@ selected and explicitly confirmed in the existing Deep Proposal editor:
 - **FR-024**: The handoff contract and all returned lifecycle/result data MUST
   be strictly typed, reject unknown critical fields and invalid state values,
   validate confidence ranges and URLs, treat text as untrusted data, and fail
-  closed on malformed output.
+  closed on malformed output. Every public result variant MUST use `outcome` as
+  its discriminant; `status` MUST NOT be emitted or accepted as the public
+  result discriminant.
 - **FR-025**: The integration MUST inherit Coin Copilot's existing snapshotted
   iteration, tool-call, concurrency, wall-clock, token-observation, credential,
   event, checkpoint, and payload bounds. Deep Analysis MUST retain its own
@@ -452,9 +476,14 @@ selected and explicitly confirmed in the existing Deep Proposal editor:
   completed/active/failed/cancelled/stale jobs, changed inputs, missing images,
   and safe capability fallback. A nondisclosure matrix MUST compare unknown job
   IDs, foreign-owned jobs, legacy unbound intake jobs, unknown source values,
-  deleted or promoted targets, and arbitrary unbound jobs and MUST assert the
-  same public `not_eligible` status, `reason: null`, and byte-equivalent
-  sanitized serialized response body for every case.
+  arbitrary unbound jobs, and deleted or promoted identifiers without a
+  previously validated durable owner binding. It MUST assert that every one of
+  these anonymous cases produces the exact byte-equivalent canonical body
+  `{"outcome":"not_eligible","reason":null}` with no metadata. Separate tests
+  MUST prove that only a job already bound by a previously validated durable
+  Coin Copilot handoff/checkpoint for this owner returns
+  `outcome: target_unavailable` after its coin or draft disappears or its draft
+  is promoted, and that this result contains no target metadata.
 - **FR-030**: Regression tests MUST prove that existing Coin Copilot collection
   and specialist tools, legacy fallback, Deep Analysis direct entry points,
   proposal review/apply, provider attribution, and fast Identify behavior
@@ -553,11 +582,16 @@ selected and explicitly confirmed in the existing Deep Proposal editor:
   byte-for-byte unchanged, all pre-existing structured references remain
   present, and an equivalent accepted reference appears at most once.
 - **SC-006**: Across unknown job IDs, foreign-owned jobs, legacy unbound intake
-  jobs, unknown source values, deleted or promoted targets, and arbitrary
-  unbound jobs, 100% of public status responses use `status: not_eligible` and
-  `reason: null`; their sanitized serialized bodies are byte-equivalent and
-  disclose zero job existence, source, ownership, target history, image,
-  report, proposal, or job-state information.
+  jobs, unknown source values, arbitrary unbound jobs, and deleted or promoted
+  identifiers without a previously validated durable owner binding, 100% of
+  public results are the exact byte-equivalent canonical body
+  `{"outcome":"not_eligible","reason":null}` and disclose zero metadata,
+  destination, job existence, source, ownership, target history, image, report,
+  proposal, or job-state information. In the distinct previously bound case,
+  100% of jobs already bound by a validated durable Coin Copilot
+  handoff/checkpoint for this owner whose coin or draft later disappears or
+  whose draft is promoted return `outcome: target_unavailable` with zero target
+  metadata; no unbound identifier returns that outcome.
 - **SC-007**: Missing-image, malformed-output, disabled-capability, unsupported-
   model, failed, cancelled, and stale-state tests produce a clear safe next step
   with zero invented result, partial write, or orphaned job.
