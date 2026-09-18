@@ -396,3 +396,16 @@ fix, the full local exploration suite passed with `10 passed` files,
 `107 passed` tests, and the Docker-only runtime test skipped; ESLint and strict
 TypeScript also exited `0`. T036-T038 remain pending one hosted run that
 confirms the corrected terminal status with the already-proven cleanup path.
+
+Run `35364916774` on commit `19602ea8` passed the complete hosted acceptance.
+The isolated current-source stack became healthy, the fake-model browser
+lifecycle completed with a valid terminal status, the exact Compose project
+was torn down with volumes and orphans removed, sanitized evidence uploaded,
+and the final assertion found zero remaining project-labelled containers,
+volumes, or networks. T036-T038 are complete.
+
+The same commit's Quality Gate run `35364916787` passed Go build, vet, tests,
+race detector, OpenAPI drift, Python lint/tests, and Vue lint, type-check,
+tests, and production build. Security Scan run `35364916819` also passed
+Gitleaks, npm audit, pip-audit, Govulncheck, the agent runtime-image check, and
+its health smoke test.
