@@ -9,6 +9,7 @@ import (
 	"github.com/briandenicola/ancient-coins-api/config"
 	"github.com/briandenicola/ancient-coins-api/database"
 	"github.com/briandenicola/ancient-coins-api/docs"
+	"github.com/briandenicola/ancient-coins-api/handlers"
 	"github.com/briandenicola/ancient-coins-api/middleware"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
@@ -119,6 +120,12 @@ func main() {
 	registerAdminRoutes(api, d)
 	registerExternalToolRoutes(api, d)
 	registerInternalToolRoutes(r, d)
+	handlers.RegisterInternalExplorationRoute(
+		r,
+		strings.EqualFold(os.Getenv("AI_BROWSER_EXPLORATION_ENABLED"), "true"),
+		os.Getenv("AI_BROWSER_INTERNAL_BEARER_TOKEN"),
+		d.agentProxy,
+	)
 
 	runServer(serverRuntime{
 		router:             r,

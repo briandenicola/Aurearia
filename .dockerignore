@@ -8,7 +8,11 @@ src/api/uploads/
 *.log*
 .env*
 coverage/
+.tmp/
+.artifacts/
 src/web/coverage/
+src/web/.tmp/
+src/web/.artifacts/
 src/web/test-results/
 src/web/playwright-report/
 .DS_Store

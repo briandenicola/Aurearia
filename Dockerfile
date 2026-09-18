@@ -20,6 +20,18 @@ COPY src/api/go.mod src/api/go.sum ./
 RUN go mod download
 COPY src/api/ .
 RUN CGO_ENABLED=0 go build -o /app/ancient-coins-api .
+RUN CGO_ENABLED=0 go build -o /app/exploration-seed ./cmd/exploration-seed
+
+# Test-only Feature 360 seed image. The seed binary is intentionally absent
+# from the normal application image below.
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS exploration-seed
+RUN addgroup -S -g 10001 app \
+    && adduser -S -D -H -u 10001 -G app app
+WORKDIR /app
+COPY --from=api-build --chown=app:app /app/exploration-seed .
+RUN mkdir -p /app/data && chown -R app:app /app
+USER 10001:10001
+ENTRYPOINT ["./exploration-seed"]
 
 # Final image
 FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d

@@ -108,3 +108,164 @@ declare compatibility with Node `^20.19.0 || >=22.12.0`. The dependency guard
 asserts that `20.19.0` compatibility remains declared. Exact Node 20.19.0
 execution belongs to later CI/full-gate work and was not required to validate
 the Phase 1–2 contracts.
+
+## Phase 3 (T015–T038) validation
+
+### Test-first red evidence for T015–T022
+
+The Phase 3 guards were created before implementation and run from their
+service roots.
+
+```powershell
+# src/web
+node .\node_modules\vitest\vitest.mjs run `
+  e2e/exploration/__tests__/budget.test.ts `
+  e2e/exploration/__tests__/browser-driver.test.ts `
+  e2e/exploration/__tests__/workflows.test.ts `
+  e2e/exploration/__tests__/isolation.test.ts `
+  e2e/exploration/__tests__/orchestration.test.ts
+```
+
+Result: **FAIL**, exit code `1`; all five suites failed module resolution for
+the intentionally absent `budget.ts`, `browser-driver.ts`, `workflows.ts`, and
+`cli.ts`.
+
+```powershell
+# src/agent
+uv run pytest tests/test_browser_exploration_service.py -q
+```
+
+Result: **FAIL**, exit code `2`; collection failed with
+`ModuleNotFoundError: No module named 'app.services'`.
+
+```powershell
+# src/api
+go test ./handlers ./cmd/exploration-seed `
+  -run 'TestInternalExploration|TestValidateExploration|TestSeedCreates' -count=1
+```
+
+Result: **FAIL**, exit code `1`; compilation failed on the intentionally absent
+handler registration/error values and seed path/seed functions.
+
+### Passing targeted evidence for T015–T035
+
+```powershell
+# src/web
+node .\node_modules\vitest\vitest.mjs run e2e/exploration/__tests__
+npm.cmd run type-check
+node .\node_modules\eslint\bin\eslint.js `
+  e2e/exploration e2e/fixtures/workflow.ts `
+  playwright.exploration.config.ts --ext .ts --max-warnings 0
+```
+
+Result: **PASS**. Vitest reported `9 passed` files and `97 passed` tests;
+Vue TypeScript checking and ESLint both exited `0`.
+
+```powershell
+# src/agent
+uv run pytest tests/test_browser_exploration_contract.py `
+  tests/test_browser_exploration_service.py -q
+uv run ruff check app/models/browser_exploration.py `
+  app/services/browser_exploration.py `
+  app/routers/internal_exploration.py `
+  tests/test_browser_exploration_contract.py `
+  tests/test_browser_exploration_service.py
+```
+
+Result: **PASS**. Pytest reported `12 passed` (with one upstream
+Starlette/httpx deprecation warning); Ruff reported `All checks passed!`.
+
+```powershell
+# src/api
+go test ./services ./handlers ./cmd/exploration-seed `
+  -run 'TestExploration|TestInternalExploration|TestValidateExploration|TestSeedCreates' `
+  -count=1
+go vet ./services ./handlers ./cmd/exploration-seed
+```
+
+Result: **PASS** for all three packages; Go vet exited `0`.
+
+```powershell
+# src/web — canonical F013 regression subset
+npm.cmd run test:browser -- `
+  e2e/workflows/auth.spec.ts e2e/workflows/coin-form.spec.ts
+```
+
+Result: **PASS**, `10 passed`. The existing login, add, edit, storage,
+tags/sets, image, collection search/filter, and mobile edit workflows remain
+authoritative and deterministic.
+
+The Compose YAML also passed a local static parse asserting current-source
+builds, loopback random app publication, no agent host port, project-scoped
+non-external volumes, and the internal application network.
+
+### Review correction evidence
+
+The Phase 3 review identified seven defects before checkpointing. The
+implementation now:
+
+- executes each validated model decision through the fixed browser vocabulary;
+- applies one deadline to provisioning, seeding, readiness, browser startup,
+  login, model calls, and browser actions, including child-process aborts;
+- refuses another model call at exact token exhaustion and reports exact
+  terminal limits as bounded;
+- blocks click, back, fill, select, and upload navigation that escapes the
+  selected same-origin workflow;
+- uses the canonical `/edit/1` route;
+- preserves Go `context.Canceled` and `context.DeadlineExceeded`; and
+- validates internal-network isolation and exact service network membership.
+
+Focused regression validation after these corrections:
+
+```powershell
+# src/web
+node .\node_modules\vitest\vitest.mjs run `
+  e2e/exploration/__tests__/budget.test.ts `
+  e2e/exploration/__tests__/browser-driver.test.ts `
+  e2e/exploration/__tests__/workflows.test.ts `
+  e2e/exploration/__tests__/isolation.test.ts `
+  e2e/exploration/__tests__/orchestration.test.ts
+node .\node_modules\vue-tsc\bin\vue-tsc.js --build
+```
+
+Result: **PASS**, `5 passed` files and `56 passed` tests; strict TypeScript
+build exited `0`.
+
+```powershell
+# src/api
+go test ./handlers `
+  -run TestExplorationProxyUsesDedicatedEnvironmentAndPropagatesCancellation `
+  -count=1
+go test ./services -run Exploration -count=1
+```
+
+Result: **PASS**. The first broad handler run exposed a test-only HTTP server
+teardown hang in the new deadline case. Replacing the indefinitely blocked
+handler with a bounded slow response made the cancellation race deterministic;
+both focused packages then passed.
+
+### Ephemeral stack blocker (T036–T038 remain incomplete)
+
+The approved low-budget fake-model lifecycle was attempted with one
+`login-session` workflow, 1 step, 1 model call, 10 tokens, 2 browser actions,
+zero issue attempts, and `AI_BROWSER_FAKE_MODEL=true`.
+
+Result: **BLOCKED before provisioning**. This host has no `docker` executable
+on `PATH`; Node reported `Error: spawn docker ENOENT` while executing the
+pre-start `docker compose ... config --format json` inspection. No image,
+container, network, or volume could have been created.
+
+The CLI's unconditional `finally` path ran and recorded the exact cleanup
+attempt for project `ai-browser-mu6yfkcw-706ac9b4`:
+
+```text
+docker compose -f docker-compose.exploration.yml \
+  -p ai-browser-mu6yfkcw-706ac9b4 down -v --remove-orphans
+```
+
+That cleanup command also could not execute because the same Docker executable
+is unavailable. The ignored diagnostic files are under
+`.artifacts/ai-browser/ai-browser-mu6yfkcw-706ac9b4/`; no broad directory
+deletion was performed. T036, T037, and T038 are deliberately left unchecked
+until a Docker-capable host can render the resolved Compose targets, start the
+fresh stack, execute the fake-model run, inspect targets, and confirm teardown.

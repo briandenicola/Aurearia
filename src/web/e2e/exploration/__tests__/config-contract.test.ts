@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import { validateRunConfiguration } from '../contracts'
+import { parseRunConfiguration } from '../config'
 import { clone, validRunConfiguration } from './contract-fixtures'
 
 describe('run configuration contract', () => {
+  it('defaults issue creation to false at the parser boundary', () => {
+    const value = clone(validRunConfiguration()) as unknown as Record<string, unknown>
+    delete value.createIssues
+    expect(parseRunConfiguration(value).createIssues).toBe(false)
+  })
+
   it('accepts every exact hard maximum', () => {
     expect(validateRunConfiguration(validRunConfiguration())).toEqual({ ok: true, errors: [] })
   })

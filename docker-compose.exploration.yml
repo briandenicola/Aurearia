@@ -1,0 +1,91 @@
+services:
+  agent:
+    build:
+      context: ./src/agent
+      dockerfile: Dockerfile
+    environment:
+      AGENT_INTERNAL_SERVICE_TOKEN: ${AGENT_INTERNAL_SERVICE_TOKEN:?generated per run}
+      AGENT_ALLOW_LOCAL_OUTBOUND: "true"
+      AGENT_TRUSTED_OUTBOUND_ORIGINS: http://app:8080,${AI_BROWSER_OLLAMA_URL:-http://host.docker.internal:11434}
+      AI_BROWSER_FAKE_MODEL: ${AI_BROWSER_FAKE_MODEL:-true}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/ready')"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: "no"
+    networks:
+      - internal
+      - provider-egress
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: exploration-seed
+    environment:
+      AI_BROWSER_EXPLORATION_ENABLED: "true"
+      AI_BROWSER_EPHEMERAL_ROOT: /app/data
+      AI_BROWSER_TEST_USERNAME: ${AI_BROWSER_TEST_USERNAME:?generated per run}
+      AI_BROWSER_TEST_EMAIL: ${AI_BROWSER_TEST_EMAIL:?generated per run}
+      AI_BROWSER_TEST_PASSWORD: ${AI_BROWSER_TEST_PASSWORD:?generated per run}
+      DB_PATH: /app/data/exploration.db
+    volumes:
+      - exploration-db:/app/data
+    restart: "no"
+    networks:
+      - internal
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8080"
+      DB_PATH: /app/data/exploration.db
+      UPLOAD_DIR: /app/uploads
+      JWT_SECRET: ${JWT_SECRET:?generated per run}
+      AGENT_SERVICE_URL: http://agent:8081
+      AGENT_INTERNAL_SERVICE_TOKEN: ${AGENT_INTERNAL_SERVICE_TOKEN:?generated per run}
+      AI_BROWSER_EXPLORATION_ENABLED: "true"
+      AI_BROWSER_INTERNAL_BEARER_TOKEN: ${AI_BROWSER_INTERNAL_BEARER_TOKEN:?generated per run}
+      AI_BROWSER_FAKE_MODEL: ${AI_BROWSER_FAKE_MODEL:-true}
+      AI_BROWSER_ANTHROPIC_API_KEY: ${AI_BROWSER_ANTHROPIC_API_KEY:-}
+      AI_BROWSER_OLLAMA_URL: ${AI_BROWSER_OLLAMA_URL:-}
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_ORIGIN: http://localhost
+    ports:
+      - name: web
+        target: 8080
+        published: 0
+        host_ip: 127.0.0.1
+        protocol: tcp
+    volumes:
+      - exploration-db:/app/data
+      - exploration-uploads:/app/uploads
+    depends_on:
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+    restart: "no"
+    networks:
+      - internal
+
+volumes:
+  exploration-db: {}
+  exploration-uploads: {}
+
+networks:
+  internal:
+    internal: true
+  provider-egress: {}
