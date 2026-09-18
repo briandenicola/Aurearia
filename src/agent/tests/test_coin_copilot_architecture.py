@@ -42,6 +42,10 @@ def test_coin_copilot_exposes_only_locked_read_only_capabilities():
         "top_coins_by_value",
         "portfolio_review",
         "gap_analysis",
+        "market_search",
+        "auction_search",
+        "price_trends",
+        "similar_lots",
     }
     assert CALLBACK_TOOLS == {
         "search_my_collection",
@@ -51,9 +55,6 @@ def test_coin_copilot_exposes_only_locked_read_only_capabilities():
     }
     forbidden = {
         "web_search",
-        "auction_search",
-        "price_trends",
-        "similar_lots",
         "propose_update",
         "commit_update",
         "deep_identification",
