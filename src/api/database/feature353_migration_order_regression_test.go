@@ -429,6 +429,11 @@ var productionModelConstructors = map[string]func() any{
 	"DeepIdentificationArtifact":    func() any { return &models.DeepIdentificationArtifact{} },
 	"PurchaseReminder":              func() any { return &models.PurchaseReminder{} },
 	"QuickAccessPin":                func() any { return &models.QuickAccessPin{} },
+	"CoinCopilotThread":             func() any { return &models.CoinCopilotThread{} },
+	"CoinCopilotRun":                func() any { return &models.CoinCopilotRun{} },
+	"CoinCopilotCheckpoint":         func() any { return &models.CoinCopilotCheckpoint{} },
+	"CoinCopilotEvent":              func() any { return &models.CoinCopilotEvent{} },
+	"CoinCopilotResumeRequest":      func() any { return &models.CoinCopilotResumeRequest{} },
 }
 
 // readProductionAutoMigrateModelNames parses database.go's REAL, CURRENT source text and

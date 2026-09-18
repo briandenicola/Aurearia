@@ -66,3 +66,22 @@ func InternalJobTokenRequired(tokenSvc *services.InternalTokenService) gin.Handl
 		c.Next()
 	}
 }
+
+func CoinCopilotExecutionTokenRequired(tokenSvc *services.InternalTokenService, tool string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		if authHeader == "" || tokenString == authHeader {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			return
+		}
+		claims, err := tokenSvc.VerifyForCopilotExecution(tokenString, tool)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			return
+		}
+		c.Set("userId", claims.UserID)
+		c.Set("copilotClaims", claims)
+		c.Next()
+	}
+}

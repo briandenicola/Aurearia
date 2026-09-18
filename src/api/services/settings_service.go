@@ -102,6 +102,18 @@ const (
 	SettingDeepIdentificationOCRECallBudget            = "DeepIdentificationOCRECallBudget"
 	SettingDeepIdentificationRPCEnabled                = "DeepIdentificationRPCEnabled"
 
+	SettingCoinCopilotEnabled                     = "CoinCopilotEnabled"
+	SettingCoinCopilotWorkerCount                 = "CoinCopilotWorkerCount"
+	SettingCoinCopilotMaxActivePerUser            = "CoinCopilotMaxActivePerUser"
+	SettingCoinCopilotQueueDepth                  = "CoinCopilotQueueDepth"
+	SettingCoinCopilotMaxReasoningIterations      = "CoinCopilotMaxReasoningIterations"
+	SettingCoinCopilotMaxToolCalls                = "CoinCopilotMaxToolCalls"
+	SettingCoinCopilotHardTimeoutSeconds          = "CoinCopilotHardTimeoutSeconds"
+	SettingCoinCopilotMaxPersistedToolResultBytes = "CoinCopilotMaxPersistedToolResultBytes"
+	SettingCoinCopilotEventRetentionHours         = "CoinCopilotEventRetentionHours"
+	SettingCoinCopilotCheckpointRetentionDays     = "CoinCopilotCheckpointRetentionDays"
+	SettingCoinCopilotResumeWindowHours           = "CoinCopilotResumeWindowHours"
+
 	// 355-wishlist-purchase-reminders: daily scheduler settings (FR-015).
 	SettingReminderCheckEnabled   = "ReminderCheckEnabled"
 	SettingReminderCheckStartTime = "ReminderCheckStartTime"
@@ -224,10 +236,77 @@ var settingDefaults = map[string]string{
 	SettingDeepIdentificationOCREEnabled:               "false",
 	SettingDeepIdentificationOCRECallBudget:            "3",
 	SettingDeepIdentificationRPCEnabled:                "false",
+	SettingCoinCopilotEnabled:                          "false",
+	SettingCoinCopilotWorkerCount:                      "1",
+	SettingCoinCopilotMaxActivePerUser:                 "1",
+	SettingCoinCopilotQueueDepth:                       "16",
+	SettingCoinCopilotMaxReasoningIterations:           "8",
+	SettingCoinCopilotMaxToolCalls:                     "12",
+	SettingCoinCopilotHardTimeoutSeconds:               "120",
+	SettingCoinCopilotMaxPersistedToolResultBytes:      "32768",
+	SettingCoinCopilotEventRetentionHours:              "168",
+	SettingCoinCopilotCheckpointRetentionDays:          "30",
+	SettingCoinCopilotResumeWindowHours:                "168",
 
 	// 355-wishlist-purchase-reminders defaults (FR-015).
 	SettingReminderCheckEnabled:   "true",
 	SettingReminderCheckStartTime: "08:00",
+}
+
+type CoinCopilotSettings struct {
+	Enabled                     bool
+	WorkerCount                 int
+	MaxActivePerUser            int
+	QueueDepth                  int
+	MaxReasoningIterations      int
+	MaxToolCalls                int
+	HardTimeout                 time.Duration
+	MaxPersistedToolResultBytes int
+	EventRetention              time.Duration
+	CheckpointRetention         time.Duration
+	ResumeWindow                time.Duration
+	Valid                       bool
+}
+
+func (s *SettingsService) GetCoinCopilotSettings() CoinCopilotSettings {
+	valid := true
+	readInt := func(key string, fallback, minimum, maximum int) int {
+		value, err := strconv.Atoi(strings.TrimSpace(s.GetSetting(key)))
+		if err != nil || value < minimum || value > maximum {
+			valid = false
+			return fallback
+		}
+		return value
+	}
+	readBool := func(key string, fallback bool) bool {
+		switch strings.ToLower(strings.TrimSpace(s.GetSetting(key))) {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			valid = false
+			return fallback
+		}
+	}
+	timeoutSeconds := readInt(SettingCoinCopilotHardTimeoutSeconds, 120, 15, 600)
+	eventHours := readInt(SettingCoinCopilotEventRetentionHours, 168, 1, 720)
+	checkpointDays := readInt(SettingCoinCopilotCheckpointRetentionDays, 30, 1, 365)
+	resumeHours := readInt(SettingCoinCopilotResumeWindowHours, 168, 1, 720)
+	return CoinCopilotSettings{
+		Enabled:                     readBool(SettingCoinCopilotEnabled, false),
+		WorkerCount:                 readInt(SettingCoinCopilotWorkerCount, 1, 1, 4),
+		MaxActivePerUser:            readInt(SettingCoinCopilotMaxActivePerUser, 1, 1, 3),
+		QueueDepth:                  readInt(SettingCoinCopilotQueueDepth, 16, 1, 100),
+		MaxReasoningIterations:      readInt(SettingCoinCopilotMaxReasoningIterations, 8, 1, 20),
+		MaxToolCalls:                readInt(SettingCoinCopilotMaxToolCalls, 12, 1, 40),
+		HardTimeout:                 time.Duration(timeoutSeconds) * time.Second,
+		MaxPersistedToolResultBytes: readInt(SettingCoinCopilotMaxPersistedToolResultBytes, 32768, 4096, 131072),
+		EventRetention:              time.Duration(eventHours) * time.Hour,
+		CheckpointRetention:         time.Duration(checkpointDays) * 24 * time.Hour,
+		ResumeWindow:                time.Duration(resumeHours) * time.Hour,
+		Valid:                       valid,
+	}
 }
 
 type NumistaSettings struct {

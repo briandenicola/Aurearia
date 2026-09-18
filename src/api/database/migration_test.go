@@ -221,12 +221,14 @@ func TestDeepIdentificationModelsAutoMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
+
 	// Migrate a representative slice of pre-existing models first, mirroring
 	// how database.go's real AutoMigrate call already includes User/Coin
 	// before these new tables, to prove additivity.
 	if err := db.AutoMigrate(&models.User{}, &models.Coin{}); err != nil {
 		t.Fatalf("pre-existing automigrate failed: %v", err)
 	}
+
 	if err := db.AutoMigrate(
 		&models.DeepIdentificationJob{},
 		&models.DeepIdentificationEvent{},
@@ -272,6 +274,37 @@ func TestDeepIdentificationModelsAutoMigrate(t *testing.T) {
 	}
 }
 
+func TestCoinCopilotModelsAutoMigrate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(
+		&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{},
+		&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+	); err != nil {
+		t.Fatalf("coin copilot automigrate failed: %v", err)
+	}
+	for _, table := range []string{
+		"coin_copilot_threads", "coin_copilot_runs", "coin_copilot_checkpoints",
+		"coin_copilot_events", "coin_copilot_resume_requests",
+	} {
+		if !db.Migrator().HasTable(table) {
+			t.Fatalf("missing table %s", table)
+		}
+	}
+	for model, index := range map[any]string{
+		&models.CoinCopilotRun{}:           "uix_copilot_start_key",
+		&models.CoinCopilotCheckpoint{}:    "uix_copilot_checkpoints_run_version",
+		&models.CoinCopilotEvent{}:         "uix_copilot_events_run_seq",
+		&models.CoinCopilotResumeRequest{}: "uix_copilot_resume_key",
+	} {
+		if !db.Migrator().HasIndex(model, index) {
+			t.Fatalf("missing index %s", index)
+		}
+	}
+}
+
 // legacyUserWithoutSwipeNav simulates the users table before pwa_swipe_nav_enabled was added.
 type legacyUserWithoutSwipeNav struct {
 	ID                             uint   `gorm:"primaryKey"`
@@ -287,9 +320,9 @@ type legacyUserWithoutSwipeNav struct {
 func (legacyUserWithoutSwipeNav) TableName() string { return "users" }
 
 // TestPWASwipeNavMigrationAddsColumnWithFalseDefault verifies that:
-// 1. An existing user row backfills to false (DB zero for NOT NULL DEFAULT 0).
-// 2. The column is named exactly pwa_swipe_nav_enabled (not p_w_a_swipe_nav_enabled
-//    or another GORM initialism variant), as required by the design review contract.
+//  1. An existing user row backfills to false (DB zero for NOT NULL DEFAULT 0).
+//  2. The column is named exactly pwa_swipe_nav_enabled (not p_w_a_swipe_nav_enabled
+//     or another GORM initialism variant), as required by the design review contract.
 func TestPWASwipeNavMigrationAddsColumnWithFalseDefault(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

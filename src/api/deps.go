@@ -64,6 +64,8 @@ type appDeps struct {
 	coinLookupSvc                  *services.CoinLookupService
 	deepIdentificationRepo         *repository.DeepIdentificationRepository
 	deepIdentificationSvc          *services.DeepIdentificationService
+	coinCopilotRepo                *repository.CoinCopilotRepository
+	coinCopilotSvc                 *services.CoinCopilotService
 	healthSvc                      *services.HealthService
 	healthScheduler                *services.CollectionHealthScheduler
 	shipmentSvc                    *services.ShipmentService
@@ -272,6 +274,11 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
 	noteRepo := repository.NewNoteRepository(database.DB)
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo).WithSettingsSupport(settingsSvc)
+	coinCopilotRepo := repository.NewCoinCopilotRepository(database.DB)
+	coinCopilotSvc := services.NewCoinCopilotService(
+		coinCopilotRepo, settingsSvc, agentProxy, internalTokenSvc, logger, cfg.AgentInternalCallbackURL,
+	)
+	coinCopilotSvc.StartWorkers(backgroundCtx)
 
 	// #218 external tool server: per-key rate limiter shared by the
 	// authenticated /api/v1/tools routes.
@@ -315,6 +322,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		coinLookupSvc:                  coinLookupSvc,
 		deepIdentificationRepo:         deepIdentificationRepo,
 		deepIdentificationSvc:          deepIdentificationSvc,
+		coinCopilotRepo:                coinCopilotRepo,
+		coinCopilotSvc:                 coinCopilotSvc,
 		healthSvc:                      healthSvc,
 		healthScheduler:                healthScheduler,
 		shipmentSvc:                    shipmentSvc,

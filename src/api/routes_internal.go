@@ -22,6 +22,15 @@ func registerInternalToolRoutes(r *gin.Engine, d *appDeps) {
 		internal.POST("/commit_update", internalToolsHandler.CommitUpdate)
 	}
 
+	copilotHandler := handlers.NewCoinCopilotInternalToolsHandler(d.collectionSvc, d.coinCopilotSvc, d.logger)
+	copilot := r.Group("/api/internal/copilot/tools")
+	{
+		copilot.POST("/search_my_collection", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "search_my_collection"), copilotHandler.SearchMyCollection)
+		copilot.POST("/get_coin", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "get_coin"), copilotHandler.GetCoin)
+		copilot.POST("/collection_summary", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "collection_summary"), copilotHandler.CollectionSummary)
+		copilot.POST("/top_coins_by_value", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "top_coins_by_value"), copilotHandler.TopCoinsByValue)
+	}
+
 	// Deep identification provider-tool boundary (Phase 6, T051): job-scoped
 	// token auth (distinct from the userID-only token above), shared route
 	// prefix per contracts/agent-internal-contract.md §7.

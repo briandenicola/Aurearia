@@ -1749,6 +1749,102 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.copilotResumeRequest:
+    properties:
+      answer:
+        type: string
+      expectedCheckpointVersion:
+        type: integer
+    type: object
+  handlers.copilotRunDTO:
+    properties:
+      attempt:
+        type: integer
+      checkpointVersion:
+        type: integer
+      createdAt:
+        type: string
+      failureCode:
+        type: string
+      failureMessage:
+        type: string
+      finalAnswer:
+        type: string
+      goal:
+        type: string
+      id:
+        type: string
+      lastSeq:
+        type: integer
+      resumeDeadline:
+        type: string
+      status:
+        type: string
+      threadId:
+        type: string
+      updatedAt:
+        type: string
+      usage:
+        $ref: '#/definitions/handlers.copilotUsageDTO'
+    type: object
+  handlers.copilotRunEnvelope:
+    properties:
+      reused:
+        type: boolean
+      run:
+        $ref: '#/definitions/handlers.copilotRunDTO'
+    type: object
+  handlers.copilotStartRequest:
+    properties:
+      appContext:
+        additionalProperties: {}
+        type: object
+      goal:
+        type: string
+      threadId:
+        type: string
+    type: object
+  handlers.copilotThreadDTO:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      messages:
+        items:
+          $ref: '#/definitions/handlers.copilotThreadMessageDTO'
+        type: array
+      runs:
+        items:
+          $ref: '#/definitions/handlers.copilotRunDTO'
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  handlers.copilotThreadMessageDTO:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      role:
+        type: string
+      runId:
+        type: string
+    type: object
+  handlers.copilotUsageDTO:
+    properties:
+      inputTokens:
+        type: integer
+      iterations:
+        type: integer
+      outputTokens:
+        type: integer
+      toolCalls:
+        type: integer
+    type: object
   handlers.createOrUpdateReminderRequest:
     properties:
       remindDate:
@@ -4353,6 +4449,17 @@ definitions:
     - ChecklistSeverityHigh
     - ChecklistSeverityMedium
     - ChecklistSeverityLow
+  services.CoinCopilotCapability:
+    properties:
+      enabled:
+        type: boolean
+      mode:
+        type: string
+      modelToolCallingSupported:
+        type: boolean
+      reason:
+        type: string
+    type: object
   services.CoinHealthItem:
     properties:
       coinId:
@@ -7319,6 +7426,254 @@ paths:
       summary: Get conversation
       tags:
       - Agent
+  /agent/copilot/capability:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CoinCopilotCapability'
+      security:
+      - BearerAuth: []
+      summary: Resolve Coin Copilot or legacy mode
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Run request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.copilotStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Start a durable Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}:
+    get:
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Read an owner-scoped Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}/cancel:
+    post:
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel a Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}/events:
+    get:
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Resume after sequence
+        in: query
+        name: since
+        type: integer
+      - description: Resume after sequence
+        in: header
+        name: Last-Event-ID
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Replay and follow Coin Copilot events
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}/resume:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Resume request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.copilotResumeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resume a paused Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/threads/{threadId}:
+    delete:
+      parameters:
+      - description: Thread ID
+        in: path
+        name: threadId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a settled Coin Copilot thread
+      tags:
+      - Coin Copilot
+    get:
+      parameters:
+      - description: Thread ID
+        in: path
+        name: threadId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotThreadDTO'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Read an owner-scoped Coin Copilot thread
+      tags:
+      - Coin Copilot
   /agent/models:
     get:
       description: Returns a curated list of Anthropic models suitable for the coin

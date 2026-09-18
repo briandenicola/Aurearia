@@ -314,6 +314,40 @@ func TestResolveLLMConfigOllamaIncludesOllamaOnlyURLs(t *testing.T) {
 	}
 }
 
+func TestCoinCopilotSettingsDefaultsAndIndependentFallbacks(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	svc := NewSettingsService(repository.NewSettingsRepository(db))
+	settings := svc.GetCoinCopilotSettings()
+	if settings.Enabled || settings.WorkerCount != 1 || settings.MaxActivePerUser != 1 ||
+		settings.QueueDepth != 16 || settings.MaxReasoningIterations != 8 || settings.MaxToolCalls != 12 ||
+		settings.HardTimeout != 120*time.Second || settings.MaxPersistedToolResultBytes != 32768 ||
+		settings.EventRetention != 168*time.Hour || settings.CheckpointRetention != 30*24*time.Hour ||
+		settings.ResumeWindow != 168*time.Hour || !settings.Valid {
+		t.Fatalf("unexpected defaults: %#v", settings)
+	}
+	if _, exists := svc.GetSettingDefaults()["CoinCopilotMaxEstimatedCostMicros"]; exists {
+		t.Fatal("removed Coin Copilot cost setting is still exposed")
+	}
+	_ = svc.SetSetting(SettingCoinCopilotEnabled, "true")
+	_ = svc.SetSetting(SettingCoinCopilotMaxToolCalls, "999")
+	settings = svc.GetCoinCopilotSettings()
+	if !settings.Enabled || settings.MaxToolCalls != 12 || settings.Valid {
+		t.Fatalf("invalid value did not independently fall back: %#v", settings)
+	}
+}
+
+func TestCoinCopilotSettingsAcceptMaximumHardTimeout(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	svc := NewSettingsService(repository.NewSettingsRepository(db))
+	if err := svc.SetSetting(SettingCoinCopilotHardTimeoutSeconds, "600"); err != nil {
+		t.Fatal(err)
+	}
+	settings := svc.GetCoinCopilotSettings()
+	if !settings.Valid || settings.HardTimeout != coinCopilotMaxExecutionTimeout {
+		t.Fatalf("maximum hard timeout settings = %#v", settings)
+	}
+}
+
 func TestSetSetting_CoinCategories_AllowsCustomization(t *testing.T) {
 	svc, _ := newTestSettingsService(t)
 
