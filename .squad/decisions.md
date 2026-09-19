@@ -11334,6 +11334,11 @@ Principle II rather than changing it.
   examination.
 - Deep Analysis then combines those face-level observations with Numista,
   Nomisma, OCRE, and other configured provider evidence.
+- The final Deep Analysis review must retain the evidence trail, provider
+  coverage, disagreements, unresolved questions, confidence, and explanatory
+  narrative alongside proposed fields. Reusing the Collection AI Analysis
+  pipeline must not collapse the result into only obverse/reverse prose or only
+  field values.
 - A combined structured vision call that drops explicit obverse/reverse role
   labels is not sufficient as the primary Deep Analysis examination.
 - Collector notes remain untrusted evidence rather than instructions or
@@ -11344,6 +11349,9 @@ go. The idea is quick while you see a coin. if there is a [NGC] number then use
 that for lookup, but deep analysis should do just that dig deeper. We should
 reuse the images and supplied notes through the Collection AI Analysis pipeline
 + Numista/Nomisma/OCRE and other configured providers."
+
+**Follow-up clarification:** "I still want the evidence and narrative for
+review. That doesn't get lost."
 
 ---
 
