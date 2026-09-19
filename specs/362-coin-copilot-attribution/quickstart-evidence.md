@@ -113,11 +113,21 @@ Date: 2026-09-18
 - `.github/workflows/feature362-compatibility.yml` now runs this full matrix
   after the immutable guard-only prerequisite on pushes and pull requests to
   `beta` and `main`.
-- Audit correction: this matrix directly proves preservation and fail-closed
-  adoption for an `intake` job and a queued `copilot_draft` handoff. T069 and
-  T070 remain open until the same copied-database lifecycle explicitly settles
-  a saved-coin handoff, exercises disable/drain/cancel, rejects guard-era
-  apply, and restores status/review/apply after re-upgrade.
+- The expanded fixture now includes completed saved-coin and `copilot_draft`
+  handoffs plus a separately queued draft handoff. The authenticated lifecycle
+  reads both completed targets and cancels the queued job before rollback.
+- The guard still reads the supported `intake` job, returns HTTP 404 for the
+  `copilot_draft` job and its apply endpoint, and leaves the canonical
+  row/artifact digest unchanged.
+- After re-upgrade, the feature binary restores draft and cancelled-job status
+  and applies the saved-coin denomination proposal through the real
+  owner-authenticated endpoint. The final database verifies the durable
+  cancelled state, applied-job linkage, and destination value.
+- Expanded local matrix result: `feature362_compatibility=full-pass`; guard
+  SHA-256
+  `85e39f703e582111646709161e4c9a2b5380cc26e2e057c2e430a30bc4826c40`,
+  feature SHA-256
+  `32520edb84125bb87ee11e91aa86c8f42bce19680c2f7f57ef9afb14db87d8b4`.
 
 ## Feature 362 local quality gates
 
@@ -143,9 +153,13 @@ Date: 2026-09-18
 - Go build, vet, architecture tests, and complete `go test ./...` passed.
 - The cancellation settlement race passed 10 repeated 40-iteration runs
   after closing the cancel-after-result-before-settlement window.
-- Local `CGO_ENABLED=1 go test -race ./...` is blocked before compilation
-  because this Windows host has no `gcc`; the Linux hosted Go race check is
-  required before T078 can close.
+- Local `CGO_ENABLED=1 go test -race ./...` was blocked before compilation
+  because this Windows host has no `gcc`; Linux hosted evidence was therefore
+  used for that gate.
+- Hosted [Quality Gate run 35414768621](https://github.com/briandenicola/Aurearia/actions/runs/35414768621)
+  passed all four jobs, including Linux `Go API (race detector)`, Go API,
+  Python Agent, and Vue Web. This supplies the required race evidence and
+  closes T078.
 
 ## Feature 362 local security gates
 

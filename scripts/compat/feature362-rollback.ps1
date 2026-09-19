@@ -158,6 +158,7 @@ function Invoke-BinaryBootCheck {
         -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr
     try {
+        $healthy = $false
         $deadline = (Get-Date).AddSeconds(20)
         do {
             if ($process.HasExited) {
@@ -175,14 +176,67 @@ function Invoke-BinaryBootCheck {
                     -UseBasicParsing
                 if ($response.StatusCode -eq 200) {
                     Write-Output "$Label`_health=200"
-                    return
+                    $healthy = $true
+                    break
                 }
             }
             catch {
                 Start-Sleep -Milliseconds 250
             }
         } while ((Get-Date) -lt $deadline)
-        throw "$Label binary did not become healthy within 20 seconds"
+        if (-not $healthy) {
+            throw "$Label binary did not become healthy within 20 seconds"
+        }
+
+        $token = (Get-Content -LiteralPath "$DatabasePath.token" -Raw).Trim()
+        $headers = @{ Authorization = "Bearer $token" }
+        function Assert-ApiStatus {
+            param(
+                [string]$Method,
+                [string]$Path,
+                [int]$ExpectedStatus,
+                [string]$Body = ""
+            )
+            $request = @{
+                Uri = "http://127.0.0.1:$port/api$Path"
+                Method = $Method
+                Headers = $headers
+                TimeoutSec = 10
+                UseBasicParsing = $true
+                SkipHttpErrorCheck = $true
+            }
+            if (-not [string]::IsNullOrEmpty($Body)) {
+                $request.ContentType = "application/json"
+                $request.Body = $Body
+            }
+            $response = Invoke-WebRequest @request
+            if ($response.StatusCode -ne $ExpectedStatus) {
+                throw "$Label $Method $Path returned $($response.StatusCode), expected $ExpectedStatus`: $($response.Content)"
+            }
+            Write-Host "$Label $Method $Path=$ExpectedStatus"
+            return $response.Content
+        }
+
+        switch ($Label) {
+            "feature-before" {
+                Assert-ApiStatus GET "/deep-identification/jobs/36207" 200 | Out-Null
+                Assert-ApiStatus GET "/deep-identification/jobs/36204" 200 | Out-Null
+                Assert-ApiStatus POST "/deep-identification/jobs/36209/cancel" 202 | Out-Null
+            }
+            "guard" {
+                Assert-ApiStatus GET "/deep-identification/jobs/36203" 200 | Out-Null
+                Assert-ApiStatus GET "/deep-identification/jobs/36204" 404 | Out-Null
+                Assert-ApiStatus POST "/deep-identification/jobs/36204/apply" 404 '{"target":"draft"}' | Out-Null
+            }
+            "feature-after" {
+                Assert-ApiStatus GET "/deep-identification/jobs/36204" 200 | Out-Null
+                $cancelled = Assert-ApiStatus GET "/deep-identification/jobs/36209" 200 | ConvertFrom-Json
+                if ($cancelled.job.status -ne "cancelled") {
+                    throw "feature-after cancelled handoff status was $($cancelled.job.status)"
+                }
+                Assert-ApiStatus POST "/deep-identification/jobs/36207/apply" 200 '{"target":"coin","fields":["denomination"]}' | Out-Null
+            }
+        }
     }
     finally {
         if (-not $process.HasExited) {
@@ -200,6 +254,7 @@ New-Item -ItemType Directory -Path $compatRoot, $compatUploads | Out-Null
 try {
     Invoke-CompatibilityTest -Mode "seed" -DatabasePath $compatDatabase -ArtifactPath $compatArtifact
     Invoke-BinaryBootCheck -BinaryPath $featurePath -DatabasePath $compatDatabase -UploadPath $compatUploads -Label "feature-before"
+    Invoke-CompatibilityTest -Mode "snapshot" -DatabasePath $compatDatabase -ArtifactPath $compatArtifact
     Invoke-BinaryBootCheck -BinaryPath $guardPath -DatabasePath $compatDatabase -UploadPath $compatUploads -Label "guard"
     Invoke-CompatibilityTest -Mode "verify-guard" -DatabasePath $compatDatabase -ArtifactPath $compatArtifact
     Invoke-BinaryBootCheck -BinaryPath $featurePath -DatabasePath $compatDatabase -UploadPath $compatUploads -Label "feature-after"
