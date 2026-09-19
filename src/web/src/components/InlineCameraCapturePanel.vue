@@ -1,5 +1,5 @@
 <template>
-  <div class="camera-first-card">
+  <div class="camera-first-card" :class="{ 'desktop-workspace': desktopWorkspace }">
     <div class="camera-container">
       <video
         ref="cameraVideo"
@@ -32,6 +32,32 @@
     </div>
 
     <slot name="before-actions"></slot>
+
+    <div v-if="desktopWorkspace" class="desktop-camera-actions">
+      <button
+        v-if="cameraStream === null"
+        type="button"
+        class="btn btn-primary"
+        @click="startCamera"
+      >
+        <Camera :size="18" />
+        Use Camera
+      </button>
+      <button
+        v-else
+        type="button"
+        class="btn btn-primary"
+        :disabled="!cameraReady"
+        @click="captureFromCamera"
+      >
+        <Camera :size="18" />
+        Take Photo
+      </button>
+      <button type="button" class="btn btn-secondary" @click="$emit('upload')">
+        <Images :size="18" />
+        Upload Image
+      </button>
+    </div>
 
     <div class="camera-actions">
       <button
@@ -67,10 +93,12 @@ const props = withDefaults(
   defineProps<{
     filenamePrefix?: string
     instruction?: string
+    desktopWorkspace?: boolean
   }>(),
   {
     filenamePrefix: 'capture',
     instruction: 'Focus one coin in the circle',
+    desktopWorkspace: false,
   }
 )
 
@@ -314,6 +342,10 @@ defineExpose({
   align-items: center;
 }
 
+.desktop-camera-actions {
+  display: none;
+}
+
 .shutter-btn {
   grid-column: 2;
   justify-self: center;
@@ -367,5 +399,29 @@ defineExpose({
   background: var(--bg-card-hover);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
+}
+
+@media (min-width: 769px) {
+  .camera-first-card.desktop-workspace {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .desktop-workspace .camera-container {
+    height: min(48vh, 390px);
+  }
+
+  .desktop-workspace .camera-placeholder .camera-start-btn,
+  .desktop-workspace .camera-actions {
+    display: none;
+  }
+
+  .desktop-workspace .desktop-camera-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+  }
 }
 </style>

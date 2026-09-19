@@ -1,82 +1,119 @@
 <template>
-  <section class="flex flex-col gap-4" aria-labelledby="capture-wizard-title">
-    <div class="flex flex-col gap-3">
-      <div>
-        <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
-        <span class="section-label">Step {{ step + 1 }} of 3</span>
-        <h2 class="mt-1 text-heading">{{ currentStep.title }}</h2>
-        <p class="mt-1 text-small leading-5 text-text-secondary">{{ currentStep.description }}</p>
-      </div>
+  <section class="capture-wizard" aria-labelledby="capture-wizard-title">
+    <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
 
-      <div
-        v-if="currentImage"
-        class="capture-preview relative mx-auto w-full max-w-2xl overflow-hidden rounded-sm border border-border-accent bg-card"
+    <ol class="capture-progress" aria-label="Identification progress">
+      <li
+        v-for="(wizardStep, index) in steps"
+        :key="wizardStep.role"
+        :class="{ active: index === step, complete: stepImage(wizardStep.role) !== null }"
       >
-        <img :src="currentImage.preview" :alt="`${currentStep.label} coin image`" class="h-full w-full object-contain" />
-        <button
-          type="button"
-          class="absolute right-2 top-2 flex min-h-11 min-w-11 items-center justify-center rounded-sm bg-overlay text-text-primary"
-          :aria-label="`Remove ${currentStep.label.toLowerCase()} image`"
-          @click="$emit('remove', currentStep.role)"
+        <span class="step-marker">{{ index + 1 }}</span>
+        <span>{{ wizardStep.label }}</span>
+      </li>
+    </ol>
+
+    <div class="capture-workspace">
+      <aside class="capture-guidance">
+        <div>
+          <span class="section-label">Step {{ step + 1 }} of 3</span>
+          <h2 class="mt-1 text-heading">{{ currentStep.title }}</h2>
+          <p class="mt-1 text-small leading-5 text-text-secondary">{{ currentStep.description }}</p>
+        </div>
+
+        <div class="capture-evidence" aria-label="Captured evidence">
+          <button
+            v-for="(wizardStep, index) in steps.slice(0, 2)"
+            :key="wizardStep.role"
+            type="button"
+            class="evidence-item"
+            :class="{ active: index === step }"
+            :disabled="index > 0 && !obverse"
+            @click="step = index"
+          >
+            <img
+              v-if="stepImage(wizardStep.role)"
+              :src="stepImage(wizardStep.role)?.preview"
+              :alt="`${wizardStep.label} thumbnail`"
+            />
+            <span v-else class="evidence-placeholder"><Camera :size="18" /></span>
+            <span>
+              <strong>{{ wizardStep.label }}</strong>
+              <small>{{ stepImage(wizardStep.role) ? 'Image added' : wizardStep.required ? 'Required' : 'Optional' }}</small>
+            </span>
+            <Check v-if="stepImage(wizardStep.role)" :size="16" class="evidence-check" />
+          </button>
+        </div>
+
+        <label v-if="currentStep.role === 'notes'" class="form-group">
+          <span class="section-label">Identification notes</span>
+          <textarea
+            :value="notes"
+            class="form-input min-h-[120px] resize-y"
+            maxlength="2000"
+            placeholder="Add weight, diameter, provenance, visible text, suspected ruler, denomination, or anything else that may help."
+            @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+          <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
+        </label>
+      </aside>
+
+      <div class="capture-stage">
+        <div
+          v-if="currentImage"
+          class="capture-preview relative w-full overflow-hidden rounded-sm border border-border-accent bg-card"
         >
-          <X :size="18" />
-        </button>
-      </div>
+          <img :src="currentImage.preview" :alt="`${currentStep.label} coin image`" class="h-full w-full object-contain" />
+          <button
+            type="button"
+            class="absolute right-2 top-2 flex min-h-11 min-w-11 items-center justify-center rounded-sm bg-overlay text-text-primary"
+            :aria-label="`Remove ${currentStep.label.toLowerCase()} image`"
+            @click="$emit('remove', currentStep.role)"
+          >
+            <X :size="18" />
+          </button>
+        </div>
 
-      <label v-if="currentStep.role === 'notes'" class="form-group">
-        <span class="section-label">Identification notes</span>
-        <textarea
-          :value="notes"
-          class="form-input min-h-[120px] resize-y"
-          maxlength="2000"
-          placeholder="Add weight, diameter, provenance, visible text, suspected ruler, denomination, or anything else that may help."
-          @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
-        ></textarea>
-        <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
-      </label>
+        <InlineCameraCapturePanel
+          v-else
+          ref="cameraPanel"
+          class="w-full"
+          desktop-workspace
+          :filename-prefix="`lookup-${currentStep.role}`"
+          :instruction="currentStep.instruction"
+          @captured="$emit('captured', currentStep.role, $event)"
+          @upload="fileInput?.click()"
+        />
 
-      <p v-if="currentStep.role === 'notes'" class="text-small text-text-secondary">
-        You may add text, one supporting image, or both.
-      </p>
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          class="hidden"
+          @change="handleFileSelection"
+        />
 
-      <InlineCameraCapturePanel
-        v-if="!currentImage"
-        ref="cameraPanel"
-        class="mx-auto w-full max-w-2xl"
-        :filename-prefix="`lookup-${currentStep.role}`"
-        :instruction="currentStep.instruction"
-        @captured="$emit('captured', currentStep.role, $event)"
-        @upload="fileInput?.click()"
-      />
+        <div v-if="uploadError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
+          <AlertCircle :size="20" class="shrink-0 text-byzantine" />
+          <span>{{ uploadError }}</span>
+        </div>
 
-      <input
-        ref="fileInput"
-        type="file"
-        accept="image/*"
-        class="hidden"
-        @change="handleFileSelection"
-      />
+        <div v-if="deepRequirementError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
+          <AlertCircle :size="20" class="shrink-0 text-byzantine" />
+          <span>{{ deepRequirementError }}</span>
+        </div>
 
-      <div v-if="uploadError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
-        <AlertCircle :size="20" class="shrink-0 text-byzantine" />
-        <span>{{ uploadError }}</span>
-      </div>
-
-      <div v-if="deepRequirementError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
-        <AlertCircle :size="20" class="shrink-0 text-byzantine" />
-        <span>{{ deepRequirementError }}</span>
-      </div>
-
-      <div class="workflow-actions sticky bottom-0 z-10 flex items-center gap-2">
+        <div class="workflow-actions sticky bottom-0 z-10 flex items-center gap-2">
         <button
           v-if="step > 0"
           type="button"
-          class="btn btn-secondary min-h-11 min-w-11 shrink-0 justify-center px-3"
+          class="btn btn-secondary min-h-11 shrink-0 justify-center"
           title="Previous step"
           aria-label="Previous step"
           @click="step -= 1"
         >
           <ChevronLeft :size="20" aria-hidden="true" />
+          <span class="hidden sm:inline">Previous</span>
         </button>
 
         <button
@@ -107,22 +144,24 @@
         <button
           v-if="step < 2"
           type="button"
-          class="btn btn-secondary ml-auto min-h-11 min-w-11 shrink-0 justify-center px-3"
+          class="btn btn-secondary ml-auto min-h-11 shrink-0 justify-center"
           :disabled="!obverse || preparingImage"
           :title="step === 0 ? 'Add reverse image' : 'Add notes'"
           :aria-label="step === 0 ? 'Add reverse image' : 'Add notes'"
           @click="step += 1"
         >
+          <span class="hidden sm:inline">{{ step === 0 ? 'Next: Reverse' : 'Next: Notes' }}</span>
           <ChevronRight :size="20" aria-hidden="true" />
         </button>
       </div>
+    </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AlertCircle, ChevronLeft, ChevronRight, Microscope, Search, X } from 'lucide-vue-next'
+import { AlertCircle, Camera, Check, ChevronLeft, ChevronRight, Microscope, Search, X } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import type { CoinLookupImageRole } from '@/types'
 
@@ -204,6 +243,12 @@ const currentImage = computed(() => {
   return props.notesImage
 })
 
+function stepImage(role: CoinLookupImageRole) {
+  if (role === 'obverse') return props.obverse
+  if (role === 'reverse') return props.reverse
+  return props.notesImage
+}
+
 function handleFileSelection(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -235,6 +280,154 @@ defineExpose({ stopCamera })
 </script>
 
 <style scoped>
+.capture-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.capture-progress {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capture-progress li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.capture-progress li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 2rem;
+  right: 0.5rem;
+  top: 50%;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.step-marker {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
+}
+
+.capture-progress li.active,
+.capture-progress li.complete {
+  color: var(--accent-gold);
+}
+
+.capture-progress li.active .step-marker,
+.capture-progress li.complete .step-marker {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold-dim);
+}
+
+.capture-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.capture-guidance,
+.capture-stage {
+  min-width: 0;
+}
+
+.capture-guidance {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.capture-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.capture-evidence {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.evidence-item {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.evidence-item.active {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.evidence-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.evidence-item img,
+.evidence-placeholder {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-sm);
+}
+
+.evidence-item img {
+  object-fit: cover;
+}
+
+.evidence-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+
+.evidence-item strong,
+.evidence-item small {
+  display: block;
+}
+
+.evidence-item strong {
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.evidence-item small {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.evidence-check {
+  color: var(--accent-gold);
+}
+
 .capture-preview {
   height: clamp(240px, 48vh, 420px);
 }
@@ -248,6 +441,43 @@ defineExpose({ stopCamera })
 @media (max-height: 700px) {
   .capture-preview {
     height: 40vh;
+  }
+}
+
+@media (min-width: 769px) {
+  .capture-wizard {
+    gap: 1.5rem;
+  }
+
+  .capture-progress {
+    max-width: 36rem;
+  }
+
+  .capture-workspace {
+    grid-template-columns: minmax(13rem, 15rem) minmax(0, 1fr);
+    gap: 1.5rem;
+    padding: 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .capture-guidance {
+    padding: 0.5rem;
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .capture-preview {
+    height: min(48vh, 390px);
+  }
+
+  .workflow-actions {
+    position: static;
+    margin: 0;
+    padding: 0.75rem 0 0;
+    border-top: 1px solid var(--border-subtle);
+    background: transparent;
   }
 }
 </style>
