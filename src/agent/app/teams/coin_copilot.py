@@ -228,6 +228,7 @@ async def run_coin_copilot(
                 execution_token=request.execution_token,
                 allowed_tools=request.allowed_tools,
                 max_result_bytes=request.limits.max_persisted_tool_result_bytes,
+                checkpoint_version=request.checkpoint.version,
                 completed_call_ids=seen_call_ids,
                 completed_results={
                     tool.tool_name: tool.result

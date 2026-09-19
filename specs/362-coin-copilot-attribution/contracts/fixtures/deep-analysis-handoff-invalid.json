@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "result_cases": [
+    {
+      "name": "result_level_status_discriminant",
+      "payload": {
+        "status": "completed",
+        "reason": null
+      },
+      "expected_error": "outcome is required and top-level status is forbidden"
+    },
+    {
+      "name": "unknown_outcome",
+      "payload": {
+        "outcome": "finished",
+        "reason": null
+      },
+      "expected_error": "unknown outcome"
+    },
+    {
+      "name": "unknown_reason",
+      "payload": {
+        "outcome": "unavailable",
+        "reason": "provider_broken"
+      },
+      "expected_error": "unknown reason"
+    },
+    {
+      "name": "unknown_result_field",
+      "payload": {
+        "outcome": "not_eligible",
+        "reason": null,
+        "diagnostic": "foreign_job"
+      },
+      "expected_error": "unknown field"
+    },
+    {
+      "name": "forged_owner",
+      "payload": {
+        "outcome": "accepted",
+        "reason": null,
+        "owner_id": 7
+      },
+      "expected_error": "owner fields are forbidden"
+    },
+    {
+      "name": "forged_snapshot",
+      "payload": {
+        "outcome": "accepted",
+        "reason": null,
+        "snapshot_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "expected_error": "snapshot fields are forbidden"
+    },
+    {
+      "name": "forged_provider",
+      "payload": {
+        "outcome": "accepted",
+        "reason": null,
+        "provider_override": "numista"
+      },
+      "expected_error": "provider overrides are forbidden"
+    },
+    {
+      "name": "forged_apply",
+      "payload": {
+        "outcome": "status",
+        "reason": null,
+        "accepted_fields": [
+          "denomination"
+        ]
+      },
+      "expected_error": "proposal and apply properties are forbidden"
+    },
+    {
+      "name": "unsafe_absolute_review_url",
+      "payload": {
+        "outcome": "status",
+        "reason": null,
+        "job": {
+          "id": 314,
+          "source": "saved_coin",
+          "status": "completed",
+          "reused": true,
+          "created_at": "2026-09-18T18:00:00Z",
+          "completed_at": "2026-09-18T18:02:00Z"
+        },
+        "review_url": "https://example.test/deep-analysis/314"
+      },
+      "expected_error": "review URL must be a safe relative route"
+    },
+    {
+      "name": "unsafe_protocol_relative_review_url",
+      "payload": {
+        "outcome": "status",
+        "reason": null,
+        "job": {
+          "id": 314,
+          "source": "saved_coin",
+          "status": "completed",
+          "reused": true,
+          "created_at": "2026-09-18T18:00:00Z",
+          "completed_at": "2026-09-18T18:02:00Z"
+        },
+        "review_url": "//attacker.example/deep-analysis/314"
+      },
+      "expected_error": "review URL must be a safe relative route"
+    },
+    {
+      "name": "mismatched_review_url",
+      "payload": {
+        "outcome": "status",
+        "reason": null,
+        "job": {
+          "id": 314,
+          "source": "saved_coin",
+          "status": "completed",
+          "reused": true,
+          "created_at": "2026-09-18T18:00:00Z",
+          "completed_at": "2026-09-18T18:02:00Z"
+        },
+        "review_url": "/deep-analysis/315"
+      },
+      "expected_error": "review URL must match job id"
+    },
+    {
+      "name": "non_finite_confidence",
+      "payload_json": "{\"outcome\":\"status\",\"reason\":null,\"confidence\":NaN}",
+      "expected_error": "confidence must be finite JSON in range 0..1"
+    },
+    {
+      "name": "malformed_output",
+      "payload_json": "{\"outcome\":\"status\"",
+      "expected_error": "malformed JSON"
+    }
+  ],
+  "request_cases": [
+    {
+      "name": "request_unknown_field",
+      "payload": {
+        "tool_call_id": "call_01",
+        "handoff_idempotency_key": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "request",
+        "target": {
+          "type": "coin",
+          "id": 42
+        },
+        "owner_id": 7
+      },
+      "expected_error": "unknown field"
+    },
+    {
+      "name": "unknown_operation",
+      "payload": {
+        "tool_call_id": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "apply",
+        "job_id": 314
+      },
+      "expected_error": "unknown operation"
+    },
+    {
+      "name": "unknown_target_kind",
+      "payload": {
+        "tool_call_id": "call_01",
+        "handoff_idempotency_key": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "request",
+        "target": {
+          "type": "wishlist",
+          "id": 42
+        }
+      },
+      "expected_error": "unknown target type"
+    },
+    {
+      "name": "request_with_job_id",
+      "payload": {
+        "tool_call_id": "call_01",
+        "handoff_idempotency_key": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "request",
+        "target": {
+          "type": "coin",
+          "id": 42
+        },
+        "job_id": 314
+      },
+      "expected_error": "job id is forbidden for request"
+    },
+    {
+      "name": "status_with_target",
+      "payload": {
+        "tool_call_id": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "status",
+        "target": {
+          "type": "coin",
+          "id": 42
+        },
+        "job_id": 314
+      },
+      "expected_error": "target is forbidden for status"
+    },
+    {
+      "name": "status_with_idempotency_key",
+      "payload": {
+        "tool_call_id": "call_01",
+        "handoff_idempotency_key": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "status",
+        "job_id": 314
+      },
+      "expected_error": "idempotency key is forbidden for status"
+    },
+    {
+      "name": "rerun_without_prior_job",
+      "payload": {
+        "tool_call_id": "call_01",
+        "handoff_idempotency_key": "call_01",
+        "expected_checkpoint_version": 3,
+        "operation": "rerun",
+        "target": {
+          "type": "coin",
+          "id": 42
+        }
+      },
+      "expected_error": "prior job id is required for rerun"
+    },
+    {
+      "name": "duplicate_call",
+      "payload": {
+        "tool_call_id": "call_completed_01",
+        "handoff_idempotency_key": "call_completed_01",
+        "expected_checkpoint_version": 3,
+        "operation": "request",
+        "target": {
+          "type": "coin",
+          "id": 42
+        }
+      },
+      "execution_state": {
+        "completed_tool_call_ids": [
+          "call_completed_01"
+        ]
+      },
+      "expected_error": "duplicate completed tool call"
+    }
+  ],
+  "authorization_cases": [
+    {
+      "name": "user_jwt",
+      "header": "Bearer header.payload.signature",
+      "token_family": "user_jwt",
+      "expected_http": 401
+    },
+    {
+      "name": "internal_service_token",
+      "header": "Bearer redacted.internal.service",
+      "token_family": "internal_service",
+      "expected_http": 401
+    },
+    {
+      "name": "deep_job_token",
+      "header": "Bearer redacted.deep.job",
+      "token_family": "deep_job",
+      "expected_http": 401
+    },
+    {
+      "name": "wrong_tool",
+      "token_family": "coin_copilot_execution",
+      "allowed_tool": "get_coin",
+      "expected_http": 401
+    },
+    {
+      "name": "wrong_owner",
+      "token_family": "coin_copilot_execution",
+      "owner_id": 8,
+      "expected_http": 401
+    },
+    {
+      "name": "wrong_run",
+      "token_family": "coin_copilot_execution",
+      "run_id": "ccr_other",
+      "expected_http": 401
+    },
+    {
+      "name": "stale_execution",
+      "token_family": "coin_copilot_execution",
+      "execution_id": "cce_previous",
+      "expected_http": 401
+    },
+    {
+      "name": "expired",
+      "token_family": "coin_copilot_execution",
+      "state": "expired",
+      "expected_http": 401
+    },
+    {
+      "name": "revoked",
+      "token_family": "coin_copilot_execution",
+      "state": "revoked",
+      "expected_http": 401
+    }
+  ],
+  "byte_boundaries": {
+    "request": {
+      "maximum_bytes": 65536,
+      "rejected_canonical_bytes": 65537
+    },
+    "public_event": {
+      "maximum_bytes": 65536,
+      "rejected_canonical_bytes": 65537
+    },
+    "persisted_result": {
+      "maximum_bytes": 32768,
+      "rejected_canonical_bytes": 32769
+    }
+  }
+}

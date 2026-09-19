@@ -66,6 +66,7 @@ type appDeps struct {
 	deepIdentificationSvc          *services.DeepIdentificationService
 	coinCopilotRepo                *repository.CoinCopilotRepository
 	coinCopilotSvc                 *services.CoinCopilotService
+	deepAnalysisHandoffSvc         *services.DeepAnalysisHandoffService
 	healthSvc                      *services.HealthService
 	healthScheduler                *services.CollectionHealthScheduler
 	shipmentSvc                    *services.ShipmentService
@@ -278,6 +279,11 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	coinCopilotSvc := services.NewCoinCopilotService(
 		coinCopilotRepo, settingsSvc, agentProxy, internalTokenSvc, logger, cfg.AgentInternalCallbackURL,
 	)
+	quickCaptureRepo := repository.NewQuickCaptureRepository(database.DB)
+	deepAnalysisHandoffSvc := services.NewDeepAnalysisHandoffService(
+		coinCopilotRepo, deepIdentificationRepo, coinRepo, quickCaptureRepo,
+		deepIdentificationSvc, settingsSvc, cfg.UploadDir,
+	)
 	coinCopilotSvc.StartWorkers(backgroundCtx)
 
 	// #218 external tool server: per-key rate limiter shared by the
@@ -324,6 +330,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		deepIdentificationSvc:          deepIdentificationSvc,
 		coinCopilotRepo:                coinCopilotRepo,
 		coinCopilotSvc:                 coinCopilotSvc,
+		deepAnalysisHandoffSvc:         deepAnalysisHandoffSvc,
 		healthSvc:                      healthSvc,
 		healthScheduler:                healthScheduler,
 		shipmentSvc:                    shipmentSvc,

@@ -317,6 +317,202 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("Feature 362 attribution handoff uses existing Deep engine seams", func(t *testing.T) {
+		if err := db.AutoMigrate(
+			&models.User{}, &models.StorageLocation{}, &models.MintLocation{},
+			&models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
+			&models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{},
+			&models.QuickCaptureDraft{},
+			&models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.AppSetting{},
+			&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{},
+			&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotDeepHandoff{},
+			&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
+			&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		uploadDir := t.TempDir()
+		obverse := []byte("\x89PNG\r\n\x1a\nfeature362-obverse")
+		reverse := []byte("\x89PNG\r\n\x1a\nfeature362-reverse")
+		if err := os.WriteFile(filepath.Join(uploadDir, "obverse.png"), obverse, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(uploadDir, "reverse.png"), reverse, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		owner := models.User{ID: 7, Username: "feature362-owner", Email: "feature362-owner@example.test", PasswordHash: "x"}
+		foreign := models.User{ID: 8, Username: "feature362-foreign", Email: "feature362-foreign@example.test", PasswordHash: "x"}
+		if err := db.Create(&owner).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&foreign).Error; err != nil {
+			t.Fatal(err)
+		}
+		coin := models.Coin{ID: 42, UserID: owner.ID, Name: "Seam denarius", Notes: "bounded context"}
+		if err := db.Create(&coin).Error; err != nil {
+			t.Fatal(err)
+		}
+		for _, image := range []models.CoinImage{
+			{CoinID: coin.ID, FilePath: "obverse.png", ImageType: models.ImageTypeObverse},
+			{CoinID: coin.ID, FilePath: "reverse.png", ImageType: models.ImageTypeReverse},
+		} {
+			if err := db.Create(&image).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		draft := models.QuickCaptureDraft{ID: 51, UserID: owner.ID, WorkingTitle: "Draft sestertius", Status: models.QuickCaptureDraftStatusActive}
+		if err := db.Create(&draft).Error; err != nil {
+			t.Fatal(err)
+		}
+		for _, image := range []models.QuickCaptureDraftImage{
+			{DraftID: draft.ID, UserID: owner.ID, FilePath: "obverse.png", ImageType: models.ImageTypeObverse},
+			{DraftID: draft.ID, UserID: owner.ID, FilePath: "reverse.png", ImageType: models.ImageTypeReverse},
+		} {
+			if err := db.Create(&image).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		copilotRepo := repository.NewCoinCopilotRepository(db)
+		thread := models.CoinCopilotThread{ID: "cct_feature362", UserID: owner.ID, Title: "Attribution"}
+		run := models.CoinCopilotRun{
+			ID: "ccr_feature362", ThreadID: thread.ID, UserID: owner.ID,
+			Status: models.CopilotRunRunning, Goal: "Attribute this coin",
+			StartIdempotencyKeyHash: "feature362-start", StartRequestFingerprint: "feature362-start-fingerprint",
+			ExecutionID: "cce_feature362", MaxIterations: 8, MaxToolCalls: 12,
+			MaxConcurrentTools: 1, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+		}
+		if err := copilotRepo.CreateRun(&thread, &run); err != nil {
+			t.Fatal(err)
+		}
+		settings := services.NewSettingsService(repository.NewSettingsRepository(db))
+		for key, value := range map[string]string{
+			services.SettingCoinCopilotEnabled:            "true",
+			services.SettingCoinCopilotAttributionEnabled: "true",
+			services.SettingDeepIdentificationEnabled:     "true",
+		} {
+			if err := settings.SetSetting(key, value); err != nil {
+				t.Fatal(err)
+			}
+		}
+		deepRepo := repository.NewDeepIdentificationRepository(db)
+		imageRepo := repository.NewImageRepository(db)
+		deepSvc := services.NewDeepIdentificationService(
+			deepRepo, imageRepo, services.NewImageService(imageRepo, uploadDir),
+			settings, services.NewLogger(20), uploadDir,
+		)
+		handoffSvc := services.NewDeepAnalysisHandoffService(
+			copilotRepo, deepRepo, repository.NewCoinRepository(db),
+			repository.NewQuickCaptureRepository(db), deepSvc, settings, uploadDir,
+		)
+		claims := &services.CopilotExecutionClaims{
+			UserID: owner.ID, RunID: run.ID, ExecutionID: run.ExecutionID,
+			AllowedTools: []string{"deep_analysis_handoff"},
+		}
+		request := func(key string) services.DeepAnalysisHandoffRequest {
+			return services.DeepAnalysisHandoffRequest{
+				ToolCallID: "call_" + key, HandoffIdempotencyKey: key,
+				ExpectedCheckpointVersion: 0, Operation: "request",
+				Target: &services.DeepAnalysisHandoffTarget{Type: "coin", ID: coin.ID},
+			}
+		}
+
+		var before int64
+		_ = db.Model(&models.CoinCopilotDeepHandoff{}).Count(&before).Error
+		if before != 0 {
+			t.Fatal("clarification/no-call seam unexpectedly admitted work")
+		}
+		first, err := handoffSvc.Execute(claims, request("one"))
+		if err != nil || first.Outcome != "accepted" || first.Job == nil {
+			t.Fatalf("first handoff=%+v err=%v", first, err)
+		}
+		var artifacts int64
+		if err := db.Model(&models.DeepIdentificationArtifact{}).
+			Where("job_id = ?", first.Job.ID).Count(&artifacts).Error; err != nil || artifacts != 2 {
+			t.Fatalf("artifacts before worker: count=%d err=%v", artifacts, err)
+		}
+		replay, err := handoffSvc.Execute(claims, request("one"))
+		if err != nil || replay.Job == nil || replay.Job.ID != first.Job.ID {
+			t.Fatalf("same-key replay=%+v err=%v", replay, err)
+		}
+		stagingRoot := filepath.Join(uploadDir, "deep-identification")
+		beforeConflict, err := os.ReadDir(stagingRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		changedBinding := request("one")
+		changedBinding.Target = &services.DeepAnalysisHandoffTarget{Type: "draft", ID: draft.ID}
+		if _, err := handoffSvc.Execute(claims, changedBinding); !errors.Is(err, services.ErrDeepHandoffConflict) {
+			t.Fatalf("changed binding error=%v want idempotency conflict", err)
+		}
+		afterConflict, err := os.ReadDir(stagingRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(afterConflict) != len(beforeConflict) {
+			t.Fatalf("rolled-back admission leaked staged files: before=%d after=%d", len(beforeConflict), len(afterConflict))
+		}
+		active, err := handoffSvc.Execute(claims, request("two"))
+		if err != nil || active.Outcome != "reused_active" || active.Job.ID != first.Job.ID {
+			t.Fatalf("active reuse=%+v err=%v", active, err)
+		}
+
+		now := time.Now().UTC()
+		if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", first.Job.ID).Updates(map[string]any{
+			"status": models.DeepJobStatusCompleted, "report_json": `{"state":"complete"}`,
+			"completed_at": now, "active_key": fmt.Sprint(first.Job.ID),
+		}).Error; err != nil {
+			t.Fatal(err)
+		}
+		retained, err := handoffSvc.Execute(claims, request("three"))
+		if err != nil || retained.Outcome != "reused_result" || retained.Job.ID != first.Job.ID {
+			t.Fatalf("retained reuse=%+v err=%v", retained, err)
+		}
+
+		rerunRequest := request("rerun")
+		rerunRequest.Operation = "rerun"
+		rerunRequest.JobID = &first.Job.ID
+		rerun, err := handoffSvc.Execute(claims, rerunRequest)
+		if err != nil || rerun.Outcome != "accepted" || rerun.Job.ID == first.Job.ID {
+			t.Fatalf("explicit rerun=%+v err=%v", rerun, err)
+		}
+		mismatch := rerunRequest
+		mismatch.HandoffIdempotencyKey = "mismatch"
+		mismatch.Target = &services.DeepAnalysisHandoffTarget{Type: "draft", ID: draft.ID}
+		mismatchResult, err := handoffSvc.Execute(claims, mismatch)
+		if err != nil || mismatchResult.Outcome != "not_eligible" {
+			t.Fatalf("target-kind mismatch=%+v err=%v", mismatchResult, err)
+		}
+
+		foreignRequest := request("foreign")
+		foreignRequest.Target.ID = 999999
+		foreignResult, err := handoffSvc.Execute(claims, foreignRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		unknownJob := uint(999999)
+		unknownResult, err := handoffSvc.Execute(claims, services.DeepAnalysisHandoffRequest{
+			ToolCallID: "call_status", ExpectedCheckpointVersion: 0,
+			Operation: "status", JobID: &unknownJob,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		foreignBytes, _ := json.Marshal(foreignResult)
+		unknownBytes, _ := json.Marshal(unknownResult)
+		wantPrivate := `{"outcome":"not_eligible","reason":null}`
+		if string(foreignBytes) != wantPrivate || string(unknownBytes) != wantPrivate ||
+			!bytes.Equal(foreignBytes, unknownBytes) {
+			t.Fatalf("privacy equality foreign=%s unknown=%s", foreignBytes, unknownBytes)
+		}
+
+		// Feature 362 adds an admission source to the same engine; the direct
+		// intake source and Fast Identify entry vocabulary remain unchanged.
+		if !models.IsSupportedDeepJobSource(models.DeepJobSourceIntake) ||
+			!models.IsSupportedDeepJobSource(models.DeepJobSourceSavedCoin) {
+			t.Fatal("existing Fast Identify/direct Deep sources changed")
+		}
+	})
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
 		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},

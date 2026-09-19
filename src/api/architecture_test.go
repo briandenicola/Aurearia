@@ -24,6 +24,30 @@ func TestArchitecture(t *testing.T) {
 	t.Run("handlers do not use GORM", TestHandlersDoNotUseGORM)
 	t.Run("handlers do not mention GORM types", TestHandlersDoNotUseGORMTextPatterns)
 	t.Run("package import matrix", TestPackageImportMatrix)
+	t.Run("Coin Copilot exposes no write operation", TestCoinCopilotExposesNoWriteOperation)
+}
+
+func TestCoinCopilotExposesNoWriteOperation(t *testing.T) {
+	forbiddenJSONFields := []string{
+		`json:"apply`, `json:"edit`, `json:"write`,
+		`json:"provider_query`, `json:"database`, `json:"filesystem`,
+		`json:"shell`, `json:"callback_url`,
+	}
+	for _, name := range []string{
+		filepath.Join("services", "coin_copilot_contract.go"),
+		filepath.Join("handlers", "coin_copilot_internal_tools.go"),
+	} {
+		content, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lower := strings.ToLower(string(content))
+		for _, forbidden := range forbiddenJSONFields {
+			if strings.Contains(lower, forbidden) {
+				t.Errorf("%s exposes forbidden Coin Copilot write/escalation field %q", name, forbidden)
+			}
+		}
+	}
 }
 
 // TestNoDirectDatabaseImports ensures that only main.go imports the database

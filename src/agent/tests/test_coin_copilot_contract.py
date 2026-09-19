@@ -5,26 +5,57 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
-from app.models.requests import CopilotExecuteRequest
-from app.models.responses import CopilotExecutionFrame
+from app.models.requests import (
+    COPILOT_ALLOWED_TOOLS,
+    CopilotCompletedTool,
+    CopilotExecuteRequest,
+    DeepAnalysisHandoffArguments,
+    DeepAnalysisHandoffRequest,
+    validate_deep_analysis_handoff_request_envelope,
+)
+from app.models.responses import (
+    CopilotExecutionFrame,
+    DeepAnalysisHandoffResult,
+    validate_deep_analysis_handoff_persisted_result_envelope,
+    validate_deep_analysis_handoff_public_event_envelope,
+)
 from app.teams.specialist_contracts import (
     PriceTrendSummary,
     SpecialistQuery,
     SpecialistResult,
     TruncationMetadata,
 )
-from app.tools.copilot_collection_tools import bound_tool_result
+from app.tools.copilot_collection_tools import (
+    ARG_MODELS,
+    CALLBACK_TOOLS,
+    RESULT_MODELS,
+    CopilotCollectionToolClient,
+    CopilotToolError,
+    bound_tool_result,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "coin_copilot"
 SPECIALIST_FIXTURES = FIXTURES / "specialists"
 INVALID_SPECIALIST_FIXTURES = FIXTURES / "specialists_invalid"
+HANDOFF_FIXTURES = (
+    Path(__file__).parents[3]
+    / "specs"
+    / "362-coin-copilot-attribution"
+    / "contracts"
+    / "fixtures"
+)
 
 
 def _load(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def _load_handoff(name: str) -> dict:
+    return json.loads((HANDOFF_FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def _load_specialist(name: str) -> dict:
@@ -109,6 +140,73 @@ def test_request_rejects_python_field_name_at_strict_json_boundary():
 
     with pytest.raises(ValidationError):
         CopilotExecuteRequest.model_validate(payload)
+
+
+@pytest.mark.asyncio
+async def test_deep_analysis_handoff_callback_uses_fixed_route_and_injected_authority():
+    fixture = _load_handoff("deep-analysis-handoff-valid.json")
+    observed = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        observed["url"] = str(request.url)
+        observed["authorization"] = request.headers.get("Authorization")
+        observed["body"] = json.loads(request.content)
+        return httpx.Response(200, json=fixture["results"]["accepted"])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        tool_client = CopilotCollectionToolClient(
+            tools_base_url="http://test-api:8080",
+            execution_token="canonical-execution-token",
+            allowed_tools=["deep_analysis_handoff"],
+            max_result_bytes=32768,
+            checkpoint_version=7,
+            client=client,
+        )
+        result, _, _, _ = await tool_client.execute(
+            "deep_analysis_handoff",
+            "call_request_01",
+            {"operation": "request", "target": {"type": "coin", "id": 42}},
+        )
+
+    assert observed["url"] == "http://test-api:8080/api/internal/copilot/tools/deep_analysis_handoff"
+    assert observed["authorization"] == "Bearer canonical-execution-token"
+    assert observed["body"]["tool_call_id"] == "call_request_01"
+    assert observed["body"]["expected_checkpoint_version"] == 7
+    assert observed["body"]["handoff_idempotency_key"] == hashlib.sha256(b"call_request_01").hexdigest()
+    assert result["outcome"] == "accepted"
+
+
+def test_deep_analysis_handoff_callback_registry_and_model_authority_are_closed():
+    assert "deep_analysis_handoff" in CALLBACK_TOOLS
+    assert ARG_MODELS["deep_analysis_handoff"] is DeepAnalysisHandoffArguments
+    assert RESULT_MODELS["deep_analysis_handoff"] is DeepAnalysisHandoffResult
+    for field in ("owner", "snapshot", "providers", "apply", "url"):
+        with pytest.raises(ValidationError):
+            DeepAnalysisHandoffArguments.model_validate(
+                {"operation": "request", "target": {"type": "coin", "id": 42}, field: "forged"}
+            )
+
+
+@pytest.mark.asyncio
+async def test_deep_analysis_handoff_callback_rejects_oversized_result():
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(200, json={"padding": "x" * 32769})
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        tool_client = CopilotCollectionToolClient(
+            tools_base_url="http://test-api:8080",
+            execution_token="token",
+            allowed_tools=["deep_analysis_handoff"],
+            max_result_bytes=32768,
+            checkpoint_version=1,
+            client=client,
+        )
+        with pytest.raises(CopilotToolError):
+            await tool_client.execute(
+                "deep_analysis_handoff",
+                "call_status_01",
+                {"operation": "status", "job_id": 314},
+            )
 
 
 @pytest.mark.parametrize(
@@ -707,6 +805,100 @@ def test_specialist_public_event_fixtures_are_additive_and_sanitized(capability)
     if specialist_result["trend"] is not None:
         assert "sampleSize" in specialist_result["trend"]
         assert "sample_size" not in specialist_result["trend"]
+
+
+def test_deep_analysis_handoff_requests_are_strict_and_mutually_exclusive():
+    fixture = _load_handoff("deep-analysis-handoff-valid.json")
+    for operation in ("request", "status", "rerun"):
+        request = DeepAnalysisHandoffRequest.model_validate(fixture["requests"][operation])
+        assert request.operation == operation
+
+    invalid = _load_handoff("deep-analysis-handoff-invalid.json")
+    for case in invalid["request_cases"]:
+        if case["name"] == "duplicate_call":
+            continue
+        with pytest.raises(ValidationError):
+            DeepAnalysisHandoffRequest.model_validate(case["payload"])
+
+
+def test_deep_analysis_handoff_result_requires_outcome_and_forbids_top_level_status():
+    fixture = _load_handoff("deep-analysis-handoff-valid.json")
+    result = DeepAnalysisHandoffResult.model_validate(fixture["results"]["status_complete"])
+    assert result.outcome == "status"
+    assert result.job is not None
+    assert result.job.status == "completed"
+
+    invalid = _load_handoff("deep-analysis-handoff-invalid.json")
+    status_case = next(case for case in invalid["result_cases"] if case["name"] == "result_level_status_discriminant")
+    with pytest.raises(ValidationError):
+        DeepAnalysisHandoffResult.model_validate(status_case["payload"])
+
+
+def _canonical_padding_envelope(size: int) -> bytes:
+    empty = b'{"padding":""}'
+    return b'{"padding":"' + (b"x" * (size - len(empty))) + b'"}'
+
+
+def test_deep_analysis_handoff_has_independent_request_public_and_persisted_byte_limits():
+    assert validate_deep_analysis_handoff_request_envelope(_canonical_padding_envelope(65536)) is not None
+    with pytest.raises(ValueError):
+        validate_deep_analysis_handoff_request_envelope(_canonical_padding_envelope(65537))
+
+    assert validate_deep_analysis_handoff_public_event_envelope(_canonical_padding_envelope(65536)) is not None
+    with pytest.raises(ValueError):
+        validate_deep_analysis_handoff_public_event_envelope(_canonical_padding_envelope(65537))
+
+    assert validate_deep_analysis_handoff_persisted_result_envelope(_canonical_padding_envelope(32768)) is not None
+    with pytest.raises(ValueError):
+        validate_deep_analysis_handoff_persisted_result_envelope(_canonical_padding_envelope(32769))
+
+
+def test_deep_analysis_handoff_truncation_discloses_digest_and_omission_counts():
+    fixture = _load_handoff("deep-analysis-handoff-valid.json")
+    result = DeepAnalysisHandoffResult.model_validate(fixture["results"]["truncated"])
+    assert result.truncation is not None
+    assert result.truncation.truncated is True
+    assert result.truncation.persisted_bytes == 32768
+    assert len(result.truncation.digest) == 64
+    assert result.truncation.omitted_evidence == 18
+    assert result.limitations
+
+    checkpoint_tool = CopilotCompletedTool.model_validate(
+        {
+            "tool_call_id": "call_status_01",
+            "tool_name": "deep_analysis_handoff",
+            "result_digest": result.truncation.digest,
+            "result": fixture["results"]["truncated"],
+            "original_bytes": result.truncation.original_bytes,
+            "persisted_bytes": result.truncation.persisted_bytes,
+            "truncated": True,
+        }
+    )
+    assert isinstance(checkpoint_tool.result, DeepAnalysisHandoffResult)
+
+    tampered = deepcopy(fixture["results"]["truncated"])
+    tampered["truncation"]["digest"] = "not-a-digest"
+    with pytest.raises(ValidationError):
+        CopilotCompletedTool.model_validate(
+            {
+                "tool_call_id": "call_status_01",
+                "tool_name": "deep_analysis_handoff",
+                "result": tampered,
+            }
+        )
+
+
+def test_deep_analysis_handoff_execution_token_is_forwarded_only_as_execution_context():
+    payload = _load("valid_execute_request.json")
+    payload["allowed_tools"] = [*payload["allowed_tools"], "deep_analysis_handoff"]
+    payload["execution_token"] = "canonical-execution-token"
+    request = CopilotExecuteRequest.model_validate(payload)
+    assert "deep_analysis_handoff" in COPILOT_ALLOWED_TOOLS
+    assert request.execution_token == "canonical-execution-token"
+
+    handoff = _load_handoff("deep-analysis-handoff-valid.json")["requests"]["request"]
+    with pytest.raises(ValidationError):
+        DeepAnalysisHandoffRequest.model_validate({**handoff, "authorization": "Bearer forbidden"})
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,11 @@
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -374,6 +378,55 @@ type DeepIdentificationSettings struct {
 	OCRECallBudget     int
 	RPCEnabled         bool
 	Valid              bool
+}
+
+// DeepProviderConfiguration returns the sorted effective provider vocabulary
+// and a generation digest over every setting that can alter provider work.
+// Both values are server-owned snapshot inputs; callers cannot override them.
+func (s *SettingsService) DeepProviderConfiguration() ([]string, string) {
+	settings := s.GetDeepIdentificationSettings()
+	providers := []string{"ngc", "nomisma", "numista"}
+	if settings.OCREEnabled {
+		providers = append(providers, "ocre")
+	}
+
+	if settings.RPCEnabled {
+		providers = append(providers, "rpc")
+	}
+	sort.Strings(providers)
+	generation := struct {
+		Providers         []string `json:"providers"`
+		MaxProviders      int      `json:"max_providers"`
+		NumistaCallBudget int      `json:"numista_call_budget"`
+		OCRECallBudget    int      `json:"ocre_call_budget"`
+		Valid             bool     `json:"valid"`
+	}{
+		Providers: providers, MaxProviders: settings.MaxProviders,
+		NumistaCallBudget: settings.NumistaCallBudget,
+		OCRECallBudget:    settings.OCRECallBudget, Valid: settings.Valid,
+	}
+	canonical, _ := json.Marshal(generation)
+	sum := sha256.Sum256(canonical)
+	return append([]string(nil), providers...), hex.EncodeToString(sum[:])
+}
+
+func (s *SettingsService) DeepProviderSettingSnapshot() map[string]string {
+	keys := []string{
+		SettingCoinCopilotEnabled,
+		SettingCoinCopilotAttributionEnabled,
+		SettingDeepIdentificationEnabled,
+		SettingDeepIdentificationMaxProviders,
+		SettingDeepIdentificationNumistaCallBudget,
+		SettingDeepIdentificationOCREEnabled,
+		SettingDeepIdentificationOCRECallBudget,
+		SettingDeepIdentificationRPCEnabled,
+		SettingNumistaAPIKey,
+	}
+	snapshot := make(map[string]string, len(keys))
+	for _, key := range keys {
+		snapshot[key] = s.GetSetting(key)
+	}
+	return snapshot
 }
 
 // GetDeepIdentificationSettings reads and validates the live deep

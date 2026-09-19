@@ -423,7 +423,6 @@ var productionModelConstructors = map[string]func() any{
 	"CollectionHealthSnapshotRun":   func() any { return &models.CollectionHealthSnapshotRun{} },
 	"RomanImperialFigure":           func() any { return &models.RomanImperialFigure{} },
 	"RomanImperialFigureHighlight":  func() any { return &models.RomanImperialFigureHighlight{} },
-	"DeepIdentificationJob":         func() any { return &models.DeepIdentificationJob{} },
 	"DeepIdentificationEvent":       func() any { return &models.DeepIdentificationEvent{} },
 	"DeepIdentificationProviderRun": func() any { return &models.DeepIdentificationProviderRun{} },
 	"DeepIdentificationArtifact":    func() any { return &models.DeepIdentificationArtifact{} },

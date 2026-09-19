@@ -805,6 +805,8 @@ func (h *DeepIdentificationHandler) respondDeepProposalError(c *gin.Context, err
 		c.JSON(http.StatusNotFound, gin.H{"error": "Deep Analysis job not found"})
 	case errors.Is(err, services.ErrDeepProposalAlreadyApplied):
 		c.JSON(http.StatusConflict, gin.H{"error": "Proposal has already been applied", "code": "already_applied"})
+	case errors.Is(err, services.ErrDeepProposalReReviewRequired):
+		c.JSON(http.StatusConflict, gin.H{"error": "Proposal must be reviewed again", "code": "re_review_required"})
 	case errors.Is(err, services.ErrDeepProposalSourceMissing):
 		c.JSON(http.StatusConflict, gin.H{"error": "Source coin no longer exists", "code": "source_coin_missing"})
 	case errors.Is(err, services.ErrDeepProposalNotReady):

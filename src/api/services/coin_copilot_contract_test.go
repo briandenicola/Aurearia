@@ -285,13 +285,14 @@ func TestValidateCopilotSimilarLotsContract(t *testing.T) {
 func TestCoinCopilotSpecialistAllowlistIsExactAndLocal(t *testing.T) {
 	want := []string{
 		"search_my_collection", "get_coin", "collection_summary", "top_coins_by_value",
+		"deep_analysis_handoff",
 		"portfolio_review", "gap_analysis", "market_search", "auction_search",
 		"price_trends", "similar_lots",
 	}
 	if !reflect.DeepEqual(CoinCopilotAllowedTools, want) {
 		t.Fatalf("allowed tools=%v want=%v", CoinCopilotAllowedTools, want)
 	}
-	for _, tool := range want[6:] {
+	for _, tool := range want[7:] {
 		if IsCoinCopilotCallbackTool(tool) {
 			t.Fatalf("Python-local specialist %q gained callback authority", tool)
 		}
@@ -464,3 +465,129 @@ func TestProjectCopilotPriceTrendPreservesTypedEvidenceAndSources(t *testing.T) 
 }
 
 func floatPointer(value float64) *float64 { return &value }
+
+func loadDeepAnalysisHandoffFixture(t *testing.T, name string) map[string]json.RawMessage {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve handoff fixture path")
+	}
+	path := filepath.Join(
+		filepath.Dir(currentFile),
+		"..", "..", "..", "specs", "362-coin-copilot-attribution",
+		"contracts", "fixtures", name,
+	)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatalf("decode %s: %v", name, err)
+	}
+	return fixture
+}
+
+func canonicalPaddingEnvelope(t *testing.T, size int) []byte {
+	t.Helper()
+	const empty = `{"padding":""}`
+	if size < len(empty) {
+		t.Fatalf("requested envelope size %d is too small", size)
+	}
+	raw, err := json.Marshal(map[string]string{"padding": strings.Repeat("x", size-len(empty))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != size {
+		t.Fatalf("canonical envelope bytes=%d want=%d", len(raw), size)
+	}
+	return raw
+}
+
+func TestDeepAnalysisHandoffCanonicalFixturesAndStrictRequestDrift(t *testing.T) {
+	valid := loadDeepAnalysisHandoffFixture(t, "deep-analysis-handoff-valid.json")
+	var requests map[string]json.RawMessage
+	if err := json.Unmarshal(valid["requests"], &requests); err != nil {
+		t.Fatal(err)
+	}
+	for _, operation := range []string{"request", "status", "rerun"} {
+		decoded, err := DecodeDeepAnalysisHandoffRequest(requests[operation])
+		if err != nil {
+			t.Fatalf("%s request rejected: %v", operation, err)
+		}
+		if decoded.Operation != operation {
+			t.Fatalf("operation=%q want=%q", decoded.Operation, operation)
+		}
+	}
+	var results map[string]json.RawMessage
+	if err := json.Unmarshal(valid["results"], &results); err != nil {
+		t.Fatal(err)
+	}
+	result, err := DecodeDeepAnalysisHandoffResult(
+		results["status_complete"],
+		DeepAnalysisHandoffMaxPublicEventBytes,
+	)
+	if err != nil {
+		t.Fatalf("valid outcome-discriminated result rejected: %v", err)
+	}
+	if result.Outcome != "status" || result.Job == nil || result.Job.Status != "completed" {
+		t.Fatalf("unexpected status result: %#v", result)
+	}
+
+	invalid := loadDeepAnalysisHandoffFixture(t, "deep-analysis-handoff-invalid.json")
+	var requestCases []struct {
+		Name    string          `json:"name"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(invalid["request_cases"], &requestCases); err != nil {
+		t.Fatal(err)
+	}
+	for _, testCase := range requestCases {
+		if len(testCase.Payload) == 0 || testCase.Name == "duplicate_call" {
+			continue
+		}
+		t.Run(testCase.Name, func(t *testing.T) {
+			if _, err := DecodeDeepAnalysisHandoffRequest(testCase.Payload); err == nil {
+				t.Fatal("invalid handoff request was accepted")
+			}
+		})
+	}
+	var resultCases []struct {
+		Name    string          `json:"name"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(invalid["result_cases"], &resultCases); err != nil {
+		t.Fatal(err)
+	}
+	for _, testCase := range resultCases {
+		if testCase.Name != "result_level_status_discriminant" {
+			continue
+		}
+		if _, err := DecodeDeepAnalysisHandoffResult(
+			testCase.Payload,
+			DeepAnalysisHandoffMaxPublicEventBytes,
+		); err == nil {
+			t.Fatal("result-level status discriminant was accepted")
+		}
+	}
+}
+
+func TestDeepAnalysisHandoffRequestAndPublicEventHaveIndependent64KiBLimits(t *testing.T) {
+	atLimit := canonicalPaddingEnvelope(t, DeepAnalysisHandoffMaxRequestBytes)
+	overLimit := canonicalPaddingEnvelope(t, DeepAnalysisHandoffMaxRequestBytes+1)
+	if err := ValidateDeepAnalysisHandoffRequestEnvelope(atLimit); err != nil {
+		t.Fatalf("65,536-byte request rejected: %v", err)
+	}
+	if err := ValidateDeepAnalysisHandoffRequestEnvelope(overLimit); err == nil {
+		t.Fatal("65,537-byte request accepted")
+	}
+
+	atEventLimit := canonicalPaddingEnvelope(t, DeepAnalysisHandoffMaxPublicEventBytes)
+	overEventLimit := canonicalPaddingEnvelope(t, DeepAnalysisHandoffMaxPublicEventBytes+1)
+	if err := ValidateDeepAnalysisHandoffPublicEventEnvelope(atEventLimit); err != nil {
+		t.Fatalf("65,536-byte public event rejected: %v", err)
+	}
+	if err := ValidateDeepAnalysisHandoffPublicEventEnvelope(overEventLimit); err == nil {
+		t.Fatal("65,537-byte public event accepted")
+	}
+}

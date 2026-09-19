@@ -4,6 +4,8 @@ The Go API enriches each request with settings, user context, and data
 so this service remains stateless with no direct DB access.
 """
 
+import json
+import string
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
@@ -36,7 +38,8 @@ MAX_COPILOT_PLAN_ITEMS = 12
 MAX_COPILOT_PLAN_TITLE_LENGTH = 200
 MAX_COPILOT_CLARIFICATION_LENGTH = 500
 MAX_COPILOT_CLARIFICATION_CHOICES = 10
-MAX_COPILOT_ALLOWED_TOOLS = 10
+MAX_COPILOT_ALLOWED_TOOLS = 11
+MAX_DEEP_ANALYSIS_HANDOFF_REQUEST_BYTES = 65_536
 
 COPILOT_ALLOWED_TOOLS = frozenset(
     {
@@ -50,6 +53,7 @@ COPILOT_ALLOWED_TOOLS = frozenset(
         "auction_search",
         "price_trends",
         "similar_lots",
+        "deep_analysis_handoff",
     }
 )
 COPILOT_SPECIALIST_TOOLS = frozenset(
@@ -86,6 +90,73 @@ class StrictRequestModel(BaseModel):
     """Base model for Go-to-agent DTOs with drift detection."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class DeepAnalysisHandoffTarget(StrictRequestModel):
+    type: Literal["coin", "draft"]
+    id: int = Field(gt=0)
+
+
+class DeepAnalysisHandoffArguments(StrictRequestModel):
+    """Strict model-visible arguments for the single fixed handoff capability."""
+
+    operation: Literal["request", "status", "rerun"]
+    target: DeepAnalysisHandoffTarget | None = None
+    job_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_operation_fields(self) -> "DeepAnalysisHandoffArguments":
+        if self.operation == "request" and (self.target is None or self.job_id is not None):
+            raise ValueError("request requires target and forbids job_id")
+        if self.operation == "status" and (self.target is not None or self.job_id is None):
+            raise ValueError("status requires job_id and forbids target")
+        if self.operation == "rerun" and (self.target is None or self.job_id is None):
+            raise ValueError("rerun requires target and prior job_id")
+        return self
+
+
+class DeepAnalysisHandoffRequest(DeepAnalysisHandoffArguments):
+    """Go callback request after Python injects durable execution fields."""
+
+    tool_call_id: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    handoff_idempotency_key: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=128),
+    ] | None = None
+    expected_checkpoint_version: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_injected_fields(self) -> "DeepAnalysisHandoffRequest":
+        if self.handoff_idempotency_key is not None and any(
+            character not in string.printable[:-5] for character in self.handoff_idempotency_key
+        ):
+            raise ValueError("handoff_idempotency_key must be printable ASCII")
+        if self.operation == "status" and self.handoff_idempotency_key is not None:
+            raise ValueError("status forbids handoff_idempotency_key")
+        if self.operation != "status" and self.handoff_idempotency_key is None:
+            raise ValueError("request and rerun require handoff_idempotency_key")
+        return self
+
+
+def validate_deep_analysis_handoff_request_envelope(payload: bytes) -> object:
+    """Validate canonical request serialization independently of model fields."""
+
+    if not payload:
+        raise ValueError("handoff request is empty")
+    try:
+        value = json.loads(payload)
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (UnicodeDecodeError, ValueError, TypeError) as exc:
+        raise ValueError("invalid handoff request JSON") from exc
+    if len(canonical) > MAX_DEEP_ANALYSIS_HANDOFF_REQUEST_BYTES:
+        raise ValueError("handoff request exceeds 65,536 bytes")
+    return value
 
 
 CopilotThreadID = Annotated[str, StringConstraints(pattern=r"^cct_[A-Za-z0-9_-]+$")]
@@ -179,6 +250,14 @@ class CopilotCompletedTool(StrictRequestModel):
     def validate_tool_result(self) -> "CopilotCompletedTool":
         if self.tool_name not in COPILOT_ALLOWED_TOOLS:
             raise ValueError("tool_name is not in the Coin Copilot allowlist")
+        if self.tool_name == "deep_analysis_handoff":
+            from app.models.responses import DeepAnalysisHandoffResult
+
+            try:
+                self.result = DeepAnalysisHandoffResult.model_validate(self.result)
+            except ValueError as exc:
+                raise ValueError("Deep Analysis handoff result is invalid") from exc
+            return self
         if self.tool_name in COPILOT_SPECIALIST_TOOLS:
             if self.truncated:
                 try:

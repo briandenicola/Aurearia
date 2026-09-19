@@ -23,6 +23,7 @@ func newDeepIdentificationTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{},
+		&models.QuickCaptureDraft{},
 		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
 	); err != nil {
@@ -76,6 +77,68 @@ func TestDeepIdentificationRepository_OwnerScoping(t *testing.T) {
 	}
 }
 
+func TestFeature362DeepRepositoryEnforcesImmutableSourceBindingAndRetainedReuse(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	if err := db.AutoMigrate(&models.QuickCaptureDraft{}); err != nil {
+		t.Fatal(err)
+	}
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "feature362-source-owner")
+	other := createDeepTestUser(t, db, "feature362-source-other")
+	draft := models.QuickCaptureDraft{
+		UserID: owner.ID, WorkingTitle: "Bound", Status: models.QuickCaptureDraftStatusActive,
+	}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	invalid := &models.DeepIdentificationJob{
+		UserID: owner.ID, Source: models.DeepJobSourceCopilotDraft,
+		InputFingerprint: "feature362-invalid-unbound", ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if _, _, err := repo.CreateJob(invalid); !errors.Is(err, ErrDeepJobSourceBindingInvalid) {
+		t.Fatalf("unbound Copilot draft error=%v, want ErrDeepJobSourceBindingInvalid", err)
+	}
+	foreignDraftID := draft.ID
+	foreign := &models.DeepIdentificationJob{
+		UserID: other.ID, Source: models.DeepJobSourceCopilotDraft, SourceDraftID: &foreignDraftID,
+		InputFingerprint: "feature362-foreign-binding", ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if _, _, err := repo.CreateJob(foreign); !errors.Is(err, ErrDeepJobSourceBindingInvalid) {
+		t.Fatalf("foreign Copilot draft error=%v, want ErrDeepJobSourceBindingInvalid", err)
+	}
+
+	completedAt := time.Now().UTC()
+	older := models.DeepIdentificationJob{
+		UserID: owner.ID, Source: models.DeepJobSourceCopilotDraft, SourceDraftID: &draft.ID,
+		Status: models.DeepJobStatusCompleted, InputFingerprint: "feature362-retained",
+		ReportJSON: `{"state":"complete"}`, CompletedAt: &completedAt,
+		ExpiresAt: time.Now().UTC().Add(24 * time.Hour), ActiveKey: "terminal-old",
+	}
+	if err := db.Create(&older).Error; err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	newer := older
+	newer.ID = 0
+	newer.ReportJSON = `{"state":"complete","newest":true}`
+	newer.ActiveKey = "terminal-new"
+	if err := db.Create(&newer).Error; err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.FindNewestEligibleRetainedByFingerprint(owner.ID, "feature362-retained", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != newer.ID {
+		t.Fatalf("retained job=%d want newest %d", got.ID, newer.ID)
+	}
+
+	if err := repo.UpdateSourceBinding(newer.ID, owner.ID, models.DeepJobSourceSavedCoin, nil); !errors.Is(err, ErrDeepJobSourceBindingImmutable) {
+		t.Fatalf("source rebinding error=%v, want immutable binding error", err)
+	}
+}
+
 func TestDeepIdentificationRepository_UnknownSourcesRemainInert(t *testing.T) {
 	db := newDeepIdentificationTestDB(t)
 	repo := NewDeepIdentificationRepository(db)
@@ -83,7 +146,7 @@ func TestDeepIdentificationRepository_UnknownSourcesRemainInert(t *testing.T) {
 	stale := time.Now().Add(-time.Hour)
 
 	queued := models.DeepIdentificationJob{
-		UserID: owner.ID, Source: models.DeepJobSource("copilot_draft"),
+		UserID: owner.ID, Source: models.DeepJobSource("future_source_queued"),
 		Status: models.DeepJobStatusQueued, InputFingerprint: "unknown-source-queued",
 		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
 		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "active",
@@ -159,7 +222,7 @@ func TestDeepIdentificationRepository_CreateJobRejectsUnknownSource(t *testing.T
 	repo := NewDeepIdentificationRepository(db)
 	owner := createDeepTestUser(t, db, "invalid-create-source-owner")
 	job := &models.DeepIdentificationJob{
-		UserID: owner.ID, Source: models.DeepJobSource("copilot_draft"),
+		UserID: owner.ID, Source: models.DeepJobSource("future_source_create"),
 		InputFingerprint: "invalid-create-source", ExpiresAt: time.Now().Add(time.Hour),
 	}
 	if _, _, err := repo.CreateJob(job); !errors.Is(err, ErrDeepJobSourceUnsupported) {

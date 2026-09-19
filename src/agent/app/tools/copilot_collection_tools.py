@@ -11,7 +11,16 @@ import httpx
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
-from app.models.requests import COPILOT_ALLOWED_TOOLS
+from app.models.requests import (
+    COPILOT_ALLOWED_TOOLS,
+    DeepAnalysisHandoffArguments,
+    DeepAnalysisHandoffRequest,
+    validate_deep_analysis_handoff_request_envelope,
+)
+from app.models.responses import (
+    DeepAnalysisHandoffResult,
+    validate_deep_analysis_handoff_persisted_result_envelope,
+)
 from app.outbound import validate_outbound_url
 from app.teams.specialist_contracts import SpecialistQuery, SpecialistResult
 
@@ -23,6 +32,7 @@ CALLBACK_TOOLS = frozenset(
         "get_coin",
         "collection_summary",
         "top_coins_by_value",
+        "deep_analysis_handoff",
     }
 )
 VIRTUAL_TOOLS = frozenset({"portfolio_review", "gap_analysis"})
@@ -143,6 +153,7 @@ ARG_MODELS: dict[str, type[BaseModel]] = {
     "auction_search": SpecialistQuery,
     "price_trends": SpecialistQuery,
     "similar_lots": SpecialistQuery,
+    "deep_analysis_handoff": DeepAnalysisHandoffArguments,
 }
 RESULT_MODELS: dict[str, type[BaseModel]] = {
     "search_my_collection": SearchResult,
@@ -155,6 +166,7 @@ RESULT_MODELS: dict[str, type[BaseModel]] = {
     "auction_search": SpecialistResult,
     "price_trends": SpecialistResult,
     "similar_lots": SpecialistResult,
+    "deep_analysis_handoff": DeepAnalysisHandoffResult,
 }
 
 LocalRunner = Callable[[dict[str, Any]], Awaitable[BaseModel | dict[str, Any] | str]]
@@ -211,6 +223,7 @@ class CopilotCollectionToolClient:
         execution_token: str,
         allowed_tools: list[str],
         max_result_bytes: int,
+        checkpoint_version: int = 0,
         local_runners: dict[str, LocalRunner] | None = None,
         analysis_runners: dict[str, LocalRunner] | None = None,
         completed_call_ids: set[str] | None = None,
@@ -224,6 +237,9 @@ class CopilotCollectionToolClient:
         self.execution_token = execution_token
         self.allowed_tools = allowed
         self.max_result_bytes = max_result_bytes
+        if checkpoint_version < 0:
+            raise ValueError("checkpoint_version must be non-negative")
+        self.checkpoint_version = checkpoint_version
         self.local_runners = {**(analysis_runners or {}), **(local_runners or {})}
         if not set(self.local_runners).issubset(LOCAL_TOOLS):
             raise ValueError("local runners contain an unsupported capability")
@@ -268,7 +284,14 @@ class CopilotCollectionToolClient:
             raise CopilotToolError("invalid_tool_call", "The tool arguments are invalid.") from exc
 
         if tool_name in CALLBACK_TOOLS:
-            result = await self._execute_callback(tool_name, tool_call_id, args.model_dump(exclude_none=True))
+            callback_args = args.model_dump(exclude_none=True)
+            if tool_name == "deep_analysis_handoff":
+                callback_args["expected_checkpoint_version"] = self.checkpoint_version
+                if args.operation != "status":
+                    callback_args["handoff_idempotency_key"] = hashlib.sha256(
+                        tool_call_id.encode("utf-8")
+                    ).hexdigest()
+            result = await self._execute_callback(tool_name, tool_call_id, callback_args)
         else:
             result = await self._execute_local(tool_name, args.model_dump(exclude_none=True))
         try:
@@ -298,6 +321,16 @@ class CopilotCollectionToolClient:
         if client is None:
             client = httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=20.0, write=5.0, pool=5.0))
         body = {"tool_call_id": tool_call_id, **args}
+        if tool_name == "deep_analysis_handoff":
+            request = DeepAnalysisHandoffRequest.model_validate(body)
+            encoded = json.dumps(
+                request.model_dump(mode="json", exclude_none=True),
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+            validate_deep_analysis_handoff_request_envelope(encoded)
         try:
             response = await client.post(
                 f"{self.base_url}/api/internal/copilot/tools/{tool_name}",
@@ -305,6 +338,8 @@ class CopilotCollectionToolClient:
                 headers={"Authorization": f"Bearer {self.execution_token}"},
             )
             response.raise_for_status()
+            if tool_name == "deep_analysis_handoff":
+                validate_deep_analysis_handoff_persisted_result_envelope(response.content)
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError("tool response must be an object")

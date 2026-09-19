@@ -33,15 +33,16 @@ func IsDeepJobTerminal(status DeepJobStatus) bool {
 type DeepJobSource string
 
 const (
-	DeepJobSourceIntake    DeepJobSource = "intake"
-	DeepJobSourceSavedCoin DeepJobSource = "saved_coin"
+	DeepJobSourceIntake       DeepJobSource = "intake"
+	DeepJobSourceSavedCoin    DeepJobSource = "saved_coin"
+	DeepJobSourceCopilotDraft DeepJobSource = "copilot_draft"
 )
 
 // IsSupportedDeepJobSource is the closed compatibility boundary for job
 // sources understood by this binary.
 func IsSupportedDeepJobSource(source DeepJobSource) bool {
 	switch source {
-	case DeepJobSourceIntake, DeepJobSourceSavedCoin:
+	case DeepJobSourceIntake, DeepJobSourceSavedCoin, DeepJobSourceCopilotDraft:
 		return true
 	default:
 		return false
@@ -50,7 +51,27 @@ func IsSupportedDeepJobSource(source DeepJobSource) bool {
 
 // SupportedDeepJobSources returns a fresh slice for repository IN clauses.
 func SupportedDeepJobSources() []DeepJobSource {
-	return []DeepJobSource{DeepJobSourceIntake, DeepJobSourceSavedCoin}
+	return []DeepJobSource{DeepJobSourceIntake, DeepJobSourceSavedCoin, DeepJobSourceCopilotDraft}
+}
+
+// IsValidDeepJobSourceBinding enforces the closed, immutable source binding
+// vocabulary. Owner matching for CoinID/SourceDraftID is a repository concern;
+// this function deliberately validates only the shape that can be expressed by
+// the model.
+func IsValidDeepJobSourceBinding(job *DeepIdentificationJob) bool {
+	if job == nil {
+		return false
+	}
+	switch job.Source {
+	case DeepJobSourceIntake:
+		return job.CoinID == nil && job.SourceDraftID == nil
+	case DeepJobSourceSavedCoin:
+		return job.CoinID != nil && *job.CoinID > 0 && job.SourceDraftID == nil
+	case DeepJobSourceCopilotDraft:
+		return job.CoinID == nil && job.SourceDraftID != nil && *job.SourceDraftID > 0
+	default:
+		return false
+	}
 }
 
 // DeepIdentificationJob is the sibling job aggregate for the deep agentic
@@ -62,6 +83,7 @@ type DeepIdentificationJob struct {
 	User               User          `gorm:"foreignKey:UserID" json:"-"`
 	CoinID             *uint         `gorm:"index:idx_deep_jobs_user_coin,priority:2" json:"coinId,omitempty"`
 	Coin               *Coin         `gorm:"foreignKey:CoinID" json:"-"`
+	SourceDraftID      *uint         `gorm:"index:idx_deep_jobs_source_draft" json:"sourceDraftId,omitempty"`
 	Status             DeepJobStatus `gorm:"type:varchar(20);not null;default:'queued';index:idx_deep_jobs_user_status_created,priority:2;index:idx_deep_jobs_status_heartbeat,priority:1" json:"status"`
 	Source             DeepJobSource `gorm:"type:varchar(20);not null" json:"source"`
 	InputFingerprint   string        `gorm:"type:char(64);not null;index:uix_deep_jobs_active_fingerprint,priority:2,unique" json:"-"`

@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "authorization": {
+    "header": "Authorization: ****** token>",
+    "token_family": "coin_copilot_execution",
+    "allowed_tool": "deep_analysis_handoff"
+  },
+  "requests": {
+    "request": {
+      "tool_call_id": "call_request_01",
+      "handoff_idempotency_key": "call_request_01",
+      "expected_checkpoint_version": 3,
+      "operation": "request",
+      "target": {
+        "type": "coin",
+        "id": 42
+      }
+    },
+    "status": {
+      "tool_call_id": "call_status_01",
+      "expected_checkpoint_version": 3,
+      "operation": "status",
+      "job_id": 314
+    },
+    "rerun": {
+      "tool_call_id": "call_rerun_01",
+      "handoff_idempotency_key": "call_rerun_01",
+      "expected_checkpoint_version": 4,
+      "operation": "rerun",
+      "target": {
+        "type": "draft",
+        "id": 84
+      },
+      "job_id": 313
+    }
+  },
+  "results": {
+    "accepted": {
+      "schema_version": 1,
+      "operation": "request",
+      "outcome": "accepted",
+      "reason": null,
+      "target": {
+        "type": "coin",
+        "id": 42,
+        "display_label": "Maximinus I denarius"
+      },
+      "job": {
+        "id": 314,
+        "source": "saved_coin",
+        "status": "queued",
+        "reused": false,
+        "created_at": "2026-09-18T18:00:00Z",
+        "completed_at": null
+      },
+      "input_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "review_url": "/deep-analysis/314",
+      "fresh_analysis_available": false,
+      "result": {
+        "state": "not_ready",
+        "narrative": "",
+        "partial_success": false,
+        "image_only": false,
+        "fields": [],
+        "disagreements": [],
+        "unresolved_questions": [],
+        "coverage": [],
+        "attributions": [],
+        "limitations": [
+          "Analysis is queued."
+        ]
+      },
+      "truncation": {
+        "truncated": false,
+        "original_bytes": 0,
+        "persisted_bytes": 0,
+        "digest": "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "omitted_fields": 0,
+        "omitted_evidence": 0,
+        "omitted_disagreements": 0,
+        "omitted_questions": 0
+      },
+      "limitations": [
+        "Analysis is queued."
+      ]
+    },
+    "status_complete": {
+      "schema_version": 1,
+      "operation": "status",
+      "outcome": "status",
+      "reason": null,
+      "target": {
+        "type": "coin",
+        "id": 42,
+        "display_label": "Maximinus I denarius"
+      },
+      "job": {
+        "id": 314,
+        "source": "saved_coin",
+        "status": "completed",
+        "reused": true,
+        "created_at": "2026-09-18T18:00:00Z",
+        "completed_at": "2026-09-18T18:02:00Z"
+      },
+      "input_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "review_url": "/deep-analysis/314",
+      "fresh_analysis_available": true,
+      "result": {
+        "state": "complete",
+        "narrative": "Persisted Deep Analysis narrative.",
+        "partial_success": false,
+        "image_only": false,
+        "fields": [
+          {
+            "name": "denomination",
+            "value": "Denarius",
+            "confidence": 0.91,
+            "evidence": [
+              {
+                "provider": "numista",
+                "source": "Numista",
+                "url": "https://en.numista.com/catalogue/pieces123.html",
+                "summary": "Matching type."
+              }
+            ]
+          }
+        ],
+        "disagreements": [],
+        "unresolved_questions": [],
+        "coverage": [
+          {
+            "provider": "numista",
+            "status": "contributed"
+          }
+        ],
+        "attributions": [
+          {
+            "provider": "numista",
+            "label": "Numista"
+          }
+        ],
+        "limitations": []
+      },
+      "truncation": {
+        "truncated": false,
+        "original_bytes": 1024,
+        "persisted_bytes": 1024,
+        "digest": "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "omitted_fields": 0,
+        "omitted_evidence": 0,
+        "omitted_disagreements": 0,
+        "omitted_questions": 0
+      },
+      "limitations": []
+    },
+    "rerun_reused_active": {
+      "schema_version": 1,
+      "operation": "rerun",
+      "outcome": "reused_active",
+      "reason": null,
+      "target": {
+        "type": "draft",
+        "id": 84,
+        "display_label": "Quick Capture draft 84"
+      },
+      "job": {
+        "id": 315,
+        "source": "copilot_draft",
+        "status": "running",
+        "reused": true,
+        "created_at": "2026-09-18T18:05:00Z",
+        "completed_at": null
+      },
+      "input_digest": "1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "review_url": "/deep-analysis/315",
+      "fresh_analysis_available": false,
+      "result": {
+        "state": "not_ready",
+        "narrative": "",
+        "partial_success": false,
+        "image_only": false,
+        "fields": [],
+        "disagreements": [],
+        "unresolved_questions": [],
+        "coverage": [],
+        "attributions": [],
+        "limitations": [
+          "Analysis is running."
+        ]
+      },
+      "truncation": {
+        "truncated": false,
+        "original_bytes": 0,
+        "persisted_bytes": 0,
+        "digest": "bbcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "omitted_fields": 0,
+        "omitted_evidence": 0,
+        "omitted_disagreements": 0,
+        "omitted_questions": 0
+      },
+      "limitations": [
+        "Analysis is running."
+      ]
+    },
+    "not_eligible": {
+      "outcome": "not_eligible",
+      "reason": null
+    },
+    "target_unavailable": {
+      "outcome": "target_unavailable",
+      "reason": null
+    },
+    "truncated": {
+      "schema_version": 1,
+      "operation": "status",
+      "outcome": "status",
+      "reason": null,
+      "job": {
+        "id": 314,
+        "source": "saved_coin",
+        "status": "completed",
+        "reused": true,
+        "created_at": "2026-09-18T18:00:00Z",
+        "completed_at": "2026-09-18T18:02:00Z"
+      },
+      "input_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "review_url": "/deep-analysis/314",
+      "fresh_analysis_available": true,
+      "result": {
+        "state": "complete",
+        "narrative": "Bounded narrative.",
+        "partial_success": false,
+        "image_only": false,
+        "fields": [],
+        "disagreements": [],
+        "unresolved_questions": [],
+        "coverage": [],
+        "attributions": [],
+        "limitations": [
+          "Some evidence was omitted to fit the persisted result limit."
+        ]
+      },
+      "truncation": {
+        "truncated": true,
+        "original_bytes": 49152,
+        "persisted_bytes": 32768,
+        "digest": "cbcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "omitted_fields": 2,
+        "omitted_evidence": 18,
+        "omitted_disagreements": 1,
+        "omitted_questions": 3
+      },
+      "limitations": [
+        "Some evidence was omitted to fit the persisted result limit."
+      ]
+    }
+  },
+  "byte_boundaries": {
+    "request": {
+      "maximum_bytes": 65536,
+      "accepted_canonical_bytes": 65536
+    },
+    "public_event": {
+      "maximum_bytes": 65536,
+      "accepted_canonical_bytes": 65536
+    },
+    "persisted_result": {
+      "maximum_bytes": 32768,
+      "accepted_canonical_bytes": 32768
+    }
+  }
+}

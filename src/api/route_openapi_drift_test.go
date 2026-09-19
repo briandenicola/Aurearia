@@ -234,6 +234,7 @@ func TestCoinCopilotInternalRoutesAreReadOnly(t *testing.T) {
 	sort.Strings(got)
 	want := []string{
 		"POST /api/internal/copilot/tools/collection_summary",
+		"POST /api/internal/copilot/tools/deep_analysis_handoff",
 		"POST /api/internal/copilot/tools/get_coin",
 		"POST /api/internal/copilot/tools/search_my_collection",
 		"POST /api/internal/copilot/tools/top_coins_by_value",

@@ -19,6 +19,7 @@ import type {
   CollectionChatResponse,
   CreateDeepIdentificationJobInput,
   DeepApplyResult,
+  DeepAnalysisHandoffResult,
   DeepIdentificationCapability,
   DeepJobEnvelope,
   DeepJobListResponse,
@@ -299,6 +300,10 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
   return Object.keys(value).every(key => keys.includes(key))
 }
 
+function hasRequiredKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return keys.every(key => Object.hasOwn(value, key))
+}
+
 const SPECIALIST_KINDS: Record<CoinCopilotSpecialistCapability, CoinCopilotEvidenceKind> = {
   market_search: 'dealer_listing',
   auction_search: 'auction_lot',
@@ -319,6 +324,159 @@ function isSafeSpecialistUrl(value: unknown): value is string {
   } catch {
     return false
   }
+}
+
+const DEEP_HANDOFF_OUTCOMES = new Set([
+    'accepted', 'reused_active', 'reused_result', 'status', 'retry_available',
+    'missing_images', 'target_unavailable', 'not_eligible', 'unavailable', 'cancelled',
+  ])
+  const DEEP_HANDOFF_REASONS = new Set([
+    'missing_obverse', 'missing_reverse', 'missing_both', 'duplicate_faces',
+    'target_changed', 'draft_inactive', 'source_coin_missing', 'deep_disabled',
+    'copilot_disabled', 'attribution_disabled', 'model_unsupported', 'job_at_capacity',
+    'queue_full', 'result_missing', 'result_expired', 'stale', 'cancelled',
+  ])
+  const DEEP_HANDOFF_PROVIDERS = new Set(['numista', 'nomisma', 'ngc', 'ocre', 'rpc'])
+  const DEEP_HANDOFF_COVERAGE = new Set([
+    'pending', 'running', 'contributed', 'no_match', 'failed', 'timed_out',
+    'skipped', 'not_automated', 'unavailable',
+  ])
+
+  function isDeepHandoffTruncation(value: unknown): boolean {
+    if (!isRecord(value) || !hasOnlyKeys(value, [
+      'truncated', 'original_bytes', 'persisted_bytes', 'digest', 'omitted_fields',
+      'omitted_evidence', 'omitted_disagreements', 'omitted_questions',
+    ]) || !hasRequiredKeys(value, [
+      'truncated', 'original_bytes', 'persisted_bytes', 'digest', 'omitted_fields',
+      'omitted_evidence', 'omitted_disagreements', 'omitted_questions',
+    ])) return false
+    const counts = [
+      value.original_bytes, value.persisted_bytes, value.omitted_fields,
+      value.omitted_evidence, value.omitted_disagreements, value.omitted_questions,
+    ]
+    if (typeof value.truncated !== 'boolean' || !counts.every(isNonNegativeInteger) ||
+        Number(value.persisted_bytes) > 32768 ||
+        typeof value.digest !== 'string' || !/^[0-9a-f]{64}$/.test(value.digest)) return false
+    return !value.truncated ||
+      Number(value.omitted_fields) + Number(value.omitted_evidence) +
+        Number(value.omitted_disagreements) + Number(value.omitted_questions) > 0
+  }
+
+  function isDeepHandoffResultBody(value: unknown): boolean {
+    if (!isRecord(value) || !hasOnlyKeys(value, [
+      'state', 'narrative', 'partial_success', 'image_only', 'fields', 'disagreements',
+      'unresolved_questions', 'coverage', 'attributions', 'limitations',
+    ]) || !hasRequiredKeys(value, [
+      'state', 'narrative', 'partial_success', 'image_only', 'fields', 'disagreements',
+      'unresolved_questions', 'coverage', 'attributions', 'limitations',
+    ])) return false
+    if (!['not_ready', 'complete', 'partial', 'no_match', 'failed', 'cancelled', 'stale', 'missing_result'].includes(String(value.state)) ||
+        typeof value.narrative !== 'string' || typeof value.partial_success !== 'boolean' ||
+        typeof value.image_only !== 'boolean' || !Array.isArray(value.fields) ||
+        !Array.isArray(value.disagreements) || !isBoundedStrings(value.unresolved_questions, 1000, 1000) ||
+        !Array.isArray(value.coverage) || !Array.isArray(value.attributions) ||
+        !isBoundedStrings(value.limitations, 1000, 1000)) return false
+
+    const fieldNames = new Set<string>()
+    for (const field of value.fields) {
+      if (!isRecord(field) || !hasOnlyKeys(field, ['name', 'value', 'confidence', 'evidence']) ||
+          !hasRequiredKeys(field, ['name', 'value', 'confidence', 'evidence']) ||
+          typeof field.name !== 'string' || field.name.length === 0 || fieldNames.has(field.name) ||
+          typeof field.value !== 'string' || field.value.length === 0 ||
+          typeof field.confidence !== 'number' || !Number.isFinite(field.confidence) ||
+          field.confidence < 0 || field.confidence > 1 || !Array.isArray(field.evidence)) return false
+      fieldNames.add(field.name)
+      for (const evidence of field.evidence) {
+        if (!isRecord(evidence) || !hasOnlyKeys(evidence, ['provider', 'source', 'url', 'summary']) ||
+            !hasRequiredKeys(evidence, ['provider', 'source', 'url', 'summary']) ||
+            typeof evidence.provider !== 'string' || evidence.provider.length === 0 ||
+            typeof evidence.source !== 'string' || evidence.source.length === 0 ||
+            !isSafeSpecialistUrl(evidence.url) ||
+            typeof evidence.summary !== 'string' || evidence.summary.length === 0) return false
+      }
+    }
+    if (!value.disagreements.every(disagreement =>
+      isRecord(disagreement) && hasOnlyKeys(disagreement, ['field', 'summary']) &&
+      hasRequiredKeys(disagreement, ['field', 'summary']) &&
+      typeof disagreement.field === 'string' && disagreement.field.length > 0 &&
+      typeof disagreement.summary === 'string' && disagreement.summary.length > 0)) return false
+
+    const coverageProviders = new Set<string>()
+    for (const coverage of value.coverage) {
+      if (!isRecord(coverage) || !hasOnlyKeys(coverage, ['provider', 'status']) ||
+          !hasRequiredKeys(coverage, ['provider', 'status']) ||
+          !DEEP_HANDOFF_PROVIDERS.has(String(coverage.provider)) ||
+          !DEEP_HANDOFF_COVERAGE.has(String(coverage.status)) ||
+          coverageProviders.has(String(coverage.provider))) return false
+      coverageProviders.add(String(coverage.provider))
+    }
+    const attributionProviders = new Set<string>()
+    for (const attribution of value.attributions) {
+      if (!isRecord(attribution) || !hasOnlyKeys(attribution, ['provider', 'label']) ||
+          !hasRequiredKeys(attribution, ['provider', 'label']) ||
+          !DEEP_HANDOFF_PROVIDERS.has(String(attribution.provider)) ||
+          typeof attribution.label !== 'string' || attribution.label.length === 0 ||
+          attributionProviders.has(String(attribution.provider))) return false
+      attributionProviders.add(String(attribution.provider))
+    }
+    return true
+  }
+
+export function parseDeepAnalysisHandoffResult(value: unknown): DeepAnalysisHandoffResult | null {
+    if (typeof value === 'string') {
+      try {
+        value = JSON.parse(value)
+      } catch {
+        return null
+      }
+    }
+    if (!isRecord(value) || !DEEP_HANDOFF_OUTCOMES.has(String(value.outcome)) || !Object.hasOwn(value, 'reason')) {
+      return null
+    }
+    if (value.outcome === 'not_eligible' || value.outcome === 'target_unavailable') {
+      return value.reason === null && Object.keys(value).length === 2
+        ? value as unknown as DeepAnalysisHandoffResult
+        : null
+    }
+    if (!hasOnlyKeys(value, [
+      'schema_version', 'operation', 'outcome', 'reason', 'target', 'job', 'input_digest',
+      'review_url', 'fresh_analysis_available', 'result', 'truncation', 'limitations',
+    ]) || !hasRequiredKeys(value, [
+      'schema_version', 'operation', 'outcome', 'reason', 'fresh_analysis_available', 'limitations',
+    ]) || value.schema_version !== 1 ||
+        !['request', 'status', 'rerun'].includes(String(value.operation)) ||
+        (value.reason !== null && !DEEP_HANDOFF_REASONS.has(String(value.reason))) ||
+        typeof value.fresh_analysis_available !== 'boolean' ||
+        !isBoundedStrings(value.limitations, 1000, 1000)) return null
+
+    if (Object.hasOwn(value, 'target')) {
+      const target = value.target
+      if (!isRecord(target) || !hasOnlyKeys(target, ['type', 'id', 'display_label']) ||
+          !hasRequiredKeys(target, ['type', 'id', 'display_label']) ||
+          !['coin', 'draft'].includes(String(target.type)) ||
+          !Number.isSafeInteger(target.id) || Number(target.id) < 1 ||
+          typeof target.display_label !== 'string' || target.display_label.length === 0) return null
+    }
+    if (Object.hasOwn(value, 'job')) {
+      const job = value.job
+      if (!isRecord(job) || !hasOnlyKeys(job, [
+        'id', 'source', 'status', 'reused', 'created_at', 'completed_at',
+      ]) || !hasRequiredKeys(job, [
+        'id', 'source', 'status', 'reused', 'created_at', 'completed_at',
+      ]) || !Number.isSafeInteger(job.id) || Number(job.id) < 1 ||
+          !['intake', 'saved_coin', 'copilot_draft'].includes(String(job.source)) ||
+          !['queued', 'running', 'completed', 'partial', 'failed', 'cancelled'].includes(String(job.status)) ||
+          typeof job.reused !== 'boolean' || typeof job.created_at !== 'string' ||
+          (job.completed_at !== null && typeof job.completed_at !== 'string') ||
+          value.review_url !== `/deep-analysis/${String(job.id)}`) return null
+    } else if (Object.hasOwn(value, 'review_url')) {
+      return null
+    }
+    if (Object.hasOwn(value, 'input_digest') &&
+        (typeof value.input_digest !== 'string' || !/^[0-9a-f]{64}$/.test(value.input_digest))) return null
+    if (Object.hasOwn(value, 'result') && !isDeepHandoffResultBody(value.result)) return null
+    if (Object.hasOwn(value, 'truncation') && !isDeepHandoffTruncation(value.truncation)) return null
+    return value as unknown as DeepAnalysisHandoffResult
 }
 
 function isBoundedStrings(value: unknown, maximum: number, itemMaximum = 500): value is string[] {
@@ -410,6 +568,7 @@ function isCoinCopilotLimits(value: unknown) {
 
 function isSafeCopilotEvent(value: unknown, eventType: string, eventId?: string): value is CoinCopilotEvent {
   if (!isRecord(value) || !COPILOT_EVENT_TYPES.has(eventType as CoinCopilotEvent['type'])) return false
+  if (new TextEncoder().encode(JSON.stringify(value)).length > 65536) return false
   if (value.type !== eventType || !Number.isSafeInteger(value.seq) || Number(value.seq) < 1) return false
   if (eventId !== undefined && Number(eventId) !== value.seq) return false
   if (typeof value.threadId !== 'string' || typeof value.runId !== 'string' ||
@@ -433,7 +592,10 @@ function isSafeCopilotEvent(value: unknown, eventType: string, eventId?: string)
         typeof payload.stepId === 'string' && ['succeeded', 'failed', 'cancelled', 'rejected'].includes(String(payload.status)) &&
         Number.isFinite(payload.durationMs) && typeof payload.resultSummary === 'string' && typeof payload.truncated === 'boolean' &&
         (!Object.hasOwn(payload, 'specialistResult') ||
-          isSpecialistResult(payload.specialistResult, payload.toolName))
+          isSpecialistResult(payload.specialistResult, payload.toolName)) &&
+        (!Object.hasOwn(payload, 'deepAnalysisHandoffResult') ||
+          (payload.toolName === 'deep_analysis_handoff' &&
+            parseDeepAnalysisHandoffResult(payload.deepAnalysisHandoffResult) !== null))
     case 'clarification_required':
       return typeof payload.question === 'string' && ['text', 'single_choice', 'boolean'].includes(String(payload.inputType)) &&
         Array.isArray(payload.choices) && payload.choices.every(choice => typeof choice === 'string') &&

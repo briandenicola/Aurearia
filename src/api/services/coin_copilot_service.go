@@ -247,8 +247,8 @@ func (s *CoinCopilotService) Resume(userID uint, runID string, input CoinCopilot
 		if replayed.RequestFingerprint != fingerprint {
 			return nil, false, ErrCopilotIdempotencyConflict
 		}
-		run, getErr := s.GetRun(userID, runID)
-		return run, true, getErr
+		run, replayErr := s.validateResumeReplay(userID, runID, replayed)
+		return run, true, replayErr
 	}
 	if !repository.IsRecordNotFound(err) {
 		return nil, false, err
@@ -310,6 +310,27 @@ func (s *CoinCopilotService) RecoverAndPrune() error {
 		s.broker.Publish(runID)
 	}
 	return s.repo.Prune(time.Now().UTC().Add(-settings.EventRetention), time.Now().UTC().Add(-settings.CheckpointRetention))
+}
+
+func (s *CoinCopilotService) validateResumeReplay(
+	userID uint,
+	runID string,
+	replayed *models.CoinCopilotResumeRequest,
+) (*models.CoinCopilotRun, error) {
+	run, err := s.GetRun(userID, runID)
+	if err != nil {
+		return nil, err
+	}
+	checkpoint, err := s.repo.GetLatestCheckpoint(runID, userID)
+	if err != nil ||
+		run.ExecutionID != replayed.ExecutionID ||
+		run.CheckpointVersion != replayed.AcceptedCheckpointVersion ||
+		checkpoint.Version != replayed.AcceptedCheckpointVersion ||
+		checkpoint.ExecutionID != replayed.ExecutionID ||
+		CopilotCheckpointDigest(checkpoint.StateJSON) != checkpoint.StateDigest {
+		return nil, ErrCopilotIdempotencyConflict
+	}
+	return run, nil
 }
 
 func validIdempotencyKey(value string) bool {
@@ -451,6 +472,30 @@ func (s *CoinCopilotService) FinishToolCall(executionID, toolCallID string, succ
 	} else {
 		delete(tracker.calls, toolCallID)
 	}
+}
+
+// PrepareDeepAnalysisHandoffDelivery applies the handoff-specific persisted
+// result cap and then validates the separately bounded public envelope. The
+// two limits intentionally do not inherit the run's larger general tool-result
+// setting.
+func (s *CoinCopilotService) PrepareDeepAnalysisHandoffDelivery(
+	result DeepAnalysisHandoffResult,
+) ([]byte, error) {
+	projected, err := ProjectDeepAnalysisHandoffResult(
+		result,
+		DeepAnalysisHandoffMaxPersistedResultBytes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(projected.Bytes) > DeepAnalysisHandoffMaxPersistedResultBytes {
+		return nil, ErrInvalidCopilotFrame
+	}
+	if err := ValidateDeepAnalysisHandoffPublicEventEnvelope(projected.Bytes); err != nil ||
+		len(projected.Bytes) > DeepAnalysisHandoffMaxPublicEventBytes {
+		return nil, ErrInvalidCopilotFrame
+	}
+	return projected.Bytes, nil
 }
 
 func (s *CoinCopilotService) clearToolCalls(executionID string) {

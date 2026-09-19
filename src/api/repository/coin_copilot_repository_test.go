@@ -1,8 +1,11 @@
 package repository
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -221,5 +224,167 @@ func TestCoinCopilotRepositoryResumeAndDeleteCascade(t *testing.T) {
 		if err := db.Model(model).Count(&count).Error; err != nil || count != 0 {
 			t.Fatalf("%T count=%d err=%v", model, count, err)
 		}
+	}
+}
+
+func TestFeature362RepositoryAdmissionCommitsArtifactsBeforeWorkerWake(t *testing.T) {
+	t.Run("revalidates target and provider generation inside admission", func(t *testing.T) {
+		for _, test := range []struct {
+			name        string
+			mutate      func(*gorm.DB, *models.Coin)
+			replaceFace bool
+		}{
+			{
+				name: "target context changes",
+				mutate: func(db *gorm.DB, coin *models.Coin) {
+					_ = db.Model(coin).Updates(map[string]any{
+						"notes": "changed", "updated_at": time.Now().UTC().Add(time.Second),
+					}).Error
+				},
+			},
+			{
+				name: "provider generation changes",
+				mutate: func(db *gorm.DB, _ *models.Coin) {
+					_ = db.Create(&models.AppSetting{Key: "DeepIdentificationOCREEnabled", Value: "true"}).Error
+				},
+			},
+			{
+				name:        "face content changes",
+				mutate:      func(*gorm.DB, *models.Coin) {},
+				replaceFace: true,
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				db, repo := newCopilotRepositoryTestDB(t)
+				if err := db.AutoMigrate(
+					&models.Coin{}, &models.CoinImage{}, &models.AppSetting{},
+					&models.DeepIdentificationJob{}, &models.DeepIdentificationArtifact{},
+					&models.CoinCopilotDeepHandoff{},
+				); err != nil {
+					t.Fatal(err)
+				}
+				run := seedCopilotRun(t, repo, 7, models.CopilotRunRunning)
+				coin := models.Coin{ID: 42, UserID: 7, Name: "Barrier", Notes: "before"}
+				if err := db.Create(&coin).Error; err != nil {
+					t.Fatal(err)
+				}
+				contentDir := t.TempDir()
+				obverseContent := []byte("feature362-obverse")
+				reverseContent := []byte("feature362-reverse")
+				obversePath := filepath.Join(contentDir, "obverse.png")
+				reversePath := filepath.Join(contentDir, "reverse.png")
+				if err := os.WriteFile(obversePath, obverseContent, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(reversePath, reverseContent, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				obverse := models.CoinImage{CoinID: coin.ID, FilePath: "obverse.png", ImageType: models.ImageTypeObverse}
+				reverse := models.CoinImage{CoinID: coin.ID, FilePath: "reverse.png", ImageType: models.ImageTypeReverse}
+				if err := db.Create(&obverse).Error; err != nil {
+					t.Fatal(err)
+				}
+				if err := db.Create(&reverse).Error; err != nil {
+					t.Fatal(err)
+				}
+				appDigest := DigestCoinCopilotAppContext(run.AppContextJSON)
+				handoff := &models.CoinCopilotDeepHandoff{
+					UserID: 7, RunID: run.ID, ExecutionID: run.ExecutionID,
+					HandoffKeyHash: "barrier-key", RequestFingerprint: "barrier-request",
+					ExpectedCheckpointVersion: 0, AppContextDigest: appDigest,
+					Operation:  models.CoinCopilotDeepHandoffOperationRequest,
+					TargetKind: models.CoinCopilotDeepHandoffTargetCoin, TargetID: coin.ID,
+					TargetSnapshotFingerprint: "barrier-snapshot",
+				}
+				job := &models.DeepIdentificationJob{
+					UserID: 7, Source: models.DeepJobSourceSavedCoin, CoinID: &coin.ID,
+					InputFingerprint: "barrier-fingerprint", ExpiresAt: time.Now().UTC().Add(time.Hour),
+				}
+				target := DeepHandoffTargetToken{
+					Kind: models.CoinCopilotDeepHandoffTargetCoin, ID: coin.ID, UserID: 7,
+					State: "active", UpdatedAt: coin.UpdatedAt.UTC().Format(time.RFC3339Nano), Context: coin.Notes,
+					Obverse: DeepHandoffFaceToken{
+						ID: obverse.ID, FilePath: obverse.FilePath,
+						ContentPath: obversePath, ContentHash: fmt.Sprintf("%x", sha256.Sum256(obverseContent)),
+						CreatedAt: obverse.CreatedAt.UTC().Format(time.RFC3339Nano),
+					},
+					Reverse: DeepHandoffFaceToken{
+						ID: reverse.ID, FilePath: reverse.FilePath,
+						ContentPath: reversePath, ContentHash: fmt.Sprintf("%x", sha256.Sum256(reverseContent)),
+						CreatedAt: reverse.CreatedAt.UTC().Format(time.RFC3339Nano),
+					},
+				}
+				if test.replaceFace {
+					if err := os.WriteFile(obversePath, []byte("changed-content"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				test.mutate(db, &coin)
+				_, _, _, err := repo.AdmitDeepHandoff(DeepHandoffAdmission{
+					Handoff: handoff, Job: job, Target: target,
+					ProviderSettings: map[string]string{"DeepIdentificationOCREEnabled": "false"},
+				})
+				if !errors.Is(err, ErrCopilotDeepHandoffState) {
+					t.Fatalf("admission error=%v want state conflict", err)
+				}
+				var jobs, handoffs int64
+				_ = db.Model(&models.DeepIdentificationJob{}).Count(&jobs).Error
+				_ = db.Model(&models.CoinCopilotDeepHandoff{}).Count(&handoffs).Error
+				if jobs != 0 || handoffs != 0 {
+					t.Fatalf("stale admission created jobs=%d handoffs=%d", jobs, handoffs)
+				}
+			})
+		}
+	})
+	fixture := newHandoffSnapshotFixture(t, models.CoinCopilotDeepHandoffTargetCoin)
+	db, repo := fixture.db, fixture.repo
+	handoff, job := fixture.admission.Handoff, fixture.admission.Job
+	handoff.HandoffKeyHash = "hashed-key"
+	handoff.RequestFingerprint = "request-fingerprint"
+	artifacts := []models.DeepIdentificationArtifact{
+		{UserID: 7, Role: models.DeepArtifactRoleObverse, Origin: models.DeepArtifactOriginSavedCoinImage, FilePath: "obverse.png", ContentHash: "obverse"},
+		{UserID: 7, Role: models.DeepArtifactRoleReverse, Origin: models.DeepArtifactOriginSavedCoinImage, FilePath: "reverse.png", ContentHash: "reverse"},
+	}
+	wakes := 0
+	admission := fixture.admission
+	admission.Artifacts = artifacts
+	admission.AfterCommit = func(jobID uint) {
+		var artifactCount, handoffCount int64
+		_ = db.Model(&models.DeepIdentificationArtifact{}).Where("job_id = ?", jobID).Count(&artifactCount).Error
+		_ = db.Model(&models.CoinCopilotDeepHandoff{}).Where("deep_job_id = ?", jobID).Count(&handoffCount).Error
+		if artifactCount != 2 || handoffCount != 1 {
+			t.Errorf("worker woke before durable readiness: artifacts=%d handoffs=%d", artifactCount, handoffCount)
+		}
+		wakes++
+	}
+	gotHandoff, gotJob, reused, err := repo.AdmitDeepHandoff(admission)
+	if err != nil || reused || gotHandoff.ID == 0 || gotJob.ID == 0 {
+		t.Fatalf("admission handoff=%+v job=%+v reused=%v err=%v", gotHandoff, gotJob, reused, err)
+	}
+	if wakes != 1 {
+		t.Fatalf("worker wakes=%d want 1", wakes)
+	}
+
+	_, replayJob, replayed, err := repo.AdmitDeepHandoff(DeepHandoffAdmission{
+		Handoff: handoff, Job: job, AfterCommit: func(uint) { wakes++ },
+	})
+	if err != nil || !replayed || replayJob.ID != gotJob.ID {
+		t.Fatalf("replay job=%+v replayed=%v err=%v", replayJob, replayed, err)
+	}
+	if wakes != 1 {
+		t.Fatalf("replay woke worker; wakes=%d", wakes)
+	}
+
+	changed := *handoff
+	changed.RequestFingerprint = "changed-binding"
+	if _, _, _, err := repo.AdmitDeepHandoff(DeepHandoffAdmission{Handoff: &changed, Job: job}); !errors.Is(err, ErrCopilotDeepHandoffConflict) {
+		t.Fatalf("changed binding error=%v want ErrCopilotDeepHandoffConflict", err)
+	}
+	var jobs, handoffs, artifactRows int64
+	_ = db.Model(&models.DeepIdentificationJob{}).Count(&jobs).Error
+	_ = db.Model(&models.CoinCopilotDeepHandoff{}).Count(&handoffs).Error
+	_ = db.Model(&models.DeepIdentificationArtifact{}).Count(&artifactRows).Error
+	if jobs != 1 || handoffs != 1 || artifactRows != 2 {
+		t.Fatalf("conflict created rows: jobs=%d handoffs=%d artifacts=%d", jobs, handoffs, artifactRows)
 	}
 }

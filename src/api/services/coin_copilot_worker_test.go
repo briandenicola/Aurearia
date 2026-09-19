@@ -14,6 +14,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
+	"gorm.io/gorm"
 )
 
 func TestCoinCopilotInitialExecutionIncludesBoundedPublicThreadHistory(t *testing.T) {
@@ -562,5 +563,73 @@ func TestCoinCopilotWorkerStartupRecoversStaleCancellationAndReleasesCapacity(t 
 	})
 	if err != nil || next == nil {
 		t.Fatalf("start after recovery run=%#v err=%v", next, err)
+	}
+}
+
+func TestFeature362ResumeRejectsChangedDurableWorkerBindingWithoutExecution(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*gorm.DB, *models.CoinCopilotRun, *models.CoinCopilotCheckpoint)
+	}{
+		{"checkpoint version", func(db *gorm.DB, run *models.CoinCopilotRun, _ *models.CoinCopilotCheckpoint) {
+			_ = db.Model(run).Update("checkpoint_version", run.CheckpointVersion+1).Error
+		}},
+		{"current execution", func(db *gorm.DB, run *models.CoinCopilotRun, _ *models.CoinCopilotCheckpoint) {
+			_ = db.Model(run).Update("execution_id", "cce_stale").Error
+		}},
+		{"saved checkpoint", func(db *gorm.DB, _ *models.CoinCopilotRun, checkpoint *models.CoinCopilotCheckpoint) {
+			_ = db.Model(checkpoint).Update("state_json", `{"tampered":true}`).Error
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db, service := newCopilotServiceTest(t)
+			if err := db.AutoMigrate(&models.DeepIdentificationJob{}, &models.CoinCopilotDeepHandoff{}); err != nil {
+				t.Fatal(err)
+			}
+			run, _, err := service.Start(7, CoinCopilotStartInput{
+				Goal: "Analyze this coin", AppContext: map[string]any{"route": "/coins/42", "activeCoinId": float64(42)},
+				IdempotencyKey: "feature362-start",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC()
+			if err := db.Model(run).Updates(map[string]any{
+				"status": models.CopilotRunPaused, "execution_id": "cce_paused",
+				"checkpoint_version": 1, "resume_deadline": now.Add(time.Hour),
+			}).Error; err != nil {
+				t.Fatal(err)
+			}
+			state := `{"schema_version":1,"messages":[],"plan":[],"completed_tools":[],"pending_clarification":{"question":"Continue?","input_type":"boolean","choices":[]},"next_action":"await_clarification","counters":{"iterations":1,"tool_calls":0,"input_tokens":0,"output_tokens":0}}`
+			if err := db.Create(&models.CoinCopilotCheckpoint{
+				RunID: run.ID, ThreadID: run.ThreadID, UserID: 7, ExecutionID: "cce_paused",
+				Version: 1, StateJSON: state, StateDigest: CopilotCheckpointDigest(state),
+			}).Error; err != nil {
+				t.Fatal(err)
+			}
+			input := CoinCopilotResumeInput{Answer: "Yes", ExpectedCheckpointVersion: 1, IdempotencyKey: "feature362-resume"}
+			resumed, reused, err := service.Resume(7, run.ID, input)
+			if err != nil || reused {
+				t.Fatalf("resume run=%+v reused=%v err=%v", resumed, reused, err)
+			}
+			checkpoint, err := service.repo.GetLatestCheckpoint(run.ID, 7)
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(db, resumed, checkpoint)
+			if _, _, err := service.Resume(7, run.ID, input); !errors.Is(err, ErrCopilotIdempotencyConflict) {
+				t.Fatalf("changed replay error=%v, want idempotency conflict", err)
+			}
+			for name, model := range map[string]any{
+				"handoffs": &models.CoinCopilotDeepHandoff{},
+				"jobs":     &models.DeepIdentificationJob{},
+			} {
+				var count int64
+				if err := db.Model(model).Count(&count).Error; err != nil || count != 0 {
+					t.Fatalf("%s count=%d err=%v", name, count, err)
+				}
+			}
+		})
 	}
 }

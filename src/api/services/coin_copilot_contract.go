@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/url"
 	"regexp"
@@ -19,17 +20,20 @@ import (
 )
 
 const (
-	CoinCopilotSchemaVersion          = 1
-	CoinCopilotMaxEventBytes          = 64 * 1024
-	CoinCopilotMaxPromptBytes         = 4000
-	CoinCopilotMaxMessages            = 50
-	CoinCopilotMaxMessageBytes        = 100000
-	CoinCopilotMaxPlanItems           = 12
-	CoinCopilotMaxPlanTitle           = 200
-	CoinCopilotMaxClarification       = 500
-	CoinCopilotHistoryRunLimit        = 10
-	CoinCopilotHistoryMaxBytes        = 20000
-	CoinCopilotHistoryMessageMaxBytes = 4000
+	CoinCopilotSchemaVersion                   = 1
+	CoinCopilotMaxEventBytes                   = 64 * 1024
+	CoinCopilotMaxPromptBytes                  = 4000
+	CoinCopilotMaxMessages                     = 50
+	CoinCopilotMaxMessageBytes                 = 100000
+	CoinCopilotMaxPlanItems                    = 12
+	CoinCopilotMaxPlanTitle                    = 200
+	CoinCopilotMaxClarification                = 500
+	CoinCopilotHistoryRunLimit                 = 10
+	CoinCopilotHistoryMaxBytes                 = 20000
+	CoinCopilotHistoryMessageMaxBytes          = 4000
+	DeepAnalysisHandoffMaxRequestBytes         = 65_536
+	DeepAnalysisHandoffMaxPublicEventBytes     = 65_536
+	DeepAnalysisHandoffMaxPersistedResultBytes = 32_768
 )
 
 var (
@@ -42,6 +46,7 @@ var CoinCopilotAllowedTools = []string{
 	"get_coin",
 	"collection_summary",
 	"top_coins_by_value",
+	"deep_analysis_handoff",
 	"portfolio_review",
 	"gap_analysis",
 	"market_search",
@@ -51,10 +56,11 @@ var CoinCopilotAllowedTools = []string{
 }
 
 var copilotCallbackTools = map[string]bool{
-	"search_my_collection": true,
-	"get_coin":             true,
-	"collection_summary":   true,
-	"top_coins_by_value":   true,
+	"search_my_collection":  true,
+	"get_coin":              true,
+	"collection_summary":    true,
+	"top_coins_by_value":    true,
+	"deep_analysis_handoff": true,
 }
 
 func IsCoinCopilotToolAllowed(tool string) bool {
@@ -803,4 +809,316 @@ func ValidateCopilotCheckpoint(state CopilotCheckpointState, run *models.CoinCop
 		seen[tool.ToolCallID] = true
 	}
 	return nil
+}
+
+type DeepAnalysisHandoffTarget struct {
+	Type string `json:"type"`
+	ID   uint   `json:"id"`
+}
+
+type DeepAnalysisHandoffRequest struct {
+	ToolCallID                string                     `json:"tool_call_id"`
+	HandoffIdempotencyKey     string                     `json:"handoff_idempotency_key,omitempty"`
+	ExpectedCheckpointVersion int64                      `json:"expected_checkpoint_version"`
+	Operation                 string                     `json:"operation"`
+	Target                    *DeepAnalysisHandoffTarget `json:"target,omitempty"`
+	JobID                     *uint                      `json:"job_id,omitempty"`
+}
+
+type DeepAnalysisHandoffJob struct {
+	ID          uint    `json:"id"`
+	Source      string  `json:"source"`
+	Status      string  `json:"status"`
+	Reused      bool    `json:"reused"`
+	CreatedAt   string  `json:"created_at"`
+	CompletedAt *string `json:"completed_at"`
+}
+
+type DeepAnalysisHandoffEvidence struct {
+	Provider string `json:"provider"`
+	Source   string `json:"source"`
+	URL      string `json:"url"`
+	Summary  string `json:"summary"`
+}
+
+type DeepAnalysisHandoffField struct {
+	Name       string                        `json:"name"`
+	Value      string                        `json:"value"`
+	Confidence float64                       `json:"confidence"`
+	Evidence   []DeepAnalysisHandoffEvidence `json:"evidence"`
+}
+
+type DeepAnalysisHandoffDisagreement struct {
+	Field   string `json:"field"`
+	Summary string `json:"summary"`
+}
+
+type DeepAnalysisHandoffCoverage struct {
+	Provider string `json:"provider"`
+	Status   string `json:"status"`
+}
+
+type DeepAnalysisHandoffAttribution struct {
+	Provider string `json:"provider"`
+	Label    string `json:"label"`
+}
+
+type DeepAnalysisHandoffResultBody struct {
+	State               string                            `json:"state"`
+	Narrative           string                            `json:"narrative"`
+	PartialSuccess      bool                              `json:"partial_success"`
+	ImageOnly           bool                              `json:"image_only"`
+	Fields              []DeepAnalysisHandoffField        `json:"fields"`
+	Disagreements       []DeepAnalysisHandoffDisagreement `json:"disagreements"`
+	UnresolvedQuestions []string                          `json:"unresolved_questions"`
+	Coverage            []DeepAnalysisHandoffCoverage     `json:"coverage"`
+	Attributions        []DeepAnalysisHandoffAttribution  `json:"attributions"`
+	Limitations         []string                          `json:"limitations"`
+}
+
+type DeepAnalysisHandoffTruncation struct {
+	Truncated            bool   `json:"truncated"`
+	OriginalBytes        int    `json:"original_bytes"`
+	PersistedBytes       int    `json:"persisted_bytes"`
+	Digest               string `json:"digest"`
+	OmittedFields        int    `json:"omitted_fields"`
+	OmittedEvidence      int    `json:"omitted_evidence"`
+	OmittedDisagreements int    `json:"omitted_disagreements"`
+	OmittedQuestions     int    `json:"omitted_questions"`
+}
+
+type DeepAnalysisHandoffResult struct {
+	SchemaVersion int     `json:"schema_version,omitempty"`
+	Operation     string  `json:"operation,omitempty"`
+	Outcome       string  `json:"outcome"`
+	Reason        *string `json:"reason"`
+	Target        *struct {
+		Type         string `json:"type"`
+		ID           uint   `json:"id"`
+		DisplayLabel string `json:"display_label"`
+	} `json:"target,omitempty"`
+	Job                    *DeepAnalysisHandoffJob        `json:"job,omitempty"`
+	InputDigest            string                         `json:"input_digest,omitempty"`
+	ReviewURL              string                         `json:"review_url,omitempty"`
+	FreshAnalysisAvailable bool                           `json:"fresh_analysis_available,omitempty"`
+	Result                 *DeepAnalysisHandoffResultBody `json:"result,omitempty"`
+	Truncation             *DeepAnalysisHandoffTruncation `json:"truncation,omitempty"`
+	Limitations            []string                       `json:"limitations,omitempty"`
+}
+
+func ValidateDeepAnalysisHandoffRequestEnvelope(raw []byte) error {
+	return validateDeepAnalysisHandoffEnvelope(raw, DeepAnalysisHandoffMaxRequestBytes)
+}
+
+func ValidateDeepAnalysisHandoffPublicEventEnvelope(raw []byte) error {
+	return validateDeepAnalysisHandoffEnvelope(raw, DeepAnalysisHandoffMaxPublicEventBytes)
+}
+
+func validateDeepAnalysisHandoffEnvelope(raw []byte, maximum int) error {
+	if len(raw) == 0 || len(raw) > maximum || !json.Valid(raw) ||
+		forbiddenCopilotField.Match(raw) || tokenShapedValue.Match(raw) {
+		return ErrInvalidCopilotFrame
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ErrInvalidCopilotFrame
+	}
+	canonical, err := json.Marshal(sanitizeCopilotValue(value))
+	if err != nil || len(canonical) > maximum {
+		return ErrInvalidCopilotFrame
+	}
+	return nil
+}
+
+func DecodeDeepAnalysisHandoffRequest(raw []byte) (DeepAnalysisHandoffRequest, error) {
+	var request DeepAnalysisHandoffRequest
+	if err := ValidateDeepAnalysisHandoffRequestEnvelope(raw); err != nil {
+		return request, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return request, ErrInvalidCopilotFrame
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return request, ErrInvalidCopilotFrame
+	}
+	if err := ValidateDeepAnalysisHandoffRequest(request); err != nil {
+		return request, err
+	}
+	return request, nil
+}
+
+func ValidateDeepAnalysisHandoffRequest(request DeepAnalysisHandoffRequest) error {
+	if len(request.ToolCallID) < 1 || len(request.ToolCallID) > 200 ||
+		request.ExpectedCheckpointVersion < 0 {
+		return ErrInvalidCopilotFrame
+	}
+	if request.Target != nil &&
+		(request.Target.ID == 0 || (request.Target.Type != "coin" && request.Target.Type != "draft")) {
+		return ErrInvalidCopilotFrame
+	}
+	hasKey := request.HandoffIdempotencyKey != ""
+	if hasKey && (!printableASCII(request.HandoffIdempotencyKey) || len(request.HandoffIdempotencyKey) > 128) {
+		return ErrInvalidCopilotFrame
+	}
+	switch request.Operation {
+	case "request":
+		if request.Target == nil || request.JobID != nil || !hasKey {
+			return ErrInvalidCopilotFrame
+		}
+	case "status":
+		if request.Target != nil || request.JobID == nil || *request.JobID == 0 || hasKey {
+			return ErrInvalidCopilotFrame
+		}
+	case "rerun":
+		if request.Target == nil || request.JobID == nil || *request.JobID == 0 || !hasKey {
+			return ErrInvalidCopilotFrame
+		}
+	default:
+		return ErrInvalidCopilotFrame
+	}
+	return nil
+}
+
+func printableASCII(value string) bool {
+	for _, character := range []byte(value) {
+		if character < 0x20 || character > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+func DecodeDeepAnalysisHandoffResult(raw []byte, maximum int) (DeepAnalysisHandoffResult, error) {
+	var result DeepAnalysisHandoffResult
+	if err := validateDeepAnalysisHandoffEnvelope(raw, maximum); err != nil {
+		return result, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return result, ErrInvalidCopilotFrame
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return result, ErrInvalidCopilotFrame
+	}
+	if err := ValidateDeepAnalysisHandoffResult(result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func ValidateDeepAnalysisHandoffResult(result DeepAnalysisHandoffResult) error {
+	if !oneOf(result.Outcome,
+		"accepted", "reused_active", "reused_result", "status", "retry_available",
+		"missing_images", "target_unavailable", "not_eligible", "unavailable", "cancelled") {
+		return ErrInvalidCopilotFrame
+	}
+	if result.Reason != nil && !oneOf(*result.Reason,
+		"missing_obverse", "missing_reverse", "missing_both", "duplicate_faces",
+		"target_changed", "draft_inactive", "source_coin_missing", "deep_disabled",
+		"copilot_disabled", "attribution_disabled", "model_unsupported", "job_at_capacity",
+		"queue_full", "result_missing", "result_expired", "stale", "cancelled") {
+		return ErrInvalidCopilotFrame
+	}
+	if result.Outcome == "not_eligible" || result.Outcome == "target_unavailable" {
+		if result.Reason != nil || result.SchemaVersion != 0 || result.Operation != "" ||
+			result.Target != nil || result.Job != nil || result.InputDigest != "" ||
+			result.ReviewURL != "" || result.Result != nil || result.Truncation != nil ||
+			len(result.Limitations) != 0 {
+			return ErrInvalidCopilotFrame
+		}
+		return nil
+	}
+	if result.SchemaVersion != 1 || !oneOf(result.Operation, "request", "status", "rerun") {
+		return ErrInvalidCopilotFrame
+	}
+	if result.Target != nil &&
+		(result.Target.ID == 0 || !oneOf(result.Target.Type, "coin", "draft") || result.Target.DisplayLabel == "") {
+		return ErrInvalidCopilotFrame
+	}
+	if result.Job != nil {
+		if result.Job.ID == 0 || !oneOf(result.Job.Source, "intake", "saved_coin", "copilot_draft") ||
+			!oneOf(result.Job.Status, "queued", "running", "completed", "partial", "failed", "cancelled") ||
+			result.Job.CreatedAt == "" {
+			return ErrInvalidCopilotFrame
+		}
+		if result.ReviewURL != fmt.Sprintf("/deep-analysis/%d", result.Job.ID) {
+			return ErrInvalidCopilotFrame
+		}
+	} else if result.ReviewURL != "" {
+		return ErrInvalidCopilotFrame
+	}
+	if result.InputDigest != "" && !lowerSHA256.MatchString(result.InputDigest) {
+		return ErrInvalidCopilotFrame
+	}
+	if result.Result != nil {
+		if !oneOf(result.Result.State,
+			"not_ready", "complete", "partial", "no_match", "failed", "cancelled", "stale", "missing_result") {
+			return ErrInvalidCopilotFrame
+		}
+		fieldNames := map[string]bool{}
+		for _, field := range result.Result.Fields {
+			if field.Name == "" || field.Value == "" || math.IsNaN(field.Confidence) ||
+				math.IsInf(field.Confidence, 0) || field.Confidence < 0 || field.Confidence > 1 ||
+				fieldNames[field.Name] {
+				return ErrInvalidCopilotFrame
+			}
+			fieldNames[field.Name] = true
+			evidenceKeys := map[string]bool{}
+			for _, evidence := range field.Evidence {
+				evidenceKey := evidence.Provider + "\x00" + evidence.Source + "\x00" + evidence.URL
+				if evidence.Provider == "" || evidence.Source == "" || evidence.Summary == "" ||
+					!safeDeepAnalysisCitation(evidence.URL) || evidenceKeys[evidenceKey] {
+					return ErrInvalidCopilotFrame
+				}
+				evidenceKeys[evidenceKey] = true
+			}
+		}
+		coverageProviders := map[string]bool{}
+		for _, coverage := range result.Result.Coverage {
+			if !oneOf(coverage.Provider, "numista", "nomisma", "ngc", "ocre", "rpc") ||
+				!oneOf(coverage.Status, "pending", "running", "contributed", "no_match", "failed",
+					"timed_out", "skipped", "not_automated", "unavailable") ||
+				coverageProviders[coverage.Provider] {
+				return ErrInvalidCopilotFrame
+			}
+			coverageProviders[coverage.Provider] = true
+		}
+		attributionProviders := map[string]bool{}
+		for _, attribution := range result.Result.Attributions {
+			if !oneOf(attribution.Provider, "numista", "nomisma", "ngc", "ocre", "rpc") ||
+				attribution.Label == "" || attributionProviders[attribution.Provider] {
+				return ErrInvalidCopilotFrame
+			}
+			attributionProviders[attribution.Provider] = true
+		}
+	}
+	if result.Truncation != nil {
+		metadata := result.Truncation
+		if metadata.OriginalBytes < 0 || metadata.PersistedBytes < 0 ||
+			metadata.PersistedBytes > DeepAnalysisHandoffMaxPersistedResultBytes ||
+			!lowerSHA256.MatchString(metadata.Digest) ||
+			metadata.OmittedFields < 0 || metadata.OmittedEvidence < 0 ||
+			metadata.OmittedDisagreements < 0 || metadata.OmittedQuestions < 0 {
+			return ErrInvalidCopilotFrame
+		}
+	}
+	return nil
+}
+
+var lowerSHA256 = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+func oneOf(value string, allowed ...string) bool {
+	for _, candidate := range allowed {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func safeDeepAnalysisCitation(raw string) bool {
+	return validSpecialistURL(raw)
 }

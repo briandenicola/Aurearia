@@ -93,7 +93,8 @@ const (
 // cancellable on explicit user cancel); it is passed straight through to
 // StreamDeepIdentification so HTTP-level cancellation is automatic (T071).
 func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
-	if job == nil || !models.IsSupportedDeepJobSource(job.Source) {
+	if job == nil || !models.IsSupportedDeepJobSource(job.Source) ||
+		!models.IsValidDeepJobSourceBinding(job) {
 		return nil, repository.ErrDeepJobSourceUnsupported
 	}
 	unsettledStatus := models.DeepProviderRunFailed
@@ -764,6 +765,10 @@ func deepCitationHostAllowed(provider, citation string) bool {
 	if err != nil {
 		return false
 	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+		u.User != nil || u.Hostname() == "" {
+		return false
+	}
 	return allow[strings.ToLower(u.Hostname())]
 }
 
@@ -832,7 +837,7 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 
 	fields := make(map[string]*deepProposalFieldEntry, len(report.ProposedFields))
 	for name, pf := range report.ProposedFields {
-		if _, allowed := deepProposalCoinFieldAllowlist[name]; !allowed {
+		if _, allowed := deepProposalCoinFieldAllowlist[name]; !allowed && name != "notes" {
 			continue // restrict to the existing update allowlist
 		}
 		entry := &deepProposalFieldEntry{
@@ -941,7 +946,7 @@ func buildDeepIntakeProposalFields(
 	}
 	fieldNames := make([]string, 0, len(proposedFields))
 	for name, proposed := range proposedFields {
-		if _, allowed := deepProposalCoinFieldAllowlist[name]; allowed && strings.TrimSpace(proposed.Value) != "" {
+		if _, allowed := deepProposalCoinFieldAllowlist[name]; (allowed || name == "notes") && strings.TrimSpace(proposed.Value) != "" {
 			fieldNames = append(fieldNames, name)
 		}
 	}

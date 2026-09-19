@@ -40,6 +40,7 @@ func setupCoinCopilotHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB, *services
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
 		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.DeepIdentificationJob{}, &models.CoinCopilotDeepHandoff{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -343,5 +344,45 @@ func TestCoinCopilotSSEKeepaliveTruncationAndConnectionLimit(t *testing.T) {
 	if recorder.Code != http.StatusOK || !bytes.Contains(recorder.Body.Bytes(), []byte("event: stream_truncated")) ||
 		!bytes.Contains(recorder.Body.Bytes(), []byte("event: end")) {
 		t.Fatalf("truncated stream status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestFeature362StartResumeAPIRejectsSameKeyChangedBindingWithoutExecution(t *testing.T) {
+	tests := []struct {
+		name       string
+		appContext string
+	}{
+		{"target kind", `{"route":"/drafts/42","activeCoinId":42}`},
+		{"target id", `{"route":"/coins/42","activeCoinId":43}`},
+		{"route app context", `{"route":"/coins/42?tab=analysis","activeCoinId":42}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			router, db, _ := setupCoinCopilotHandlerTest(t)
+			start := func(appContext string) *httptest.ResponseRecorder {
+				body := `{"goal":"Analyze this coin","appContext":` + appContext + `}`
+				request := httptest.NewRequest(http.MethodPost, "/runs", bytes.NewBufferString(body))
+				request.Header.Set("Content-Type", "application/json")
+				request.Header.Set("Idempotency-Key", "feature362-start")
+				recorder := httptest.NewRecorder()
+				router.ServeHTTP(recorder, request)
+				return recorder
+			}
+			if first := start(`{"route":"/coins/42","activeCoinId":42}`); first.Code != http.StatusAccepted {
+				t.Fatalf("initial start status=%d body=%s", first.Code, first.Body.String())
+			}
+			if replay := start(test.appContext); replay.Code != http.StatusConflict {
+				t.Fatalf("changed start status=%d body=%s", replay.Code, replay.Body.String())
+			}
+			for name, model := range map[string]any{
+				"handoffs": &models.CoinCopilotDeepHandoff{},
+				"jobs":     &models.DeepIdentificationJob{},
+			} {
+				var count int64
+				if err := db.Model(model).Count(&count).Error; err != nil || count != 0 {
+					t.Fatalf("%s count=%d err=%v", name, count, err)
+				}
+			}
+		})
 	}
 }

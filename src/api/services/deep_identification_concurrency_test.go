@@ -48,6 +48,7 @@ import (
 //     was rewritten to require the 409/sentinel, not weakened to make a
 //     build pass - a matching fingerprint at capacity still legitimately
 //     dedupes with reused=true (see the third sub-test).
+//
 // Both halves of that contract are asserted below under real goroutines so
 // a regression in either the fingerprint comparison or the MaxActivePerUser
 // gate is caught by -race and by a plain failure, not just logically implied
@@ -256,7 +257,7 @@ func TestDeepIdentificationService_ServiceTest_ConcurrentSameCoinDifferentImages
 
 		img := coloredPNGBytes(t, 55, 66, 77)
 		in := CreateJobInput{
-			UserID: user.ID,
+			UserID:       user.ID,
 			ObverseBytes: img, ObverseFilename: "o.png",
 			ReverseBytes: append([]byte(nil), img...), ReverseFilename: "r.png",
 		}

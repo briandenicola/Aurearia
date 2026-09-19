@@ -37,7 +37,7 @@ func sseFrame(t *testing.T, frameType string, extra map[string]any) string {
 
 func TestDeepIdentificationPipelineRunner_RejectsUnknownSourceBeforeWork(t *testing.T) {
 	runner := &DeepIdentificationPipelineRunner{}
-	job := &models.DeepIdentificationJob{ID: 42, UserID: 7, Source: models.DeepJobSource("copilot_draft")}
+	job := &models.DeepIdentificationJob{ID: 42, UserID: 7, Source: models.DeepJobSource("future_source")}
 
 	result, err := runner.Run(context.Background(), job)
 	if result != nil || !errors.Is(err, repository.ErrDeepJobSourceUnsupported) {
@@ -458,7 +458,7 @@ func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing
 		t.Fatalf("expected structured findings in draft notes, got %#v", notes)
 	}
 	for name := range doc.Fields {
-		if _, allowed := deepProposalDraftFieldAllowlist[name]; !allowed {
+		if _, allowed := deepProposalDraftFieldAllowlist[name]; !allowed && name != "notes" {
 			t.Fatalf("intake proposal contains non-draft field %q", name)
 		}
 	}

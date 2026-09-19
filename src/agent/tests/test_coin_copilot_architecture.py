@@ -90,14 +90,20 @@ def test_coin_copilot_exposes_only_locked_read_only_capabilities():
         "auction_search",
         "price_trends",
         "similar_lots",
+        "deep_analysis_handoff",
     }
     assert CALLBACK_TOOLS == {
         "search_my_collection",
         "get_coin",
         "collection_summary",
         "top_coins_by_value",
+        "deep_analysis_handoff",
     }
     forbidden = {
+        "apply",
+        "accept",
+        "edit",
+        "cancel_deep_job",
         "web_search",
         "propose_update",
         "commit_update",

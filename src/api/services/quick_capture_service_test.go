@@ -199,6 +199,7 @@ func TestQuickCaptureServiceSelectedReferencePromotionCollectionWishlistAndNoSel
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			first, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true, Target: test.target})
 			if err != nil {
 				t.Fatal(err)
@@ -215,6 +216,30 @@ func TestQuickCaptureServiceSelectedReferencePromotionCollectionWishlistAndNoSel
 				t.Fatalf("reference count=%d want %d", refs, test.wantRefs)
 			}
 		})
+	}
+}
+
+func TestFeature362PromotionPreservesSelectedReferenceWhenNoStagedProposalExists(t *testing.T) {
+	svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+	draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 1, WorkingTitle: "Ordinary intake", Era: string(models.EraAncient),
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 987),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{
+		Confirm: true, Target: QuickCapturePromotionTargetCollection,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refs []models.CoinReference
+	if err := db.Where("coin_id = ?", result.CoinID).Find(&refs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].Catalog != "Numista" || refs[0].Number != "987" {
+		t.Fatalf("ordinary intake promotion changed: %+v", refs)
 	}
 }
 

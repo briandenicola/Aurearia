@@ -127,3 +127,79 @@ type CoinCopilotResumeRequest struct {
 	ExecutionID               string    `gorm:"type:varchar(80);not null" json:"executionId"`
 	CreatedAt                 time.Time `gorm:"index" json:"createdAt"`
 }
+
+type CoinCopilotDeepHandoffOperation string
+
+const (
+	CoinCopilotDeepHandoffOperationRequest CoinCopilotDeepHandoffOperation = "request"
+	CoinCopilotDeepHandoffOperationRerun   CoinCopilotDeepHandoffOperation = "rerun"
+)
+
+type CoinCopilotDeepHandoffTargetKind string
+
+const (
+	CoinCopilotDeepHandoffTargetCoin  CoinCopilotDeepHandoffTargetKind = "coin"
+	CoinCopilotDeepHandoffTargetDraft CoinCopilotDeepHandoffTargetKind = "draft"
+)
+
+type CoinCopilotDeepHandoffOutcome string
+
+const (
+	CoinCopilotDeepHandoffOutcomeCreated      CoinCopilotDeepHandoffOutcome = "created"
+	CoinCopilotDeepHandoffOutcomeReusedActive CoinCopilotDeepHandoffOutcome = "reused_active"
+	CoinCopilotDeepHandoffOutcomeReusedResult CoinCopilotDeepHandoffOutcome = "reused_result"
+)
+
+// CoinCopilotDeepHandoff is the durable idempotency/admission binding between
+// one authorized Copilot execution and the existing Deep Analysis engine.
+// DeepJobID is the selected result job; PriorJobID is solely the explicit
+// rerun input and is never overloaded as the result.
+type CoinCopilotDeepHandoff struct {
+	ID                        uint                             `gorm:"primaryKey" json:"id"`
+	UserID                    uint                             `gorm:"not null;index:uix_copilot_deep_handoff_key,priority:1,unique;index:idx_copilot_deep_handoff_owner_job,priority:1" json:"-"`
+	RunID                     string                           `gorm:"type:varchar(80);not null;index:uix_copilot_deep_handoff_key,priority:2,unique" json:"runId"`
+	ExecutionID               string                           `gorm:"type:varchar(80);not null" json:"executionId"`
+	HandoffKeyHash            string                           `gorm:"type:char(64);not null;index:uix_copilot_deep_handoff_key,priority:3,unique" json:"-"`
+	RequestFingerprint        string                           `gorm:"type:char(64);not null" json:"-"`
+	ExpectedCheckpointVersion int64                            `gorm:"not null" json:"expectedCheckpointVersion"`
+	AppContextDigest          string                           `gorm:"type:char(64);not null" json:"-"`
+	Operation                 CoinCopilotDeepHandoffOperation  `gorm:"type:varchar(12);not null" json:"operation"`
+	TargetKind                CoinCopilotDeepHandoffTargetKind `gorm:"type:varchar(12);not null" json:"targetKind"`
+	TargetID                  uint                             `gorm:"not null" json:"targetId"`
+	PriorJobID                *uint                            `gorm:"index" json:"priorJobId,omitempty"`
+	TargetSnapshotFingerprint string                           `gorm:"type:char(64);not null" json:"-"`
+	DeepJobID                 uint                             `gorm:"not null;index:idx_copilot_deep_handoff_owner_job,priority:2;index:idx_copilot_deep_handoff_job" json:"deepJobId"`
+	AdmissionOutcome          CoinCopilotDeepHandoffOutcome    `gorm:"type:varchar(24);not null" json:"admissionOutcome"`
+	CreatedAt                 time.Time                        `json:"createdAt"`
+	UpdatedAt                 time.Time                        `json:"updatedAt"`
+}
+
+func IsValidCoinCopilotDeepHandoff(handoff *CoinCopilotDeepHandoff) bool {
+	if handoff == nil || handoff.UserID == 0 || handoff.RunID == "" ||
+		handoff.ExecutionID == "" || handoff.HandoffKeyHash == "" ||
+		handoff.RequestFingerprint == "" || handoff.ExpectedCheckpointVersion < 0 ||
+		handoff.AppContextDigest == "" || handoff.TargetID == 0 ||
+		handoff.TargetSnapshotFingerprint == "" || handoff.DeepJobID == 0 {
+		return false
+	}
+	if handoff.TargetKind != CoinCopilotDeepHandoffTargetCoin &&
+		handoff.TargetKind != CoinCopilotDeepHandoffTargetDraft {
+		return false
+	}
+	switch handoff.AdmissionOutcome {
+	case CoinCopilotDeepHandoffOutcomeCreated,
+		CoinCopilotDeepHandoffOutcomeReusedActive,
+		CoinCopilotDeepHandoffOutcomeReusedResult:
+	default:
+		return false
+	}
+	switch handoff.Operation {
+	case CoinCopilotDeepHandoffOperationRequest:
+		return handoff.PriorJobID == nil
+	case CoinCopilotDeepHandoffOperationRerun:
+		return handoff.PriorJobID != nil && *handoff.PriorJobID > 0 &&
+			*handoff.PriorJobID != handoff.DeepJobID
+	default:
+		return false
+	}
+}

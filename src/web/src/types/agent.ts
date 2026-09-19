@@ -228,6 +228,117 @@ export interface CoinCopilotSpecialistResult {
   }
 }
 
+export type DeepAnalysisHandoffOutcome =
+    | 'accepted'
+    | 'reused_active'
+    | 'reused_result'
+    | 'status'
+    | 'retry_available'
+    | 'missing_images'
+    | 'target_unavailable'
+    | 'not_eligible'
+    | 'unavailable'
+    | 'cancelled'
+
+  export type DeepAnalysisHandoffReason =
+    | 'missing_obverse'
+    | 'missing_reverse'
+    | 'missing_both'
+    | 'duplicate_faces'
+    | 'target_changed'
+    | 'draft_inactive'
+    | 'source_coin_missing'
+    | 'deep_disabled'
+    | 'copilot_disabled'
+    | 'attribution_disabled'
+    | 'model_unsupported'
+    | 'job_at_capacity'
+    | 'queue_full'
+    | 'result_missing'
+    | 'result_expired'
+    | 'stale'
+    | 'cancelled'
+
+  export interface DeepAnalysisHandoffEvidence {
+    provider: string
+    source: string
+    url: string
+    summary: string
+  }
+
+  export interface DeepAnalysisHandoffField {
+    name: string
+    value: string
+    confidence: number
+    evidence: DeepAnalysisHandoffEvidence[]
+  }
+
+  export interface DeepAnalysisHandoffResultBody {
+    state: 'not_ready' | 'complete' | 'partial' | 'no_match' | 'failed' | 'cancelled' | 'stale' | 'missing_result'
+    narrative: string
+    partial_success: boolean
+    image_only: boolean
+    fields: DeepAnalysisHandoffField[]
+    disagreements: Array<{ field: string, summary: string }>
+    unresolved_questions: string[]
+    coverage: Array<{
+      provider: 'numista' | 'nomisma' | 'ngc' | 'ocre' | 'rpc'
+      status: 'pending' | 'running' | 'contributed' | 'no_match' | 'failed' | 'timed_out' | 'skipped' | 'not_automated' | 'unavailable'
+    }>
+    attributions: Array<{
+      provider: 'numista' | 'nomisma' | 'ngc' | 'ocre' | 'rpc'
+      label: string
+    }>
+    limitations: string[]
+  }
+
+  export interface DeepAnalysisHandoffTruncation {
+    truncated: boolean
+    original_bytes: number
+    persisted_bytes: number
+    digest: string
+    omitted_fields: number
+    omitted_evidence: number
+    omitted_disagreements: number
+    omitted_questions: number
+  }
+
+  interface DeepAnalysisHandoffPrivacyResult {
+    outcome: 'not_eligible' | 'target_unavailable'
+    reason: null
+  }
+
+  interface DeepAnalysisHandoffTypedResult {
+    schema_version: 1
+    operation: 'request' | 'status' | 'rerun'
+    outcome: Exclude<DeepAnalysisHandoffOutcome, 'not_eligible' | 'target_unavailable'>
+    reason: DeepAnalysisHandoffReason | null
+    target?: {
+      type: 'coin' | 'draft'
+      id: number
+      display_label: string
+    }
+    job?: {
+      id: number
+      source: 'intake' | 'saved_coin' | 'copilot_draft'
+      status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'
+      reused: boolean
+      created_at: string
+      completed_at: string | null
+    }
+    input_digest?: string
+    review_url?: string
+    fresh_analysis_available: boolean
+    result?: DeepAnalysisHandoffResultBody
+    truncation?: DeepAnalysisHandoffTruncation
+    limitations: string[]
+  }
+
+  /** `outcome` is deliberately the only top-level union discriminant. */
+  export type DeepAnalysisHandoffResult =
+    | DeepAnalysisHandoffPrivacyResult
+    | DeepAnalysisHandoffTypedResult
+
 export type CoinCopilotClarificationInputType = 'text' | 'single_choice' | 'boolean'
 
 export interface CoinCopilotClarification {
@@ -329,6 +440,7 @@ export type CoinCopilotToolCompletedEvent = CoinCopilotEventBase<'tool_completed
   resultSummary: string
   truncated: boolean
   specialistResult?: CoinCopilotSpecialistResult
+  deepAnalysisHandoffResult?: DeepAnalysisHandoffResult
 }>
 
 export type CoinCopilotClarificationRequiredEvent = CoinCopilotEventBase<'clarification_required', CoinCopilotClarification>

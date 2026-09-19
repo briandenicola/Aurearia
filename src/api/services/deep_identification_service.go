@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -28,6 +30,7 @@ var (
 	ErrDeepArtifactMissingCoin   = errors.New("coin not found")
 	ErrDeepArtifactMissingImage  = errors.New("coin image not found")
 	ErrDeepArtifactMissingUpload = errors.New("no file provided")
+	ErrDeepInvalidInput          = errors.New("invalid deep analysis input")
 )
 
 // MaxDeepIdentificationHintArtifacts caps hint/reference images per job
@@ -142,6 +145,61 @@ type DeepIdentificationService struct {
 	internalTokenSvc *InternalTokenService
 }
 
+type DeepAnalysisSnapshotFace struct {
+	RowID       uint   `json:"row_id"`
+	Version     string `json:"version"`
+	ContentHash string `json:"content_sha256"`
+}
+
+type DeepAnalysisTargetSnapshotV2 struct {
+	SchemaVersion                   int                      `json:"schema_version"`
+	OwnerID                         uint                     `json:"owner_id"`
+	TargetKind                      string                   `json:"target_kind"`
+	TargetID                        uint                     `json:"target_id"`
+	TargetState                     string                   `json:"target_state"`
+	TargetVersion                   string                   `json:"target_version"`
+	Obverse                         DeepAnalysisSnapshotFace `json:"obverse"`
+	Reverse                         DeepAnalysisSnapshotFace `json:"reverse"`
+	BoundedContextSHA256            string                   `json:"bounded_context_sha256"`
+	BoundedContextVersion           string                   `json:"bounded_context_version"`
+	EffectiveProviders              []string                 `json:"effective_providers"`
+	ProviderConfigurationGeneration string                   `json:"provider_configuration_generation"`
+}
+
+func ComputeDeepAnalysisTargetSnapshot(snapshot DeepAnalysisTargetSnapshotV2) (string, error) {
+	if snapshot.SchemaVersion != 2 || snapshot.OwnerID == 0 || snapshot.TargetID == 0 ||
+		(snapshot.TargetKind != "coin" && snapshot.TargetKind != "draft") ||
+		snapshot.TargetState == "" || snapshot.TargetVersion == "" ||
+		snapshot.Obverse.RowID == 0 || snapshot.Reverse.RowID == 0 ||
+		snapshot.Obverse.RowID == snapshot.Reverse.RowID ||
+		snapshot.Obverse.Version == "" || snapshot.Reverse.Version == "" ||
+		snapshot.Obverse.ContentHash == "" || snapshot.Reverse.ContentHash == "" ||
+		snapshot.BoundedContextSHA256 == "" || snapshot.BoundedContextVersion == "" ||
+		snapshot.ProviderConfigurationGeneration == "" {
+		return "", ErrDeepInvalidInput
+	}
+	snapshot.EffectiveProviders = append([]string(nil), snapshot.EffectiveProviders...)
+	sort.Strings(snapshot.EffectiveProviders)
+	canonical, err := json.Marshal(snapshot)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func deepAnalysisBoundedContext(value string) (string, string) {
+	const maxContextBytes = 5000
+	value = strings.TrimSpace(value)
+	for len([]byte(value)) > maxContextBytes {
+		_, size := utf8.DecodeLastRuneInString(value)
+		value = value[:len(value)-size]
+	}
+	sum := sha256.Sum256([]byte(value))
+	digest := hex.EncodeToString(sum[:])
+	return digest, digest
+}
+
 // NewDeepIdentificationService constructs the service, following the
 // repo -> service -> handler DI pattern used elsewhere (main.go:246-249).
 func NewDeepIdentificationService(repo *repository.DeepIdentificationRepository, imageRepo *repository.ImageRepository, imageSvc *ImageService, settingsSvc *SettingsService, logger *Logger, uploadDir string) *DeepIdentificationService {
@@ -218,6 +276,12 @@ func (s *DeepIdentificationService) notifyWorkers() {
 	case s.wake <- struct{}{}:
 	default:
 	}
+}
+
+// NotifyHandoffCommitted publishes work only after the handoff transaction has
+// durably committed the job and both required face artifacts.
+func (s *DeepIdentificationService) NotifyHandoffCommitted(_ uint) {
+	s.notifyWorkers()
 }
 
 // ValidateAndSaveArtifact delegates to the artifact-management seam

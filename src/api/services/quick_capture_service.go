@@ -123,6 +123,7 @@ type QuickCaptureService struct {
 	uploadDir    string
 	coinSvc      *CoinService
 	referenceSvc *CoinReferenceService
+	deepRepo     *repository.DeepIdentificationRepository
 }
 
 func NewQuickCaptureService(repo *repository.QuickCaptureRepository, uploadDir string) *QuickCaptureService {
@@ -139,6 +140,11 @@ func (s *QuickCaptureService) WithCoinValidation(coinSvc *CoinService) *QuickCap
 
 func (s *QuickCaptureService) WithReferenceValidation(referenceSvc *CoinReferenceService) *QuickCaptureService {
 	s.referenceSvc = referenceSvc
+	return s
+}
+
+func (s *QuickCaptureService) WithDeepProposalReferences(repo *repository.DeepIdentificationRepository) *QuickCaptureService {
+	s.deepRepo = repo
 	return s
 }
 
@@ -535,7 +541,11 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	}
 
 	// Transactional promotion
-	_, createdCoin, err := s.repo.PromoteDraftTransaction(draftID, userID, coin)
+	stagedReferences, err := s.stagedDeepProposalReferences(draftID, userID)
+	if err != nil {
+		return nil, err
+	}
+	_, createdCoin, err := s.repo.PromoteDraftTransaction(draftID, userID, coin, stagedReferences)
 	if err != nil {
 		if errors.Is(err, repository.ErrDraftNotClaimable) {
 			return nil, ErrQuickCaptureDraftConcurrentAction
@@ -549,6 +559,34 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 		AlreadyPromoted: false,
 		Target:          target,
 	}, nil
+}
+
+func (s *QuickCaptureService) stagedDeepProposalReferences(draftID, userID uint) ([]models.CoinReference, error) {
+	if s.deepRepo == nil || s.referenceSvc == nil {
+		return nil, nil
+	}
+	documents, err := s.deepRepo.ListAppliedDraftProposalJSON(draftID, userID)
+	if err != nil {
+		return nil, err
+	}
+	var staged []models.CoinReference
+	proposalDecoder := &DeepIdentificationProposalService{coinRefSvc: s.referenceSvc}
+	for _, raw := range documents {
+		doc, err := parseDeepProposalDocument(raw)
+		if err != nil {
+			return nil, err
+		}
+		entry := doc.Fields["catalogReferences"]
+		if entry == nil || entry.Accepted == nil || !*entry.Accepted {
+			continue
+		}
+		refs, err := proposalDecoder.resolveDeepProposalCatalogReferences(entry)
+		if err != nil {
+			return nil, err
+		}
+		staged = append(staged, refs...)
+	}
+	return staged, nil
 }
 
 func normalizeQuickCapturePromotionTarget(target QuickCapturePromotionTarget) (QuickCapturePromotionTarget, error) {

@@ -26,6 +26,7 @@ var (
 	ErrDeepProposalNoAcceptedFields = errors.New("no accepted fields to apply")
 	ErrDeepProposalSourceMissing    = errors.New("source coin no longer exists")
 	ErrDeepProposalTargetMismatch   = errors.New("apply target does not match this job's source")
+	ErrDeepProposalReReviewRequired = errors.New("re_review_required")
 	// ErrDeepProposalInvalidCatalogReferences classifies a malformed or
 	// registry-invalid "catalogReferences" proposal value (bad JSON shape,
 	// unknown property, too many elements, or a CoinReferenceService
@@ -58,7 +59,6 @@ var deepProposalCoinFieldAllowlist = map[string]string{
 	"reverseInscription": "ReverseInscription",
 	"obverseDescription": "ObverseDescription",
 	"reverseDescription": "ReverseDescription",
-	"notes":              "Notes",
 	// coin_type carries the OCRE RIC-style catalog type label (e.g.
 	// "RIC II Hadrian 39b"). It reuses the existing ReferenceText column —
 	// no schema migration — because a coin-type is a catalogue reference.
@@ -77,8 +77,9 @@ var deepProposalDraftFieldAllowlist = map[string]string{
 	"workingTitle": "WorkingTitle",
 	"era":          "Era",
 	"dateRange":    "DateRange",
-	"notes":        "Notes",
 }
+
+const deepProposalNotesMaxRunes = 4000
 
 // deepProposalCollectionFieldAllowlist is the closed, separately-maintained
 // allowlist for collection-valued proposal fields (FR-002/FR-003). It MUST
@@ -334,7 +335,7 @@ func selectDeepAppliedFieldNames(doc *deepProposalDocument, fieldsFilter []strin
 			if entry.Accepted != nil && !*entry.Accepted {
 				continue
 			}
-			if isDeepProposalScalarCoinField(name) || isDeepProposalCollectionField(name) {
+			if isDeepProposalScalarCoinField(name) || isDeepProposalCollectionField(name) || name == "notes" {
 				out = append(out, name)
 			}
 		}
@@ -366,16 +367,8 @@ func selectDeepAppliedFieldNames(doc *deepProposalDocument, fieldsFilter []strin
 // used by every draft regardless of origin, not something this Apply
 // function can add in isolation.
 //
-// The journal write is deliberately best-effort (logged, never returned
-// as an error): Apply is not itself transactional across CreateCoin/
-// UpdateCoinWithFields -> journal -> ApplyJob, so a hard error from the
-// journal write would leave the coin/wishlist row created or updated but
-// ApplyJob never called - the job stays un-applied and a client retry
-// would call applyToWishlist/applyToCoin again, creating a *second*
-// wishlist coin (or re-running an idempotent-in-place coin update). A
-// missing journal line is cosmetic; a duplicate wishlist coin is data
-// corruption the owner has to clean up by hand. Do not turn this back
-// into a hard error without first making the whole apply transactional.
+// Existing coin and wishlist destinations apply their selected fields,
+// references, journal entry, and job settlement in one transaction.
 func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target string, fieldsFilter []string) (*DeepApplyResult, error) {
 	job, doc, err := s.loadTerminalJobWithProposal(jobID, userID)
 	if err != nil {
@@ -385,8 +378,12 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 		return nil, ErrDeepProposalNotReady
 	}
 	switch target {
-	case "draft", "wishlist":
+	case "wishlist":
 		if job.Source != models.DeepJobSourceIntake {
+			return nil, ErrDeepProposalTargetMismatch
+		}
+	case "draft":
+		if job.Source != models.DeepJobSourceIntake && job.Source != models.DeepJobSourceCopilotDraft {
 			return nil, ErrDeepProposalTargetMismatch
 		}
 	case "coin":
@@ -403,6 +400,9 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 	}
 	if len(fieldNames) == 0 && target == "draft" {
 		return nil, ErrDeepProposalNoAcceptedFields
+	}
+	if err := validateDeepProposalFieldApplicability(job, target, fieldNames); err != nil {
+		return nil, err
 	}
 
 	if existingID, exists, err := s.resolveExistingLinkage(job, userID, target); err != nil {
@@ -434,23 +434,38 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 	var draftID, coinID *uint
 	switch target {
 	case "draft":
-		id, err := s.applyToDraft(job, doc, fieldNames)
+		id, appliedAtomically, err := s.applyToDraft(job, userID, doc, fieldNames)
 		if err != nil {
 			return nil, err
 		}
 		draftID = &id
+		if appliedAtomically {
+			return &DeepApplyResult{
+				JobID: job.ID, DraftID: draftID, AppliedFields: fieldNames, AppliedAt: time.Now().UTC(),
+			}, nil
+		}
 	case "coin":
-		id, err := s.applyToCoin(job, userID, doc, fieldNames)
+		id, appliedAtomically, err := s.applyToCoin(job, userID, doc, fieldNames)
 		if err != nil {
 			return nil, err
 		}
 		coinID = &id
+		if appliedAtomically {
+			return &DeepApplyResult{
+				JobID: job.ID, CoinID: coinID, AppliedFields: fieldNames, AppliedAt: time.Now().UTC(),
+			}, nil
+		}
 	case "wishlist":
-		id, err := s.applyToWishlist(userID, doc, fieldNames)
+		id, appliedAtomically, err := s.applyToWishlist(job, userID, doc, fieldNames)
 		if err != nil {
 			return nil, err
 		}
 		coinID = &id
+		if appliedAtomically {
+			return &DeepApplyResult{
+				JobID: job.ID, CoinID: coinID, AppliedFields: fieldNames, AppliedAt: time.Now().UTC(),
+			}, nil
+		}
 	}
 
 	appliedAt := time.Now().UTC()
@@ -468,6 +483,23 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 		AppliedFields: fieldNames,
 		AppliedAt:     appliedAt,
 	}, nil
+}
+
+func validateDeepProposalFieldApplicability(job *models.DeepIdentificationJob, target string, fieldNames []string) error {
+	for _, name := range fieldNames {
+		allowed := false
+		switch target {
+		case "coin", "wishlist":
+			allowed = isDeepProposalScalarCoinField(name) || isDeepProposalCollectionField(name) || name == "notes"
+		case "draft":
+			allowed = isDeepProposalScalarDraftField(name) || name == "notes" ||
+				(job.Source == models.DeepJobSourceCopilotDraft && isDeepProposalCollectionField(name))
+		}
+		if !allowed {
+			return fmt.Errorf("%w: %w: %q", ErrDeepProposalReReviewRequired, ErrDeepProposalFieldNotAllowed, name)
+		}
+	}
+	return nil
 }
 
 func (s *DeepIdentificationProposalService) resolveExistingLinkage(job *models.DeepIdentificationJob, userID uint, target string) (uint, bool, error) {
@@ -523,16 +555,16 @@ func (s *DeepIdentificationProposalService) resolveExistingLinkage(job *models.D
 // before Apply calls repo.ApplyJob - on a reference-write failure this
 // returns an error and the job is never marked applied (plan.md Phase 3
 // risk 3).
-func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentificationJob, userID uint, doc *deepProposalDocument, fieldNames []string) (uint, error) {
+func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentificationJob, userID uint, doc *deepProposalDocument, fieldNames []string) (uint, bool, error) {
 	if job.CoinID == nil {
-		return 0, ErrDeepProposalSourceMissing
+		return 0, false, ErrDeepProposalSourceMissing
 	}
 	existing, err := s.coinRepo.FindByID(*job.CoinID, userID)
 	if err != nil {
 		if repository.IsRecordNotFound(err) {
-			return 0, ErrDeepProposalSourceMissing
+			return 0, false, ErrDeepProposalSourceMissing
 		}
-		return 0, err
+		return 0, false, err
 	}
 	updates := &models.Coin{}
 	goFields := make([]string, 0, len(fieldNames))
@@ -544,30 +576,85 @@ func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentifi
 			goField := deepProposalCoinFieldAllowlist[name]
 			value := resolveDeepProposalFieldValue(doc.Fields[name])
 			if err := setCoinFieldFromProposalValue(updates, goField, value); err != nil {
-				return 0, err
+				return 0, false, err
 			}
 			goFields = append(goFields, goField)
+		case name == "notes":
+			updates.Notes = mergeDeepProposalNotes(existing.Notes, job.ID, deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name])), time.Now().UTC())
+			goFields = append(goFields, "Notes")
 		case isDeepProposalCollectionField(name):
 			refs, err := s.resolveDeepProposalCatalogReferences(doc.Fields[name])
 			if err != nil {
-				return 0, err
+				return 0, false, fmt.Errorf("%w: %w", ErrDeepProposalReReviewRequired, err)
 			}
 			catalogRefs = refs
 			applyCatalogReferences = true
 		default:
-			return 0, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+			return 0, false, fmt.Errorf("%w: %w: %q", ErrDeepProposalReReviewRequired, ErrDeepProposalFieldNotAllowed, name)
 		}
 	}
-	if err := s.coinSvc.UpdateCoinWithFields(existing, updates, goFields, userID, "deep_identification", false); err != nil {
-		return 0, err
+	appliedAt := time.Now().UTC()
+	err = s.coinRepo.RunDeepProposalTransaction(
+		s.repo, s.coinRefSvc.repo, s.coinRefSvc.registryRepo,
+		func(
+			txCoinRepo *repository.CoinRepository,
+			txDeepRepo *repository.DeepIdentificationRepository,
+			txReferenceRepo *repository.CoinReferenceRepository,
+			txRegistryRepo *repository.CatalogRegistryRepository,
+		) error {
+			currentJob, err := txDeepRepo.GetJob(job.ID, userID)
+			if err != nil {
+				return err
+			}
+			if currentJob.Source != models.DeepJobSourceSavedCoin || currentJob.CoinID == nil ||
+				*currentJob.CoinID != existing.ID || currentJob.ProposalJSON != job.ProposalJSON ||
+				currentJob.AppliedAt != nil ||
+				(currentJob.Status != models.DeepJobStatusCompleted && currentJob.Status != models.DeepJobStatusPartial) {
+				return ErrDeepProposalReReviewRequired
+			}
+			currentCoin, err := txCoinRepo.FindByID(existing.ID, userID)
+			if err != nil {
+				return err
+			}
+			if !currentCoin.UpdatedAt.Equal(existing.UpdatedAt) {
+				return ErrDeepProposalReReviewRequired
+			}
+			if currentCoin.UpdatedAt.After(currentJob.CreatedAt) {
+				return ErrDeepProposalReReviewRequired
+			}
+			txCoinSvc := *s.coinSvc
+			txCoinSvc.repo = txCoinRepo
+			txReferenceSvc := &CoinReferenceService{repo: txReferenceRepo, registryRepo: txRegistryRepo}
+			if err := txCoinSvc.UpdateCoinWithFields(currentCoin, updates, goFields, userID, "deep_identification", false); err != nil {
+				return err
+			}
+			if applyCatalogReferences {
+				if _, err := txReferenceSvc.AppendForCoin(currentCoin.ID, userID, catalogRefs); err != nil {
+					if isDeepProposalCatalogReferenceValidationError(err) {
+						return fmt.Errorf("%w: %w", ErrDeepProposalReReviewRequired, err)
+					}
+					return err
+				}
+			}
+			if err := txCoinRepo.CreateJournalEntry(&models.CoinJournal{
+				CoinID: currentCoin.ID, UserID: userID, Entry: deepProposalJournalEntryText(fieldNames),
+			}); err != nil && s.logger != nil {
+				s.logger.Error("deep-identification", "failed to record deep-analysis journal entry for coin %d fields=%s: %v", currentCoin.ID, strings.Join(fieldNames, ","), err)
+			}
+			won, err := txDeepRepo.ApplyJob(job.ID, userID, &currentCoin.ID, nil, appliedAt)
+			if err != nil {
+				return err
+			}
+			if !won {
+				return ErrDeepProposalReReviewRequired
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return 0, false, err
 	}
-	if applyCatalogReferences {
-		if _, err := s.coinRefSvc.AppendForCoin(existing.ID, userID, catalogRefs); err != nil {
-			return 0, err
-		}
-	}
-	s.recordDeepProposalJournalEntry(existing.ID, userID, fieldNames)
-	return existing.ID, nil
+	return existing.ID, true, nil
 }
 
 // isDeepProposalScalarCoinField reports whether name is a key in
@@ -576,6 +663,11 @@ func (s *DeepIdentificationProposalService) applyToCoin(job *models.DeepIdentifi
 // explicit two-allowlist switch (FR-002/FR-003), not an implicit map probe.
 func isDeepProposalScalarCoinField(name string) bool {
 	_, ok := deepProposalCoinFieldAllowlist[name]
+	return ok
+}
+
+func isDeepProposalScalarDraftField(name string) bool {
+	_, ok := deepProposalDraftFieldAllowlist[name]
 	return ok
 }
 
@@ -687,27 +779,6 @@ func validateDeepProposalCatalogReferenceDTO(dto deepProposalCatalogReference) e
 	return nil
 }
 
-// recordDeepProposalJournalEntry writes the "Deep Analysis applied" journal
-// entry for a coin/wishlist target. It is intentionally best-effort: Apply
-// is not transactional across the coin write -> journal -> ApplyJob(CAS)
-// sequence, so a hard error here would leave a coin already created/updated
-// while ApplyJob never runs, letting a client retry re-run applyToWishlist/
-// applyToCoin and create a duplicate wishlist coin. A lost journal line is
-// cosmetic; a duplicate coin is data corruption. Failures are logged (field
-// names only - never proposed values, per FR-040 discipline) and swallowed,
-// matching the existing best-effort journal precedent in
-// reference_migration_service.go (journalSuccess/journalSkip/journalFail/
-// journalManualReview all ignore CreateEntry's error).
-func (s *DeepIdentificationProposalService) recordDeepProposalJournalEntry(coinID, userID uint, fieldNames []string) {
-	if err := s.coinRepo.CreateJournalEntry(&models.CoinJournal{
-		CoinID: coinID,
-		UserID: userID,
-		Entry:  deepProposalJournalEntryText(fieldNames),
-	}); err != nil && s.logger != nil {
-		s.logger.Error("deep-identification", "failed to record deep-analysis journal entry for coin %d fields=%s: %v", coinID, strings.Join(fieldNames, ","), err)
-	}
-}
-
 // deepProposalJournalEntryText builds the terse, house-style journal
 // entry recorded when a deep-identification proposal is applied to a
 // coin (matches the "AI Value Estimate: ..." style in ai_job_service.go
@@ -763,16 +834,13 @@ func deepWishlistCoinName(doc *deepProposalDocument) string {
 // applyToCoin (Phase 6b), an accepted "catalogReferences" field is decoded
 // and validated through the same
 // isDeepProposalCollectionField/resolveDeepProposalCatalogReferences path
-// and, once CreateCoin has succeeded, applied additively through
+// and applied additively through
 // CoinReferenceService.AppendForCoin - never ReplaceForCoin, so no existing
 // reference can ever be deleted (plan.md Phase 6b, R2). The new coin's
 // owner is always the caller's userID/coin.ID; no user or coin identifier
-// is ever read from the proposal document. If the reference write fails,
-// this returns an error and Apply never calls repo.ApplyJob nor records the
-// journal entry, matching applyToCoin's existing failure ordering (plan.md
-// Phase 3 risk 3/R8). applyToWishlist also records a CoinJournal entry on
-// the newly created coin noting the deep-analysis fields that seeded it.
-func (s *DeepIdentificationProposalService) applyToWishlist(userID uint, doc *deepProposalDocument, fieldNames []string) (uint, error) {
+// is ever read from the proposal document. Coin creation, references,
+// journal, and job settlement share one transaction.
+func (s *DeepIdentificationProposalService) applyToWishlist(job *models.DeepIdentificationJob, userID uint, doc *deepProposalDocument, fieldNames []string) (uint, bool, error) {
 	coin := &models.Coin{UserID: userID, IsWishlist: true}
 	var catalogRefs []models.CoinReference
 	applyCatalogReferences := false
@@ -782,43 +850,135 @@ func (s *DeepIdentificationProposalService) applyToWishlist(userID uint, doc *de
 			goField := deepProposalCoinFieldAllowlist[name]
 			value := resolveDeepProposalFieldValue(doc.Fields[name])
 			if err := setCoinFieldFromProposalValue(coin, goField, value); err != nil {
-				return 0, err
+				return 0, false, err
 			}
+		case name == "notes":
+			// Ordinary intake retains its established new-destination
+			// behavior; Feature 362 existing destinations use the keyed
+			// append block in applyToCoin/applyToDraft.
+			coin.Notes = deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name]))
 		case isDeepProposalCollectionField(name):
 			refs, err := s.resolveDeepProposalCatalogReferences(doc.Fields[name])
 			if err != nil {
-				return 0, err
+				return 0, false, err
 			}
 			catalogRefs = refs
 			applyCatalogReferences = true
 		default:
-			return 0, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+			return 0, false, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
 		}
 	}
 	coin.Name = deepWishlistCoinName(doc)
-	if err := s.coinSvc.CreateCoin(coin); err != nil {
-		return 0, err
+	appliedAt := time.Now().UTC()
+	err := s.coinRepo.RunDeepProposalTransaction(
+		s.repo, s.coinRefSvc.repo, s.coinRefSvc.registryRepo,
+		func(
+			txCoinRepo *repository.CoinRepository,
+			txDeepRepo *repository.DeepIdentificationRepository,
+			txReferenceRepo *repository.CoinReferenceRepository,
+			txRegistryRepo *repository.CatalogRegistryRepository,
+		) error {
+			currentJob, err := txDeepRepo.GetJob(job.ID, userID)
+			if err != nil {
+				return err
+			}
+			if currentJob.Source != models.DeepJobSourceIntake ||
+				currentJob.ProposalJSON != job.ProposalJSON ||
+				currentJob.AppliedAt != nil ||
+				(currentJob.Status != models.DeepJobStatusCompleted && currentJob.Status != models.DeepJobStatusPartial) {
+				return ErrDeepProposalReReviewRequired
+			}
+			txCoinSvc := *s.coinSvc
+			txCoinSvc.repo = txCoinRepo
+			if err := txCoinSvc.CreateCoin(coin); err != nil {
+				return err
+			}
+			if applyCatalogReferences {
+				txReferenceSvc := &CoinReferenceService{repo: txReferenceRepo, registryRepo: txRegistryRepo}
+				if _, err := txReferenceSvc.AppendForCoin(coin.ID, userID, catalogRefs); err != nil {
+					return err
+				}
+			}
+			if err := txCoinRepo.CreateJournalEntry(&models.CoinJournal{
+				CoinID: coin.ID, UserID: userID, Entry: deepProposalJournalEntryText(fieldNames),
+			}); err != nil {
+				return err
+			}
+			won, err := txDeepRepo.ApplyJob(job.ID, userID, &coin.ID, nil, appliedAt)
+			if err != nil {
+				return err
+			}
+			if !won {
+				return ErrDeepProposalReReviewRequired
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return 0, false, err
 	}
-	if applyCatalogReferences {
-		if _, err := s.coinRefSvc.AppendForCoin(coin.ID, userID, catalogRefs); err != nil {
-			return 0, err
-		}
-	}
-	s.recordDeepProposalJournalEntry(coin.ID, userID, fieldNames)
-	return coin.ID, nil
+	return coin.ID, true, nil
 }
 
-func (s *DeepIdentificationProposalService) applyToDraft(job *models.DeepIdentificationJob, doc *deepProposalDocument, fieldNames []string) (uint, error) {
+func (s *DeepIdentificationProposalService) applyToDraft(job *models.DeepIdentificationJob, userID uint, doc *deepProposalDocument, fieldNames []string) (uint, bool, error) {
+	if job.Source == models.DeepJobSourceCopilotDraft {
+		if job.SourceDraftID == nil || *job.SourceDraftID == 0 {
+			return 0, false, fmt.Errorf("%w: invalid source draft binding", ErrDeepProposalReReviewRequired)
+		}
+		draft, err := s.qcSvc.GetDraft(userID, *job.SourceDraftID)
+		if err != nil || draft.Status != models.QuickCaptureDraftStatusActive {
+			return 0, false, fmt.Errorf("%w: source draft is no longer active", ErrDeepProposalReReviewRequired)
+		}
+		updates := map[string]interface{}{}
+		var stagedReferences []models.CoinReference
+		for _, name := range fieldNames {
+			switch {
+			case isDeepProposalScalarDraftField(name):
+				value := deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name]))
+				switch deepProposalDraftFieldAllowlist[name] {
+				case "WorkingTitle":
+					updates["working_title"] = value
+				case "Era":
+					updates["era"] = value
+				case "DateRange":
+					updates["date_range"] = value
+				}
+			case name == "notes":
+				updates["notes"] = mergeDeepProposalNotes(draft.Notes, job.ID, deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name])), time.Now().UTC())
+			case isDeepProposalCollectionField(name):
+				refs, err := s.resolveDeepProposalCatalogReferences(doc.Fields[name])
+				if err != nil {
+					return 0, false, fmt.Errorf("%w: %w", ErrDeepProposalReReviewRequired, err)
+				}
+				stagedReferences = append(stagedReferences, refs...)
+			default:
+				return 0, false, fmt.Errorf("%w: %w: %q", ErrDeepProposalReReviewRequired, ErrDeepProposalFieldNotAllowed, name)
+			}
+		}
+		appliedAt := time.Now().UTC()
+		if err := s.repo.ApplyBoundDraftProposal(
+			job.ID, userID, *job.SourceDraftID, job.ProposalJSON, draft.UpdatedAt,
+			updates, stagedReferences, appliedAt,
+		); err != nil {
+			return 0, false, fmt.Errorf("%w: %w", ErrDeepProposalReReviewRequired, err)
+		}
+		return *job.SourceDraftID, true, nil
+	}
+
 	input := CreateQuickCaptureDraftInput{
 		UserID: job.UserID,
 		Source: "deep_identification",
 	}
 	for _, name := range fieldNames {
 		draftField, ok := deepProposalDraftFieldAllowlist[name]
-		if !ok {
-			return 0, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+		if !ok && name != "notes" {
+			return 0, false, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
 		}
 		value := deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name]))
+		if name == "notes" {
+			input.Notes = value
+			continue
+		}
 		switch draftField {
 		case "WorkingTitle":
 			input.WorkingTitle = value
@@ -832,15 +992,56 @@ func (s *DeepIdentificationProposalService) applyToDraft(job *models.DeepIdentif
 	}
 	images, err := s.deepJobFaceImages(job)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	input.Images = images
 
 	draft, err := s.qcSvc.CreateDraft(input)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	return draft.ID, nil
+	return draft.ID, false, nil
+}
+
+func mergeDeepProposalNotes(existing string, jobID uint, content string, now time.Time) string {
+	runes := []rune(strings.TrimSpace(content))
+	if len(runes) > deepProposalNotesMaxRunes {
+		runes = runes[:deepProposalNotesMaxRunes]
+	}
+	content = string(runes)
+	headerPrefix := "## Deep Analysis - "
+	jobSuffix := fmt.Sprintf(" (job %d)", jobID)
+	block := fmt.Sprintf("%s%s%s\nSource: Coin Copilot Deep Analysis\n%s",
+		headerPrefix, now.UTC().Format("2006-01-02"), jobSuffix, content)
+
+	searchFrom := 0
+	for {
+		relative := strings.Index(existing[searchFrom:], headerPrefix)
+		if relative < 0 {
+			break
+		}
+		start := searchFrom + relative
+		headerEndRelative := strings.IndexByte(existing[start:], '\n')
+		if headerEndRelative < 0 {
+			break
+		}
+		headerEnd := start + headerEndRelative
+		if strings.HasSuffix(strings.TrimSuffix(existing[start:headerEnd], "\r"), jobSuffix) {
+			sourceStart := headerEnd + 1
+			sourceLine := "Source: Coin Copilot Deep Analysis\n"
+			if strings.HasPrefix(existing[sourceStart:], sourceLine) {
+				contentStart := sourceStart + len(sourceLine)
+				if strings.HasPrefix(existing[contentStart:], content) {
+					return existing[:start] + block + existing[contentStart+len(content):]
+				}
+			}
+		}
+		searchFrom = headerEnd + 1
+	}
+	if existing == "" {
+		return block
+	}
+	return existing + "\n\n" + block
 }
 
 // deepJobFaceImages loads the job's non-hint (obverse/reverse) artifact

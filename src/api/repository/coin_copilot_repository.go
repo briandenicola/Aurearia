@@ -1,8 +1,11 @@
 package repository
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -10,11 +13,13 @@ import (
 )
 
 var (
-	ErrCopilotTransitionConflict = errors.New("coin copilot transition conflict")
-	ErrCopilotThreadActive       = errors.New("coin copilot thread has an active run")
-	ErrCopilotOwnerCapacity      = errors.New("coin copilot owner capacity reached")
-	ErrCopilotQueueCapacity      = errors.New("coin copilot queue capacity reached")
-	ErrCopilotStartKeyConflict   = errors.New("coin copilot start key conflict")
+	ErrCopilotTransitionConflict  = errors.New("coin copilot transition conflict")
+	ErrCopilotThreadActive        = errors.New("coin copilot thread has an active run")
+	ErrCopilotOwnerCapacity       = errors.New("coin copilot owner capacity reached")
+	ErrCopilotQueueCapacity       = errors.New("coin copilot queue capacity reached")
+	ErrCopilotStartKeyConflict    = errors.New("coin copilot start key conflict")
+	ErrCopilotDeepHandoffConflict = errors.New("coin copilot deep handoff idempotency conflict")
+	ErrCopilotDeepHandoffState    = errors.New("coin copilot deep handoff state conflict")
 )
 
 type CoinCopilotRepository struct {
@@ -23,6 +28,368 @@ type CoinCopilotRepository struct {
 
 func NewCoinCopilotRepository(db *gorm.DB) *CoinCopilotRepository {
 	return &CoinCopilotRepository{db: db}
+}
+
+// DigestCoinCopilotAppContext binds admission to the canonical app context
+// stored on the run. The request body never supplies this value.
+func DigestCoinCopilotAppContext(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
+type DeepHandoffAdmission struct {
+	Handoff          *models.CoinCopilotDeepHandoff
+	Job              *models.DeepIdentificationJob
+	Artifacts        []models.DeepIdentificationArtifact
+	Target           DeepHandoffTargetToken
+	ProviderSettings map[string]string
+	ProviderDefaults map[string]string
+	MaxActivePerUser int
+	QueueDepth       int
+	AfterCommit      func(jobID uint)
+}
+
+type DeepHandoffFaceToken struct {
+	ID          uint
+	FilePath    string
+	ContentPath string
+	ContentHash string
+	CreatedAt   string
+}
+
+type DeepHandoffTargetToken struct {
+	Kind      models.CoinCopilotDeepHandoffTargetKind
+	ID        uint
+	UserID    uint
+	State     string
+	UpdatedAt string
+	Context   string
+	Obverse   DeepHandoffFaceToken
+	Reverse   DeepHandoffFaceToken
+}
+
+// AdmitDeepHandoff is the one durable admission transaction. The handoff key
+// lookup intentionally precedes every mutable-state check, so a changed
+// binding can never be interpreted as a fresh candidate after a crash/replay.
+// The production SQLite DSN uses _txlock=immediate, making this transaction a
+// linearizable critical section for writers.
+func (r *CoinCopilotRepository) AdmitDeepHandoff(input DeepHandoffAdmission) (*models.CoinCopilotDeepHandoff, *models.DeepIdentificationJob, bool, error) {
+	if input.Handoff == nil || input.Job == nil {
+		return nil, nil, false, ErrCopilotDeepHandoffState
+	}
+	var selected models.DeepIdentificationJob
+	var resultHandoff models.CoinCopilotDeepHandoff
+	replayed := false
+	createdJob := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var existing models.CoinCopilotDeepHandoff
+		err := tx.Where("user_id = ? AND run_id = ? AND handoff_key_hash = ?",
+			input.Handoff.UserID, input.Handoff.RunID, input.Handoff.HandoffKeyHash).
+			First(&existing).Error
+		switch {
+		case err == nil:
+			if !sameDeepHandoffRequestBinding(&existing, input.Handoff) {
+				return ErrCopilotDeepHandoffConflict
+			}
+			if err := tx.Where("id = ? AND user_id = ?", existing.DeepJobID, existing.UserID).
+				First(&selected).Error; err != nil {
+				return err
+			}
+			resultHandoff = existing
+			replayed = true
+			return nil
+		case !errors.Is(err, gorm.ErrRecordNotFound):
+			return err
+		}
+
+		var run models.CoinCopilotRun
+		if err := tx.Where("id = ? AND user_id = ?", input.Handoff.RunID, input.Handoff.UserID).
+			First(&run).Error; err != nil {
+			return err
+		}
+		if run.Status != models.CopilotRunRunning || run.CancelRequestedAt != nil ||
+			run.ExecutionID != input.Handoff.ExecutionID ||
+			run.CheckpointVersion != input.Handoff.ExpectedCheckpointVersion ||
+			DigestCoinCopilotAppContext(run.AppContextJSON) != input.Handoff.AppContextDigest {
+			return ErrCopilotDeepHandoffState
+		}
+		if err := validateDeepHandoffAdmissionBinding(input); err != nil {
+			return err
+		}
+		if err := validateDeepHandoffTarget(tx, input.Target); err != nil {
+			return err
+		}
+		for key, expected := range input.ProviderSettings {
+			var setting models.AppSetting
+			err := tx.Where("key = ?", key).First(&setting).Error
+			if err == nil && setting.Value != expected {
+				return ErrCopilotDeepHandoffState
+			}
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if defaultValue, known := input.ProviderDefaults[key]; known && defaultValue != expected {
+					return ErrCopilotDeepHandoffState
+				}
+			}
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+		if input.Job.UserID != input.Handoff.UserID ||
+			!models.IsValidDeepJobSourceBinding(input.Job) {
+			return ErrCopilotDeepHandoffState
+		}
+
+		if input.Handoff.Operation == models.CoinCopilotDeepHandoffOperationRerun {
+			if input.Handoff.PriorJobID == nil {
+				return ErrCopilotDeepHandoffState
+			}
+			var prior models.DeepIdentificationJob
+			if err := tx.Where("id = ? AND user_id = ?", *input.Handoff.PriorJobID, input.Handoff.UserID).
+				First(&prior).Error; err != nil {
+				return ErrCopilotDeepHandoffState
+			}
+			if prior.ID == input.Job.ID || prior.Source != input.Job.Source ||
+				!sameDeepTarget(&prior, input.Job) {
+				return ErrCopilotDeepHandoffState
+			}
+		}
+
+		// Reuse an equivalent active job first, then the newest retained
+		// completed/partial report. Both remain rows in the existing engine.
+		err = tx.Where("user_id = ? AND input_fingerprint = ? AND active_key = ? AND source IN ?",
+			input.Job.UserID, input.Job.InputFingerprint, "active", supportedDeepJobSources).
+			Order("created_at ASC").First(&selected).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = tx.Where(
+				"user_id = ? AND input_fingerprint = ? AND status IN ? AND expires_at > ? AND report_json <> '' AND source IN ?",
+				input.Job.UserID, input.Job.InputFingerprint,
+				[]models.DeepJobStatus{models.DeepJobStatusCompleted, models.DeepJobStatusPartial},
+				time.Now().UTC(), supportedDeepJobSources,
+			).Order("created_at DESC, id DESC").First(&selected).Error
+			if err == nil {
+				input.Handoff.AdmissionOutcome = models.CoinCopilotDeepHandoffOutcomeReusedResult
+			}
+		} else if err == nil {
+			input.Handoff.AdmissionOutcome = models.CoinCopilotDeepHandoffOutcomeReusedActive
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			var active, queued int64
+			if input.MaxActivePerUser > 0 {
+				if err := tx.Model(&models.DeepIdentificationJob{}).
+					Where("user_id = ? AND status IN ?", input.Job.UserID,
+						[]models.DeepJobStatus{models.DeepJobStatusQueued, models.DeepJobStatusRunning}).
+					Count(&active).Error; err != nil {
+					return err
+				}
+				if active >= int64(input.MaxActivePerUser) {
+					return ErrCopilotOwnerCapacity
+				}
+			}
+			if input.QueueDepth > 0 {
+				if err := tx.Model(&models.DeepIdentificationJob{}).
+					Where("status = ?", models.DeepJobStatusQueued).Count(&queued).Error; err != nil {
+					return err
+				}
+				if queued >= int64(input.QueueDepth) {
+					return ErrCopilotQueueCapacity
+				}
+			}
+			selected = *input.Job
+			selected.ActiveKey = "active"
+			if selected.Status == "" {
+				selected.Status = models.DeepJobStatusQueued
+			}
+
+			if err := tx.Create(&selected).Error; err != nil {
+				return err
+			}
+			createdJob = true
+			input.Handoff.AdmissionOutcome = models.CoinCopilotDeepHandoffOutcomeCreated
+			for index := range input.Artifacts {
+				input.Artifacts[index].JobID = selected.ID
+				input.Artifacts[index].UserID = selected.UserID
+				if err := tx.Create(&input.Artifacts[index]).Error; err != nil {
+					return err
+				}
+			}
+		}
+		input.Handoff.DeepJobID = selected.ID
+		if !models.IsValidCoinCopilotDeepHandoff(input.Handoff) {
+			return ErrCopilotDeepHandoffState
+		}
+		if err := tx.Create(input.Handoff).Error; err != nil {
+			return err
+		}
+		resultHandoff = *input.Handoff
+		return nil
+	})
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if createdJob && input.AfterCommit != nil {
+		input.AfterCommit(selected.ID)
+	}
+	return &resultHandoff, &selected, replayed, nil
+}
+
+func sameDeepHandoffRequestBinding(existing, candidate *models.CoinCopilotDeepHandoff) bool {
+	if existing == nil || candidate == nil {
+		return false
+	}
+	return existing.RequestFingerprint == candidate.RequestFingerprint &&
+		existing.ExecutionID == candidate.ExecutionID &&
+		existing.ExpectedCheckpointVersion == candidate.ExpectedCheckpointVersion &&
+		existing.AppContextDigest == candidate.AppContextDigest &&
+		existing.Operation == candidate.Operation &&
+		existing.TargetKind == candidate.TargetKind &&
+		existing.TargetID == candidate.TargetID &&
+		sameOptionalUint(existing.PriorJobID, candidate.PriorJobID) &&
+		existing.TargetSnapshotFingerprint == candidate.TargetSnapshotFingerprint
+}
+
+func sameOptionalUint(left, right *uint) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func validateDeepHandoffAdmissionBinding(input DeepHandoffAdmission) error {
+	if input.Handoff == nil || input.Job == nil ||
+		input.Target.Kind != input.Handoff.TargetKind ||
+		input.Target.ID != input.Handoff.TargetID ||
+		input.Target.UserID != input.Handoff.UserID ||
+		input.Job.UserID != input.Handoff.UserID {
+		return ErrCopilotDeepHandoffState
+	}
+	switch input.Target.Kind {
+	case models.CoinCopilotDeepHandoffTargetCoin:
+		if input.Job.Source != models.DeepJobSourceSavedCoin ||
+			input.Job.CoinID == nil || *input.Job.CoinID != input.Target.ID {
+			return ErrCopilotDeepHandoffState
+		}
+	case models.CoinCopilotDeepHandoffTargetDraft:
+		if input.Job.Source != models.DeepJobSourceCopilotDraft ||
+			input.Job.SourceDraftID == nil || *input.Job.SourceDraftID != input.Target.ID {
+			return ErrCopilotDeepHandoffState
+		}
+	default:
+		return ErrCopilotDeepHandoffState
+	}
+	return nil
+}
+
+func validateDeepHandoffTarget(tx *gorm.DB, expected DeepHandoffTargetToken) error {
+	if expected.ID == 0 || expected.UserID == 0 ||
+		expected.Obverse.ID == 0 || expected.Reverse.ID == 0 ||
+		expected.Obverse.ID == expected.Reverse.ID {
+		return ErrCopilotDeepHandoffState
+	}
+	switch expected.Kind {
+	case models.CoinCopilotDeepHandoffTargetCoin:
+		var coin models.Coin
+		if err := tx.Select("id", "user_id", "notes", "updated_at").
+			Where("id = ? AND user_id = ?", expected.ID, expected.UserID).First(&coin).Error; err != nil {
+			return ErrCopilotDeepHandoffState
+		}
+		if coin.UpdatedAt.UTC().Format(time.RFC3339Nano) != expected.UpdatedAt || coin.Notes != expected.Context {
+			return ErrCopilotDeepHandoffState
+		}
+		var faces []models.CoinImage
+		if err := tx.Where("coin_id = ? AND id IN ?", expected.ID, []uint{expected.Obverse.ID, expected.Reverse.ID}).
+			Find(&faces).Error; err != nil {
+			return err
+		}
+		return compareDeepHandoffFaces(faces, expected)
+	case models.CoinCopilotDeepHandoffTargetDraft:
+		var draft models.QuickCaptureDraft
+		if err := tx.Select("id", "user_id", "status", "notes", "updated_at").
+			Where("id = ? AND user_id = ? AND status = ?", expected.ID, expected.UserID, models.QuickCaptureDraftStatusActive).
+			First(&draft).Error; err != nil {
+			return ErrCopilotDeepHandoffState
+		}
+		if draft.UpdatedAt.UTC().Format(time.RFC3339Nano) != expected.UpdatedAt ||
+			draft.Notes != expected.Context || string(draft.Status) != expected.State {
+			return ErrCopilotDeepHandoffState
+		}
+		var draftFaces []models.QuickCaptureDraftImage
+		if err := tx.Where("draft_id = ? AND user_id = ? AND id IN ?",
+			expected.ID, expected.UserID, []uint{expected.Obverse.ID, expected.Reverse.ID}).Find(&draftFaces).Error; err != nil {
+			return err
+		}
+		faces := make([]models.CoinImage, 0, len(draftFaces))
+		for _, face := range draftFaces {
+			faces = append(faces, models.CoinImage{
+				ID: face.ID, FilePath: face.FilePath, ImageType: face.ImageType, CreatedAt: face.CreatedAt,
+			})
+		}
+		return compareDeepHandoffFaces(faces, expected)
+	default:
+		return ErrCopilotDeepHandoffState
+	}
+}
+
+func compareDeepHandoffFaces(faces []models.CoinImage, expected DeepHandoffTargetToken) error {
+	if len(faces) != 2 {
+		return ErrCopilotDeepHandoffState
+	}
+	byID := make(map[uint]models.CoinImage, len(faces))
+	for _, face := range faces {
+		byID[face.ID] = face
+	}
+	for _, item := range []struct {
+		want DeepHandoffFaceToken
+		role models.ImageType
+	}{
+		{expected.Obverse, models.ImageTypeObverse},
+		{expected.Reverse, models.ImageTypeReverse},
+	} {
+		got, ok := byID[item.want.ID]
+		if !ok || got.ImageType != item.role || got.FilePath != item.want.FilePath ||
+			got.CreatedAt.UTC().Format(time.RFC3339Nano) != item.want.CreatedAt {
+			return ErrCopilotDeepHandoffState
+		}
+		content, err := os.ReadFile(item.want.ContentPath)
+		if err != nil {
+			return ErrCopilotDeepHandoffState
+		}
+		sum := sha256.Sum256(content)
+		if hex.EncodeToString(sum[:]) != item.want.ContentHash {
+			return ErrCopilotDeepHandoffState
+		}
+	}
+	return nil
+}
+
+func (r *CoinCopilotRepository) FindDeepHandoffByJob(runID string, userID, jobID uint) (*models.CoinCopilotDeepHandoff, *models.DeepIdentificationJob, error) {
+	var handoff models.CoinCopilotDeepHandoff
+	if err := r.db.Where("run_id = ? AND user_id = ? AND deep_job_id = ?", runID, userID, jobID).
+		Order("created_at DESC, id DESC").First(&handoff).Error; err != nil {
+		return nil, nil, err
+	}
+	var job models.DeepIdentificationJob
+	if err := r.db.Where("id = ? AND user_id = ?", jobID, userID).First(&job).Error; err != nil {
+		return nil, nil, err
+	}
+	return &handoff, &job, nil
+}
+
+func sameDeepTarget(left, right *models.DeepIdentificationJob) bool {
+	if left == nil || right == nil || left.Source != right.Source {
+		return false
+	}
+	switch left.Source {
+	case models.DeepJobSourceSavedCoin:
+		return left.CoinID != nil && right.CoinID != nil && *left.CoinID == *right.CoinID
+	case models.DeepJobSourceCopilotDraft:
+		return left.SourceDraftID != nil && right.SourceDraftID != nil && *left.SourceDraftID == *right.SourceDraftID
+	default:
+		return left.CoinID == nil && right.CoinID == nil &&
+			left.SourceDraftID == nil && right.SourceDraftID == nil
+	}
 }
 
 func (r *CoinCopilotRepository) CreateRun(thread *models.CoinCopilotThread, run *models.CoinCopilotRun) error {
@@ -476,9 +843,24 @@ func (r *CoinCopilotRepository) RequestCancel(runID string, userID uint) (*model
 		default:
 			return ErrCopilotTransitionConflict
 		}
+		if err := requestDeepHandoffCancellation(tx, runID, userID, now); err != nil {
+			return err
+		}
 		return tx.First(&run, "id = ?", runID).Error
 	})
 	return &run, immediate, err
+}
+
+func requestDeepHandoffCancellation(tx *gorm.DB, runID string, userID uint, requestedAt time.Time) error {
+	deepJobIDs := tx.Model(&models.CoinCopilotDeepHandoff{}).
+		Select("deep_job_id").
+		Where("run_id = ? AND user_id = ?", runID, userID)
+	return tx.Model(&models.DeepIdentificationJob{}).
+		Where("id IN (?) AND user_id = ?", deepJobIDs, userID).
+		Where("status IN ? AND cancel_requested_at IS NULL", deepJobActiveStatuses).
+		Where("source IN ?", supportedDeepJobSources).
+		Where(deepJobSourceBindingSQL).
+		Update("cancel_requested_at", requestedAt).Error
 }
 
 func (r *CoinCopilotRepository) ListEventsSince(runID string, userID uint, since int64) ([]models.CoinCopilotEvent, error) {

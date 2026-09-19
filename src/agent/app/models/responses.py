@@ -1,8 +1,11 @@
 """Response models returned to the Go API proxy."""
 
+import ipaddress
+import json
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from app.models.hypothesis import CoinHypothesis
 from app.models.requests import (
@@ -28,6 +31,234 @@ class StrictResponseModel(BaseModel):
     """Base response model with contract drift detection."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+MAX_DEEP_ANALYSIS_HANDOFF_PUBLIC_EVENT_BYTES = 65_536
+MAX_DEEP_ANALYSIS_HANDOFF_PERSISTED_RESULT_BYTES = 32_768
+
+DeepAnalysisHandoffOutcome = Literal[
+    "accepted",
+    "reused_active",
+    "reused_result",
+    "status",
+    "retry_available",
+    "missing_images",
+    "target_unavailable",
+    "not_eligible",
+    "unavailable",
+    "cancelled",
+]
+DeepAnalysisHandoffReason = Literal[
+    "missing_obverse",
+    "missing_reverse",
+    "missing_both",
+    "duplicate_faces",
+    "target_changed",
+    "draft_inactive",
+    "source_coin_missing",
+    "deep_disabled",
+    "copilot_disabled",
+    "attribution_disabled",
+    "model_unsupported",
+    "job_at_capacity",
+    "queue_full",
+    "result_missing",
+    "result_expired",
+    "stale",
+    "cancelled",
+]
+
+
+class DeepAnalysisHandoffTargetResult(StrictResponseModel):
+    type: Literal["coin", "draft"]
+    id: int = Field(gt=0)
+    display_label: Annotated[str, StringConstraints(min_length=1, max_length=300)]
+
+
+class DeepAnalysisHandoffJob(StrictResponseModel):
+    id: int = Field(gt=0)
+    source: Literal["intake", "saved_coin", "copilot_draft"]
+    status: Literal["queued", "running", "completed", "partial", "failed", "cancelled"]
+    reused: bool
+    created_at: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    completed_at: Annotated[str, StringConstraints(min_length=1, max_length=64)] | None
+
+
+class DeepAnalysisHandoffEvidence(StrictResponseModel):
+    provider: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    source: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    summary: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+
+    @field_validator("url")
+    @classmethod
+    def validate_safe_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("evidence URL must be credential-free HTTPS")
+        host = parsed.hostname.rstrip(".").lower()
+        if host == "localhost" or host.endswith((".localhost", ".local")):
+            raise ValueError("evidence URL host is not public")
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        if address is not None and not address.is_global:
+            raise ValueError("evidence URL host is not public")
+        return value
+
+
+class DeepAnalysisHandoffField(StrictResponseModel):
+    name: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    value: Annotated[str, StringConstraints(min_length=1, max_length=2000)]
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    evidence: list[DeepAnalysisHandoffEvidence] = Field(default_factory=list)
+
+
+class DeepAnalysisHandoffDisagreement(StrictResponseModel):
+    field: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    summary: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+
+
+class DeepAnalysisHandoffCoverage(StrictResponseModel):
+    provider: Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
+    status: Literal[
+        "pending",
+        "running",
+        "contributed",
+        "no_match",
+        "failed",
+        "timed_out",
+        "skipped",
+        "not_automated",
+        "unavailable",
+    ]
+
+
+class DeepAnalysisHandoffAttribution(StrictResponseModel):
+    provider: Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
+    label: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+
+
+class DeepAnalysisHandoffResultBody(StrictResponseModel):
+    state: Literal[
+        "not_ready",
+        "complete",
+        "partial",
+        "no_match",
+        "failed",
+        "cancelled",
+        "stale",
+        "missing_result",
+    ]
+    narrative: Annotated[str, StringConstraints(max_length=12000)]
+    partial_success: bool
+    image_only: bool
+    fields: list[DeepAnalysisHandoffField] = Field(default_factory=list)
+    disagreements: list[DeepAnalysisHandoffDisagreement] = Field(default_factory=list)
+    unresolved_questions: list[Annotated[str, StringConstraints(max_length=1000)]] = Field(default_factory=list)
+    coverage: list[DeepAnalysisHandoffCoverage] = Field(default_factory=list)
+    attributions: list[DeepAnalysisHandoffAttribution] = Field(default_factory=list)
+    limitations: list[Annotated[str, StringConstraints(max_length=1000)]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def reject_duplicate_entries(self) -> "DeepAnalysisHandoffResultBody":
+        for values in (
+            [field.name for field in self.fields],
+            [coverage.provider for coverage in self.coverage],
+            [attribution.provider for attribution in self.attributions],
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError("duplicate handoff result entry")
+        return self
+
+
+class DeepAnalysisHandoffTruncation(StrictResponseModel):
+    truncated: bool
+    original_bytes: int = Field(ge=0)
+    persisted_bytes: int = Field(ge=0, le=MAX_DEEP_ANALYSIS_HANDOFF_PERSISTED_RESULT_BYTES)
+    digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    omitted_fields: int = Field(ge=0)
+    omitted_evidence: int = Field(ge=0)
+    omitted_disagreements: int = Field(ge=0)
+    omitted_questions: int = Field(ge=0)
+
+
+class DeepAnalysisHandoffResult(StrictResponseModel):
+    """Strict result; ``outcome`` is the only top-level discriminant."""
+
+    schema_version: Literal[1] | None = None
+    operation: Literal["request", "status", "rerun"] | None = None
+    outcome: DeepAnalysisHandoffOutcome
+    reason: DeepAnalysisHandoffReason | None
+    target: DeepAnalysisHandoffTargetResult | None = None
+    job: DeepAnalysisHandoffJob | None = None
+    input_digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    review_url: Annotated[str, StringConstraints(pattern=r"^/deep-analysis/[1-9][0-9]*$")] | None = None
+    fresh_analysis_available: bool = False
+    result: DeepAnalysisHandoffResultBody | None = None
+    truncation: DeepAnalysisHandoffTruncation | None = None
+    limitations: list[Annotated[str, StringConstraints(max_length=1000)]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_outcome_shape(self) -> "DeepAnalysisHandoffResult":
+        privacy_outcome = self.outcome in {"not_eligible", "target_unavailable"}
+        if privacy_outcome:
+            if self.reason is not None or any(
+                value is not None
+                for value in (
+                    self.schema_version,
+                    self.operation,
+                    self.target,
+                    self.job,
+                    self.input_digest,
+                    self.review_url,
+                    self.result,
+                    self.truncation,
+                )
+            ) or self.fresh_analysis_available or self.limitations:
+                raise ValueError("privacy-safe outcomes must contain only outcome and null reason")
+            return self
+        if self.schema_version != 1 or self.operation is None:
+            raise ValueError("typed handoff result requires schema_version and operation")
+        if self.job is not None and self.review_url != f"/deep-analysis/{self.job.id}":
+            raise ValueError("review_url must match job id")
+        if self.job is None and self.review_url is not None:
+            raise ValueError("review_url requires job")
+        return self
+
+
+def _validate_deep_analysis_handoff_envelope(payload: bytes, maximum: int) -> object:
+    if not payload:
+        raise ValueError("handoff envelope is empty")
+    try:
+        value = json.loads(payload)
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (UnicodeDecodeError, ValueError, TypeError) as exc:
+        raise ValueError("invalid handoff JSON") from exc
+    if len(canonical) > maximum:
+        raise ValueError("handoff envelope exceeds its byte limit")
+    return value
+
+
+def validate_deep_analysis_handoff_public_event_envelope(payload: bytes) -> object:
+    return _validate_deep_analysis_handoff_envelope(
+        payload,
+        MAX_DEEP_ANALYSIS_HANDOFF_PUBLIC_EVENT_BYTES,
+    )
+
+
+def validate_deep_analysis_handoff_persisted_result_envelope(payload: bytes) -> object:
+    return _validate_deep_analysis_handoff_envelope(
+        payload,
+        MAX_DEEP_ANALYSIS_HANDOFF_PERSISTED_RESULT_BYTES,
+    )
 
 
 MAX_SET_BUILDER_SLOTS_RESPONSE = 300
@@ -88,6 +319,12 @@ class CopilotToolCompletedPayload(CopilotToolStartedPayload):
 
     @model_validator(mode="after")
     def validate_specialist_result(self) -> "CopilotToolCompletedPayload":
+        if self.tool_name == "deep_analysis_handoff":
+            try:
+                self.result = DeepAnalysisHandoffResult.model_validate(self.result)
+            except ValueError as exc:
+                raise ValueError("Deep Analysis handoff result is invalid") from exc
+            return self
         if self.tool_name in COPILOT_SPECIALIST_TOOLS:
             try:
                 result = SpecialistResult.model_validate(self.result)

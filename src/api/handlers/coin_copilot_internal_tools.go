@@ -13,11 +13,16 @@ import (
 type CoinCopilotInternalToolsHandler struct {
 	collectionSvc *services.CollectionToolsService
 	copilotSvc    *services.CoinCopilotService
+	handoffSvc    *services.DeepAnalysisHandoffService
 	logger        *services.Logger
 }
 
-func NewCoinCopilotInternalToolsHandler(collectionSvc *services.CollectionToolsService, copilotSvc *services.CoinCopilotService, logger *services.Logger) *CoinCopilotInternalToolsHandler {
-	return &CoinCopilotInternalToolsHandler{collectionSvc: collectionSvc, copilotSvc: copilotSvc, logger: logger}
+func NewCoinCopilotInternalToolsHandler(collectionSvc *services.CollectionToolsService, copilotSvc *services.CoinCopilotService, logger *services.Logger, handoff ...*services.DeepAnalysisHandoffService) *CoinCopilotInternalToolsHandler {
+	handler := &CoinCopilotInternalToolsHandler{collectionSvc: collectionSvc, copilotSvc: copilotSvc, logger: logger}
+	if len(handoff) > 0 {
+		handler.handoffSvc = handoff[0]
+	}
+	return handler
 }
 
 type copilotToolCallRequest struct {
@@ -111,4 +116,75 @@ func (h *CoinCopilotInternalToolsHandler) TopCoinsByValue(c *gin.Context) {
 		coins, err := h.collectionSvc.TopCoinsByValue(userID, request.Limit)
 		return gin.H{"coins": coins}, err
 	})
+}
+
+func (h *CoinCopilotInternalToolsHandler) DeepAnalysisHandoff(c *gin.Context) {
+	claimsValue, ok := c.Get("copilotClaims")
+	claims, claimsOK := claimsValue.(*services.CopilotExecutionClaims)
+	if !ok || !claimsOK || h.handoffSvc == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	raw, err := io.ReadAll(io.LimitReader(c.Request.Body, services.DeepAnalysisHandoffMaxRequestBytes+1))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_tool_call"})
+		return
+	}
+	if len(raw) > services.DeepAnalysisHandoffMaxRequestBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "request_too_large"})
+		return
+	}
+	request, err := services.DecodeDeepAnalysisHandoffRequest(raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_tool_call"})
+		return
+	}
+	if err := h.copilotSvc.AuthorizeToolCall(claims, request.ToolCallID, "deep_analysis_handoff"); err != nil {
+		status := http.StatusConflict
+		if errors.Is(err, services.ErrCopilotInvalidRequest) {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": "tool_call_rejected"})
+		return
+	}
+	result, err := h.handoffSvc.Execute(claims, request)
+	if err != nil {
+		h.copilotSvc.FinishToolCall(claims.ExecutionID, request.ToolCallID, false)
+		switch {
+		case errors.Is(err, services.ErrCopilotInvalidRequest):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_tool_call"})
+		case errors.Is(err, services.ErrDeepHandoffConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": "handoff_idempotency_conflict"})
+		case errors.Is(err, services.ErrDeepHandoffChanged):
+			c.JSON(http.StatusConflict, gin.H{"error": "target_changed"})
+		case errors.Is(err, services.ErrDeepHandoffState):
+			c.JSON(http.StatusConflict, gin.H{"error": "state_conflict"})
+		default:
+			if h.logger != nil {
+				h.logger.Error("coin-copilot", "Deep Analysis handoff failed run=%s execution=%s: %v", claims.RunID, claims.ExecutionID, err)
+			}
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "handoff_unavailable"})
+		}
+		return
+	}
+	payload, err := h.copilotSvc.PrepareDeepAnalysisHandoffDelivery(result)
+	if err != nil {
+		h.copilotSvc.FinishToolCall(claims.ExecutionID, request.ToolCallID, false)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_tool_call"})
+		return
+	}
+	h.copilotSvc.FinishToolCall(claims.ExecutionID, request.ToolCallID, true)
+	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
+}
+
+func writeDeepAnalysisHandoffResult(c *gin.Context, result services.DeepAnalysisHandoffResult) {
+	projection, err := services.ProjectDeepAnalysisHandoffResult(
+		result,
+		services.DeepAnalysisHandoffMaxPersistedResultBytes,
+	)
+	if err != nil || services.ValidateDeepAnalysisHandoffPublicEventEnvelope(projection.Bytes) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_tool_call"})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", projection.Bytes)
 }

@@ -92,7 +92,7 @@ func TestDeepIdentificationService_UnknownSourceCannotRetryOrCancel(t *testing.T
 		t.Fatal(err)
 	}
 	job := models.DeepIdentificationJob{
-		UserID: user.ID, Source: models.DeepJobSource("copilot_draft"),
+		UserID: user.ID, Source: models.DeepJobSource("future_source"),
 		Status: models.DeepJobStatusCompleted, InputFingerprint: "unknown-source-service",
 		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
 		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "terminal-unknown",
@@ -122,7 +122,7 @@ func TestDeepIdentificationService_WorkersDoNotAdoptUnknownSource(t *testing.T) 
 		t.Fatal(err)
 	}
 	job := models.DeepIdentificationJob{
-		UserID: user.ID, Source: models.DeepJobSource("copilot_draft"),
+		UserID: user.ID, Source: models.DeepJobSource("future_source"),
 		Status: models.DeepJobStatusQueued, InputFingerprint: "unknown-source-worker",
 		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
 		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "active",

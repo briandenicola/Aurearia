@@ -1,6 +1,7 @@
 package database
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,6 +9,111 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+type preFeature362DeepJob struct {
+	ID               uint `gorm:"primaryKey"`
+	UserID           uint `gorm:"not null"`
+	Source           string
+	CoinID           *uint
+	Notes            string
+	ReportJSON       string `gorm:"type:text"`
+	InputFingerprint string
+	ExpiresAt        time.Time
+}
+
+func (preFeature362DeepJob) TableName() string { return "deep_identification_jobs" }
+
+// T022: Release B is an additive migration applied only after the Release A
+// compatibility interlock. Existing Deep rows survive byte-for-byte, no
+// source-draft or handoff rows are synthesized, and the durable keys/indexes
+// needed by linearizable admission are present.
+func TestFeature362MigrationIsOrderedAdditiveAndPreservesRollbackRows(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.DeepIdentificationJob{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&models.DeepIdentificationJob{}, "SourceDraftID"); err != nil {
+		t.Fatal(err)
+	}
+	legacy := preFeature362DeepJob{
+		UserID: 7, Source: "intake", Notes: "preserve exactly",
+		ReportJSON:       `{"state":"complete"}`,
+		InputFingerprint: "legacy-feature362-row",
+		ExpiresAt:        time.Now().UTC().Add(24 * time.Hour),
+	}
+	if err := db.Table(legacy.TableName()).Create(&legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+	if db.Migrator().HasColumn(&models.DeepIdentificationJob{}, "SourceDraftID") {
+		t.Fatal("source_draft_id existed before the Feature 362 migration")
+	}
+	if db.Migrator().HasTable(&models.CoinCopilotDeepHandoff{}) {
+		t.Fatal("handoff table existed before the Feature 362 migration")
+	}
+
+	if err := migrateFeature362(db); err != nil {
+		t.Fatalf("Feature 362 migration: %v", err)
+	}
+	if !db.Migrator().HasColumn(&models.DeepIdentificationJob{}, "SourceDraftID") {
+		t.Fatal("source_draft_id was not added")
+	}
+	if !db.Migrator().HasTable(&models.CoinCopilotDeepHandoff{}) {
+		t.Fatal("coin_copilot_deep_handoffs was not added")
+	}
+	for _, index := range []string{
+		"uix_copilot_deep_handoff_key",
+		"idx_copilot_deep_handoff_owner_job",
+		"idx_copilot_deep_handoff_job",
+	} {
+		if !db.Migrator().HasIndex(&models.CoinCopilotDeepHandoff{}, index) {
+			t.Errorf("missing handoff index %s", index)
+		}
+	}
+	if !db.Migrator().HasIndex(&models.DeepIdentificationJob{}, "idx_deep_jobs_source_draft") {
+		t.Error("missing source_draft_id index")
+	}
+
+	var got preFeature362DeepJob
+	if err := db.First(&got, legacy.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.UserID != legacy.UserID || got.Source != legacy.Source ||
+		got.Notes != legacy.Notes || got.ReportJSON != legacy.ReportJSON {
+		t.Fatalf("legacy row changed: got=%+v want=%+v", got, legacy)
+	}
+	var handoffs int64
+	if err := db.Model(&models.CoinCopilotDeepHandoff{}).Count(&handoffs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if handoffs != 0 {
+		t.Fatalf("migration backfilled %d handoff rows", handoffs)
+	}
+	var bound int64
+	if err := db.Model(&models.DeepIdentificationJob{}).
+		Where("source_draft_id IS NOT NULL").Count(&bound).Error; err != nil {
+		t.Fatal(err)
+	}
+	if bound != 0 {
+		t.Fatalf("migration backfilled %d source draft bindings", bound)
+	}
+
+	// Operational rollback is intentionally schema-preserving: the Release A
+	// guard ignores/rejects the new source, and re-upgrade sees the same rows.
+	before := strings.Join([]string{got.Source, got.Notes, got.ReportJSON}, "\x00")
+	if err := migrateFeature362(db); err != nil {
+		t.Fatalf("idempotent re-upgrade: %v", err)
+	}
+	if err := db.First(&got, legacy.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	after := strings.Join([]string{got.Source, got.Notes, got.ReportJSON}, "\x00")
+	if after != before {
+		t.Fatalf("rollback/re-upgrade changed retained row: before=%q after=%q", before, after)
+	}
+}
 
 // legacyAvailabilityRun mirrors the pre-353 AvailabilityRun shape (no CycleID column).
 // Legacy rows include admin-triggered rows with UserID = 0 (a global, non-owner-scoped run

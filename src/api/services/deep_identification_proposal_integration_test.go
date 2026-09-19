@@ -3,9 +3,12 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +16,266 @@ import (
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
 )
+
+func TestFeature362ProposalScalarMatricesAreClosed(t *testing.T) {
+	t.Parallel()
+
+	wantCoin := map[string]string{
+		"denomination": "Denomination", "ruler": "Ruler", "era": "Era",
+		"dateRange": "DateRange", "mint": "Mint", "material": "Material",
+		"weightGrams": "WeightGrams", "diameterMm": "DiameterMm",
+		"obverseInscription": "ObverseInscription", "reverseInscription": "ReverseInscription",
+		"obverseDescription": "ObverseDescription", "reverseDescription": "ReverseDescription",
+		"coin_type": "ReferenceText",
+	}
+	wantDraft := map[string]string{
+		"workingTitle": "WorkingTitle",
+		"era":          "Era",
+		"dateRange":    "DateRange",
+	}
+	if !reflect.DeepEqual(deepProposalCoinFieldAllowlist, wantCoin) {
+		t.Fatalf("collection/wishlist scalar matrix drifted:\n got: %#v\nwant: %#v", deepProposalCoinFieldAllowlist, wantCoin)
+	}
+	if !reflect.DeepEqual(deepProposalDraftFieldAllowlist, wantDraft) {
+		t.Fatalf("bound-draft scalar matrix drifted:\n got: %#v\nwant: %#v", deepProposalDraftFieldAllowlist, wantDraft)
+	}
+}
+
+func TestFeature362AcceptedCoinScalarsReplaceOnlyThemselves(t *testing.T) {
+	values := map[string]any{
+		"denomination": "Denarius", "ruler": "Hadrian", "era": string(models.EraAncient),
+		"dateRange": "117-138", "mint": "Rome", "material": string(models.MaterialGold),
+		"weightGrams": 3.25, "diameterMm": 19.5,
+		"obverseInscription": "HADRIANVS", "reverseInscription": "PAX",
+		"obverseDescription": "Laureate bust", "reverseDescription": "Pax standing",
+		"coin_type": "RIC II 42",
+	}
+	for _, wishlist := range []bool{false, true} {
+		destination := "collection"
+		if wishlist {
+			destination = "wishlist"
+		}
+		for field, proposed := range values {
+			t.Run(destination+"/"+field, func(t *testing.T) {
+				svc, _, db := newDeepProposalTestDeps(t)
+				userID := seedDeepProposalUser(t, db)
+				weight, diameter := 1.1, 10.1
+				coin := models.Coin{
+					UserID: userID, Name: "Manual", IsWishlist: wishlist,
+					Denomination: "As", Ruler: "Augustus", Era: models.EraModern,
+					DateRange: "old date", Mint: "old mint", Material: models.MaterialSilver,
+					WeightGrams: &weight, DiameterMm: &diameter,
+					ObverseInscription: "old obv", ReverseInscription: "old rev",
+					ObverseDescription: "old obv description", ReverseDescription: "old rev description",
+					ReferenceText: "old type",
+				}
+				if err := db.Create(&coin).Error; err != nil {
+					t.Fatal(err)
+				}
+				before := coin
+				jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{field: proposed})
+				if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+					field: {Accepted: acceptTrue()},
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := svc.Apply(jobID, userID, "coin", []string{field}); err != nil {
+					t.Fatal(err)
+				}
+				var after models.Coin
+				if err := db.First(&after, coin.ID).Error; err != nil {
+					t.Fatal(err)
+				}
+				selectedGoField := deepProposalCoinFieldAllowlist[field]
+				for _, goField := range deepProposalCoinFieldAllowlist {
+					got := reflect.ValueOf(after).FieldByName(goField).Interface()
+					old := reflect.ValueOf(before).FieldByName(goField).Interface()
+					if goField == selectedGoField {
+						if reflect.DeepEqual(got, old) {
+							t.Fatalf("%s did not change", goField)
+						}
+					} else if !reflect.DeepEqual(got, old) {
+						t.Fatalf("applying %s changed unrelated %s: before=%#v after=%#v", field, goField, old, got)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestFeature362AcceptedDraftScalarsReplaceOnlyThemselves(t *testing.T) {
+	values := map[string]any{
+		"workingTitle": "Hadrian denarius",
+		"era":          string(models.EraAncient),
+		"dateRange":    "117-138",
+	}
+	for field, proposed := range values {
+		t.Run(field, func(t *testing.T) {
+			svc, _, db := newDeepProposalTestDeps(t)
+			userID := seedDeepProposalUser(t, db)
+			draft := &models.QuickCaptureDraft{
+				UserID: userID, WorkingTitle: "Manual title", Era: string(models.EraModern),
+				DateRange: "old date", AcquisitionSource: "manual source",
+				Notes: "manual notes", Status: models.QuickCaptureDraftStatusActive,
+			}
+			jobID := seedFeature362DraftJob(t, db, userID, draft, map[string]any{field: proposed})
+			if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+				field: {Accepted: acceptTrue()},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.Apply(jobID, userID, "draft", []string{field}); err != nil {
+				t.Fatal(err)
+			}
+			var after models.QuickCaptureDraft
+			if err := db.First(&after, draft.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			fields := map[string]string{"workingTitle": "WorkingTitle", "era": "Era", "dateRange": "DateRange"}
+			for proposalField, goField := range fields {
+				got := reflect.ValueOf(after).FieldByName(goField).Interface()
+				old := reflect.ValueOf(*draft).FieldByName(goField).Interface()
+				if proposalField == field {
+					if reflect.DeepEqual(got, old) {
+						t.Fatalf("%s did not change", goField)
+					}
+				} else if !reflect.DeepEqual(got, old) {
+					t.Fatalf("applying %s changed unrelated %s: before=%#v after=%#v", field, goField, old, got)
+				}
+			}
+			if after.AcquisitionSource != draft.AcquisitionSource || after.Notes != draft.Notes {
+				t.Fatalf("draft manual data changed: before=%#v after=%#v", draft, after)
+			}
+		})
+	}
+}
+
+func TestFeature362ProposalApplyRejectsUnsupportedSelectionWithoutPartialWrites(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{
+		UserID: userID, Name: "Manual coin", Denomination: "Manual denomination",
+		Notes: "manual notes", PurchaseLocation: "manual source", IsPrivate: true,
+	}
+
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"denomination":  "Denarius",
+		"purchasePrice": 999,
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"denomination":  {Accepted: acceptTrue()},
+		"purchasePrice": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := svc.Apply(jobID, userID, "coin", []string{"denomination", "purchasePrice"})
+	if err == nil || !strings.Contains(err.Error(), "re_review_required") {
+		t.Fatalf("expected re_review_required, got %v", err)
+	}
+	if !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
+		t.Fatalf("re-review error must preserve unsupported-field classification, got %v", err)
+	}
+
+	var after models.Coin
+	if err := db.First(&after, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Denomination != coin.Denomination || after.Notes != coin.Notes ||
+		after.PurchaseLocation != coin.PurchaseLocation || after.IsPrivate != coin.IsPrivate {
+		t.Fatalf("failed apply partially mutated manual data: before=%#v after=%#v", coin, after)
+	}
+}
+
+func TestFeature362ProposalApplyRollsBackScalarWhenReferenceWriteFails(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	seedDeepProposalCatalog(t, db, "RIC", false)
+	coin := models.Coin{UserID: userID, Name: "Manual coin", Denomination: "Manual"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"denomination":      "Denarius",
+		"catalogReferences": []any{validCatalogRefPayload("RIC", "", "42")},
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"denomination":      {Accepted: acceptTrue()},
+		"catalogReferences": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Callback().Create().Before("gorm:create").Register("feature362_reference_failure", func(tx *gorm.DB) {
+		switch tx.Statement.Dest.(type) {
+		case *[]models.CoinReference, *models.CoinReference:
+			tx.AddError(errors.New("forced reference insert failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.Apply(jobID, userID, "coin", []string{"denomination", "catalogReferences"}); err == nil {
+		t.Fatal("expected forced reference failure")
+	}
+	var after models.Coin
+	if err := db.First(&after, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Denomination != "Manual" {
+		t.Fatalf("scalar escaped failed transaction: %q", after.Denomination)
+	}
+	var refCount int64
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", coin.ID).Count(&refCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refCount != 0 {
+		t.Fatalf("reference escaped failed transaction: %d", refCount)
+	}
+	var job models.DeepIdentificationJob
+	if err := db.First(&job, jobID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if job.AppliedAt != nil {
+		t.Fatal("failed transaction marked proposal applied")
+	}
+}
+
+func TestFeature362ProposalApplyRejectsTargetChangedAfterAnalysis(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{UserID: userID, Name: "Before analysis", Denomination: "Manual"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"denomination": "Denarius",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"denomination": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	if err := db.Model(&models.Coin{}).Where("id = ?", coin.ID).Update("name", "Manual edit after analysis").Error; err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := svc.Apply(jobID, userID, "coin", []string{"denomination"})
+	if !errors.Is(err, ErrDeepProposalReReviewRequired) {
+		t.Fatalf("expected stale target to require re-review, got %v", err)
+	}
+	var after models.Coin
+	if err := db.First(&after, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Name != "Manual edit after analysis" || after.Denomination != "Manual" {
+		t.Fatalf("stale apply changed manual data: %#v", after)
+	}
+}
 
 // realisticRunnerStreamFrames returns the exact Python-shaped SSE frames a
 // real run_deep_identification_stream emits for a multi-provider run: full

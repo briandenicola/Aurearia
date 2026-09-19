@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -114,7 +115,7 @@ func TestDeepIdentificationHandler_UnknownSourceIsNotDisclosedOrMutated(t *testi
 	const userID = uint(991)
 	deps := setupDeepIdentificationHandlerTest(t, userID, true)
 	job := models.DeepIdentificationJob{
-		UserID: userID, Source: models.DeepJobSource("copilot_draft"),
+		UserID: userID, Source: models.DeepJobSource("future_source"),
 		Status: models.DeepJobStatusCompleted, InputFingerprint: "handler-unknown-source",
 		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"schemaVersion":1,"fields":{"notes":{"proposed":"private"}}}`,
 		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "terminal-unknown",
@@ -855,5 +856,42 @@ func TestDeepIdentificationHandler_ApplyProposal_UnknownTargetReturns400(t *test
 	deps.db.Model(&models.Coin{}).Count(&coinCount)
 	if coinCount != 0 {
 		t.Fatal("expected no coin created for a rejected unknown target")
+	}
+}
+
+func TestFeature362ApplyUnsupportedFieldReturnsReReviewConflict(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	coin := models.Coin{UserID: 1, Name: "Manual coin", Denomination: "Manual"}
+	if err := deps.db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	proposal := `{"schemaVersion":1,"fields":{
+		"denomination":{"proposed":"Denarius","accepted":true},
+		"purchasePrice":{"proposed":99,"accepted":true}
+	}}`
+	job := &models.DeepIdentificationJob{
+		UserID: 1, Source: models.DeepJobSourceSavedCoin, CoinID: &coin.ID,
+		Status: models.DeepJobStatusCompleted, ProposalJSON: proposal,
+		InputFingerprint: fmt.Sprintf("fp-handler-rereview-%d", time.Now().UnixNano()),
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+	}
+	if err := deps.db.Create(job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	body := bytes.NewBufferString(`{"target":"coin","fields":["denomination","purchasePrice"]}`)
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", job.ID), body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"code":"re_review_required"`) {
+		t.Fatalf("expected 409 re_review_required, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var after models.Coin
+	if err := deps.db.First(&after, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Denomination != "Manual" {
+		t.Fatalf("failed apply partially updated coin: %#v", after)
 	}
 }

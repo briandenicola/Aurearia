@@ -36,7 +36,7 @@ func TestCoinCopilotCallbackRoutesRemainExactReadOnlySet(t *testing.T) {
 		routes = append(routes, string(match[1]))
 	}
 	sort.Strings(routes)
-	want := []string{"collection_summary", "get_coin", "search_my_collection", "top_coins_by_value"}
+	want := []string{"collection_summary", "deep_analysis_handoff", "get_coin", "search_my_collection", "top_coins_by_value"}
 	if len(routes) != len(want) {
 		t.Fatalf("callback routes=%v, want %v", routes, want)
 	}
@@ -62,6 +62,7 @@ func TestCoinCopilotInternalToolBindsExecutionOwnerAndCallID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CollectionUpdateProposal{}, &models.AppSetting{},
 		&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{},
@@ -69,6 +70,7 @@ func TestCoinCopilotInternalToolBindsExecutionOwnerAndCallID(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
+
 	_ = db.Create(&models.User{ID: 7, Username: "owner", Email: "owner@example.test", PasswordHash: "x"}).Error
 	_ = db.Create(&models.User{ID: 8, Username: "other", Email: "other@example.test", PasswordHash: "x"}).Error
 	_ = db.Create(&models.Coin{ID: 9, UserID: 7, Name: "Owned"}).Error
@@ -144,5 +146,114 @@ func TestCoinCopilotInternalToolBindsExecutionOwnerAndCallID(t *testing.T) {
 	}
 	if recorder := success(token, "call_5"); recorder.Code != http.StatusConflict {
 		t.Fatalf("exhausted budget status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDeepAnalysisHandoffAcceptsOnlyCanonicalExecutionToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tokenSvc := services.NewInternalTokenService("01234567890123456789012345678901")
+	router := gin.New()
+	router.POST(
+		"/deep_analysis_handoff",
+		middleware.CoinCopilotExecutionTokenRequired(tokenSvc, "deep_analysis_handoff"),
+		func(c *gin.Context) { c.Status(http.StatusNoContent) },
+	)
+
+	valid, err := tokenSvc.MintForCopilotExecution(
+		7, "ccr_handoff", "cce_handoff", []string{"deep_analysis_handoff"}, time.Minute,
+	)
+	if err != nil {
+		t.Fatalf("mint canonical execution token: %v", err)
+	}
+	internalService, err := tokenSvc.Mint(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deepJob, err := tokenSvc.MintForJob(7, 314)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongTool, err := tokenSvc.MintForCopilotExecution(
+		7, "ccr_handoff", "cce_handoff", []string{"get_coin"}, time.Minute,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := tokenSvc.MintForCopilotExecution(
+		7, "ccr_handoff", "cce_revoked", []string{"deep_analysis_handoff"}, time.Minute,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokenSvc.RevokeCopilotExecution("cce_revoked")
+
+	for name, token := range map[string]string{
+		"missing":                   "",
+		"user JWT":                  "header.payload.signature",
+		"internal service token":    internalService,
+		"Deep job token":            deepJob,
+		"wrong tool execution":      wrongTool,
+		"revoked execution token":   revoked,
+		"malformed execution token": "not-a-token",
+	} {
+		t.Run(name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/deep_analysis_handoff", nil)
+			if token != "" {
+				request.Header.Set("Authorization", "Bearer "+token)
+			}
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusUnauthorized {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/deep_analysis_handoff", nil)
+	request.Header.Set("Authorization", "Bearer "+valid)
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("canonical execution token status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestFeature362HandoffNondisclosureBodiesAreCanonicalAndCauseIndependent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name    string
+		outcome string
+		want    string
+	}{
+		{"unknown id", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"foreign job", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"legacy unbound intake", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"unknown source", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"arbitrary unbound job", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"deleted unbound coin", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"deleted discarded or promoted unbound draft", "not_eligible", `{"outcome":"not_eligible","reason":null}`},
+		{"previously bound target disappeared", "target_unavailable", `{"outcome":"target_unavailable","reason":null}`},
+		{"previously bound draft promoted", "target_unavailable", `{"outcome":"target_unavailable","reason":null}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			writeDeepAnalysisHandoffResult(context, services.DeepAnalysisHandoffResult{Outcome: test.outcome})
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if got := recorder.Body.String(); got != test.want {
+				t.Fatalf("public body=%q want exact canonical bytes %q", got, test.want)
+			}
+			for _, forbidden := range []string{
+				"job", "target", "source", "owner", "deleted", "promoted",
+				"legacy", "unknown", "internal", "diagnostic",
+			} {
+				if bytes.Contains(recorder.Body.Bytes(), []byte(`"`+forbidden+`"`)) {
+					t.Fatalf("public body leaked internal cause/metadata %q: %s", forbidden, recorder.Body.String())
+				}
+			}
+		})
 	}
 }

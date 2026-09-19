@@ -37,7 +37,8 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, d.logger)
 		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, d.cfg.UploadDir).
 			WithCoinValidation(coinSvc).
-			WithReferenceValidation(coinReferenceSvc)
+			WithReferenceValidation(coinReferenceSvc).
+			WithDeepProposalReferences(d.deepIdentificationRepo)
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, d.logger)
 		coinLookupHandler := handlers.NewCoinLookupHandler(d.coinLookupSvc, d.logger)
 		protected.GET("/coins", coinHandler.List)
