@@ -882,3 +882,37 @@ commit `4d3b6a06`, and the complete uncommitted `src/web` diff.
 **Verdict: REJECT.** Under Strict Lockout, Aurelia must not revise the rejected
 frontend artifacts. Reassign to Livia or another independent Vue/PWA specialist,
 then return to Brutus for explicit clearance.
+
+---
+
+## 2026-09-18 — Feature 361 foundational Python contracts: REJECT
+
+Reviewed only T002, T003, T004, T006, and T008. The 4×4 capability/outcome
+fixture matrix is present, targeted pytest passes 54/54, and targeted Ruff
+lint/format checks pass. Feature 359's strict-extra/shared-fixture/additive-event
+conventions are reused, and no Python runtime dispatch or user-story code was
+introduced.
+
+Blocking defects:
+
+1. Price-trend summaries are not validated as derivations of their evidence.
+   Mutating the complete fixture's `low/median/high` to `1/2/3`, or its coverage
+   dates to unrelated 2020 dates, is accepted although the observations remain
+   210/260/325 and dated in 2026. This violates the binding data-model rule that
+   aggregates are derived only from the comparable sample.
+2. T006 lacks adversarial price-specific contract tests for derived range,
+   median, coverage dates, mixed currency/price basis, and insufficient
+   directional evidence.
+3. T003's adversarial set omits contract-required invalid source-host,
+   malformed provider-attempt, token-shaped-content, mixed/incomparable trend,
+   and deterministic truncation cases. The prompt-injection fixture only proves
+   rejection of an extra top-level field; it does not exercise injection text
+   carried as untrusted provider evidence.
+4. T004/T006 bounds coverage is incomplete: only query, item-count, and title
+   limits are directly challenged; provider-attempt, warning, provenance,
+   URL, trend limitation/supporting-source, and capability-specific list bounds
+   are not independently exercised.
+
+Strict Lockout applies. Cassius must not revise this rejected batch. Revision
+owner: Livia. No product/test files were modified, and no commit or push was
+made.
