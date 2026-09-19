@@ -14,6 +14,30 @@ env:
   FEATURE362_GUARD_COMMIT: 0910bc7b86e6d5a567c62f8b25000c64fca493a2
 
 jobs:
+  browser-acceptance:
+    name: Coin Copilot browser acceptance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 20.19.0
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Coin Copilot and Deep Analysis workflows
+        run: npx playwright test "coin-copilot-deep-analysis|deep-analysis" --project=chromium
+
   guard-release:
     name: Release A guard
     runs-on: ubuntu-latest

@@ -147,6 +147,8 @@ test('mobile Coin Copilot opens the exact existing Deep Analysis review page wit
   expect(cardBox?.x).toBeGreaterThanOrEqual(0)
   expect((cardBox?.x ?? 0) + (cardBox?.width ?? 0)).toBeLessThanOrEqual(390)
 
-  await link.click()
+  await link.focus()
+  await expect(link).toBeFocused()
+  await page.keyboard.press('Enter')
   await expect(page).toHaveURL('/deep-analysis/17')
 })
