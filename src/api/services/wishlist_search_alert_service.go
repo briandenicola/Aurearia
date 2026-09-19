@@ -578,7 +578,11 @@ func (s *WishlistSearchAlertService) ConvertCandidate(alertID, candidateID, user
 	if err := s.coinSvc.prepareCoinForCreate(&coin); err != nil {
 		return nil, err
 	}
-	if err := s.repo.ConvertCandidateToWishlist(candidate, s.coinSvc.PreparedCoinCreator(&coin), action); err != nil {
+	creator := s.coinSvc.PreparedCoinCreator(&coin)
+	if len(warnings) > 0 && input.AcknowledgeDuplicateWarning {
+		creator = s.coinSvc.PreparedCoinCreatorWithAcknowledgedURLDuplicate(&coin)
+	}
+	if err := s.repo.ConvertCandidateToWishlist(candidate, creator, action); err != nil {
 		return nil, err
 	}
 	return &ConvertCandidateResult{Coin: coin, Candidate: *candidate, Warnings: warnings}, nil

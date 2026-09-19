@@ -118,7 +118,10 @@
           :can-cancel="copilotCanCancel"
           :cancelling="copilotCancelling"
           :truncated="copilotTruncated"
+          :adding-idx="addingIdx"
+          :added-set="addedSet"
           @cancel="cancelCopilotRun"
+          @add-to-wishlist="addCopilotDealerToWishlist"
         />
 
         <CopilotClarificationCard
@@ -199,7 +202,12 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import type { CoinSuggestion, CoinShow } from '@/types'
+import type {
+  CoinCopilotSpecialistCapability,
+  CoinCopilotSpecialistEvidence,
+  CoinSuggestion,
+  CoinShow,
+} from '@/types'
 import { AlertTriangle } from 'lucide-vue-next'
 import { useCoinSearchChat } from '@/composables/useCoinSearchChat'
 import { createNote, getApiErrorMessage } from '@/api/client'
@@ -212,6 +220,10 @@ import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 import CategoryEraConfirmModal from '@/components/chat/CategoryEraConfirmModal.vue'
 import CopilotRunProgress from '@/components/chat/CopilotRunProgress.vue'
 import CopilotClarificationCard from '@/components/chat/CopilotClarificationCard.vue'
+import {
+  copilotDealerListingToSuggestion,
+  isEligibleCopilotDealerListing,
+} from '@/utils/copilotWishlist'
 
 const props = defineProps<{
   loadConversation?: { id: number; title: string; messages: string } | null
@@ -278,6 +290,15 @@ const {
   inputBarEl,
   onAdded: () => emit('added'),
 })
+
+function addCopilotDealerToWishlist(
+  capability: CoinCopilotSpecialistCapability,
+  item: CoinCopilotSpecialistEvidence,
+  key: string,
+) {
+  if (!isEligibleCopilotDealerListing(capability, item)) return
+  void addToWishlist(copilotDealerListingToSuggestion(item), key)
+}
 
 function sendInitialPrompt(prompt?: string | null) {
   const text = prompt?.trim()

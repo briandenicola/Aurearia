@@ -480,7 +480,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   }
 
   async function addToWishlist(coin: CoinSuggestion, idx: string) {
-    if (addedSet.value.has(idx)) return
+    if (addingIdx.value !== null || addedSet.value.has(idx)) return
     addingIdx.value = idx
     try {
       const resolved = await resolveCategoryAndEra(

@@ -8,6 +8,7 @@ import type { CoinCopilotToolProgress } from '@/composables/useCoinCopilot'
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   resume: vi.fn(),
+  addToWishlist: vi.fn(),
   active: false,
   run: null as CoinCopilotRun | null,
   tools: [] as CoinCopilotToolProgress[],
@@ -64,7 +65,7 @@ vi.mock('@/composables/useCoinSearchChat', () => ({
     sendExample: vi.fn(),
     sendPortfolioAnalysis: vi.fn(),
     handleSave: vi.fn(),
-    addToWishlist: vi.fn(),
+    addToWishlist: mocks.addToWishlist,
     confirmCollectionProposal: vi.fn(),
     cancelCollectionProposalMessage: vi.fn(),
     pickDisambiguationCandidate: vi.fn(),
@@ -118,6 +119,15 @@ function specialistResult(
       observedAt: '2026-09-18T12:00:00Z',
       confidence: 'high',
       verificationState: 'verified',
+      description: 'Silver denarius with Minerva reverse',
+      dealerName: 'Classical Numismatic Group',
+      listedPrice: 275,
+      currency: 'USD',
+      availability: 'available',
+      ruler: 'Domitian',
+      denomination: 'Denarius',
+      era: 'Roman Imperial',
+      material: 'Silver',
       facts: ['Dealer: Classical Numismatic Group', 'Price: USD 275'],
       matchedAttributes: [],
       materialDifferences: [],
@@ -290,6 +300,49 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     } else {
       expect(specialist.find('a').exists()).toBe(false)
     }
+  })
+
+  it('rechecks and adapts an eligible dealer listing before invoking the existing wishlist action', async () => {
+    mocks.active = true
+    mocks.run = activeRun('completed')
+    const result = specialistResult('complete')
+    mocks.tools = [specialistTool(result)]
+    const wrapper = mountChat()
+
+    await wrapper.get('[data-testid="copilot-specialist-result"] button').trigger('click')
+
+    expect(mocks.addToWishlist).toHaveBeenCalledWith({
+      name: 'Domitian denarius',
+      description: 'Silver denarius with Minerva reverse',
+      category: '',
+      era: 'Roman Imperial',
+      ruler: 'Domitian',
+      material: 'Silver',
+      denomination: 'Denarius',
+      estPrice: 'USD 275',
+      imageUrl: '',
+      sourceUrl: 'https://www.cngcoins.com/Coin.aspx?CoinID=400001',
+      sourceName: 'Classical Numismatic Group',
+    }, 'copilot:call_complete:https://www.cngcoins.com/Coin.aspx?CoinID=400001')
+  })
+
+  it('rejects a forged ineligible wishlist event from the child component', async () => {
+    mocks.active = true
+    mocks.run = activeRun('completed')
+    const result = specialistResult('complete')
+    mocks.tools = [specialistTool(result)]
+    const wrapper = mountChat()
+    const progress = wrapper.findComponent({ name: 'CopilotRunProgress' })
+
+    progress.vm.$emit(
+      'addToWishlist',
+      'market_search',
+      { ...result.items[0], verificationState: 'partial' },
+      'forged-key',
+    )
+    await wrapper.vm.$nextTick()
+
+    expect(mocks.addToWishlist).not.toHaveBeenCalled()
   })
 
   it('renders cited trend direction, sample context, limitations, and safe supporting links', () => {

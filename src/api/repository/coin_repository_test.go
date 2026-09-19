@@ -92,6 +92,32 @@ func TestCoinRepository_FindByID_WrongUser(t *testing.T) {
 	}
 }
 
+func TestCoinRepository_FindWishlistByReferenceURLIsOwnerScoped(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	sourceURL := "https://dealer.example/coin/123"
+	for _, coin := range []*models.Coin{
+		{Name: "Owner one", Category: models.CategoryRoman, ReferenceURL: sourceURL, IsWishlist: true, UserID: 1},
+		{Name: "Owner two", Category: models.CategoryRoman, ReferenceURL: sourceURL, IsWishlist: true, UserID: 2},
+		{Name: "Collection coin", Category: models.CategoryRoman, ReferenceURL: sourceURL, UserID: 3},
+	} {
+		if err := repo.Create(coin); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	found, err := repo.FindWishlistByReferenceURL(2, sourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found.UserID != 2 || !found.IsWishlist {
+		t.Fatalf("owner-scoped result=%#v", found)
+	}
+	if _, err := repo.FindWishlistByReferenceURL(3, sourceURL); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("collection coin matched wishlist lookup: %v", err)
+	}
+}
+
 func TestCoinRepository_WithTx(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewCoinRepository(db)

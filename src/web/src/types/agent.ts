@@ -194,6 +194,15 @@ export interface CoinCopilotSpecialistEvidence {
   observedAt: string
   confidence: CoinCopilotEvidenceConfidence
   verificationState: 'verified' | 'partial'
+  description?: string
+  dealerName?: string
+  listedPrice?: number
+  currency?: string
+  availability?: 'available' | 'sold' | 'unknown'
+  ruler?: string
+  denomination?: string
+  era?: string
+  material?: string
   facts: string[]
   matchedAttributes: string[]
   materialDifferences: string[]

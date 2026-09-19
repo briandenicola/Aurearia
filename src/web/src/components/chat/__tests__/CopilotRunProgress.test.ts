@@ -98,6 +98,8 @@ function mountProgress(result?: DeepAnalysisHandoffResult) {
       canCancel: false,
       cancelling: false,
       truncated: false,
+      addingIdx: null,
+      addedSet: new Set<string>(),
     },
     global: { stubs: { RouterLink: routerLinkStub } },
   })

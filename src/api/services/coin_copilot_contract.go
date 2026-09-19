@@ -210,6 +210,15 @@ type CopilotSpecialistPublicEvidence struct {
 	ObservedAt          string   `json:"observedAt"`
 	Confidence          string   `json:"confidence"`
 	VerificationState   string   `json:"verificationState"`
+	Description         *string  `json:"description,omitempty"`
+	DealerName          *string  `json:"dealerName,omitempty"`
+	ListedPrice         *float64 `json:"listedPrice,omitempty"`
+	Currency            *string  `json:"currency,omitempty"`
+	Availability        *string  `json:"availability,omitempty"`
+	Ruler               *string  `json:"ruler,omitempty"`
+	Denomination        *string  `json:"denomination,omitempty"`
+	Era                 *string  `json:"era,omitempty"`
+	Material            *string  `json:"material,omitempty"`
 	Facts               []string `json:"facts"`
 	MatchedAttributes   []string `json:"matchedAttributes"`
 	MaterialDifferences []string `json:"materialDifferences"`
@@ -692,6 +701,28 @@ func ProjectCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapab
 			Facts: []string{}, MatchedAttributes: sanitizeSpecialistStrings(item.MatchedAttributes, 200),
 			MaterialDifferences: sanitizeSpecialistStrings(item.MaterialDifferences, 200),
 		}
+		projectString := func(field string, value *string, max int) *string {
+			if !proven[field] || value == nil {
+				return nil
+			}
+			sanitized := SanitizeCopilotText(*value, max)
+			if sanitized == "" {
+				return nil
+			}
+			return &sanitized
+		}
+		projected.Description = projectString("description", item.Description, 2000)
+		projected.DealerName = projectString("dealer_name", item.DealerName, 300)
+		if proven["listed_price"] && item.ListedPrice != nil {
+			value := *item.ListedPrice
+			projected.ListedPrice = &value
+		}
+		projected.Currency = projectString("currency", item.Currency, 3)
+		projected.Availability = projectString("availability", item.Availability, 50)
+		projected.Ruler = projectString("ruler", item.Ruler, 200)
+		projected.Denomination = projectString("denomination", item.Denomination, 200)
+		projected.Era = projectString("era", item.Era, 100)
+		projected.Material = projectString("material", item.Material, 100)
 		addSpecialistFact := func(field, label, value string) {
 			if proven[field] && value != "" {
 				projected.Facts = append(projected.Facts, label+": "+SanitizeCopilotText(value, 300))

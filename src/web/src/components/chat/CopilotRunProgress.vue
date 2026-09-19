@@ -114,6 +114,25 @@
             <ul v-if="item.facts.length" class="mb-0 flex list-none flex-col gap-1 p-0 text-xs">
               <li v-for="fact in item.facts" :key="fact">{{ fact }}</li>
             </ul>
+            <button
+              v-if="isEligibleCopilotDealerListing(tool.specialistResult.capability, item)"
+              type="button"
+              class="btn btn-xs btn-primary min-h-[44px] self-start"
+              :disabled="addingIdx === dealerListingKey(tool.toolCallId, item.sourceUrl) ||
+                addedSet.has(dealerListingKey(tool.toolCallId, item.sourceUrl))"
+              @click="$emit(
+                'addToWishlist',
+                tool.specialistResult.capability,
+                item,
+                dealerListingKey(tool.toolCallId, item.sourceUrl),
+              )"
+            >
+              {{ addedSet.has(dealerListingKey(tool.toolCallId, item.sourceUrl))
+                ? 'Added to Wishlist'
+                : addingIdx === dealerListingKey(tool.toolCallId, item.sourceUrl)
+                  ? 'Adding...'
+                  : 'Add to Wishlist' }}
+            </button>
           </article>
 
           <p v-if="tool.specialistResult.outcome === 'no_match'" class="mb-0 text-text-secondary">
@@ -235,10 +254,16 @@ import { CheckCircle2, Circle, CircleX, LoaderCircle, Square } from 'lucide-vue-
 import type {
   CoinCopilotPlanItem,
   CoinCopilotRun,
+  CoinCopilotSpecialistCapability,
+  CoinCopilotSpecialistEvidence,
   DeepAnalysisHandoffResult,
   DeepAnalysisHandoffTruncation,
 } from '@/types'
 import type { CoinCopilotToolProgress } from '@/composables/useCoinCopilot'
+import {
+  copilotDealerListingKey,
+  isEligibleCopilotDealerListing,
+} from '@/utils/copilotWishlist'
 
 const props = defineProps<{
   run: CoinCopilotRun | null
@@ -247,10 +272,17 @@ const props = defineProps<{
   canCancel: boolean
   cancelling: boolean
   truncated: boolean
+  addingIdx: string | null
+  addedSet: Set<string>
 }>()
 
 defineEmits<{
   cancel: []
+  addToWishlist: [
+    capability: CoinCopilotSpecialistCapability,
+    item: CoinCopilotSpecialistEvidence,
+    key: string,
+  ]
 }>()
 
 const statusLabel = computed(() => {
@@ -319,6 +351,10 @@ function omittedCount(truncation: DeepAnalysisHandoffTruncation) {
     truncation.omitted_evidence +
     truncation.omitted_disagreements +
     truncation.omitted_questions
+}
+
+function dealerListingKey(toolCallId: string, sourceUrl: string) {
+  return copilotDealerListingKey(toolCallId, sourceUrl)
 }
 
 function deepLimitations(result: Extract<DeepAnalysisHandoffResult, { schema_version: 1 }>) {
