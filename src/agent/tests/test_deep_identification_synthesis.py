@@ -53,6 +53,41 @@ def test_provider_empty_with_hypothesis_present_does_not_fall_back():
     assert synthesis.narrative != FALLBACK_NARRATIVE_NO_EVIDENCE
 
 
+def test_narrative_receives_detailed_collector_context_as_unverified_evidence():
+    class CapturingModel:
+        messages = None
+
+        async def ainvoke(self, messages):
+            self.messages = messages
+            return type("Response", (), {"content": "The collector attribution is an unverified lead."})()
+
+    model = CapturingModel()
+    synthesis = asyncio.run(
+        synthesize(
+            model,
+            [_no_match_row("numista")],
+            disagreements=[],
+            unresolved_questions=[],
+            partial_success=False,
+            hypothesis=CoinHypothesis(
+                ruler=HypothesisField(value="Probus", confidence=0.7),
+                legible=True,
+            ),
+            notes=(
+                "Our office is closed from 06 to 30 September 2026. "
+                "Probus (AD 276-282). BI Antoninianus. Tripolis mint. "
+                "R/ CLEMENTIA TEMP. RIC V.2 927."
+            ),
+        )
+    )
+
+    prompt = model.messages[1].content
+    assert "Collector-supplied context (unverified)" in prompt
+    assert "Probus (AD 276-282)" in prompt
+    assert "RIC V.2 927" in prompt
+    assert synthesis.narrative == "The collector attribution is an unverified lead."
+
+
 def test_provider_empty_and_hypothesis_empty_falls_back():
     evidence = [_no_match_row("numista"), _no_match_row("nomisma")]
 

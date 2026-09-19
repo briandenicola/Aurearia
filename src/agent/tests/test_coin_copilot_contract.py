@@ -19,6 +19,7 @@ from app.models.requests import (
 )
 from app.models.responses import (
     CopilotExecutionFrame,
+    CopilotToolCompletedPayload,
     DeepAnalysisHandoffResult,
     validate_deep_analysis_handoff_persisted_result_envelope,
     validate_deep_analysis_handoff_public_event_envelope,
@@ -185,6 +186,38 @@ def test_deep_analysis_handoff_callback_registry_and_model_authority_are_closed(
             DeepAnalysisHandoffArguments.model_validate(
                 {"operation": "request", "target": {"type": "coin", "id": 42}, field: "forged"}
             )
+
+
+def test_deep_analysis_handoff_bounded_fallback_is_valid_for_live_frame_and_checkpoint():
+    fallback = _bounded_fallback()
+
+    frame_payload = CopilotToolCompletedPayload.model_validate(
+        {
+            "tool_call_id": "call_status_01",
+            "tool_name": "deep_analysis_handoff",
+            "step_id": "step_status_01",
+            "status": "succeeded",
+            "duration_ms": 12,
+            "result_summary": "Deep Analysis status loaded.",
+            "result": fallback,
+        }
+    )
+    checkpoint_tool = CopilotCompletedTool.model_validate(
+        {
+            "tool_call_id": "call_status_01",
+            "tool_name": "deep_analysis_handoff",
+            "result_digest": fallback["digest"],
+            "result": fallback,
+            "original_bytes": fallback["original_bytes"],
+            "persisted_bytes": len(
+                json.dumps(fallback, separators=(",", ":"), sort_keys=True).encode()
+            ),
+            "truncated": True,
+        }
+    )
+
+    assert frame_payload.result == fallback
+    assert checkpoint_tool.result == fallback
 
 
 @pytest.mark.asyncio

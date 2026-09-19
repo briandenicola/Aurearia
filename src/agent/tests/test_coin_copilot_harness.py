@@ -202,6 +202,51 @@ async def test_deep_analysis_request_and_rerun_execute_without_tool_overlap(oper
 
 
 @pytest.mark.asyncio
+async def test_deep_analysis_bounded_fallback_survives_live_frame_and_checkpoint():
+    class BoundedHandoffToolClient:
+        async def execute(self, _name, _call_id, _args):
+            digest = "a" * 64
+            return (
+                {
+                    "truncated": True,
+                    "original_bytes": 65536,
+                    "digest": digest,
+                    "summary": "Tool result exceeded the persisted-result limit.",
+                },
+                65536,
+                True,
+                digest,
+            )
+
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "deep_analysis_handoff",
+                        "args": {"operation": "request", "target": {"type": "coin", "id": 42}},
+                        "id": "call_handoff",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content="Deep Analysis was accepted."),
+        ]
+    )
+    request = _request()
+    request.allowed_tools.append("deep_analysis_handoff")
+
+    frames = await _frames(request, model, BoundedHandoffToolClient())
+
+    completed = next(frame for frame in frames if frame.type == "tool_completed")
+    checkpoint = next(frame for frame in frames if frame.type == "checkpoint")
+    assert completed.payload.result["summary"] == "Tool result exceeded the persisted-result limit."
+    assert checkpoint.payload.completed_tools[0].result["digest"] == "a" * 64
+    assert frames[-1].type == "completed"
+
+
+@pytest.mark.asyncio
 async def test_multi_tool_completion_is_sequential_and_typed():
     model = _SequenceModel(
         [
@@ -293,7 +338,8 @@ async def test_checkpoint_compacts_completed_results_before_frame_limit():
     checkpoints = [frame.payload for frame in frames if frame.type == "checkpoint"]
     assert checkpoints
     assert all(len(checkpoint.model_dump_json().encode("utf-8")) <= 64 * 1024 for checkpoint in checkpoints)
-    assert any(tool.truncated for tool in checkpoints[0].completed_tools)
+    compacted = next(tool for tool in checkpoints[0].completed_tools if tool.truncated)
+    assert compacted.result["summary"] == "Tool result exceeded the persisted-result limit."
     assert frames[-1].type == "completed"
 
 

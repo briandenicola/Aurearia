@@ -77,7 +77,12 @@ async def prepare_evidence_node(state: DeepIdentificationState, llm_config: LLMC
         hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
         source = "deterministic_fallback"
     else:
-        hypothesis, source = await build_hypothesis_from_vision_traced(llm_config, image_contents, quick_evidence)
+        hypothesis, source = await build_hypothesis_from_vision_traced(
+            llm_config,
+            image_contents,
+            quick_evidence,
+            state.get("notes", ""),
+        )
     return {"hypothesis": hypothesis, "hypothesis_source": source}
 
 
@@ -293,6 +298,7 @@ async def synthesizer_node(state: DeepIdentificationState, model, partial_succes
         unresolved_questions,
         partial_success,
         hypothesis=state.get("hypothesis"),
+        notes=state.get("notes", ""),
     )
     return {"synthesis": synthesis.model_dump()}
 
@@ -528,6 +534,7 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
                 unresolved_questions,
                 partial_success=True,
                 hypothesis=state.get("hypothesis"),
+                notes=state.get("notes", ""),
             )
             yield _emit({"type": "synthesis", "report": synthesis.model_dump()})
         except Exception:

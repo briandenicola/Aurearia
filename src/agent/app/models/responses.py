@@ -323,7 +323,11 @@ class CopilotToolCompletedPayload(CopilotToolStartedPayload):
             try:
                 self.result = DeepAnalysisHandoffResult.model_validate(self.result)
             except ValueError as exc:
-                raise ValueError("Deep Analysis handoff result is invalid") from exc
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValueError:
+                    raise ValueError("Deep Analysis handoff result is invalid") from exc
+                self.result = fallback.model_dump(mode="json")
             return self
         if self.tool_name in COPILOT_SPECIALIST_TOOLS:
             try:

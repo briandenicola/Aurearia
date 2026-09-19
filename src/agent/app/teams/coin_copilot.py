@@ -208,7 +208,7 @@ def _build_checkpoint(
             "truncated": True,
             "original_bytes": tool["original_bytes"],
             "digest": tool["result_digest"],
-            "summary": "Tool result exceeded the persisted checkpoint limit.",
+            "summary": "Tool result exceeded the persisted-result limit.",
         }
         tool["result"] = compacted
         tool["persisted_bytes"] = len(

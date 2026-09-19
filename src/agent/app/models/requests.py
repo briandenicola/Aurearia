@@ -256,7 +256,15 @@ class CopilotCompletedTool(StrictRequestModel):
             try:
                 self.result = DeepAnalysisHandoffResult.model_validate(self.result)
             except ValueError as exc:
-                raise ValueError("Deep Analysis handoff result is invalid") from exc
+                if not self.truncated:
+                    raise ValueError("Deep Analysis handoff result is invalid") from exc
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValidationError:
+                    raise ValueError(
+                        "truncated Deep Analysis handoff results require the bounded fallback envelope"
+                    ) from exc
+                self.result = fallback.model_dump(mode="json")
             return self
         if self.tool_name in COPILOT_SPECIALIST_TOOLS:
             if self.truncated:
