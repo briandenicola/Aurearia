@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 from datetime import UTC, datetime
 
 import httpx
@@ -1133,3 +1134,91 @@ async def test_market_search_reports_failure_when_pages_are_blocked_and_search_h
 
     assert result.outcome == "unavailable"
     assert result.provider_attempts[0].status == "failure"
+
+
+@pytest.mark.asyncio
+async def test_dealer_pages_are_fetched_one_host_at_a_time_with_a_pause(monkeypatch):
+    from app.teams import coin_search
+
+    order = []
+    in_flight = {"vcoins.com": 0, "ma-shops.com": 0}
+    monkeypatch.setattr(coin_search.settings, "dealer_fetch_delay_seconds", 0.05)
+
+    async def specialist_fetch(url, _allowed_hosts):
+        host = coin_search._fetch_host(url)
+        in_flight[host] += 1
+        assert in_flight[host] == 1, "a single host must never be fetched concurrently"
+        order.append(url)
+        await asyncio.sleep(0)
+        in_flight[host] -= 1
+        return f"listing for {url}"
+
+    monkeypatch.setattr(coin_search, "fetch_registered_dealer_page", specialist_fetch)
+
+    search_results = (
+        "https://www.vcoins.com/a/1 https://www.vcoins.com/a/2 https://www.ma-shops.com/b/1"
+    )
+    started = time.monotonic()
+    fetched = await coin_search._fetch_dealer_pages(
+        search_results, {"vcoins.com", "ma-shops.com"}, specialist_boundary=True
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed >= 0.05, "a second request to one host must wait for the configured delay"
+    assert order.index("https://www.vcoins.com/a/1") < order.index("https://www.vcoins.com/a/2")
+    assert fetched.count("--- Source: ") == 3
+
+
+@pytest.mark.asyncio
+async def test_dealer_fetches_are_capped_per_host_and_overall(monkeypatch):
+    from app.teams import coin_search
+
+    attempted = []
+    monkeypatch.setattr(coin_search.settings, "dealer_fetch_delay_seconds", 0)
+
+    async def specialist_fetch(url, _allowed_hosts):
+        attempted.append(url)
+        return f"listing for {url}"
+
+    monkeypatch.setattr(coin_search, "fetch_registered_dealer_page", specialist_fetch)
+
+    search_results = " ".join(
+        [f"https://www.vcoins.com/a/{index}" for index in range(6)]
+        + [f"https://www.ma-shops.com/b/{index}" for index in range(4)]
+    )
+    await coin_search._fetch_dealer_pages(
+        search_results, {"vcoins.com", "ma-shops.com"}, specialist_boundary=True
+    )
+
+    assert len(attempted) == coin_search.settings.max_dealer_pages
+    per_host = {}
+    for url in attempted:
+        host = coin_search._fetch_host(url)
+        per_host[host] = per_host.get(host, 0) + 1
+    assert max(per_host.values()) <= coin_search.settings.max_dealer_pages_per_host
+
+
+@pytest.mark.asyncio
+async def test_a_rate_limited_host_is_not_hit_again_in_the_same_search(monkeypatch):
+    from app.teams import coin_search
+
+    attempted = []
+    monkeypatch.setattr(coin_search.settings, "dealer_fetch_delay_seconds", 0)
+
+    async def specialist_fetch(url, _allowed_hosts):
+        attempted.append(url)
+        if coin_search._fetch_host(url) == "vcoins.com":
+            raise httpx.TransportError("dealer source returned a non-success status")
+        return f"listing for {url}"
+
+    monkeypatch.setattr(coin_search, "fetch_registered_dealer_page", specialist_fetch)
+
+    search_results = (
+        "https://www.vcoins.com/a/1 https://www.vcoins.com/a/2 https://www.ma-shops.com/b/1"
+    )
+    fetched = await coin_search._fetch_dealer_pages(
+        search_results, {"vcoins.com", "ma-shops.com"}, specialist_boundary=True
+    )
+
+    assert attempted.count("https://www.vcoins.com/a/2") == 0
+    assert "https://www.ma-shops.com/b/1" in fetched

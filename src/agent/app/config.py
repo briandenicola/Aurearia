@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     trusted_outbound_origins: str = ""
     allow_local_outbound: bool = False
     max_search_results: int = 10
+    # Dealer sites rate-limit bursts, so pages are fetched one host at a time
+    # with a pause between requests. A browser User-Agent can be pinned here
+    # when the default drifts out of date.
+    max_dealer_pages: int = 5
+    max_dealer_pages_per_host: int = 3
+    dealer_fetch_delay_seconds: float = 1.0
+    dealer_user_agent: str = ""
     verification_timeout: int = 10
     max_supervisor_iterations: int = 25
 

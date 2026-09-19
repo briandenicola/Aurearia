@@ -6,10 +6,11 @@ Phase 2: We fetch dealer pages from the URLs found and extract real listings.
 Phase 3: Format the extracted listings into the CoinSuggestion JSON schema.
 """
 
+import asyncio
 import json
 import logging
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Any, TypedDict
 from urllib.parse import urlparse
@@ -18,6 +19,7 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
+from app.config import settings
 from app.llm.content import extract_search_text, extract_text_content
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
@@ -139,28 +141,86 @@ async def _search_dealer_pages(
     return extract_search_text(response.content)
 
 
+def _fetch_host(url: str) -> str:
+    return (urlparse(url).hostname or "").lower().removeprefix("www.")
+
+
+def _select_fetch_urls(urls: list[str]) -> list[tuple[str, str]]:
+    """Pick the pages to fetch, capped per host and overall, in search order."""
+    selected: list[tuple[str, str]] = []
+    per_host: dict[str, int] = {}
+    for url in urls:
+        host = _fetch_host(url)
+        if per_host.get(host, 0) >= settings.max_dealer_pages_per_host:
+            continue
+        per_host[host] = per_host.get(host, 0) + 1
+        selected.append((host, url))
+        if len(selected) >= settings.max_dealer_pages:
+            break
+    return selected
+
+
+async def _fetch_host_pages(
+    host: str,
+    urls: list[str],
+    fetch_one: Callable[[str], Awaitable[Any]],
+) -> dict[str, Any]:
+    """Fetch one host's pages one at a time, pausing between requests.
+
+    Dealers rate-limit bursts, so a host is never fetched concurrently and is
+    dropped as soon as it refuses a request.
+    """
+    results: dict[str, Any] = {}
+    for index, url in enumerate(urls):
+        if index:
+            await asyncio.sleep(settings.dealer_fetch_delay_seconds)
+        try:
+            results[url] = await fetch_one(url)
+        except Exception as exc:
+            logger.warning(
+                "[coin_search] dealer page fetch failed host=%s error_type=%s",
+                host,
+                type(exc).__name__,
+            )
+            results[url] = exc
+            break
+    return results
+
+
 async def _fetch_dealer_pages(
     search_results: str,
     allowed_fetch_hosts: set[str] | None,
     *,
     specialist_boundary: bool,
 ) -> str:
-    import asyncio
-
     urls = _filter_allowed_fetch_urls(_extract_urls(search_results), allowed_fetch_hosts)
     if not urls:
         return ""
-    if specialist_boundary:
-        tasks = [fetch_registered_dealer_page(url, allowed_fetch_hosts or set()) for url in urls[:5]]
-    else:
-        tasks = [fetch_dealer_page.ainvoke({"url": url}) for url in urls[:5]]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def fetch_one(url: str) -> Any:
+        if specialist_boundary:
+            return await fetch_registered_dealer_page(url, allowed_fetch_hosts or set())
+        return await fetch_dealer_page.ainvoke({"url": url})
+
+    selected = _select_fetch_urls(urls)
+    by_host: dict[str, list[str]] = {}
+    for host, url in selected:
+        by_host.setdefault(host, []).append(url)
+    host_results = await asyncio.gather(
+        *(_fetch_host_pages(host, host_urls, fetch_one) for host, host_urls in by_host.items())
+    )
+    results: dict[str, Any] = {}
+    for host_result in host_results:
+        results.update(host_result)
+
     fetched = []
     failures: list[Exception] = []
-    for url, result in zip(urls[:5], results):
+    for _host, url in selected:
+        result = results.get(url)
         if isinstance(result, Exception):
-            logger.warning("[coin_search] dealer page fetch failed")
             failures.append(result)
+            continue
+        if result is None:
             continue
         text = str(result)
         if not text.startswith("Error"):

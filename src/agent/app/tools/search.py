@@ -120,15 +120,18 @@ def create_searxng_search(searxng_url: str = ""):
     return searxng_search
 
 
-# Standard browser user-agent— many dealer sites block bot-like strings
-_USER_AGENT = (
+# Standard browser user-agent — many dealer sites block bot-like strings.
+# A stale version is itself a weak bot signal, so set AGENT_DEALER_USER_AGENT
+# to the browser string you actually use when this default falls behind.
+_DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
+    "Chrome/140.0.0.0 Safari/537.36"
 )
+_USER_AGENT = settings.dealer_user_agent or _DEFAULT_USER_AGENT
 _BROWSER_HEADERS = {
     "User-Agent": _USER_AGENT,
-    "Accept": "text/html,application/xhtml+xml",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
 

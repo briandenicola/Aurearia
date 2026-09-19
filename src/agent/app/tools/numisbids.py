@@ -12,15 +12,9 @@ import httpx
 from langchain_core.tools import tool
 
 from app.teams.specialist_contracts import validate_registered_source_url
-from app.tools.search import safe_registered_get
+from app.tools.search import _BROWSER_HEADERS, safe_registered_get
 
 logger = logging.getLogger(__name__)
-
-_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
-)
 
 _NUMISBIDS_BASE = "https://www.numisbids.com"
 
@@ -84,7 +78,7 @@ async def scrape_numisbids_lot(url: str) -> dict:
             url,
             validator=validate_numisbids_url,
             field_name="url",
-            headers={"User-Agent": _USER_AGENT},
+            headers=_BROWSER_HEADERS,
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
         )
 
@@ -232,7 +226,7 @@ async def search_numisbids(query: str) -> list[dict]:
             validator=validate_numisbids_url,
             field_name="search_url",
             params={"searchall": query},
-            headers={"User-Agent": _USER_AGENT},
+            headers=_BROWSER_HEADERS,
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
         )
 
