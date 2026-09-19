@@ -177,8 +177,16 @@ Date: 2026-09-18
   T079 can close.
 - `.github/workflows/security-scan.yml` now includes app and agent OCI image
   builds with BuildKit SBOM/provenance, Trivy High/Critical enforcement,
-  exported SPDX SBOM artifacts, and push provenance attestations. T079 remains
-  open until those hosted jobs and the existing agent no-pip/health job pass.
+  exported SPDX SBOM artifacts, and push provenance attestations.
+- Initial OCI-layout scans correctly found patchable High/Critical runtime OS
+  vulnerabilities. The app and agent runtime stages now install available
+  Alpine/Debian security updates before running as their existing non-root
+  users.
+- Hosted [Security Scan run 35415353770](https://github.com/briandenicola/Aurearia/actions/runs/35415353770)
+  passed all seven jobs: Gitleaks, Govulncheck, npm audit, pip-audit, agent
+  no-pip/health, and app/agent container security. Both container jobs passed
+  Trivy with zero fixable High/Critical findings, exported SPDX SBOMs, and
+  completed provenance attestations. This closes T079.
 
 ## Feature 362 browser and mobile evidence
 
