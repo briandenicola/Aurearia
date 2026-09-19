@@ -885,6 +885,39 @@ func (p *AgentProxy) WishlistFeaturedSummary(ctx context.Context, req WishlistFe
 	return strings.TrimSpace(result.Summary), nil
 }
 
+func (p *AgentProxy) ExtractWishlistURL(ctx context.Context, request WishlistURLExtractionRequest) (*WishlistURLExtractionResponse, error) {
+	body, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshal wishlist URL extraction request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/wishlist-url/extract", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create wishlist URL extraction request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("wishlist URL extraction request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("wishlist URL extraction returned %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
+
+	var result WishlistURLExtractionResponse
+	decoder := json.NewDecoder(io.LimitReader(resp.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode wishlist URL extraction response: %w", err)
+	}
+	return &result, nil
+}
+
 // FetchLogsretrieves log entries from the Python agent's /logs endpoint
 // and returns them as LogEntry slices compatible with the Go logger format.
 func (p *AgentProxy) FetchLogs(ctx context.Context, limit int, level string) []LogEntry {

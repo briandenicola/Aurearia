@@ -2265,6 +2265,11 @@ definitions:
       verificationStatus:
         type: string
     type: object
+  handlers.wishlistURLRequest:
+    properties:
+      url:
+        type: string
+    type: object
   models.AIJob:
     properties:
       attempts:
@@ -5106,6 +5111,91 @@ definitions:
         type: integer
       fromValuationHistory:
         type: integer
+    type: object
+  services.WishlistURLAnalysis:
+    properties:
+      existingCoinId:
+        type: integer
+      hypothesis:
+        $ref: '#/definitions/services.WishlistURLHypothesis'
+      imageUrl:
+        type: string
+      outcome:
+        type: string
+      pageTitle:
+        type: string
+      schemaVersion:
+        type: integer
+      sourceUrl:
+        type: string
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  services.WishlistURLHypothesis:
+    properties:
+      category:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      coin_type:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      currency:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      dateRange:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      dealerName:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      denomination:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      diameterMm:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      era:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      grade:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      legible:
+        type: boolean
+      listedPrice:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      listingStatus:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      material:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      mint:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      name:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      notes:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      observations:
+        type: string
+      obverseDescription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      obverseInscription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      rarityRating:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      references:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      reverseDescription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      reverseInscription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      ruler:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      weightGrams:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+    type: object
+  services.WishlistURLHypothesisField:
+    properties:
+      confidence:
+        type: number
+      evidence:
+        items:
+          type: string
+        type: array
+      value:
+        type: string
     type: object
 info:
   contact: {}
@@ -17411,6 +17501,51 @@ paths:
       summary: Get wishlist search alert run
       tags:
       - Wishlist Search Alerts
+  /wishlist/url-intake/analyze:
+    post:
+      consumes:
+      - application/json
+      description: Retrieves one bounded public HTML page and returns an editable
+        transient coin proposal. No coin is created.
+      parameters:
+      - description: Public listing URL
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.wishlistURLRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.WishlistURLAnalysis'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Analyze wishlist listing URL
+      tags:
+      - Wishlist
 securityDefinitions:
   ApiKeyAuth:
     description: Enter your API key, e.g. "ak_a1b2c3d4..."

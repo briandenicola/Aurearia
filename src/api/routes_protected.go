@@ -87,6 +87,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 
 		protected.GET("/collector-profile", d.collectorProfileHandler.Get)
 		protected.PUT("/collector-profile", d.writeRateLimit, d.collectorProfileHandler.Put)
+		protected.POST("/wishlist/url-intake/analyze", d.writeRateLimit, d.wishlistURLHandler.Analyze)
 
 		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
 		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)

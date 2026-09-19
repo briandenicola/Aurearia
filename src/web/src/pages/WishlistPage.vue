@@ -79,6 +79,8 @@
       </div>
     </div>
 
+    <WishlistURLIntake @created="loadCoins" />
+
     <div
       v-if="checkResult"
       class="mb-4 flex flex-wrap items-center gap-4 rounded-md border border-border-subtle bg-card px-4 py-3 text-body"
@@ -157,6 +159,7 @@ import { useCoinsStore } from '@/stores/coins'
 import CoinCard from '@/components/CoinCard.vue'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
+import WishlistURLIntake from '@/components/wishlist/WishlistURLIntake.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus, listPurchaseReminders } from '@/api/client'
 import type { Coin, AvailabilityRunSummary, PurchaseReminder } from '@/types'
 import { CirclePlus, Bot, ShieldCheck, CalendarClock, History } from 'lucide-vue-next'

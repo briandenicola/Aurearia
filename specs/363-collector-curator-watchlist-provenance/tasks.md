@@ -105,19 +105,19 @@ confirmation, and no auction subsystem state changes.
 
 ### Tests for User Story 4 — write and run first
 
-- [ ] T030 [P] [US4] Add failing URL-policy tests for normalization, tracking removal, meaningful fragments, public HTTP(S)-only hosts, IP literals, credentials, DNS/private ranges, redirect revalidation, response byte/content-type/time limits, and single-page/no-link crawling.
-- [ ] T031 [P] [US4] Add failing extraction contract tests for chrome removal, repeated/related listing exclusion, strict stated-fact mapping, legend/description separation, numeric normalization, sold/reserved/closed status, missing values, thin content, malformed model output, and bounded optional commentary.
-- [ ] T032 [P] [US4] Add failing owner-scope and idempotency tests for canonical-URL duplicate short-circuit, cross-owner independence, repeated confirmation, concurrent creation, cancellation, and no partial coin after validation or creation failure.
-- [ ] T033 [P] [US4] Add failing browser tests for URL entry, optional image, pending/duplicate/needs-review/ready/failed/cancelled/created/image-warning states, editable allowlisted fields, explicit confirmation, keyboard use, 44px controls, dark theme, and 320px/PWA layout.
-- [ ] T034 [P] [US4] Add a failing architecture guard proving URL intake does not import or invoke auction models, repositories, services, routes, tracked-lot state, bid state, synchronization, or conversion behavior.
+- [x] T030 [P] [US4] Add failing URL-policy tests for normalization, tracking removal, meaningful fragments, public HTTP(S)-only hosts, IP literals, credentials, DNS/private ranges, redirect revalidation, response byte/content-type/time limits, and single-page/no-link crawling.
+- [x] T031 [P] [US4] Add failing extraction contract tests for chrome removal, repeated/related listing exclusion, strict stated-fact mapping, legend/description separation, numeric normalization, sold/reserved/closed status, missing values, thin content, malformed model output, and bounded optional commentary.
+- [x] T032 [P] [US4] Add failing owner-scope and idempotency tests for canonical-URL duplicate short-circuit, cross-owner independence, repeated confirmation, concurrent creation, cancellation, and no partial coin after validation or creation failure.
+- [x] T033 [P] [US4] Add failing browser tests for URL entry, optional image, pending/duplicate/needs-review/ready/failed/cancelled/created/image-warning states, editable allowlisted fields, explicit confirmation, keyboard use, 44px controls, dark theme, and 320px/PWA layout.
+- [x] T034 [P] [US4] Add a failing architecture guard proving URL intake does not import or invoke auction models, repositories, services, routes, tracked-lot state, bid state, synchronization, or conversion behavior.
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] Define strict URL intake, transient proposal, extracted field, listing-status, limitation, and outcome contracts without action-stage persistence or credentials.
-- [ ] T036 [US4] Implement canonicalization, owner-scoped duplicate lookup, SSRF-safe initial/redirect validation, and bounded single-page retrieval by extending existing URL/HTTP helpers rather than creating a general crawler.
-- [ ] T037 [US4] Implement deterministic content cleanup and strict structured extraction that preserves source provenance, missing fields, listing status, and page-stated versus AI-commentary boundaries.
-- [ ] T038 [US4] Build the responsive URL intake and transient review/edit/confirm UI, including explicit limitations and optional image preview, using existing design tokens and wishlist field controls.
-- [ ] T039 [US4] Route confirmed proposals through canonical wishlist validation and creation exactly once, then attach at most one safe image best-effort and report the final outcome without touching auction state.
+- [x] T035 [US4] Define strict URL intake, transient proposal, extracted field, listing-status, limitation, and outcome contracts without action-stage persistence or credentials.
+- [x] T036 [US4] Implement canonicalization, owner-scoped duplicate lookup, SSRF-safe initial/redirect validation, and bounded single-page retrieval by extending existing URL/HTTP helpers rather than creating a general crawler.
+- [x] T037 [US4] Implement deterministic content cleanup and strict structured extraction that preserves source provenance, missing fields, listing status, and page-stated versus AI-commentary boundaries.
+- [x] T038 [US4] Build the responsive URL intake and transient review/edit/confirm UI, including explicit limitations and optional image preview, using existing design tokens and wishlist field controls.
+- [x] T039 [US4] Route confirmed proposals through canonical wishlist validation and creation exactly once, then attach at most one safe image best-effort and report the final outcome without touching auction state.
 
 **Checkpoint**: US4 replaces the n8n workflow inside the authenticated app;
 retrieval and extraction remain read-only until explicit owner confirmation.
@@ -128,10 +128,10 @@ retrieval and extraction remain read-only until explicit owner confirmation.
 
 **Purpose**: Prove the three increments together, preserve existing boundaries, and hand off the separately tracked combined F014/F015 audit before v4.2.
 
-- [ ] T040 Add profile-route/OpenAPI drift assertions for only GET/PUT `/api/collector-profile`, bounded URL-intake surfaces, absence of wishlist-action/Python callback routes, optional dealer projection fields, and unchanged existing contracts in `src/api/openapi_feature363_test.go`
-- [ ] T041 Regenerate and verify Swagger/OpenAPI for the profile handlers, additive dealer fields, and URL intake using `task openapi`, updating only `src/api/docs/docs.go`, `src/api/docs/swagger.json`, `src/api/docs/swagger.yaml`, and `docs/openapi.json`
-- [ ] T042 Run the focused Go, Python, and Vue suites from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; record exact commands/results plus controlled profile-isolation, curator-read-only, eligibility-tamper, URL-policy, extraction, field-separation, duplicate, cancellation, auction-isolation, and image-failure evidence in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
-- [ ] T043 Run the full Go build/vet/test/architecture, Python ruff/pytest, Vue lint/type-check/test/build, and OpenAPI cleanliness gates from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; inventory the final diff to prove no excluded subsystem or new platform/action lifecycle was added, and record results in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
+- [x] T040 Add profile-route/OpenAPI drift assertions for only GET/PUT `/api/collector-profile`, bounded URL-intake surfaces, absence of wishlist-action/Python callback routes, optional dealer projection fields, and unchanged existing contracts in `src/api/openapi_feature363_test.go`
+- [x] T041 Regenerate and verify Swagger/OpenAPI for the profile handlers, additive dealer fields, and URL intake using `task openapi`, updating only `src/api/docs/docs.go`, `src/api/docs/swagger.json`, `src/api/docs/swagger.yaml`, and `docs/openapi.json`
+- [x] T042 Run the focused Go, Python, and Vue suites from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; record exact commands/results plus controlled profile-isolation, curator-read-only, eligibility-tamper, URL-policy, extraction, field-separation, duplicate, cancellation, auction-isolation, and image-failure evidence in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
+- [x] T043 Run the full Go build/vet/test/architecture, Python ruff/pytest, Vue lint/type-check/test/build, and OpenAPI cleanliness gates from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; inventory the final diff to prove no excluded subsystem or new platform/action lifecycle was added, and record results in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
 - [ ] T044 After T043 and before the v4.2 release, execute the separately tracked combined F014/F015 engineering audit, resolve every release-blocking finding, and record scope, findings, dispositions, and release decision in `specs/363-collector-curator-watchlist-provenance/qc-audit.md`
 
 ---

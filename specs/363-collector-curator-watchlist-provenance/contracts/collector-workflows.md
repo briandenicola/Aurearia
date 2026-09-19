@@ -292,3 +292,45 @@ Go, Python, and TypeScript tests cover:
 - category/era cancellation;
 - repeated click and owner/reference duplicate conflict;
 - image success/failure after one successful coin create.
+
+## 11. Native wishlist URL intake
+
+Base path: `POST /api/wishlist/url-intake/analyze`.
+
+The authenticated request contains only one public HTTP(S) `url`. Go:
+
+1. canonicalizes scheme/host/default ports and removes known tracking
+   parameters while preserving listing-identifying query values and fragments;
+2. returns an owner-scoped existing wishlist coin before network retrieval
+   when the canonical URL is already present;
+3. rejects credentials, localhost, IP literals, and DNS results in private,
+   loopback, link-local, multicast, carrier-grade NAT, benchmark, or reserved
+   ranges for both the initial request and every redirect;
+4. retrieves one HTML page with a 12-second timeout, five-redirect limit,
+   1 MiB response limit, four-request concurrency bound, and no link crawling;
+5. removes scripts, styles, navigation, forms, bidding controls, cookie and
+   shipping notices, countdowns, errors, and related listing containers before
+   sending bounded text to the stateless Python extractor.
+
+`200` returns schema version `1` and one outcome:
+
+- `duplicate`, with `sourceUrl` and `existingCoinId`;
+- `needs_review`, with a transient hypothesis missing a supported name;
+- `ready`, with a transient hypothesis containing a supported name.
+
+Every extracted field carries a bounded value, confidence, and zero or more
+verbatim page evidence snippets. Unsupported fields remain absent. Legends
+remain separate from face descriptions; numeric values contain no units;
+listing status is limited to `available`, `sold`, `reserved`, `withdrawn`, or
+`unknown`. Seller commentary may appear only in notes/observations and never
+silently becomes an identification fact.
+
+The response may include one validated public image URL. The browser retrieves
+it through the existing image proxy for optional preview. No persistence occurs
+until the owner edits and explicitly confirms the proposal. Confirmation uses
+canonical `POST /api/coins` exactly once with `isWishlist: true`; at most one
+selected image is uploaded afterward on a best-effort basis. Duplicate
+protection remains enforced inside canonical coin creation.
+
+This workflow imports or invokes no auction model, repository, service, route,
+tracked-lot state, bid state, synchronization, or conversion behavior.

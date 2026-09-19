@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
-from app.models.hypothesis import CoinHypothesis
+from app.models.hypothesis import CoinHypothesis, HypothesisField
 from app.models.requests import (
     COPILOT_ALLOWED_TOOLS,
     COPILOT_SPECIALIST_TOOLS,
@@ -31,6 +31,47 @@ class StrictResponseModel(BaseModel):
     """Base response model with contract drift detection."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class WishlistURLHypothesisField(HypothesisField):
+    evidence: list[Annotated[str, StringConstraints(min_length=1, max_length=500)]] = Field(
+        default_factory=list,
+        max_length=5,
+    )
+
+
+class WishlistURLHypothesis(CoinHypothesis):
+    category: WishlistURLHypothesisField | None = None
+    ruler: WishlistURLHypothesisField | None = None
+    denomination: WishlistURLHypothesisField | None = None
+    material: WishlistURLHypothesisField | None = None
+    mint: WishlistURLHypothesisField | None = None
+    dateRange: WishlistURLHypothesisField | None = None
+    era: WishlistURLHypothesisField | None = None
+    obverseInscription: WishlistURLHypothesisField | None = None
+    reverseInscription: WishlistURLHypothesisField | None = None
+    obverseDescription: WishlistURLHypothesisField | None = None
+    reverseDescription: WishlistURLHypothesisField | None = None
+    diameterMm: WishlistURLHypothesisField | None = None
+    weightGrams: WishlistURLHypothesisField | None = None
+    grade: WishlistURLHypothesisField | None = None
+    rarityRating: WishlistURLHypothesisField | None = None
+    notes: WishlistURLHypothesisField | None = None
+    coin_type: WishlistURLHypothesisField | None = None
+    name: WishlistURLHypothesisField | None = None
+    references: WishlistURLHypothesisField | None = None
+    listingStatus: WishlistURLHypothesisField | None = None
+    listedPrice: WishlistURLHypothesisField | None = None
+    currency: WishlistURLHypothesisField | None = None
+    dealerName: WishlistURLHypothesisField | None = None
+
+
+class WishlistURLExtractionResponse(StrictResponseModel):
+    hypothesis: WishlistURLHypothesis
+    warnings: list[Annotated[str, StringConstraints(min_length=1, max_length=500)]] = Field(
+        default_factory=list,
+        max_length=20,
+    )
 
 
 MAX_DEEP_ANALYSIS_HANDOFF_PUBLIC_EVENT_BYTES = 65_536

@@ -41,6 +41,7 @@ MAX_COPILOT_CLARIFICATION_LENGTH = 500
 MAX_COPILOT_CLARIFICATION_CHOICES = 10
 MAX_COPILOT_ALLOWED_TOOLS = 11
 MAX_DEEP_ANALYSIS_HANDOFF_REQUEST_BYTES = 65_536
+MAX_WISHLIST_URL_PAGE_TEXT_LENGTH = 50_000
 
 COPILOT_ALLOWED_TOOLS = frozenset(
     {
@@ -194,6 +195,22 @@ class LLMConfig(StrictRequestModel):
         self.ollama_url = validate_outbound_url(self.ollama_url, "ollama_url")
         self.searxng_url = validate_outbound_url(self.searxng_url, "searxng_url")
         return self
+
+
+class WishlistURLExtractionRequest(StrictRequestModel):
+    """One cleaned public listing page supplied by the trusted Go fetcher."""
+
+    llm: LLMConfig
+    source_url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    page_title: Annotated[str, StringConstraints(max_length=1000)] = ""
+    page_text: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=MAX_WISHLIST_URL_PAGE_TEXT_LENGTH),
+    ]
+    page_metadata: dict[str, Annotated[str, StringConstraints(max_length=4096)]] = Field(
+        default_factory=dict,
+        max_length=20,
+    )
 
 
 class UserContext(StrictRequestModel):

@@ -18901,6 +18901,75 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/wishlist/url-intake/analyze": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves one bounded public HTML page and returns an editable transient coin proposal. No coin is created.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist"
+                ],
+                "summary": "Analyze wishlist listing URL",
+                "parameters": [
+                    {
+                        "description": "Public listing URL",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.wishlistURLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.WishlistURLAnalysis"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -22241,6 +22310,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "verificationStatus": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.wishlistURLRequest": {
+            "type": "object",
+            "properties": {
+                "url": {
                     "type": "string"
                 }
             }
@@ -26341,6 +26418,135 @@ const docTemplate = `{
                 },
                 "fromValuationHistory": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.WishlistURLAnalysis": {
+            "type": "object",
+            "properties": {
+                "existingCoinId": {
+                    "type": "integer"
+                },
+                "hypothesis": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesis"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "pageTitle": {
+                    "type": "string"
+                },
+                "schemaVersion": {
+                    "type": "integer"
+                },
+                "sourceUrl": {
+                    "type": "string"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.WishlistURLHypothesis": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "coin_type": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "currency": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "dateRange": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "dealerName": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "denomination": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "diameterMm": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "era": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "grade": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "legible": {
+                    "type": "boolean"
+                },
+                "listedPrice": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "listingStatus": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "material": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "mint": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "name": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "notes": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "observations": {
+                    "type": "string"
+                },
+                "obverseDescription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "obverseInscription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "rarityRating": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "references": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "reverseDescription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "reverseInscription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "ruler": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "weightGrams": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                }
+            }
+        },
+        "services.WishlistURLHypothesisField": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "number"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         }

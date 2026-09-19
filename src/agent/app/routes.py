@@ -24,6 +24,7 @@ from app.models.requests import (
     PortfolioReviewRequest,
     SetBuilderRequest,
     WishlistFeaturedSummaryRequest,
+    WishlistURLExtractionRequest,
 )
 from app.models.responses import (
     AgentResponse,
@@ -36,6 +37,7 @@ from app.models.responses import (
     MarketSignalResponse,
     SetBuilderResponse,
     WishlistFeaturedSummaryResponse,
+    WishlistURLExtractionResponse,
 )
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
@@ -57,6 +59,7 @@ from app.teams.coin_search import discover_alert_candidates
 from app.teams.deep_identification.graph import run_deep_identification_stream
 from app.teams.set_builder import run_set_builder_workflow
 from app.teams.wishlist_featured_summary import generate_wishlist_featured_summary
+from app.teams.wishlist_url_extraction import extract_wishlist_url
 from app.tools.copilot_collection_tools import build_copilot_tool_definitions
 
 logger = logging.getLogger(__name__)
@@ -64,6 +67,18 @@ logger = logging.getLogger(__name__)
 _RECURSION_CONFIG = {"recursion_limit": settings.max_supervisor_iterations}
 
 router = APIRouter(prefix="/api")
+
+@router.post("/wishlist-url/extract", response_model=WishlistURLExtractionResponse)
+async def wishlist_url_extract(
+    request: WishlistURLExtractionRequest,
+) -> WishlistURLExtractionResponse:
+    """Extract a transient proposal from one Go-fetched, cleaned listing page."""
+    try:
+        return await extract_wishlist_url(request)
+    except Exception as exc:
+        logger.exception("Wishlist URL extraction failed")
+        raise HTTPException(status_code=502, detail="Listing extraction failed") from exc
+
 
 # Wishlist search alert discovery route anchor:
 # specs/337-wishlist-search-alerts/contracts/agent-discovery-contract.md

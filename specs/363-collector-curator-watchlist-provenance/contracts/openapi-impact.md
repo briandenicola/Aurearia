@@ -2,18 +2,19 @@
 
 ## Public API additions
 
-Only the collector profile adds public routes:
+The collector profile and purpose-built wishlist URL analysis add public routes:
 
 | Method/path | Purpose | Mutation |
 |---|---|---|
 | `GET /api/collector-profile` | Return the authenticated owner's saved profile or neutral defaults. | No |
 | `PUT /api/collector-profile` | Validate and atomically replace the authenticated owner's profile. | Yes, profile only |
+| `POST /api/wishlist/url-intake/analyze` | Retrieve one bounded public listing and return a transient review proposal or existing duplicate. | No |
 
 Both handlers require bearer authentication, derive the owner from middleware,
 use bounded explicit DTOs, return sanitized errors, and include Swagger
 annotations.
 
-The profile schemas are normative in
+The profile and URL-intake schemas are normative in
 [`collector-workflows.md`](./collector-workflows.md).
 
 ## Existing contracts reused unchanged
@@ -26,7 +27,8 @@ The profile schemas are normative in
 - Existing image scrape, proxy, and upload routes used by
   `useCoinSearchChat.addToWishlist` remain authoritative.
 
-No separate wishlist action route is added.
+No separate wishlist action route is added. Confirmed URL proposals use the
+same canonical `POST /api/coins` route.
 
 ## Additive response fields
 
@@ -59,12 +61,14 @@ names, capability values, and auction result rendering remain compatible.
 - No watchlist evaluation/ranking endpoint.
 - No provenance-risk endpoint.
 - No auction endpoint, route, or schema change.
-- No provider-fetch or new browser endpoint.
+- No generic provider-fetch, crawler, or browser-to-Python endpoint. The
+  authenticated URL-intake endpoint accepts one listing URL, enforces public
+  destinations and bounded retrieval in Go, and returns no fetched HTML.
 
 ## Generation gate
 
-During implementation, add Swagger annotations for the two profile handlers,
-regenerate the repository OpenAPI, and verify route/schema drift:
+During implementation, add Swagger annotations for the profile and URL-intake
+handlers, regenerate the repository OpenAPI, and verify route/schema drift:
 
 ```powershell
 task openapi
@@ -77,7 +81,7 @@ Pop-Location
 
 Contract tests must prove:
 
-1. only the two profile routes are new;
+1. only the two profile routes and bounded URL-intake analysis route are new;
 2. no wishlist-action route exists;
 3. no Python host or internal callback route is exposed;
 4. specialist dealer fields are optional and bounded;
