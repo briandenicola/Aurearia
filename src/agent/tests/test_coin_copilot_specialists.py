@@ -1047,3 +1047,89 @@ async def test_price_trends_without_configured_auction_sources_is_unavailable():
 
     assert result.outcome == "unavailable"
     assert result.provider_attempts[0].status == "unavailable"
+
+
+def _blocked_dealer_setup(monkeypatch, format_json):
+    from langchain_core.messages import AIMessage
+
+    import app.tools.search as search_tools
+    from app.teams import coin_search
+
+    listing_url = "https://www.vcoins.com/en/stores/sovereign_rarities/263/product/aurelian_as/13896/Default.aspx"
+    search_content = [
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_1",
+            "content": [
+                {"type": "web_search_result", "title": "Aurelian (AD 270-275). AE As", "url": listing_url},
+            ],
+        },
+        {
+            "type": "text",
+            "text": "VCoins lists an Aurelian As.",
+            "citations": [{"type": "web_search_result_location", "url": listing_url, "cited_text": "GBP 130.00"}],
+        },
+    ]
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        search_tools.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(
+            transport=httpx.MockTransport(lambda _request: httpx.Response(429, text="slow down")), **kwargs
+        ),
+    )
+
+    class FakeModel:
+        def __init__(self, content):
+            self.content = content
+            self.seen = []
+
+        async def ainvoke(self, messages, **_kwargs):
+            self.seen.append(messages)
+            return AIMessage(content=self.content)
+
+    format_model = FakeModel("```json\n" + json.dumps(format_json(listing_url)) + "\n```")
+    monkeypatch.setattr(coin_search, "get_search_model", lambda _config: FakeModel(search_content))
+    monkeypatch.setattr(coin_search, "get_chat_model", lambda _config: format_model)
+    return listing_url, format_model
+
+
+@pytest.mark.asyncio
+async def test_market_search_uses_search_results_when_dealer_pages_are_blocked(monkeypatch):
+    listing_url, format_model = _blocked_dealer_setup(
+        monkeypatch,
+        lambda url: [
+            {"name": "Aurelian (AD 270-275). AE As", "estPrice": "GBP 130.00", "availability": "Available",
+             "sourceUrl": url, "sourceName": "VCoins"},
+            {"name": "Invented listing", "estPrice": "$10", "availability": "Available",
+             "sourceUrl": "https://www.vcoins.com/en/stores/x/1/product/invented/1/Default.aspx"},
+        ],
+    )
+
+    result = await run_market_search(
+        {"query": "Aurelian coins under $500", "limit": 5},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"vcoins.com"},
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "complete"
+    assert [item.source_url for item in result.items] == [listing_url]
+    item = result.items[0]
+    assert (item.verification_state, item.confidence, item.availability) == ("partial", "medium", "unknown")
+    assert "listing pages were not fetched" in format_model.seen[0][1].content
+
+
+@pytest.mark.asyncio
+async def test_market_search_reports_failure_when_pages_are_blocked_and_search_has_no_listing(monkeypatch):
+    _blocked_dealer_setup(monkeypatch, lambda _url: [])
+
+    result = await run_market_search(
+        {"query": "Aurelian coins under $500"},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"vcoins.com"},
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "unavailable"
+    assert result.provider_attempts[0].status == "failure"

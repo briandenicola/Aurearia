@@ -239,7 +239,8 @@ async def _fetch_dealer_page(
         if resp.status_code != 200:
             if allowed_hosts is not None:
                 logger.warning(
-                    "Dealer source returned non-success status status_code=%d",
+                    "Dealer source returned non-success status host=%s status_code=%d",
+                    urlsplit(url).hostname or "",
                     resp.status_code,
                 )
                 raise httpx.TransportError("dealer source returned a non-success status")

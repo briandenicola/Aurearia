@@ -238,18 +238,59 @@ async def _collect_market_candidates(
     combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
     search_results = await _search_dealer_pages(llm_config, query, combined_search)
     await raise_if_cancelled(cancellation_check)
-    fetched = await _fetch_dealer_pages(
-        search_results,
-        allowed_fetch_hosts,
-        specialist_boundary=True,
-    )
+    fetch_error: httpx.HTTPError | None = None
+    try:
+        fetched = await _fetch_dealer_pages(
+            search_results,
+            allowed_fetch_hosts,
+            specialist_boundary=True,
+        )
+    except httpx.HTTPError as exc:
+        # Every page fetch failed; dealers commonly rate-limit or bot-challenge
+        # direct requests. Fall back to what the search provider observed.
+        fetch_error = exc
+        fetched = ""
     await raise_if_cancelled(cancellation_check)
     if not fetched.strip():
-        return []
+        candidates = await _search_result_candidates(llm_config, query, search_results, allowed_fetch_hosts)
+        await raise_if_cancelled(cancellation_check)
+        if not candidates and fetch_error is not None:
+            raise fetch_error
+        return candidates[:limit]
     _, candidates = await _format_dealer_candidates(llm_config, query, fetched, strict=True)
     candidates = _apply_observed_availability(candidates, fetched)
     await raise_if_cancelled(cancellation_check)
     return candidates[:limit]
+
+
+async def _search_result_candidates(
+    llm_config: LLMConfig,
+    query: str,
+    search_results: str,
+    allowed_fetch_hosts: set[str] | None,
+) -> list[dict[str, Any]]:
+    """Build listings from search-result evidence when dealer pages cannot be fetched.
+
+    The page itself was not read, so every listing is marked partially verified
+    and its availability stays unknown unless the search evidence says sold.
+    """
+    if not _filter_allowed_fetch_urls(_extract_urls(search_results), allowed_fetch_hosts):
+        return []
+    _, candidates = await _format_dealer_candidates(
+        llm_config,
+        query,
+        f"Web search results (listing pages were not fetched):\n{search_results}",
+        strict=True,
+    )
+    listings: list[dict[str, Any]] = []
+    for candidate in candidates:
+        source_url = str(candidate.get("sourceUrl") or candidate.get("source_url") or "").strip()
+        if not source_url or source_url not in search_results:
+            continue
+        if str(candidate.get("availability") or "").strip().lower() != "sold":
+            candidate = {**candidate, "availability": "Unknown"}
+        listings.append({**candidate, "verificationState": "partial", "confidence": "medium"})
+    return listings
 
 
 async def run_market_search(

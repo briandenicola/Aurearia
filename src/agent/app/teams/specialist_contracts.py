@@ -780,6 +780,11 @@ def adapt_dealer_candidate(
         "era": _clean_optional_text(candidate.get("era")),
         "material": _clean_optional_text(candidate.get("material")),
     }
+    # Listings built from search results (page not fetched) arrive marked partial.
+    verification_state = str(candidate.get("verificationState") or "verified").strip().lower()
+    confidence = str(candidate.get("confidence") or "high").strip().lower()
+    if verification_state not in {"verified", "partial"} or confidence not in {"high", "medium", "low"}:
+        raise ValueError("dealer candidate verification metadata is invalid")
     proven_fields = ["title", *(field for field, value in values.items() if value is not None)]
     return DealerListing(
         kind="dealer_listing",
@@ -787,15 +792,15 @@ def adapt_dealer_candidate(
         canonical_source_id=canonical_source_identity(source_url),
         provider=provider,
         observed_at=observed_at,
-        confidence="high",
-        verification_state="verified",
+        confidence=confidence,
+        verification_state=verification_state,
         title=title,
         provenance=_provenance(
             proven_fields,
             source_url=source_url,
             observed_at=observed_at,
-            confidence="high",
-            verification_state="verified",
+            confidence=confidence,
+            verification_state=verification_state,
         ),
         **values,
     )

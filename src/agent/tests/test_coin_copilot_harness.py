@@ -1336,3 +1336,46 @@ def test_specialist_tool_summary_reflects_outcome(result, expected):
 
 def test_non_specialist_tool_summary_is_unchanged():
     assert coin_copilot._tool_summary("get_coin", {"outcome": "unavailable"}) == "Coin details returned."
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_byte_accounting_matches_go_for_non_ascii_evidence(monkeypatch):
+    """Go recomputes UTF-8 canonical bytes for each completed tool and rejects any mismatch."""
+    specialist_result = json.loads(
+        (FIXTURE.parent / "specialists" / "market_search_complete.json").read_text(encoding="utf-8")
+    )
+    for item in specialist_result["items"]:
+        item["title"] = "Aurelian, 270–275. Æ Antoninianus, Künker"
+
+    async def market_runner(_args, **_kwargs):
+        return specialist_result
+
+    monkeypatch.setattr(coin_copilot, "run_market_search", market_runner)
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": "market_search", "args": {"query": "Aurelian"}, "id": "call_utf8", "type": "tool_call"}
+                ],
+            ),
+            AIMessage(content="One listing was found."),
+        ]
+    )
+    request = _request()
+    request.allowed_tools.append("market_search")
+
+    frames = await _frames(request, model, tool_client=None)
+
+    checkpoints = [frame for frame in frames if frame.type == "checkpoint"]
+    assert checkpoints
+    for checkpoint in checkpoints:
+        # Inspect the frame exactly as it is streamed to the Go API.
+        wire = json.loads(checkpoint.model_dump_json())
+        for tool in wire["payload"]["completed_tools"]:
+            canonical = json.dumps(
+                tool["result"], ensure_ascii=False, separators=(",", ":"), sort_keys=True
+            ).encode("utf-8")
+            assert tool["persisted_bytes"] == len(canonical)
+            if not tool["truncated"]:
+                assert tool["original_bytes"] == len(canonical)
