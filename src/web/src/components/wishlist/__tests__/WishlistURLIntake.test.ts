@@ -67,6 +67,7 @@ describe('WishlistURLIntake', () => {
           name: { value: 'Hadrian Denarius', confidence: 0.9, evidence: ['Hadrian Denarius'] },
           category: { value: 'Roman', confidence: 0.9, evidence: ['Roman'] },
           material: { value: 'Silver', confidence: 0.8, evidence: ['Silver'] },
+          coin_type: { value: 'RIC II Hadrian 39b', confidence: 0.8, evidence: ['RIC II Hadrian 39b'] },
           listedPrice: { value: '125', confidence: 0.9, evidence: ['USD 125'] },
           dealerName: { value: 'Dealer', confidence: 0.9, evidence: ['Dealer'] },
           observations: '',
@@ -90,6 +91,7 @@ describe('WishlistURLIntake', () => {
       material: 'Silver',
       currentValue: 125,
       referenceUrl: 'https://dealer.example/lot/9',
+      referenceText: 'RIC II Hadrian 39b',
       isWishlist: true,
     }))
     expect(wrapper.emitted('created')).toHaveLength(1)

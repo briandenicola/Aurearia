@@ -230,7 +230,7 @@ function fillDraft(hypothesis: WishlistURLHypothesis) {
     dateRange: value(hypothesis, 'dateRange'),
     grade: value(hypothesis, 'grade'),
     rarityRating: value(hypothesis, 'rarityRating'),
-    references: value(hypothesis, 'references'),
+    references: value(hypothesis, 'references') || value(hypothesis, 'coin_type'),
     weightGrams: value(hypothesis, 'weightGrams'),
     diameterMm: value(hypothesis, 'diameterMm'),
     currentValue: value(hypothesis, 'listedPrice'),

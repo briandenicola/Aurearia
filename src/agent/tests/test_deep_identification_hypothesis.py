@@ -17,6 +17,7 @@ from app.models.responses import DeepFaceAnalysis, DeepSynthesis, ProviderCovera
 from app.teams.deep_identification import hypothesis as hypothesis_module
 from app.teams.deep_identification.hypothesis import (
     build_hypothesis_from_face_analyses_traced,
+    build_hypothesis_from_listing_evidence_traced,
     build_hypothesis_from_quick_evidence,
     build_hypothesis_from_vision,
 )
@@ -165,6 +166,35 @@ class _StructuredRaises:
     async def ainvoke(self, messages, **kwargs):
         self.calls += 1
         raise RuntimeError("provider unavailable")
+
+
+def test_listing_evidence_uses_shared_structured_hypothesis_ladder(monkeypatch):
+    fake = _StructuredOK(
+        CoinHypothesis(
+            category=HypothesisField(value="greek", confidence=0.9),
+            denomination=HypothesisField(value="Tetradrachm", confidence=0.95),
+            material=HypothesisField(value="silver", confidence=0.95),
+            dateRange=HypothesisField(value="160-140 BC", confidence=0.95),
+            era=HypothesisField(value="ancient", confidence=0.9),
+            legible=True,
+        )
+    )
+    monkeypatch.setattr(hypothesis_module, "get_structured_model", lambda config, schema: fake)
+
+    result, source = asyncio.run(
+        build_hypothesis_from_listing_evidence_traced(
+            _LLM_CONFIG,
+            "Greece - Pergamon Mysia Silver Cystophoric Tetradrachm 160-140 BC",
+        )
+    )
+
+    assert source == "structured"
+    assert fake.calls == 1
+    assert result.category is not None and result.category.value == "Greek"
+    assert result.denomination is not None and result.denomination.value == "Tetradrachm"
+    assert result.material is not None and result.material.value == "Silver"
+    assert result.dateRange is not None and result.dateRange.value == "160-140 BC"
+    assert result.era is not None and result.era.value == "ancient"
 
 
 def test_face_analyses_and_probus_notes_feed_the_structured_hypothesis(monkeypatch):

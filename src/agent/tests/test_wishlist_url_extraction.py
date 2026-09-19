@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from app.models.hypothesis import CoinHypothesis, HypothesisField
 from app.models.requests import LLMConfig, WishlistURLExtractionRequest
 from app.models.responses import WishlistURLHypothesis, WishlistURLHypothesisField
 from app.teams import wishlist_url_extraction
@@ -92,6 +93,38 @@ def test_listing_hypothesis_keeps_legends_separate_from_descriptions():
     assert result.reverseInscription is None
 
 
+def test_listing_hypothesis_fills_missing_fields_from_shared_deep_projection():
+    request = _request().model_copy(
+        update={
+            "page_title": "Greece - Pergamon Mysia Silver Cystophoric Tetradrachm 160-140 BC",
+            "page_text": "Greece - Pergamon Mysia Silver Cystophoric Tetradrachm 160-140 BC",
+        }
+    )
+    shared = CoinHypothesis(
+        category=HypothesisField(value="Greek", confidence=0.9),
+        denomination=HypothesisField(value="Tetradrachm", confidence=0.95),
+        material=HypothesisField(value="Silver", confidence=0.95),
+        dateRange=HypothesisField(value="160-140 BC", confidence=0.95),
+        era=HypothesisField(value="ancient", confidence=0.9),
+        legible=True,
+    )
+
+    result = _validated_listing_hypothesis(
+        WishlistURLHypothesis(
+            name=_field(request.page_title, request.page_title),
+        ),
+        request,
+        shared,
+    )
+
+    assert result.category is not None and result.category.value == "Greek"
+    assert result.denomination is not None and result.denomination.value == "Tetradrachm"
+    assert result.material is not None and result.material.value == "Silver"
+    assert result.dateRange is not None and result.dateRange.value == "160-140 BC"
+    assert result.era is not None and result.era.value == "ancient"
+    assert result.era.evidence == [request.page_title]
+
+
 @pytest.mark.parametrize("status", ["sold", "reserved", "withdrawn"])
 def test_listing_hypothesis_preserves_explicit_listing_status(status: str):
     request = _request().model_copy(
@@ -133,6 +166,15 @@ async def test_extract_wishlist_url_unwraps_include_raw_result(monkeypatch):
         lambda *_args: object(),
     )
 
+    async def project(*_args, **_kwargs):
+        return CoinHypothesis(legible=False), "deterministic_fallback"
+
+    monkeypatch.setattr(
+        wishlist_url_extraction,
+        "build_hypothesis_from_listing_evidence_traced",
+        project,
+    )
+
     async def invoke(*_args, **_kwargs):
         return {"raw": object(), "parsed": parsed, "parsing_error": None}
 
@@ -150,6 +192,15 @@ async def test_extract_wishlist_url_rejects_unparsed_include_raw_result(monkeypa
         wishlist_url_extraction,
         "get_structured_model",
         lambda *_args: object(),
+    )
+
+    async def project(*_args, **_kwargs):
+        return CoinHypothesis(legible=False), "deterministic_fallback"
+
+    monkeypatch.setattr(
+        wishlist_url_extraction,
+        "build_hypothesis_from_listing_evidence_traced",
+        project,
     )
 
     async def invoke(*_args, **_kwargs):

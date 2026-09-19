@@ -25,6 +25,7 @@ export interface WishlistURLHypothesis {
   diameterMm?: WishlistURLHypothesisField
   grade?: WishlistURLHypothesisField
   rarityRating?: WishlistURLHypothesisField
+  coin_type?: WishlistURLHypothesisField
   references?: WishlistURLHypothesisField
   notes?: WishlistURLHypothesisField
   listingStatus?: WishlistURLHypothesisField
