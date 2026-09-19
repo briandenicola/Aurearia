@@ -264,12 +264,15 @@ async def run_coin_copilot(
         return await run_market_search(
             args,
             llm_config=request.llm,
+            source_hosts=set(request.dealer_search_sources),
             cancellation_check=cancellation_check,
         )
 
     async def auction_runner(args: dict[str, Any]):
         return await run_auction_search(
             args,
+            llm_config=request.llm,
+            source_hosts=set(request.auction_search_sources),
             cancellation_check=cancellation_check,
         )
 

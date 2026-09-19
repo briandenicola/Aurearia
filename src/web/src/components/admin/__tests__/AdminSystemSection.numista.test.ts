@@ -90,6 +90,22 @@ describe('AdminSystemSection Numista configuration and health', () => {
     expect(group.find('select').exists()).toBe(false)
   })
 
+  it('renders and saves separate dealer and auction source lists', async () => {
+    const wrapper = mount(AdminSystemSection, { props: baseProps() })
+    const section = wrapper.get('[data-testid="search-sources-section"]')
+
+    expect(section.get('#dealer-search-sources').classes()).toContain('form-textarea')
+    expect(section.get('#auction-search-sources').classes()).toContain('form-textarea')
+    await section.get('#dealer-search-sources').setValue('dealer.example')
+    await section.get('#auction-search-sources').setValue('auctions.example')
+    await wrapper.find('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({
+      dealerSearchSources: 'dealer.example',
+      auctionSearchSources: 'auctions.example',
+    })
+  })
+
   it('uses token-backed boundary styles and a mobile-first two-column settings grid', () => {
     const wrapper = mount(AdminSystemSection, { props: baseProps() })
     const group = wrapper.get('[data-testid="numista-section"]')
@@ -314,6 +330,8 @@ function baseProps() {
     deepIdentificationOCRECallBudget: '3',
     pushoverAppToken: '',
     publicAppUrl: '',
+    dealerSearchSources: 'vcoins.com',
+    auctionSearchSources: 'numisbids.com\ncngcoins.com',
     uspsApiBaseUrl: '',
     uspsApiKey: '',
     uspsApiKeyHeader: '',

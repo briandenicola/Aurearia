@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,6 +35,8 @@ const (
 	SettingAnthropicAPIKey                    = "AnthropicAPIKey"
 	SettingAnthropicModel                     = "AnthropicModel"
 	SettingCoinSearchPrompt                   = "CoinSearchPrompt"
+	SettingDealerSearchSources                = "DealerSearchSources"
+	SettingAuctionSearchSources               = "AuctionSearchSources"
 	SettingCoinShowsPrompt                    = "CoinShowsPrompt"
 	SettingValuationPrompt                    = "ValuationPrompt"
 	SettingSearXNGURL                         = "SearXNGURL"
@@ -166,6 +170,8 @@ var settingDefaults = map[string]string{
 	SettingAnthropicAPIKey:                    "",
 	SettingAnthropicModel:                     "claude-sonnet-5",
 	SettingCoinSearchPrompt:                   "",
+	SettingDealerSearchSources:                "vcoins.com\nma-shops.com\nforumancientcoins.com\nbiddr.com\ncatawiki.com\nhjbltd.com",
+	SettingAuctionSearchSources:               "numisbids.com\ncngcoins.com",
 	SettingCoinShowsPrompt:                    "",
 	SettingValuationPrompt:                    "",
 	SettingSearXNGURL:                         "",
@@ -506,7 +512,47 @@ func (s *SettingsService) GetSetting(key string) string {
 
 // SetSetting creates or updates a setting value.
 func (s *SettingsService) SetSetting(key, value string) error {
+	if key == SettingDealerSearchSources || key == SettingAuctionSearchSources {
+		normalized, err := NormalizeSearchSourceSetting(value)
+		if err != nil {
+			return err
+		}
+		value = normalized
+	}
 	return s.repo.Upsert(key, value)
+}
+
+var searchSourceHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+
+// NormalizeSearchSourceSetting validates and canonicalizes a newline-delimited
+// list of public DNS hostnames used as outbound search boundaries.
+func NormalizeSearchSourceSetting(value string) (string, error) {
+	lines := SplitSettingList(value)
+	if len(lines) == 0 || len(lines) > 20 {
+		return "", fmt.Errorf("search sources must contain between 1 and 20 hostnames")
+	}
+	seen := make(map[string]struct{}, len(lines))
+	normalized := make([]string, 0, len(lines))
+	for _, line := range lines {
+		host := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(line), "."))
+		if len(host) > 253 || net.ParseIP(host) != nil || !searchSourceHostPattern.MatchString(host) {
+			return "", fmt.Errorf("invalid search source hostname %q", line)
+		}
+		if _, exists := seen[host]; exists {
+			continue
+		}
+		seen[host] = struct{}{}
+		normalized = append(normalized, host)
+	}
+	return strings.Join(normalized, "\n"), nil
+}
+
+func (s *SettingsService) GetSearchSources(key string) []string {
+	normalized, err := NormalizeSearchSourceSetting(s.GetSetting(key))
+	if err != nil {
+		normalized = settingDefaults[key]
+	}
+	return SplitSettingList(normalized)
 }
 
 // SplitSettingList parses a newline-delimited AppSetting value (the shape

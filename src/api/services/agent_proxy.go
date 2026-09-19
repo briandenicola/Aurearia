@@ -218,6 +218,8 @@ type AgentChatProxyRequest struct {
 	AppContext       *CollectionChatContext `json:"app_context,omitempty"`
 	CoinSearchPrompt string                 `json:"coin_search_prompt"`
 	CoinShowsPrompt  string                 `json:"coin_shows_prompt"`
+	DealerSources    []string               `json:"dealer_search_sources"`
+	AuctionSources   []string               `json:"auction_search_sources"`
 	Portfolio        *PortfolioData         `json:"portfolio,omitempty"`
 	InternalToken    string                 `json:"internal_token,omitempty"`
 	ToolsBaseURL     string                 `json:"tools_base_url,omitempty"`
@@ -467,8 +469,9 @@ type AlertDiscoveryRequestDetail struct {
 }
 
 type AlertDiscoveryProxyRequest struct {
-	LLM   LLMConfig                   `json:"llm"`
-	Alert AlertDiscoveryRequestDetail `json:"alert"`
+	LLM           LLMConfig                   `json:"llm"`
+	Alert         AlertDiscoveryRequestDetail `json:"alert"`
+	DealerSources []string                    `json:"dealer_search_sources"`
 }
 
 type AlertDiscoveryProvenanceProxy struct {

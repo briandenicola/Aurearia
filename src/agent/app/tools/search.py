@@ -9,43 +9,15 @@ import logging
 import re
 from collections.abc import Callable
 from html.parser import HTMLParser
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from langchain_core.tools import tool
 
 from app.config import settings
 from app.outbound import safe_get, validate_outbound_url, validate_public_outbound_url
-from app.teams.specialist_contracts import validate_registered_source_url
 
 logger = logging.getLogger(__name__)
-
-# Trusted coin dealer domains for search filtering
-TRUSTED_DOMAINS = [
-    "vcoins.com",
-    "forumancientcoins.com",
-    "hjbltd.com",
-    "biddr.com",
-    "catawiki.com",
-    "ma-shops.com",
-    "coinshows.com",
-    "coinshows-usa.com",
-    "money.org",
-    "pngdealers.org",
-    "nyinc.info",
-]
-DEALER_SOURCE_HOSTS = frozenset(
-    {
-        "biddr.com",
-        "catawiki.com",
-        "cngcoins.com",
-        "forumancientcoins.com",
-        "hjbltd.com",
-        "ma-shops.com",
-        "vcoins.com",
-    }
-)
-
 
 def _domain_matches(domain: str, expected_domain: str) -> bool:
     """Return True for exact host matches or subdomains of expected_domain."""
@@ -54,14 +26,15 @@ def _domain_matches(domain: str, expected_domain: str) -> bool:
     return clean_domain == clean_expected or clean_domain.endswith(f".{clean_expected}")
 
 
-def validate_dealer_url(url: str) -> str:
-    """Validate a dealer URL against the fixed market-search source boundary."""
-    validated = validate_registered_source_url("cng_dealer_search", url)
-    from urllib.parse import urlparse
-
-    host = (urlparse(validated).hostname or "").rstrip(".").lower()
-    if not any(_domain_matches(host, allowed) for allowed in DEALER_SOURCE_HOSTS):
-        raise ValueError("dealer URL host is not registered")
+def validate_search_source_url(url: str, allowed_hosts: set[str]) -> str:
+    """Validate a public URL against the request-bound source boundary."""
+    validated = validate_public_outbound_url(url, "search source URL")
+    parsed = urlsplit(validated)
+    if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None:
+        raise ValueError("search source URL must use HTTPS without credentials")
+    host = (parsed.hostname or "").rstrip(".").lower()
+    if not any(_domain_matches(host, allowed) for allowed in allowed_hosts):
+        raise ValueError("search source URL host is not configured")
     return validated
 
 
@@ -164,9 +137,6 @@ async def verify_url(url: str) -> str:
     from urllib.parse import urlparse
 
     parsed = urlparse(url)
-    domain = (parsed.hostname or "").lower().lstrip("www.")
-    is_trusted = any(_domain_matches(domain, d) for d in TRUSTED_DOMAINS)
-
     # Detect search/category page URLs (not individual listings)
     path_lower = parsed.path.lower() + "?" + (parsed.query or "").lower()
     search_indicators = [
@@ -199,7 +169,6 @@ async def verify_url(url: str) -> str:
 
         return (
             f"Status: {status}\n"
-            f"Trusted Dealer Site: {is_trusted}\n"
             f"Search/Category Page (NOT individual listing): {is_search_page}\n"
             f"Sold/Unavailable: {is_sold}\n"
             f"Has Buy/Bid Option: {has_buy}\n"
@@ -208,7 +177,6 @@ async def verify_url(url: str) -> str:
     except Exception as e:
         return (
             f"Error fetching URL: {e}\n"
-            f"Trusted Dealer Site: {is_trusted}\n"
             f"Search/Category Page: {is_search_page}\n"
             f"URL: {url}"
         )
@@ -231,19 +199,26 @@ async def fetch_dealer_page(url: str) -> str:
     return await _fetch_dealer_page(url, require_registered_source=False)
 
 
-async def fetch_registered_dealer_page(url: str) -> str:
-    """Fetch a dealer page for a specialist run using the registered host policy."""
-    return await _fetch_dealer_page(url, require_registered_source=True)
+async def fetch_registered_dealer_page(url: str, allowed_hosts: set[str]) -> str:
+    """Fetch a page through a request-bound configured host policy."""
+    return await _fetch_dealer_page(url, allowed_hosts=allowed_hosts)
 
 
-async def _fetch_dealer_page(url: str, *, require_registered_source: bool) -> str:
+async def _fetch_dealer_page(
+    url: str,
+    *,
+    require_registered_source: bool = False,
+    allowed_hosts: set[str] | None = None,
+) -> str:
     try:
-        if require_registered_source:
-            url = validate_dealer_url(url)
-        if require_registered_source:
+        if allowed_hosts is not None:
+            def validator(candidate: str) -> str:
+                return validate_search_source_url(candidate, allowed_hosts)
+
+            url = validator(url)
             resp = await safe_registered_get(
                 url,
-                validator=validate_dealer_url,
+                validator=validator,
                 field_name="url",
                 headers={"User-Agent": _USER_AGENT},
                 timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
@@ -257,7 +232,7 @@ async def _fetch_dealer_page(url: str, *, require_registered_source: bool) -> st
             )
 
         if resp.status_code != 200:
-            if require_registered_source:
+            if allowed_hosts is not None:
                 raise httpx.TransportError("dealer source returned a non-success status")
             return f"Error: HTTP {resp.status_code} fetching {url}"
 
@@ -276,7 +251,7 @@ async def _fetch_dealer_page(url: str, *, require_registered_source: bool) -> st
 
     except Exception as e:
         logger.warning("Dealer page fetch failed")
-        if require_registered_source:
+        if require_registered_source or allowed_hosts is not None:
             raise
         return f"Error fetching page: {e}"
 

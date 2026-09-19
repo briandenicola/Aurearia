@@ -4,7 +4,9 @@ The Go API enriches each request with settings, user context, and data
 so this service remains stateless with no direct DB access.
 """
 
+import ipaddress
 import json
+import re
 import string
 from datetime import datetime
 from typing import Annotated, Any, Literal
@@ -42,6 +44,7 @@ MAX_COPILOT_CLARIFICATION_CHOICES = 10
 MAX_COPILOT_ALLOWED_TOOLS = 11
 MAX_DEEP_ANALYSIS_HANDOFF_REQUEST_BYTES = 65_536
 MAX_WISHLIST_URL_PAGE_TEXT_LENGTH = 50_000
+MAX_SEARCH_SOURCES = 20
 
 COPILOT_ALLOWED_TOOLS = frozenset(
     {
@@ -78,6 +81,30 @@ DEEP_PROVIDER_NAMES = {"numista", "nomisma", "ngc", "ocre", "rpc"}
 BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
 BoundedHistoryMessage = Annotated[str, StringConstraints(max_length=MAX_HISTORY_MESSAGE_LENGTH)]
 BoundedPrompt = Annotated[str, StringConstraints(max_length=MAX_PROMPT_LENGTH)]
+ConfiguredSourceHost = Annotated[str, StringConstraints(min_length=3, max_length=253)]
+
+_SOURCE_HOST_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
+)
+
+
+def _validate_search_sources(sources: list[str]) -> list[str]:
+    if not sources:
+        raise ValueError("at least one search source is required")
+    normalized: list[str] = []
+    for value in sources:
+        host = value.strip().lower().rstrip(".")
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("search sources must be DNS hostnames")
+        if not _SOURCE_HOST_PATTERN.fullmatch(host):
+            raise ValueError("invalid search source hostname")
+        if host not in normalized:
+            normalized.append(host)
+    return normalized
 BoundedName = Annotated[str, StringConstraints(max_length=MAX_NAME_LENGTH)]
 BoundedNotes = Annotated[str, StringConstraints(max_length=MAX_NOTES_LENGTH)]
 BoundedOptionalURL = Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)]
@@ -420,6 +447,12 @@ class CopilotExecuteRequest(StrictRequestModel):
     tools_base_url: BoundedURL
     execution_token: Annotated[str, StringConstraints(min_length=1, max_length=8192)]
     allowed_tools: list[str] = Field(min_length=1, max_length=MAX_COPILOT_ALLOWED_TOOLS)
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+    auction_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
 
     @field_validator("messages")
     @classmethod
@@ -434,6 +467,11 @@ class CopilotExecuteRequest(StrictRequestModel):
         if not set(tools).issubset(COPILOT_ALLOWED_TOOLS):
             raise ValueError("allowed_tools contains an unsupported capability")
         return tools
+
+    @field_validator("dealer_search_sources", "auction_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
     @model_validator(mode="after")
     def validate_checkpoint_budgets(self) -> "CopilotExecuteRequest":
@@ -502,6 +540,12 @@ class CoinSearchRequest(StrictRequestModel):
     app_context: AppContext | None = None
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+    auction_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
     portfolio: PortfolioSummary | None = None
     internal_token: str = ""
     tools_base_url: BoundedOptionalURL = ""
@@ -510,6 +554,11 @@ class CoinSearchRequest(StrictRequestModel):
     @classmethod
     def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
         return _validate_history_total_chars(history)
+
+    @field_validator("dealer_search_sources", "auction_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
 
 class CoinShowSearchRequest(StrictRequestModel):
@@ -521,11 +570,22 @@ class CoinShowSearchRequest(StrictRequestModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_MESSAGES)
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+    auction_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
 
     @field_validator("history")
     @classmethod
     def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
         return _validate_history_total_chars(history)
+
+    @field_validator("dealer_search_sources", "auction_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
 
 class CoinData(StrictRequestModel):
@@ -702,6 +762,14 @@ class AlertDiscoveryRequest(StrictRequestModel):
 
     llm: LLMConfig
     alert: AlertDiscoveryDetail
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+
+    @field_validator("dealer_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
 
 # Dynamic Set Builder workflow DTOs.

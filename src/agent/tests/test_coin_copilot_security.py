@@ -18,7 +18,7 @@ from app.tools.copilot_collection_tools import (
     bound_tool_result,
 )
 from app.tools.numisbids import validate_numisbids_url
-from app.tools.search import fetch_registered_dealer_page, validate_dealer_url
+from app.tools.search import fetch_registered_dealer_page, validate_search_source_url
 
 HANDOFF_FIXTURE = (
     Path(__file__).parents[3]
@@ -34,7 +34,8 @@ def _provider(provider, candidates):
     async def run(_query, _limit):
         return candidates
 
-    return ProviderRunner(provider=provider, run=run)
+    allowed_hosts = frozenset({"cngcoins.com"}) if provider == "cng_dealer_search" else None
+    return ProviderRunner(provider=provider, run=run, allowed_hosts=allowed_hosts)
 
 
 def _client(transport, **kwargs):
@@ -277,7 +278,7 @@ def test_injected_tool_output_is_neutralized_when_not_truncated():
 )
 def test_dealer_url_policy_rejects_unsafe_or_unregistered_targets(url):
     with pytest.raises(ValueError):
-        validate_dealer_url(url)
+        validate_search_source_url(url, {"cngcoins.com"})
 
 
 @pytest.mark.parametrize(
@@ -297,8 +298,12 @@ def test_numisbids_url_policy_rejects_unsafe_or_unregistered_targets(url):
 
 
 def test_registered_https_source_urls_are_accepted():
-    assert validate_dealer_url("https://www.cngcoins.com/Coin.aspx?CoinID=1")
-    assert validate_dealer_url("https://www.vcoins.com/en/stores/example/1/product/coin/1")
+    assert validate_search_source_url(
+        "https://www.cngcoins.com/Coin.aspx?CoinID=1", {"cngcoins.com"}
+    )
+    assert validate_search_source_url(
+        "https://www.vcoins.com/en/stores/example/1/product/coin/1", {"vcoins.com"}
+    )
     assert validate_numisbids_url("https://www.numisbids.com/sale/1/lot/1")
 
 
@@ -400,7 +405,9 @@ async def test_market_search_rejects_unregistered_redirect_destination(monkeypat
     monkeypatch.setattr("app.tools.search.httpx.AsyncClient", lambda **_kwargs: mock_client)
 
     with pytest.raises(ValueError):
-        await fetch_registered_dealer_page("https://www.cngcoins.com/Coin.aspx?CoinID=1")
+        await fetch_registered_dealer_page(
+            "https://www.cngcoins.com/Coin.aspx?CoinID=1", {"cngcoins.com"}
+        )
     mock_client.get.assert_awaited_once()
 
 

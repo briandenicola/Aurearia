@@ -20,7 +20,7 @@ from app.teams.specialist_contracts import (
     ProviderRunner,
     ProviderUnavailableError,
 )
-from app.tools.search import _listing_availability_signal, validate_dealer_url
+from app.tools.search import _listing_availability_signal, validate_search_source_url
 
 OBSERVED_AT = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
 
@@ -83,7 +83,34 @@ def _provider(provider, result=None, error=None):
             raise error
         return result
 
-    return ProviderRunner(provider=provider, run=run)
+    allowed_hosts = (
+        frozenset({"cngcoins.com", "vcoins.com"})
+        if provider == "cng_dealer_search"
+        else None
+    )
+    return ProviderRunner(provider=provider, run=run, allowed_hosts=allowed_hosts)
+
+
+@pytest.mark.asyncio
+async def test_configured_cng_auction_source_is_accepted():
+    runner = _provider(
+        "configured_auction_search",
+        [_auction_candidate(url="https://www.cngcoins.com/Coin.aspx?CoinID=400001")],
+    )
+    runner = ProviderRunner(
+        provider=runner.provider,
+        run=runner.run,
+        allowed_hosts=frozenset({"cngcoins.com"}),
+    )
+
+    result = await run_auction_search(
+        {"query": "Domitian denarius"},
+        provider_runners=[runner],
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "complete"
+    assert result.items[0].source_url.startswith("https://www.cngcoins.com/")
 
 
 @pytest.mark.asyncio
@@ -119,9 +146,9 @@ async def test_specialist_dealer_fetch_uses_registered_boundary(monkeypatch):
         async def ainvoke(self, _args):
             raise AssertionError("specialist runner must not use the legacy fetch tool")
 
-    async def specialist_fetch(url):
+    async def specialist_fetch(url, allowed_hosts):
         calls.append(("specialist", url))
-        validate_dealer_url(url)
+        validate_search_source_url(url, allowed_hosts)
         return "specialist listing"
 
     async def search_pages(*_args):
@@ -131,18 +158,19 @@ async def test_specialist_dealer_fetch_uses_registered_boundary(monkeypatch):
     monkeypatch.setattr("app.teams.coin_search.fetch_registered_dealer_page", specialist_fetch)
     monkeypatch.setattr("app.teams.coin_search._search_dealer_pages", search_pages)
 
-    with pytest.raises(ValueError, match="registered source"):
-        await _collect_market_candidates(
-            LLMConfig(
-                provider="anthropic",
-                api_key="test",
-                model="test",
-            ),
-            "Domitian denarius",
-            5,
-        )
+    result = await _collect_market_candidates(
+        LLMConfig(
+            provider="anthropic",
+            api_key="test",
+            model="test",
+        ),
+        "Domitian denarius",
+        5,
+        allowed_fetch_hosts={"cngcoins.com"},
+    )
 
-    assert calls == [("specialist", "https://coinshows.com/listing")]
+    assert result == []
+    assert calls == []
 
 
 @pytest.mark.asyncio

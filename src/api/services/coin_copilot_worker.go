@@ -282,6 +282,8 @@ func (s *CoinCopilotService) executionRequest(run *models.CoinCopilotRun, llm LL
 		AppContext: appContext, CollectorContext: collectorContext,
 		LLM: llm, Limits: limits, ToolsBaseURL: s.toolsBaseURL,
 		ExecutionToken: token, AllowedTools: append([]string(nil), CoinCopilotAllowedTools...),
+		DealerSources:  s.settingsSvc.GetSearchSources(SettingDealerSearchSources),
+		AuctionSources: s.settingsSvc.GetSearchSources(SettingAuctionSearchSources),
 	}, nil
 }
 

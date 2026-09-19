@@ -21,6 +21,43 @@
 
       <section
         class="mt-6 min-w-0 rounded-md border border-border-subtle bg-input p-4 md:p-6"
+        aria-labelledby="search-sources-heading"
+        data-testid="search-sources-section"
+      >
+        <div class="mb-5">
+          <p class="section-label">External Search</p>
+          <h3 id="search-sources-heading" class="m-0 text-lg font-medium text-heading">Search Sources</h3>
+        </div>
+        <div class="grid min-w-0 gap-4 md:grid-cols-2">
+          <div class="form-group min-w-0">
+            <label class="form-label" for="dealer-search-sources">Dealer Search Sources</label>
+            <textarea
+              id="dealer-search-sources"
+              v-model="localDealerSearchSources"
+              class="form-textarea"
+              rows="7"
+              spellcheck="false"
+              required
+            />
+            <span class="mt-1 block text-sm text-text-muted">One public hostname per line. Coin search and wishlist alerts use only these sites.</span>
+          </div>
+          <div class="form-group min-w-0">
+            <label class="form-label" for="auction-search-sources">Auction Search Sources</label>
+            <textarea
+              id="auction-search-sources"
+              v-model="localAuctionSearchSources"
+              class="form-textarea"
+              rows="7"
+              spellcheck="false"
+              required
+            />
+            <span class="mt-1 block text-sm text-text-muted">One public hostname per line. Auction search uses only these sites.</span>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="mt-6 min-w-0 rounded-md border border-border-subtle bg-input p-4 md:p-6"
         aria-labelledby="numista-section-heading"
         data-testid="numista-section"
       >
@@ -428,6 +465,8 @@ const props = withDefaults(defineProps<{
   coinCopilotResumeWindowHours?: string
   pushoverAppToken: string
   publicAppUrl: string
+  dealerSearchSources?: string
+  auctionSearchSources?: string
   uspsApiBaseUrl: string
   uspsApiKey: string
   uspsApiKeyHeader: string
@@ -469,6 +508,8 @@ const props = withDefaults(defineProps<{
   coinCopilotEventRetentionHours: '168',
   coinCopilotCheckpointRetentionDays: '30',
   coinCopilotResumeWindowHours: '168',
+  dealerSearchSources: '',
+  auctionSearchSources: '',
 })
 
 const emit = defineEmits<{
@@ -505,6 +546,8 @@ const emit = defineEmits<{
     logLevel: string
     pushoverAppToken: string
     publicAppUrl: string
+    dealerSearchSources: string
+    auctionSearchSources: string
     uspsApiBaseUrl: string
     uspsApiKey: string
     uspsApiKeyHeader: string
@@ -552,6 +595,8 @@ const localCoinCopilotCheckpointRetentionDays = ref(props.coinCopilotCheckpointR
 const localCoinCopilotResumeWindowHours = ref(props.coinCopilotResumeWindowHours)
 const localPushoverAppToken = ref(props.pushoverAppToken)
 const localPublicAppUrl = ref(props.publicAppUrl)
+const localDealerSearchSources = ref(props.dealerSearchSources)
+const localAuctionSearchSources = ref(props.auctionSearchSources)
 const localUSPSAPIBaseURL = ref(props.uspsApiBaseUrl)
 const localUSPSAPIKey = ref(props.uspsApiKey)
 const localUSPSAPIKeyHeader = ref(props.uspsApiKeyHeader)
@@ -692,6 +737,8 @@ function save() {
     logLevel: localLogLevel.value,
     pushoverAppToken: localPushoverAppToken.value,
     publicAppUrl: localPublicAppUrl.value,
+    dealerSearchSources: localDealerSearchSources.value,
+    auctionSearchSources: localAuctionSearchSources.value,
     uspsApiBaseUrl: localUSPSAPIBaseURL.value,
     uspsApiKey: localUSPSAPIKey.value,
     uspsApiKeyHeader: localUSPSAPIKeyHeader.value,
@@ -827,6 +874,8 @@ watch(() => props.coinCopilotCheckpointRetentionDays, (value) => { localCoinCopi
 watch(() => props.coinCopilotResumeWindowHours, (value) => { localCoinCopilotResumeWindowHours.value = value })
 watch(() => props.pushoverAppToken, (value) => { localPushoverAppToken.value = value })
 watch(() => props.publicAppUrl, (value) => { localPublicAppUrl.value = value })
+watch(() => props.dealerSearchSources, (value) => { localDealerSearchSources.value = value })
+watch(() => props.auctionSearchSources, (value) => { localAuctionSearchSources.value = value })
 watch(() => props.uspsApiBaseUrl, (value) => { localUSPSAPIBaseURL.value = value })
 watch(() => props.uspsApiKey, (value) => { localUSPSAPIKey.value = value })
 watch(() => props.uspsApiKeyHeader, (value) => { localUSPSAPIKeyHeader.value = value })

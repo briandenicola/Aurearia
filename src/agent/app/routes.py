@@ -166,6 +166,8 @@ async def search_coins(request: CoinSearchRequest):
         user_message=request.message,
         coin_search_prompt=request.coin_search_prompt,
         coin_shows_prompt=request.coin_shows_prompt,
+        dealer_search_sources=request.dealer_search_sources,
+        auction_search_sources=request.auction_search_sources,
         user_context=request.user,
         portfolio=request.portfolio,
         app_context=request.app_context,
@@ -195,6 +197,8 @@ async def search_shows(request: CoinShowSearchRequest):
         user_message=request.message,
         coin_search_prompt=request.coin_search_prompt,
         coin_shows_prompt=request.coin_shows_prompt,
+        dealer_search_sources=request.dealer_search_sources,
+        auction_search_sources=request.auction_search_sources,
         user_context=request.user,
     )
 

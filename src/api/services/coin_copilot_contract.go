@@ -298,6 +298,8 @@ type CopilotExecuteProxyRequest struct {
 	ToolsBaseURL     string                 `json:"tools_base_url"`
 	ExecutionToken   string                 `json:"execution_token"`
 	AllowedTools     []string               `json:"allowed_tools"`
+	DealerSources    []string               `json:"dealer_search_sources"`
+	AuctionSources   []string               `json:"auction_search_sources"`
 }
 
 type CopilotAgentFrame struct {
@@ -502,30 +504,13 @@ func validateCopilotSpecialistEvidence(item CopilotSpecialistEvidence, expectedK
 }
 
 func validCopilotSpecialistSource(capability string, item CopilotSpecialistEvidence) bool {
-	parsed, err := url.Parse(item.SourceURL)
-	if err != nil {
-		return false
-	}
-	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
-	hostMatches := func(allowed string) bool {
-		return host == allowed || strings.HasSuffix(host, "."+allowed)
-	}
 	switch capability {
 	case "market_search":
-		if item.Provider != "cng_dealer_search" {
-			return false
-		}
-		for _, allowed := range []string{
-			"biddr.com", "catawiki.com", "cngcoins.com", "forumancientcoins.com",
-			"hjbltd.com", "ma-shops.com", "vcoins.com",
-		} {
-			if hostMatches(allowed) {
-				return true
-			}
-		}
-		return false
-	case "auction_search", "price_trends", "similar_lots":
-		return item.Provider == "numisbids" && hostMatches("numisbids.com")
+		return item.Provider == "configured_dealer_search" || item.Provider == "cng_dealer_search"
+	case "auction_search":
+		return item.Provider == "configured_auction_search" || item.Provider == "numisbids"
+	case "price_trends", "similar_lots":
+		return item.Provider == "numisbids"
 	default:
 		return false
 	}

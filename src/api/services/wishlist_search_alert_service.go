@@ -326,7 +326,8 @@ func (s *WishlistSearchAlertService) processClaimedRun(run *models.AlertRun) err
 		return failErr
 	}
 	proxyReq := AlertDiscoveryProxyRequest{
-		LLM: llmConfig,
+		LLM:           llmConfig,
+		DealerSources: s.settings.GetSearchSources(SettingDealerSearchSources),
 		Alert: AlertDiscoveryRequestDetail{
 			AlertID:          alert.ID,
 			CriteriaSnapshot: criteria,

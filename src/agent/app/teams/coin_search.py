@@ -39,24 +39,12 @@ from app.tools.search import fetch_dealer_page, fetch_registered_dealer_page
 
 logger = logging.getLogger(__name__)
 
-TRUSTED_ALERT_FETCH_HOSTS = {
-    "vcoins.com",
-    "ma-shops.com",
-    "forumancientcoins.com",
-    "biddr.com",
-    "catawiki.com",
-    "hjbltd.com",
-}
-
 SEARCH_PROMPT = with_safety("""You are a numismatic search specialist. Search the web to find coins
 currently for sale that match the user's request.
 
-Search on these dealer sites:
-- vcoins.com, ma-shops.com, forumancientcoins.com, biddr.com, catawiki.com, hjbltd.com
-
 Use targeted site-specific queries like:
-- "Domitian denarius for sale site:vcoins.com"
-- "Greek tetradrachm Athens site:ma-shops.com"
+- "Domitian denarius for sale site:<configured-host>"
+- "Greek tetradrachm Athens site:<configured-host>"
 
 Include the user's budget/price range in your searches if mentioned.
 Run at least 3-5 searches across different dealer sites.
@@ -114,8 +102,8 @@ NO_RESULTS_PROMPT = (
     "You are an assistant in a coin collecting application. "
     "The user searched for coins to buy but no listings were found. "
     "Generate a brief, helpful response. Suggest broadening search criteria, "
-    "checking back later, or trying specific dealer sites like vcoins.com "
-    "or ma-shops.com. Keep it concise. Do not use emojis. "
+    "checking back later, or trying another configured dealer site. "
+    "Keep it concise. Do not use emojis. "
     "Do not invent coin listings."
 )
 
@@ -163,7 +151,7 @@ async def _fetch_dealer_pages(
     if not urls:
         return ""
     if specialist_boundary:
-        tasks = [fetch_registered_dealer_page(url) for url in urls[:5]]
+        tasks = [fetch_registered_dealer_page(url, allowed_fetch_hosts or set()) for url in urls[:5]]
     else:
         tasks = [fetch_dealer_page.ainvoke({"url": url}) for url in urls[:5]]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -228,7 +216,8 @@ def _apply_observed_availability(
         availability = observed.get(source_url)
         if availability is not None:
             item["availability"] = availability.title()
-        normalized.append(item)
+        if availability is not None:
+            normalized.append(item)
     return normalized
 
 
@@ -241,7 +230,8 @@ async def _collect_market_candidates(
     allowed_fetch_hosts: set[str] | None = None,
     cancellation_check: CancellationCheck | None = None,
 ) -> Sequence[Mapping[str, Any]]:
-    combined_search = f"{search_prompt}\n\n{SEARCH_PROMPT}" if search_prompt else SEARCH_PROMPT
+    source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
+    combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
     search_results = await _search_dealer_pages(llm_config, query, combined_search)
     await raise_if_cancelled(cancellation_check)
     fetched = await _fetch_dealer_pages(
@@ -265,6 +255,7 @@ async def run_market_search(
     provider_runners: Sequence[ProviderRunner] | None = None,
     observed_at: datetime | None = None,
     cancellation_check: CancellationCheck | None = None,
+    source_hosts: set[str] | None = None,
 ) -> SpecialistResult:
     """Run the canonical dealer workflow and return a strict specialist result."""
     if provider_runners is None:
@@ -276,11 +267,16 @@ async def run_market_search(
                 llm_config,
                 search_query,
                 limit,
+                allowed_fetch_hosts=source_hosts,
                 cancellation_check=cancellation_check,
             )
 
         provider_runners = [
-            ProviderRunner(provider="cng_dealer_search", run=canonical_provider)
+            ProviderRunner(
+                provider="configured_dealer_search",
+                run=canonical_provider,
+                allowed_hosts=frozenset(source_hosts or set()),
+            )
         ]
     return await run_provider_search(
         capability="market_search",
@@ -304,9 +300,13 @@ def create_coin_search_team(
         allowed_fetch_hosts: Optional host allowlist for fetched listing pages
     """
     if search_prompt:
-        combined_search = f"{search_prompt}\n\n{SEARCH_PROMPT}"
+        combined_search = (
+            f"{search_prompt}\n\n"
+            f"{_configured_source_prompt(allowed_fetch_hosts or set())}\n\n"
+            f"{SEARCH_PROMPT}"
+        )
     else:
-        combined_search = SEARCH_PROMPT
+        combined_search = f"{_configured_source_prompt(allowed_fetch_hosts or set())}\n\n{SEARCH_PROMPT}"
 
     async def search_node(state: CoinSearchState) -> dict:
         """Phase 1: Search the web for dealer pages."""
@@ -352,7 +352,9 @@ def create_coin_search_team(
             return {"messages": [AIMessage(content=content)]}
 
         # Format real listings via LLM (this call streams to user)
-        formatted, _ = await _format_dealer_candidates(llm_config, user_msg, fetched)
+        _, candidates = await _format_dealer_candidates(llm_config, user_msg, fetched)
+        candidates = _apply_observed_availability(candidates, fetched)
+        formatted = f"```json\n{json.dumps(candidates, ensure_ascii=False, indent=2)}\n```"
         formatted = _enrich_references_with_authority_links(formatted)
 
         summary = (
@@ -415,7 +417,10 @@ def _enrich_references_with_authority_links(text: str) -> str:
 async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDiscoveryResponse:
     """Run stateless wishlist alert discovery using the existing coin search pipeline."""
     query = _alert_criteria_query(request.alert.criteria_snapshot)
-    allowed_fetch_hosts = _trusted_alert_fetch_hosts(request.alert.criteria_snapshot.source_filters)
+    allowed_fetch_hosts = _configured_alert_fetch_hosts(
+        request.alert.criteria_snapshot.source_filters,
+        set(request.dealer_search_sources),
+    )
     graph = create_coin_search_team(request.llm, allowed_fetch_hosts=allowed_fetch_hosts)
     try:
         result = await graph.ainvoke({
@@ -478,15 +483,29 @@ def _source_filter_hosts(source_filters: list[str]) -> set[str]:
     return hosts
 
 
-def _trusted_alert_fetch_hosts(source_filters: list[str]) -> set[str]:
+def _configured_alert_fetch_hosts(
+    source_filters: list[str],
+    configured_hosts: set[str],
+) -> set[str]:
     requested = _source_filter_hosts(source_filters)
     if not requested:
-        return set(TRUSTED_ALERT_FETCH_HOSTS)
+        return configured_hosts
     return {
-        trusted
-        for trusted in TRUSTED_ALERT_FETCH_HOSTS
-        if any(requested_host == trusted or requested_host.endswith(f".{trusted}") for requested_host in requested)
+        configured
+        for configured in configured_hosts
+        if any(
+            requested_host == configured or requested_host.endswith(f".{configured}")
+            for requested_host in requested
+        )
     }
+
+
+def _configured_source_prompt(source_hosts: set[str]) -> str:
+    sources = ", ".join(sorted(source_hosts))
+    return (
+        "Search only these administrator-configured dealer hosts: "
+        f"{sources}. Ignore results from every other host."
+    )
 
 
 def _url_matches_allowed_hosts(url: str, allowed_hosts: set[str]) -> bool:

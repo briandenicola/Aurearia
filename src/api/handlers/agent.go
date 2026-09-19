@@ -106,7 +106,7 @@ const DefaultCoinSearchPrompt = `You are a numismatic search specialist focused 
 
 CRITICAL RULES:
 - Search for coins that are CURRENTLY FOR SALE — never return sold items or past auction results
-- ONLY search reputable dealer sites: vcoins.com, ma-shops.com, forumancientcoins.com, biddr.com, catawiki.com, hjbltd.com
+- ONLY search the dealer sites supplied in the configured source list
 - Add "for sale" or "buy now" to your search queries
 - For EACH result, you MUST provide the exact URL to the listing page
 - NEVER invent, guess, or recall URLs from memory — only use URLs from search results
@@ -243,6 +243,8 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		AppContext:       req.AppContext,
 		CoinSearchPrompt: h.getCoinSearchPrompt(),
 		CoinShowsPrompt:  h.getCoinShowsPrompt(userID),
+		DealerSources:    h.settingsSvc.GetSearchSources(services.SettingDealerSearchSources),
+		AuctionSources:   h.settingsSvc.GetSearchSources(services.SettingAuctionSearchSources),
 		Portfolio:        portfolio,
 		InternalToken:    internalToken,
 		ToolsBaseURL:     h.toolsBaseURL,

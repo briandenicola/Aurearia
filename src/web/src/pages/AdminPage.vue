@@ -106,6 +106,8 @@
           :coin-copilot-resume-window-hours="settings.CoinCopilotResumeWindowHours ?? '168'"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
           :public-app-url="settings.PublicAppURL ?? ''"
+          :dealer-search-sources="settings.DealerSearchSources ?? ''"
+          :auction-search-sources="settings.AuctionSearchSources ?? ''"
           :usps-api-base-url="settings.USPSAPIBaseURL ?? ''"
           :usps-api-key="settings.USPSAPIKey ?? ''"
           :usps-api-key-header="settings.USPSAPIKeyHeader ?? ''"
@@ -452,6 +454,8 @@ function onSystemSave(payload: {
   logLevel: string
   pushoverAppToken: string
   publicAppUrl: string
+  dealerSearchSources: string
+  auctionSearchSources: string
   uspsApiBaseUrl: string
   uspsApiKey: string
   uspsApiKeyHeader: string
@@ -498,6 +502,8 @@ function onSystemSave(payload: {
   settings.value.LogLevel = payload.logLevel
   settings.value.PushoverAppToken = payload.pushoverAppToken
   settings.value.PublicAppURL = payload.publicAppUrl
+  settings.value.DealerSearchSources = payload.dealerSearchSources
+  settings.value.AuctionSearchSources = payload.auctionSearchSources
   settings.value.USPSAPIBaseURL = payload.uspsApiBaseUrl
   settings.value.USPSAPIKey = payload.uspsApiKey
   settings.value.USPSAPIKeyHeader = payload.uspsApiKeyHeader

@@ -29,6 +29,44 @@ var numistaSettingTestCases = []numistaSettingTestCase{
 	{"detail timeout", SettingNumistaDetailTimeoutSeconds, 3, 1, 10, func(s NumistaSettings) int64 { return int64(s.DetailTimeout / time.Second) }},
 }
 
+func TestSearchSourceSettingsNormalizeAndDeduplicate(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	if err := svc.SetSetting(SettingDealerSearchSources, " VCoins.com.\nma-shops.com\nvcoins.com "); err != nil {
+		t.Fatal(err)
+	}
+	got := svc.GetSearchSources(SettingDealerSearchSources)
+	if len(got) != 2 || got[0] != "vcoins.com" || got[1] != "ma-shops.com" {
+		t.Fatalf("normalized sources = %#v", got)
+	}
+}
+
+func TestSearchSourceSettingsRejectUnsafeValues(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	for _, value := range []string{
+		"",
+		"https://vcoins.com/path",
+		"localhost",
+		"127.0.0.1",
+		"dealer.example:443",
+	} {
+		if err := svc.SetSetting(SettingDealerSearchSources, value); err == nil {
+			t.Errorf("value %q was accepted", value)
+		}
+	}
+}
+
+func TestSearchSourceDefaultsAreSeparated(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	dealers := svc.GetSearchSources(SettingDealerSearchSources)
+	auctions := svc.GetSearchSources(SettingAuctionSearchSources)
+	if len(dealers) != 6 {
+		t.Fatalf("dealer defaults = %#v", dealers)
+	}
+	if len(auctions) != 2 || auctions[0] != "numisbids.com" || auctions[1] != "cngcoins.com" {
+		t.Fatalf("auction defaults = %#v", auctions)
+	}
+}
+
 func TestNumistaSettingsDefaults(t *testing.T) {
 	svc, _ := newTestSettingsService(t)
 	settings := svc.GetNumistaSettings()

@@ -13,6 +13,8 @@ export interface AppSettings extends Partial<NumistaSettings> {
   SearXNGURL: string
   LogLevel: string
   PublicAppURL?: string
+  DealerSearchSources?: string
+  AuctionSearchSources?: string
   RegistrationMode?: string
   AuctionAlertsCheckEnabled?: string
   AuctionAlertsCheckStartTime?: string

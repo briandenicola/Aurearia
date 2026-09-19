@@ -66,22 +66,15 @@ JSONDecimal = Annotated[
 _DEGRADED_PROVIDER_STATUSES = {"timeout", "failure", "unavailable", "malformed"}
 _NON_PUBLIC_HOSTS = {"localhost", "metadata.google.internal"}
 _REGISTERED_SOURCE_HOSTS = {
-    "cng_dealer_search": frozenset(
-        {
-            "biddr.com",
-            "catawiki.com",
-            "cngcoins.com",
-            "forumancientcoins.com",
-            "hjbltd.com",
-            "ma-shops.com",
-            "vcoins.com",
-        }
-    ),
     "numisbids": frozenset({"numisbids.com"}),
 }
 _CAPABILITY_PROVIDERS = {
-    "market_search": frozenset({"cng_dealer_search", "market_search_secondary"}),
-    "auction_search": frozenset({"numisbids", "auction_search_secondary"}),
+    "market_search": frozenset(
+        {"cng_dealer_search", "configured_dealer_search", "market_search_secondary"}
+    ),
+    "auction_search": frozenset(
+        {"numisbids", "configured_auction_search", "auction_search_secondary"}
+    ),
     "price_trends": frozenset({"numisbids", "price_trends_secondary"}),
     "similar_lots": frozenset({"numisbids", "similar_lots_secondary"}),
 }
@@ -179,6 +172,7 @@ class ProviderRunner:
 
     provider: str
     run: ProviderCallable
+    allowed_hosts: frozenset[str] | None = None
 
 
 class StrictSpecialistModel(BaseModel):
@@ -328,8 +322,13 @@ class EvidenceItem(StrictSpecialistModel):
     @model_validator(mode="after")
     def validate_provenance(self) -> EvidenceItem:
         model_fields = type(self).model_fields
-        _validate_registered_source(self.provider, self.source_url)
-        _validate_registered_source(self.provider, self.canonical_source_id)
+        if self.provider not in {
+            "configured_dealer_search",
+            "configured_auction_search",
+            "cng_dealer_search",
+        }:
+            _validate_registered_source(self.provider, self.source_url)
+            _validate_registered_source(self.provider, self.canonical_source_id)
         for field in _UNTRUSTED_EVIDENCE_TEXT_FIELDS.intersection(model_fields):
             value = getattr(self, field)
             values = value if isinstance(value, list) else [value]
@@ -629,10 +628,19 @@ def canonical_source_identity(url: str) -> str:
     return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, ""))
 
 
-def validate_registered_source_url(provider: str, url: str) -> str:
+def validate_registered_source_url(
+    provider: str,
+    url: str,
+    allowed_hosts: frozenset[str] | None = None,
+) -> str:
     """Validate a source URL against the provider's fixed source boundary."""
     validated = _validate_source_url(url)
-    _validate_registered_source(provider, validated)
+    if allowed_hosts is None:
+        _validate_registered_source(provider, validated)
+    else:
+        host = (urlsplit(validated).hostname or "").rstrip(".").lower()
+        if not any(host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts):
+            raise ValueError("source URL host is not configured")
     return validated
 
 
@@ -712,11 +720,13 @@ def adapt_dealer_candidate(
     *,
     provider: str,
     observed_at: datetime,
+    allowed_hosts: frozenset[str] | None = None,
 ) -> DealerListing:
     """Normalize one provider-observed dealer candidate without enrichment."""
     source_url = validate_registered_source_url(
         provider,
         str(candidate.get("sourceUrl") or candidate.get("source_url") or candidate.get("url") or "").strip(),
+        allowed_hosts,
     )
     title = _clean_optional_text(candidate.get("name") or candidate.get("title"))
     if not title:
@@ -773,11 +783,13 @@ def adapt_auction_candidate(
     *,
     provider: str,
     observed_at: datetime,
+    allowed_hosts: frozenset[str] | None = None,
 ) -> AuctionLot:
     """Normalize one provider-observed auction candidate without enrichment."""
     source_url = validate_registered_source_url(
         provider,
         str(candidate.get("url") or candidate.get("sourceUrl") or candidate.get("source_url") or "").strip(),
+        allowed_hosts,
     )
     title = _clean_optional_text(candidate.get("title") or candidate.get("name"))
     if not title:
@@ -1158,12 +1170,18 @@ async def run_provider_search(
                     continue
                 try:
                     item = (
-                        adapt_dealer_candidate(candidate, provider=provider_runner.provider, observed_at=timestamp)
+                        adapt_dealer_candidate(
+                            candidate,
+                            provider=provider_runner.provider,
+                            observed_at=timestamp,
+                            allowed_hosts=provider_runner.allowed_hosts,
+                        )
                         if capability == "market_search"
                         else adapt_auction_candidate(
                             candidate,
                             provider=provider_runner.provider,
                             observed_at=timestamp,
+                            allowed_hosts=provider_runner.allowed_hosts,
                         )
                     )
                 except (ValueError, TypeError):
