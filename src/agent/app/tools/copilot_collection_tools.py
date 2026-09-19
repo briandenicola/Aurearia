@@ -399,6 +399,7 @@ def build_copilot_tool_definitions(
         "auction_search": "Search configured auction sources for relevant lots.",
         "price_trends": "Analyze source-backed completed-sale observations.",
         "similar_lots": "Find and rank source-backed similar auction lots.",
+        "deep_analysis_handoff": "Request, read, or explicitly rerun the existing owner-scoped Deep Analysis workflow.",
     }
     selected = allowed_tools or list(COPILOT_ALLOWED_TOOLS)
     if not set(selected).issubset(COPILOT_ALLOWED_TOOLS):

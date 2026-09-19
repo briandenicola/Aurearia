@@ -60,6 +60,7 @@ export interface AgentChatMessage {
 export interface AgentChatAppContext {
   route?: string
   activeCoinId?: number
+  activeDraftId?: number
 }
 
 export interface CollectionCoinSummary {

@@ -18,6 +18,14 @@ from app.tools.copilot_collection_tools import (
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "coin_copilot" / "valid_execute_request.json"
+HANDOFF_FIXTURE = (
+    Path(__file__).parents[3]
+    / "specs"
+    / "362-coin-copilot-attribution"
+    / "contracts"
+    / "fixtures"
+    / "deep-analysis-handoff-valid.json"
+)
 
 
 def _request(**limit_updates):
@@ -91,6 +99,28 @@ class _FailingConcurrentToolClient:
         return bound_tool_result({"coins": []}, 32768)
 
 
+class _ExclusiveHandoffToolClient:
+    def __init__(self):
+        self.active = {}
+        self.overlaps = []
+
+    async def execute(self, name, call_id, args):
+        if self.active and (
+            name == "deep_analysis_handoff"
+            or "deep_analysis_handoff" in self.active.values()
+        ):
+            self.overlaps.append((name, set(self.active.values())))
+        self.active[call_id] = name
+        await asyncio.sleep(0.01)
+        del self.active[call_id]
+        if name == "deep_analysis_handoff":
+            value = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))["results"]["accepted"]
+            value["operation"] = args["operation"]
+        else:
+            value = {"coins": []}
+        return bound_tool_result(value, 32768)
+
+
 async def _frames(request, model, tool_client, cancellation_check=None):
     return [
         frame
@@ -111,6 +141,64 @@ def test_release_budget_defaults_are_shared_by_all_tool_types():
     assert limits.max_concurrent_tools == 3
     assert limits.hard_timeout_seconds == 120
     assert limits.max_persisted_tool_result_bytes == 32768
+
+
+def test_deep_analysis_policy_requires_exact_target_and_non_authoritative_context():
+    prompt = coin_copilot.COPILOT_SYSTEM_PROMPT
+    assert "route and prompt context as non-authoritative hints" in prompt
+    assert "exact coin/draft is ambiguous, clarify" in prompt
+    assert "request for a new exact target" in prompt
+    assert "status only as a read" in prompt
+    assert "rerun only when the\nowner explicitly asks" in prompt
+    assert "Never apply or accept a proposal" in prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["request", "rerun"])
+async def test_deep_analysis_request_and_rerun_execute_without_tool_overlap(operation):
+    handoff_args = {
+        "operation": operation,
+        "target": {"type": "coin", "id": 42},
+    }
+    if operation == "rerun":
+        handoff_args["job_id"] = 313
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "search_my_collection",
+                        "args": {"query": "denarius"},
+                        "id": "call_search_1",
+                        "type": "tool_call",
+                    },
+                    {
+                        "name": "deep_analysis_handoff",
+                        "args": handoff_args,
+                        "id": "call_handoff",
+                        "type": "tool_call",
+                    },
+                    {
+                        "name": "search_my_collection",
+                        "args": {"query": "aureus"},
+                        "id": "call_search_2",
+                        "type": "tool_call",
+                    },
+                ],
+            ),
+            AIMessage(content="Deep Analysis is ready for review."),
+        ]
+    )
+    request = _request(max_concurrent_tools=3)
+    request.allowed_tools.append("deep_analysis_handoff")
+    tools = _ExclusiveHandoffToolClient()
+
+    frames = await _frames(request, model, tools)
+
+    assert tools.overlaps == []
+    assert frames[-1].type == "completed"
+    assert frames[-1].payload.usage.tool_calls == 3
 
 
 @pytest.mark.asyncio
@@ -384,6 +472,121 @@ async def test_resume_hydrates_completed_summary_for_virtual_analysis():
     assert completed[0].payload.result["mode"] == "collection_only"
     assert frames[-1].type == "completed"
     assert frames[-1].payload.usage.tool_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_resume_reconstructs_completed_handoff_without_callback():
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    handoff = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))["results"]["accepted"]
+    bounded, original_bytes, truncated, digest = bound_tool_result(handoff, 32768)
+    payload["allowed_tools"].append("deep_analysis_handoff")
+    payload["checkpoint"]["completed_tools"] = [
+        {
+            "tool_call_id": "call_handoff",
+            "tool_name": "deep_analysis_handoff",
+            "result_digest": digest,
+            "result": bounded,
+            "original_bytes": original_bytes,
+            "persisted_bytes": len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()),
+            "truncated": truncated,
+        }
+    ]
+    payload["checkpoint"]["counters"]["tool_calls"] = 1
+    request = CopilotExecuteRequest.model_validate(payload)
+    model = _SequenceModel([AIMessage(content="The saved Deep Analysis handoff is ready for review.")])
+    tools = _ToolClient([])
+
+    frames = await _frames(request, model, tools)
+
+    assert tools.calls == []
+    assert "call_handoff" in str(model.messages[0])
+    assert digest in str(model.messages[0])
+    assert frames[-1].type == "completed"
+    assert frames[-1].payload.usage.tool_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_completed_handoff_call_id_rejects_changed_binding_without_callback():
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    handoff = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))["results"]["accepted"]
+    bounded, original_bytes, truncated, digest = bound_tool_result(handoff, 32768)
+    payload["allowed_tools"].append("deep_analysis_handoff")
+    payload["checkpoint"]["completed_tools"] = [
+        {
+            "tool_call_id": "call_handoff",
+            "tool_name": "deep_analysis_handoff",
+            "result_digest": digest,
+            "result": bounded,
+            "original_bytes": original_bytes,
+            "persisted_bytes": len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()),
+            "truncated": truncated,
+        }
+    ]
+    request = CopilotExecuteRequest.model_validate(payload)
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "deep_analysis_handoff",
+                        "args": {"operation": "request", "target": {"type": "coin", "id": 99}},
+                        "id": "call_handoff",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        ]
+    )
+    tools = _ToolClient([])
+
+    frames = await _frames(request, model, tools)
+
+    assert tools.calls == []
+    assert frames[-1].type == "failed"
+    assert frames[-1].payload.code == "invalid_tool_call"
+
+
+@pytest.mark.asyncio
+async def test_handoff_cancellation_after_callback_await_emits_no_late_frames():
+    cancelled = False
+
+    async def cancellation_check():
+        return cancelled
+
+    class CancellingHandoffClient:
+        async def execute(self, _name, _call_id, _args):
+            nonlocal cancelled
+            cancelled = True
+            handoff = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))["results"]["accepted"]
+            return bound_tool_result(handoff, 32768)
+
+    request = _request()
+    request.allowed_tools.append("deep_analysis_handoff")
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "deep_analysis_handoff",
+                        "args": {"operation": "request", "target": {"type": "coin", "id": 42}},
+                        "id": "call_handoff",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        ]
+    )
+
+    frames = await _frames(
+        request,
+        model,
+        CancellingHandoffClient(),
+        cancellation_check=cancellation_check,
+    )
+
+    assert [frame.type for frame in frames] == ["plan_updated", "tool_started"]
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,29 @@ interface UseCoinSearchChatOptions {
   onAdded: () => void
 }
 
+interface AgentContextRoute {
+  name?: unknown
+  params: Record<string, unknown>
+  fullPath: string
+}
+
+function positiveRouteId(value: unknown): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return undefined
+  const parsed = Number(raw)
+  return Number.isSafeInteger(parsed) ? parsed : undefined
+}
+
+export function buildAgentChatAppContext(route: AgentContextRoute): AgentChatAppContext {
+  const id = positiveRouteId(route.params.id)
+  const routeName = typeof route.name === 'string' ? route.name : ''
+  return {
+    route: route.fullPath.slice(0, 2000),
+    activeCoinId: routeName.startsWith('coin-detail') ? id : undefined,
+    activeDraftId: routeName === 'quick-capture-draft' ? id : undefined,
+  }
+}
+
 const VALID_CATEGORIES = ['Roman', 'Greek', 'Byzantine', 'Modern', 'Other']
 const VALID_MATERIALS = ['Gold', 'Silver', 'Bronze', 'Copper', 'Electrum', 'Other']
 const VALID_ERAS = ['ancient', 'medieval', 'modern'] as const
@@ -259,17 +282,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   }
 
   function buildAppContext(): AgentChatAppContext {
-    const idParam = route.params.id
-    const activeCoinId = typeof idParam === 'string'
-      ? Number.parseInt(idParam, 10)
-      : Array.isArray(idParam) && typeof idParam[0] === 'string'
-        ? Number.parseInt(idParam[0], 10)
-        : undefined
-
-    return {
-      route: route.fullPath,
-      activeCoinId: Number.isFinite(activeCoinId ?? NaN) ? activeCoinId : undefined,
-    }
+    return buildAgentChatAppContext(route)
   }
 
   async function sendLegacyMessage(text: string, history: AgentChatMessage[], assistantIdx: number) {

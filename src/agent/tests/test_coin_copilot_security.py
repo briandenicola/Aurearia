@@ -1,6 +1,7 @@
 """Coin Copilot callback and untrusted-result security tests."""
 
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import httpx
@@ -17,6 +18,15 @@ from app.tools.copilot_collection_tools import (
 )
 from app.tools.numisbids import validate_numisbids_url
 from app.tools.search import fetch_registered_dealer_page, validate_dealer_url
+
+HANDOFF_FIXTURE = (
+    Path(__file__).parents[3]
+    / "specs"
+    / "362-coin-copilot-attribution"
+    / "contracts"
+    / "fixtures"
+    / "deep-analysis-handoff-invalid.json"
+)
 
 
 def _provider(provider, candidates):
@@ -35,6 +45,66 @@ def _client(transport, **kwargs):
         client=httpx.AsyncClient(transport=transport),
         **kwargs,
     )
+
+
+def _handoff_client(transport):
+    return CopilotCollectionToolClient(
+        tools_base_url="http://test-api:8080",
+        execution_token="execution-token",
+        allowed_tools=["deep_analysis_handoff"],
+        max_result_bytes=32768,
+        checkpoint_version=2,
+        client=httpx.AsyncClient(transport=transport),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case_name",
+    [
+        "result_level_status_discriminant",
+        "unsafe_absolute_review_url",
+        "mismatched_review_url",
+        "forged_apply",
+    ],
+)
+async def test_handoff_malformed_tampered_and_unsafe_results_fail_closed(case_name):
+    fixture = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))
+    case = next(item for item in fixture["result_cases"] if item["name"] == case_name)
+    client = _handoff_client(
+        httpx.MockTransport(lambda _request: httpx.Response(200, json=case["payload"]))
+    )
+    try:
+        with pytest.raises(CopilotToolError) as exc:
+            await client.execute(
+                "deep_analysis_handoff",
+                f"call_{case_name}",
+                {"operation": "status", "job_id": 314},
+            )
+    finally:
+        await client._client.aclose()
+    assert exc.value.code == "invalid_tool_call"
+
+
+@pytest.mark.asyncio
+async def test_handoff_unavailable_callback_is_explicit_and_does_not_fallback_to_arbitrary_http():
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        return httpx.Response(503)
+
+    client = _handoff_client(httpx.MockTransport(handler))
+    try:
+        with pytest.raises(CopilotToolError):
+            await client.execute(
+                "deep_analysis_handoff",
+                "call_unavailable",
+                {"operation": "request", "target": {"type": "coin", "id": 42}},
+            )
+    finally:
+        await client._client.aclose()
+    assert paths == ["/api/internal/copilot/tools/deep_analysis_handoff"]
 
 
 @pytest.mark.asyncio

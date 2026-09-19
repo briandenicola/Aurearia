@@ -356,7 +356,7 @@ func canonicalAppContext(value map[string]any) (string, error) {
 			if !ok || len(route) > 2048 {
 				return "", ErrCopilotInvalidRequest
 			}
-		case "activeCoinId":
+		case "activeCoinId", "activeDraftId":
 			number, ok := raw.(float64)
 			if !ok || number < 1 || number != float64(uint(number)) {
 				return "", ErrCopilotInvalidRequest

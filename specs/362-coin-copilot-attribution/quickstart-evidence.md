@@ -88,3 +88,28 @@ source-draft binding had been added at the checkpoint. After reviewing the
 completed deployment evidence, the owner explicitly directed: "Take F014 all
 the way to completion." This separately authorizes the additive Feature 362
 schema and row-producing work after the mandatory Phase 1-2 red tests.
+
+## Local full mixed-binary rollback matrix
+
+Date: 2026-09-18
+
+- Command: `scripts/compat/feature362-rollback.ps1` with an immutable guard
+  binary built from `0910bc7b86e6d5a567c62f8b25000c64fca493a2` and the
+  current Feature 362 worktree binary.
+- Guard SHA-256:
+  `977b17b8a339631e8def8793a457211221cc9bb9bb73644173c6be9f4499abb4`.
+- Feature SHA-256:
+  `7bd01327f62404a08bb55c7657d68b8764926dd4f164edac7df363cdce4a4344`.
+- Guard source-vocabulary tests passed in handlers, repository, and services.
+- The feature binary, guard binary, and re-upgraded feature binary each
+  returned HTTP 200 from `/health` against the same copied SQLite database.
+- The copied database retained its supported `intake` row, `copilot_draft`
+  row, source-draft binding, handoff row, default-off attribution setting,
+  report payload, and artifact bytes across rollback and re-upgrade.
+- The guard produced zero events and zero provider runs for the unknown
+  `copilot_draft` row; its status remained queued with attempt count and
+  sequence both zero.
+- Final result: `feature362_compatibility=full-pass`.
+- `.github/workflows/feature362-compatibility.yml` now runs this full matrix
+  after the immutable guard-only prerequisite on pushes and pull requests to
+  `beta` and `main`.

@@ -152,9 +152,9 @@ func toDeepJobEnvelope(job *models.DeepIdentificationJob, reused bool) deepJobEn
 }
 
 // deepIdentificationEnabled reports the live feature flag. Handlers gate
-// job-creation and cancel/retry actions on it (FR-008); read-only GET of an
-// already-running job is intentionally NOT gated so in-flight work is never
-// stranded by an admin disabling the flag mid-run.
+// job creation and retry actions on it (FR-008); reads, cancellation, review,
+// edits, and confirmed apply for accepted jobs remain available so disabling
+// new work cannot strand an in-flight or completed job.
 func (h *DeepIdentificationHandler) deepIdentificationEnabled() bool {
 	return h.settingsSvc.GetDeepIdentificationSettings().Enabled
 }

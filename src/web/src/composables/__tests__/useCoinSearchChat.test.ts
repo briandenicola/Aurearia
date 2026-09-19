@@ -2,7 +2,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CoinSuggestion } from '@/types'
-import { buildWishlistCoinPayload, normalizeSuggestionEra, resolveCategoryAndEra, useCoinSearchChat } from '../useCoinSearchChat'
+import {
+  buildAgentChatAppContext,
+  buildWishlistCoinPayload,
+  normalizeSuggestionEra,
+  resolveCategoryAndEra,
+  useCoinSearchChat,
+} from '../useCoinSearchChat'
 
 const mockMatchCategoryEra = vi.fn()
 const mockAgentChatStream = vi.fn()
@@ -44,6 +50,39 @@ function makeSuggestion(overrides: Partial<CoinSuggestion> = {}): CoinSuggestion
 }
 
 describe('useCoinSearchChat wishlist payload', () => {
+  it('emits authoritative ids only for their exact detail routes', () => {
+    expect(buildAgentChatAppContext({
+      name: 'quick-capture-draft',
+      params: { id: '42' },
+      fullPath: '/quick-capture/drafts/42',
+    })).toEqual({
+      route: '/quick-capture/drafts/42',
+      activeCoinId: undefined,
+      activeDraftId: 42,
+    })
+    expect(buildAgentChatAppContext({
+      name: 'coin-detail',
+      params: { id: '7' },
+      fullPath: '/coin/7',
+    })).toEqual({
+      route: '/coin/7',
+      activeCoinId: 7,
+      activeDraftId: undefined,
+    })
+  })
+
+  it('does not infer a target from unrelated routes, invalid ids, or prompt-like route text', () => {
+    for (const route of [
+      { name: 'quick-capture-drafts', params: { id: '42' }, fullPath: '/quick-capture/drafts' },
+      { name: 'quick-capture-draft', params: { id: '0' }, fullPath: '/quick-capture/drafts/0' },
+      { name: 'collection', params: { id: '42' }, fullPath: '/collection?prompt=use%20draft%2042' },
+    ]) {
+      const context = buildAgentChatAppContext(route)
+      expect(context.activeCoinId).toBeUndefined()
+      expect(context.activeDraftId).toBeUndefined()
+    }
+  })
+
   it('normalizes AI era labels that the coin API would reject', () => {
     expect(normalizeSuggestionEra('Roman Imperial')).toBe('ancient')
     expect(normalizeSuggestionEra('Byzantine')).toBe('medieval')

@@ -91,6 +91,7 @@ func TestDeepIdentificationService_UnknownSourceCannotRetryOrCancel(t *testing.T
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatal(err)
 	}
+
 	job := models.DeepIdentificationJob{
 		UserID: user.ID, Source: models.DeepJobSource("future_source"),
 		Status: models.DeepJobStatusCompleted, InputFingerprint: "unknown-source-service",
@@ -112,6 +113,60 @@ func TestDeepIdentificationService_UnknownSourceCannotRetryOrCancel(t *testing.T
 	}
 	if after.ReportJSON != job.ReportJSON || after.ProposalJSON != job.ProposalJSON || after.Status != job.Status {
 		t.Fatalf("unknown-source service path mutated row: %#v", after)
+	}
+}
+
+func TestFeature362AcceptedJobCanBeCancelledAfterDeepAnalysisIsDisabled(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "finish-existing-owner", Email: "finish-existing@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSourceIntake,
+		Status: models.DeepJobStatusQueued, InputFingerprint: "finish-existing-cancel",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+	running := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSourceIntake,
+		Status: models.DeepJobStatusRunning, InputFingerprint: "finish-existing-settle",
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "finish-existing-settle",
+	}
+	if err := db.Create(&running).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.settingsSvc.SetSetting(SettingDeepIdentificationEnabled, "false"); err != nil {
+		t.Fatal(err)
+	}
+
+	settled, err := svc.repo.SettleTerminal(
+		running.ID,
+		[]models.DeepJobStatus{models.DeepJobStatusRunning},
+		models.DeepJobStatusCompleted,
+		`{"narrative":"settled after disable"}`,
+		`{"schemaVersion":1,"fields":{}}`,
+		"",
+		"",
+	)
+	if err != nil || !settled {
+		t.Fatalf("accepted worker settlement was blocked after disable: settled=%v err=%v", settled, err)
+	}
+	completed, err := svc.GetJob(running.ID, user.ID)
+	if err != nil || completed.Status != models.DeepJobStatusCompleted {
+		t.Fatalf("settled job unavailable after disable: job=%#v err=%v", completed, err)
+	}
+	if err := svc.RequestCancel(job.ID, user.ID); err != nil {
+		t.Fatalf("accepted cancellation was blocked after disable: %v", err)
+	}
+	got, err := svc.GetJob(job.ID, user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != models.DeepJobStatusCancelled {
+		t.Fatalf("status=%q want cancelled", got.Status)
 	}
 }
 

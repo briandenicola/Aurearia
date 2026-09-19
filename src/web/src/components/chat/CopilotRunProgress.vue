@@ -126,6 +126,88 @@
             <li v-for="warning in tool.specialistResult.warnings" :key="warning">{{ warning }}</li>
           </ul>
         </section>
+
+        <section
+          v-if="tool.deepAnalysisHandoffResult"
+          class="ml-6 flex flex-col gap-2 rounded-sm border border-border-subtle bg-input p-3"
+          aria-label="Deep Analysis handoff"
+          data-testid="copilot-deep-analysis-result"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="section-label mb-0">Deep Analysis</span>
+            <span class="chip-sm">{{ deepOutcomeLabel(tool.deepAnalysisHandoffResult.outcome) }}</span>
+          </div>
+
+          <template v-if="'schema_version' in tool.deepAnalysisHandoffResult">
+            <p v-if="tool.deepAnalysisHandoffResult.target" class="mb-0 text-sm text-text-primary">
+              {{ tool.deepAnalysisHandoffResult.target.display_label }}
+            </p>
+            <p v-if="tool.deepAnalysisHandoffResult.job" class="mb-0 text-xs text-text-secondary">
+              {{ deepStatusLabel(tool.deepAnalysisHandoffResult.job.status) }}
+            </p>
+            <p v-if="tool.deepAnalysisHandoffResult.result?.narrative" class="mb-0 text-xs text-text-secondary">
+              {{ tool.deepAnalysisHandoffResult.result.narrative }}
+            </p>
+
+            <section
+              v-if="tool.deepAnalysisHandoffResult.result?.disagreements.length"
+              class="border-t border-border-subtle pt-2"
+            >
+              <span class="section-label mb-0">Conflicts</span>
+              <ul class="mb-0 mt-2 flex list-none flex-col gap-1 p-0 text-xs text-text-secondary">
+                <li
+                  v-for="conflict in tool.deepAnalysisHandoffResult.result.disagreements"
+                  :key="`${conflict.field}:${conflict.summary}`"
+                >
+                  <strong class="font-medium text-text-primary">{{ conflict.field }}:</strong>
+                  {{ conflict.summary }}
+                </li>
+              </ul>
+            </section>
+
+            <section
+              v-if="tool.deepAnalysisHandoffResult.result?.coverage.length"
+              class="border-t border-border-subtle pt-2"
+            >
+              <span class="section-label mb-0">Provider coverage</span>
+              <ul class="mb-0 mt-2 flex list-none flex-wrap gap-1 p-0 text-xs text-text-secondary">
+                <li
+                  v-for="coverage in tool.deepAnalysisHandoffResult.result.coverage"
+                  :key="coverage.provider"
+                  class="chip-sm"
+                >
+                  {{ titleCase(coverage.provider) }}: {{ titleCase(coverage.status) }}
+                </li>
+              </ul>
+            </section>
+
+            <p
+              v-if="tool.deepAnalysisHandoffResult.truncation?.truncated"
+              class="mb-0 border-t border-border-subtle pt-2 text-xs text-text-muted"
+              data-testid="copilot-deep-analysis-omissions"
+            >
+              Result shortened:
+              {{ omittedCount(tool.deepAnalysisHandoffResult.truncation) }} items omitted.
+            </p>
+
+            <ul
+              v-if="deepLimitations(tool.deepAnalysisHandoffResult).length"
+              class="mb-0 flex list-none flex-col gap-1 border-t border-border-subtle p-0 pt-2 text-xs text-text-muted"
+            >
+              <li v-for="limitation in deepLimitations(tool.deepAnalysisHandoffResult)" :key="limitation">
+                {{ limitation }}
+              </li>
+            </ul>
+
+            <RouterLink
+              v-if="validatedReviewUrl(tool.deepAnalysisHandoffResult)"
+              :to="validatedReviewUrl(tool.deepAnalysisHandoffResult) ?? ''"
+              class="btn btn-xs btn-primary min-h-[44px] self-start"
+            >
+              Open Deep Analysis
+            </RouterLink>
+          </template>
+        </section>
       </div>
     </div>
 
@@ -150,7 +232,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { CheckCircle2, Circle, CircleX, LoaderCircle, Square } from 'lucide-vue-next'
-import type { CoinCopilotPlanItem, CoinCopilotRun } from '@/types'
+import type {
+  CoinCopilotPlanItem,
+  CoinCopilotRun,
+  DeepAnalysisHandoffResult,
+  DeepAnalysisHandoffTruncation,
+} from '@/types'
 import type { CoinCopilotToolProgress } from '@/composables/useCoinCopilot'
 
 const props = defineProps<{
@@ -197,6 +284,45 @@ function outcomeLabel(outcome: 'complete' | 'partial' | 'no_match' | 'unavailabl
     case 'no_match': return 'No matching evidence'
     case 'unavailable': return 'Sources unavailable'
   }
+}
+
+function deepOutcomeLabel(outcome: DeepAnalysisHandoffResult['outcome']) {
+  const labels: Record<DeepAnalysisHandoffResult['outcome'], string> = {
+    accepted: 'Accepted',
+    reused_active: 'In progress',
+    reused_result: 'Result available',
+    status: 'Status',
+    retry_available: 'Retry available',
+    missing_images: 'Images required',
+    target_unavailable: 'Target unavailable',
+    not_eligible: 'Not eligible',
+    unavailable: 'Unavailable',
+    cancelled: 'Cancelled',
+  }
+  return labels[outcome]
+}
+
+function deepStatusLabel(status: NonNullable<Extract<DeepAnalysisHandoffResult, { schema_version: 1 }>['job']>['status']) {
+  return `Job status: ${titleCase(status)}`
+}
+
+function validatedReviewUrl(result: DeepAnalysisHandoffResult): string | null {
+  if (!('schema_version' in result) || !result.job || !result.review_url) return null
+  const expected = `/deep-analysis/${result.job.id}`
+  return Number.isSafeInteger(result.job.id) && result.job.id > 0 && result.review_url === expected
+    ? expected
+    : null
+}
+
+function omittedCount(truncation: DeepAnalysisHandoffTruncation) {
+  return truncation.omitted_fields +
+    truncation.omitted_evidence +
+    truncation.omitted_disagreements +
+    truncation.omitted_questions
+}
+
+function deepLimitations(result: Extract<DeepAnalysisHandoffResult, { schema_version: 1 }>) {
+  return [...result.limitations, ...(result.result?.limitations ?? [])]
 }
 
 function formatObservedAt(value: string) {

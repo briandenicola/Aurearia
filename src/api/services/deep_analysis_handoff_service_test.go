@@ -24,7 +24,7 @@ func setupFeature362StatusService(t *testing.T) (*DeepAnalysisHandoffService, *g
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{},
 		&models.QuickCaptureDraftReference{},
 		&models.DeepIdentificationJob{}, &models.CoinCopilotRun{},
-		&models.CoinCopilotDeepHandoff{},
+		&models.CoinCopilotDeepHandoff{}, &models.AppSetting{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -40,14 +40,119 @@ func setupFeature362StatusService(t *testing.T) (*DeepAnalysisHandoffService, *g
 	if err := db.Create(&run).Error; err != nil {
 		t.Fatal(err)
 	}
+	settings := NewSettingsService(repository.NewSettingsRepository(db))
 	svc := NewDeepAnalysisHandoffService(
 		repository.NewCoinCopilotRepository(db),
 		repository.NewDeepIdentificationRepository(db),
 		repository.NewCoinRepository(db),
 		repository.NewQuickCaptureRepository(db),
-		nil, nil, "",
+		nil, settings, "",
 	)
 	return svc, db, &CopilotExecutionClaims{UserID: 7, RunID: run.ID, ExecutionID: run.ExecutionID}
+}
+
+func TestFeature362NewAdmissionFailsClosedAtEveryLiveFeatureGate(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]string
+		reason   string
+	}{
+		{
+			name: "Coin Copilot disabled",
+			settings: map[string]string{
+				SettingCoinCopilotEnabled:            "false",
+				SettingCoinCopilotAttributionEnabled: "true",
+				SettingDeepIdentificationEnabled:     "true",
+			},
+			reason: "copilot_disabled",
+		},
+		{
+			name: "attribution disabled",
+			settings: map[string]string{
+				SettingCoinCopilotEnabled:            "true",
+				SettingCoinCopilotAttributionEnabled: "false",
+				SettingDeepIdentificationEnabled:     "true",
+			},
+			reason: "attribution_disabled",
+		},
+		{
+			name: "Deep Analysis disabled",
+			settings: map[string]string{
+				SettingCoinCopilotEnabled:            "true",
+				SettingCoinCopilotAttributionEnabled: "true",
+				SettingDeepIdentificationEnabled:     "false",
+			},
+			reason: "deep_disabled",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			svc, db, claims := setupFeature362StatusService(t)
+			for key, value := range test.settings {
+				if err := svc.settingsSvc.SetSetting(key, value); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, operation := range []string{"request", "rerun"} {
+				target := DeepAnalysisHandoffTarget{Type: "coin", ID: 999}
+				request := DeepAnalysisHandoffRequest{
+					ToolCallID: "call_gate_" + operation, ExpectedCheckpointVersion: 3,
+					Operation: operation, Target: &target,
+					HandoffIdempotencyKey: strings.Repeat("a", 32),
+				}
+				if operation == "rerun" {
+					jobID := uint(1)
+					request.JobID = &jobID
+				}
+				got, err := svc.Execute(claims, request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.Outcome != "unavailable" || got.Reason == nil || *got.Reason != test.reason {
+					t.Fatalf("%s got %#v, want unavailable/%s", operation, got, test.reason)
+				}
+			}
+			var jobs, handoffs int64
+			if err := db.Model(&models.DeepIdentificationJob{}).Count(&jobs).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&models.CoinCopilotDeepHandoff{}).Count(&handoffs).Error; err != nil {
+				t.Fatal(err)
+			}
+			if jobs != 0 || handoffs != 0 {
+				t.Fatalf("disabled admission persisted jobs=%d handoffs=%d", jobs, handoffs)
+			}
+		})
+	}
+}
+
+func TestFeature362AcceptedStatusRemainsReadableWhenAllGatesAreDisabled(t *testing.T) {
+	svc, db, claims := setupFeature362StatusService(t)
+	coin := models.Coin{ID: 71, UserID: claims.UserID, Name: "Accepted coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedFeature362StatusJob(t, db, models.DeepIdentificationJob{
+		UserID: claims.UserID, CoinID: &coin.ID, Source: models.DeepJobSourceSavedCoin,
+		Status: models.DeepJobStatusRunning,
+	})
+	for _, key := range []string{
+		SettingCoinCopilotEnabled,
+		SettingCoinCopilotAttributionEnabled,
+		SettingDeepIdentificationEnabled,
+	} {
+		if err := svc.settingsSvc.SetSetting(key, "false"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := svc.Execute(claims, feature362StatusRequest(jobID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Outcome != "status" || got.Job == nil || got.Job.ID != jobID {
+		t.Fatalf("accepted status was stranded after disable: %#v", got)
+	}
 }
 
 func feature362StatusRequest(jobID uint) DeepAnalysisHandoffRequest {

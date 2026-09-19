@@ -334,6 +334,7 @@ class CopilotAppContext(StrictRequestModel):
 
     route: Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)] = ""
     active_coin_id: int | None = Field(default=None, alias="activeCoinId", ge=1)
+    active_draft_id: int | None = Field(default=None, alias="activeDraftId", ge=1)
 
 
 class CopilotCapabilityRequest(StrictRequestModel):
@@ -388,6 +389,7 @@ class AppContext(StrictRequestModel):
 
     route: Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)] = ""
     active_coin_id: int | None = Field(default=None, alias="activeCoinId", ge=1)
+    active_draft_id: int | None = Field(default=None, alias="activeDraftId", ge=1)
 
 
 class PortfolioCoin(StrictRequestModel):

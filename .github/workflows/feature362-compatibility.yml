@@ -38,6 +38,15 @@ jobs:
           )
           printf '%s\n' "$FEATURE362_GUARD_COMMIT" > artifacts/feature362-guard/aurearia.commit
 
+      - name: Build current feature binary
+        shell: bash
+        run: |
+          (
+            cd src/api
+            go build -trimpath -o "$GITHUB_WORKSPACE/artifacts/feature362-guard/aurearia-feature" .
+          )
+          git rev-parse HEAD > artifacts/feature362-guard/aurearia-feature.commit
+
       - name: Run guard-only rollback harness
         shell: pwsh
         run: |
@@ -47,6 +56,16 @@ jobs:
             -GuardSourceRoot ./.compat/guard `
             -GuardOnly |
             Tee-Object -FilePath "$env:GITHUB_WORKSPACE/artifacts/feature362-guard/evidence.txt"
+
+      - name: Run full mixed-binary rollback matrix
+        shell: pwsh
+        run: |
+          ./scripts/compat/feature362-rollback.ps1 `
+            -GuardBinary ./artifacts/feature362-guard/aurearia `
+            -GuardCommit $env:FEATURE362_GUARD_COMMIT `
+            -GuardSourceRoot ./.compat/guard `
+            -FeatureBinary ./artifacts/feature362-guard/aurearia-feature |
+            Tee-Object -FilePath "$env:GITHUB_WORKSPACE/artifacts/feature362-guard/full-evidence.txt"
 
       - name: Upload immutable guard artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

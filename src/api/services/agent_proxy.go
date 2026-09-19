@@ -24,8 +24,9 @@ type AgentProxy struct {
 const agentMissingInternalCredentialDetail = "Internal service credential is not configured"
 
 type CollectionChatContext struct {
-	Route        string `json:"route,omitempty"`
-	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
+	Route         string `json:"route,omitempty"`
+	ActiveCoinID  *uint  `json:"activeCoinId,omitempty"`
+	ActiveDraftID *uint  `json:"activeDraftId,omitempty"`
 }
 
 func NewAgentProxy(baseURL string, internalServiceToken string, logger *Logger) *AgentProxy {
