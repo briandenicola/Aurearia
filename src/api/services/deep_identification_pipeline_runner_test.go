@@ -299,6 +299,42 @@ func TestBuildDeepProposalDocumentJSONCreatesReportOnlyIntakeProposal(t *testing
 	}
 }
 
+func TestBuildDeepProposalDocumentJSONCarriesNarrativeToSavedCoinNotes(t *testing.T) {
+	coinID := uint(42)
+	out := buildDeepProposalDocumentJSON(
+		json.RawMessage(`{"narrative":"The images and catalogue evidence support a Probus antoninianus from Tripolis.","proposed_fields":{}}`),
+		&coinID,
+		nil,
+		nil,
+		nil,
+	)
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("expected valid proposal JSON, got %v", err)
+	}
+	notes := doc.Fields["notes"]
+	if notes == nil || notes.Proposed != "The images and catalogue evidence support a Probus antoninianus from Tripolis." {
+		t.Fatalf("expected narrative to remain reviewable as additive notes, got %#v", notes)
+	}
+}
+
+func TestBuildDeepProposalDocumentJSONDoesNotProposeFailureNarrativeAsNotes(t *testing.T) {
+	fallback := "No provider evidence could be gathered for this coin. Please review the image-based analysis and consider retrying once providers are available."
+	coinID := uint(42)
+	for _, targetCoinID := range []*uint{nil, &coinID} {
+		out := buildDeepProposalDocumentJSON(
+			json.RawMessage(fmt.Sprintf(`{"narrative":%q,"proposed_fields":{}}`, fallback)),
+			targetCoinID,
+			nil,
+			nil,
+			nil,
+		)
+		if out != "" {
+			t.Fatalf("failure narrative must not become a proposal, got %s", out)
+		}
+	}
+}
+
 // TestDeepIdentificationBackwardCompatibility_PreAndPostImageHypothesisFixtures
 // is the T071 backward-compatibility regression: Brian has existing
 // deep-identification jobs already persisted from before this feature

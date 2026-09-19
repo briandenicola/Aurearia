@@ -865,6 +865,22 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 		}
 		fields[name] = entry
 	}
+	if narrative := saveableDeepNarrative(report.Narrative); narrative != "" {
+		if notes, ok := fields["notes"]; ok {
+			proposed := strings.TrimSpace(deepProposalValueToString(notes.Proposed))
+			if proposed != "" && !strings.Contains(proposed, narrative) {
+				narrative += "\n\n" + proposed
+			}
+			notes.Proposed = truncateDeepProposalText(narrative, deepProposalNotesMaxRunes)
+		} else {
+			fields["notes"] = &deepProposalFieldEntry{
+				Proposed:    truncateDeepProposalText(narrative, deepProposalNotesMaxRunes),
+				OwnerEdited: false,
+				OwnerValue:  nil,
+				Accepted:    nil,
+			}
+		}
+	}
 
 	// Feature 352 Phase 4 (FR-006/FR-010/FR-020): populate catalogReferences
 	// from evidence that already exists — NGC cert (direct construction,
@@ -941,7 +957,7 @@ func buildDeepIntakeProposalFields(
 	}
 
 	notesParts := make([]string, 0, 2)
-	if trimmed := strings.TrimSpace(narrative); trimmed != "" {
+	if trimmed := saveableDeepNarrative(narrative); trimmed != "" {
 		notesParts = append(notesParts, trimmed)
 	}
 	fieldNames := make([]string, 0, len(proposedFields))
@@ -974,6 +990,17 @@ func buildDeepIntakeProposalFields(
 		}
 	}
 	return fields
+}
+
+func saveableDeepNarrative(narrative string) string {
+	trimmed := strings.TrimSpace(narrative)
+	switch trimmed {
+	case "No provider evidence could be gathered for this coin. Please review the image-based analysis and consider retrying once providers are available.",
+		"A narrative summary could not be generated, but the structured findings below reflect the evidence gathered from each provider.":
+		return ""
+	default:
+		return trimmed
+	}
 }
 
 func truncateDeepProposalText(value string, maxRunes int) string {

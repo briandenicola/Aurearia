@@ -15,6 +15,7 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
+from app.llm.content import extract_text_content
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
@@ -244,7 +245,7 @@ def create_auction_search_team(llm_config: LLMConfig):
                 ),
             ]
             response = await ainvoke_with_retry(model, messages)
-            content = response.content if isinstance(response.content, str) else str(response.content)
+            content = extract_text_content(response.content)
             return {"messages": [AIMessage(content=content)]}
 
         # Format real lot data via LLM
@@ -256,7 +257,7 @@ def create_auction_search_team(llm_config: LLMConfig):
             ),
         ]
         response = await ainvoke_with_retry(model, messages)
-        formatted = response.content if isinstance(response.content, str) else str(response.content)
+        formatted = extract_text_content(response.content)
 
         summary = (
             "I found some auction lots matching your search on NumisBids. "

@@ -18,6 +18,7 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
+from app.llm.content import extract_text_content
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import AlertDiscoveryRequest, LLMConfig
@@ -144,10 +145,10 @@ async def _search_dealer_pages(
         search_agent = create_search_agent(llm_config)
         result = await search_agent.ainvoke({"messages": messages})
         last_msg = result["messages"][-1]
-        return last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
+        return extract_text_content(last_msg.content)
     model = get_search_model(llm_config)
     response = await ainvoke_with_retry(model, messages)
-    return response.content if isinstance(response.content, str) else str(response.content)
+    return extract_text_content(response.content)
 
 
 async def _fetch_dealer_pages(
@@ -200,9 +201,35 @@ async def _format_dealer_candidates(
         ),
     ]
     response = await ainvoke_with_retry(model, messages)
-    formatted = response.content if isinstance(response.content, str) else str(response.content)
+    formatted = extract_text_content(response.content)
     candidates = _extract_json_array_strict(formatted) if strict else _extract_json_array(formatted)
     return formatted, candidates
+
+
+def _apply_observed_availability(
+    candidates: list[dict[str, Any]],
+    fetched_listings: str,
+) -> list[dict[str, Any]]:
+    observed: dict[str, str] = {}
+    for block in fetched_listings.split("--- Source: ")[1:]:
+        source_url, separator, content = block.partition(" ---\n")
+        if not separator:
+            continue
+        match = re.search(r"^Availability signal:\s*(available|sold|unknown)\s*$", content, re.MULTILINE)
+        if match:
+            observed[source_url.strip()] = match.group(1)
+
+    normalized: list[dict[str, Any]] = []
+    for candidate in candidates:
+        item = dict(candidate)
+        source_url = str(
+            item.get("sourceUrl") or item.get("source_url") or item.get("url") or ""
+        ).strip()
+        availability = observed.get(source_url)
+        if availability is not None:
+            item["availability"] = availability.title()
+        normalized.append(item)
+    return normalized
 
 
 async def _collect_market_candidates(
@@ -226,6 +253,7 @@ async def _collect_market_candidates(
     if not fetched.strip():
         return []
     _, candidates = await _format_dealer_candidates(llm_config, query, fetched, strict=True)
+    candidates = _apply_observed_availability(candidates, fetched)
     await raise_if_cancelled(cancellation_check)
     return candidates[:limit]
 
@@ -320,7 +348,7 @@ def create_coin_search_team(
                 ),
             ]
             response = await ainvoke_with_retry(model, messages)
-            content = response.content if isinstance(response.content, str) else str(response.content)
+            content = extract_text_content(response.content)
             return {"messages": [AIMessage(content=content)]}
 
         # Format real listings via LLM (this call streams to user)

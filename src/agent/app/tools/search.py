@@ -316,7 +316,8 @@ def _parse_vcoins(html: str, base_url: str) -> str:
         # Fallback: extract any useful text
         return _parse_generic(html, base_url)
 
-    result = f"Found {len(listings)} listings on VCoins:\n\n"
+    result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += f"Found {len(listings)} listings on VCoins:\n\n"
     for i, item in enumerate(listings[:10], 1):
         result += f"{i}. {item['title']}\n"
         result += f"   Price: {item.get('price', 'See listing')}\n"
@@ -352,7 +353,8 @@ def _parse_mashops(html: str, base_url: str) -> str:
     if not listings:
         return _parse_generic(html, base_url)
 
-    result = f"Found {len(listings)} listings on MA-Shops:\n\n"
+    result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += f"Found {len(listings)} listings on MA-Shops:\n\n"
     for i, item in enumerate(listings[:10], 1):
         result += f"{i}. {item['title']}\n"
         result += f"   Price: {item.get('price', 'See listing')}\n"
@@ -432,7 +434,8 @@ def _parse_generic(html: str, base_url: str) -> str:
     # Get text-only version for context (first 2000 chars)
     text_only = re.sub(r"\s+", " ", "".join(parser.text_parts)).strip()[:2000]
 
-    result = f"Page title: {page_title}\n"
+    result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += f"Page title: {page_title}\n"
     result += f"Base URL: {base_url}\n\n"
 
     if links:
@@ -447,3 +450,19 @@ def _parse_generic(html: str, base_url: str) -> str:
     result += f"Page content summary:\n{text_only[:1000]}"
 
     return result
+
+
+def _listing_availability_signal(html: str) -> str:
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip().lower()
+    sold_patterns = (
+        r"\bsold out\b",
+        r"\bno longer available\b",
+        r"\bitem (?:has been|is) sold\b",
+        r">\s*sold\s*<",
+    )
+    if any(re.search(pattern, html, re.IGNORECASE) for pattern in sold_patterns) or "sold out" in text:
+        return "sold"
+    available_patterns = ("add to cart", "add to basket", "buy now", "purchase")
+    if any(pattern in text for pattern in available_patterns):
+        return "available"
+    return "unknown"

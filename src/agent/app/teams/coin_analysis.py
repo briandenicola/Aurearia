@@ -16,6 +16,7 @@ from typing import Annotated, TypedDict
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
+from app.llm.content import extract_text_content
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
@@ -119,7 +120,7 @@ def create_coin_analysis_team(
             HumanMessage(content=human_content),
         ]
         response = await ainvoke_with_retry(model, messages)
-        content = response.content if isinstance(response.content, str) else str(response.content)
+        content = extract_text_content(response.content)
 
         return {
             "raw_analysis": content,
@@ -142,7 +143,7 @@ def create_coin_analysis_team(
             HumanMessage(content=f"Raw analysis to format:\n\n{raw}"),
         ]
         response = await ainvoke_with_retry(model, messages)
-        formatted = response.content if isinstance(response.content, str) else str(response.content)
+        formatted = extract_text_content(response.content)
 
         return {
             "formatted_analysis": formatted,

@@ -98,6 +98,7 @@ _TOOL_SUMMARIES = {
 _TRUNCATION_DISCLOSURE = (
     "Some tool evidence was omitted because it exceeded the saved-result limit."
 )
+_MAX_CHECKPOINT_PAYLOAD_BYTES = 64 * 1024
 
 
 class CopilotGraphState(TypedDict):
@@ -167,6 +168,53 @@ def _checkpoint_messages(request: CopilotExecuteRequest, answer: str | None = No
     if answer:
         messages.append({"role": "assistant", "content": answer})
     return messages
+
+
+def _build_checkpoint(
+    *,
+    request: CopilotExecuteRequest,
+    answer: str | None,
+    plan: list[CopilotPlanItem],
+    completed_tools: list[dict[str, Any]],
+    pending_clarification: CopilotClarification | None,
+    next_action: str,
+    usage,
+) -> CopilotCheckpointState:
+    while True:
+        checkpoint = CopilotCheckpointState(
+            messages=_checkpoint_messages(request, answer),
+            plan=plan,
+            completed_tools=completed_tools,
+            pending_clarification=pending_clarification,
+            next_action=next_action,
+            counters=usage,
+        )
+        if len(checkpoint.model_dump_json().encode("utf-8")) <= _MAX_CHECKPOINT_PAYLOAD_BYTES:
+            return checkpoint
+        candidates = [
+            (index, len(json.dumps(tool["result"], separators=(",", ":"), sort_keys=True).encode("utf-8")))
+            for index, tool in enumerate(completed_tools)
+            if not tool["truncated"]
+        ]
+        if not candidates:
+            raise CoinCopilotExecutionError(
+                "invalid_agent_frame",
+                "Coin Copilot could not save its continuation state.",
+                retryable=True,
+            )
+        index, _ = max(candidates, key=lambda item: item[1])
+        tool = completed_tools[index]
+        compacted = {
+            "truncated": True,
+            "original_bytes": tool["original_bytes"],
+            "digest": tool["result_digest"],
+            "summary": "Tool result exceeded the persisted checkpoint limit.",
+        }
+        tool["result"] = compacted
+        tool["persisted_bytes"] = len(
+            json.dumps(compacted, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        )
+        tool["truncated"] = True
 
 
 async def _cancelled(check: Callable[[], Awaitable[bool]] | None) -> bool:
@@ -323,13 +371,14 @@ async def run_coin_copilot(
                 content = _message_content(response)
                 clarification = _parse_clarification(content)
                 if clarification is not None:
-                    checkpoint = CopilotCheckpointState(
-                        messages=_checkpoint_messages(request),
+                    checkpoint = _build_checkpoint(
+                        request=request,
+                        answer=None,
                         plan=plan,
                         completed_tools=completed_tools,
                         pending_clarification=clarification,
                         next_action="await_clarification",
-                        counters=usage,
+                        usage=usage,
                     )
                     yield frame("checkpoint", checkpoint)
                     yield frame(
@@ -346,13 +395,14 @@ async def run_coin_copilot(
                     )
                 if any(tool["truncated"] for tool in completed_tools):
                     answer = f"{answer}\n\n{_TRUNCATION_DISCLOSURE}"
-                checkpoint = CopilotCheckpointState(
-                    messages=_checkpoint_messages(request, answer),
+                checkpoint = _build_checkpoint(
+                    request=request,
+                    answer=answer,
                     plan=plan,
                     completed_tools=completed_tools,
                     pending_clarification=None,
                     next_action="finish",
-                    counters=usage,
+                    usage=usage,
                 )
                 yield frame("checkpoint", checkpoint)
                 yield frame("completed", CopilotCompletedPayload(answer=answer, usage=usage))
@@ -537,13 +587,14 @@ async def run_coin_copilot(
                     )
                 yield frame(
                     "checkpoint",
-                    CopilotCheckpointState(
-                        messages=_checkpoint_messages(request),
+                    _build_checkpoint(
+                        request=request,
+                        answer=None,
                         plan=plan,
                         completed_tools=completed_tools,
                         pending_clarification=None,
                         next_action="continue",
-                        counters=usage,
+                        usage=usage,
                     ),
                 )
     except asyncio.TimeoutError:

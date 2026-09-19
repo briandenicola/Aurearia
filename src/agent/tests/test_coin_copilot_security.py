@@ -1,5 +1,6 @@
 """Coin Copilot callback and untrusted-result security tests."""
 
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -132,6 +133,43 @@ async def test_callback_binds_execution_token_and_tool_call_id():
     assert captured["path"] == "/api/internal/copilot/tools/collection_summary"
     assert captured["authorization"] == "Bearer execution-token"
     assert captured["body"] == {"tool_call_id": "call_1"}
+
+
+@pytest.mark.asyncio
+async def test_virtual_portfolio_tool_fetches_its_required_summary():
+    captured = []
+
+    def handler(request):
+        captured.append(json.loads(request.content))
+        return httpx.Response(200, json={"summary": {
+            "totalCoins": 4,
+            "totalWishlist": 1,
+            "totalSold": 0,
+            "totalCurrentUsd": 500,
+            "totalPurchaseUsd": 300,
+        }})
+
+    async def portfolio_runner(summary):
+        return f"Reviewed {summary['totalCoins']} coins."
+
+    client = CopilotCollectionToolClient(
+        tools_base_url="http://test-api:8080",
+        execution_token="execution-token",
+        allowed_tools=["collection_summary", "portfolio_review"],
+        max_result_bytes=4096,
+        analysis_runners={"portfolio_review": portfolio_runner},
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    try:
+        result, *_ = await client.execute("portfolio_review", "call_portfolio", {})
+    finally:
+        await client._client.aclose()
+
+    expected_call_id = hashlib.sha256(
+        b"call_portfolio:collection_summary"
+    ).hexdigest()
+    assert captured == [{"tool_call_id": expected_call_id}]
+    assert result == {"analysis": "Reviewed 4 coins.", "mode": "collection_only"}
 
 
 @pytest.mark.asyncio
@@ -270,12 +308,14 @@ async def test_market_search_canonicalizes_fragments_and_deduplicates():
         "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1#details",
         "name": "Domitian denarius",
         "estPrice": "USD 250",
+        "availability": "Available",
     }
     duplicate = {
         "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1#shipping",
         "name": "Domitian denarius",
         "estPrice": "USD 250",
         "sourceName": "Classical Numismatic Group",
+        "availability": "Available",
     }
 
     result = await run_market_search(
@@ -294,11 +334,13 @@ async def test_market_search_discloses_conflicting_duplicate_observations():
         "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1",
         "name": "Domitian denarius",
         "estPrice": "USD 250",
+        "availability": "Available",
     }
     conflict = {
         "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=1#alternate",
         "name": "Domitian denarius",
         "estPrice": "USD 300",
+        "availability": "Available",
     }
 
     result = await run_market_search(

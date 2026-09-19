@@ -8,14 +8,19 @@ import pytest
 
 from app.models.requests import LLMConfig
 from app.teams.auction_search import run_auction_search
-from app.teams.coin_search import _collect_market_candidates, _fetch_dealer_pages, run_market_search
+from app.teams.coin_search import (
+    _apply_observed_availability,
+    _collect_market_candidates,
+    _fetch_dealer_pages,
+    run_market_search,
+)
 from app.teams.price_trends import run_price_trends
 from app.teams.specialist_contracts import (
     ProviderMalformedError,
     ProviderRunner,
     ProviderUnavailableError,
 )
-from app.tools.search import validate_dealer_url
+from app.tools.search import _listing_availability_signal, validate_dealer_url
 
 OBSERVED_AT = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
 
@@ -188,6 +193,62 @@ async def test_market_search_returns_source_backed_success():
         "currency",
         "availability",
     }
+
+
+@pytest.mark.asyncio
+async def test_market_search_excludes_sold_and_unverified_availability():
+    result = await run_market_search(
+        {"query": "Julius Caesar denarius", "limit": 5},
+        provider_runners=[
+            _provider(
+                "cng_dealer_search",
+                [
+                    _dealer_candidate(
+                        sourceUrl="https://www.vcoins.com/en/stores/a/1/product/sold/1",
+                        availability="Sold",
+                    ),
+                    _dealer_candidate(
+                        sourceUrl="https://www.vcoins.com/en/stores/a/1/product/unknown/2",
+                        availability="Unknown",
+                    ),
+                    _dealer_candidate(
+                        sourceUrl="https://www.vcoins.com/en/stores/a/1/product/live/3",
+                        availability="Available",
+                    ),
+                ],
+            )
+        ],
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "complete"
+    assert [item.source_url for item in result.items] == [
+        "https://www.vcoins.com/en/stores/a/1/product/live/3"
+    ]
+
+
+def test_dealer_page_availability_uses_purchase_controls_and_sold_markers():
+    assert _listing_availability_signal("<button>Add to cart</button>") == "available"
+    assert _listing_availability_signal("<button>SOLD</button>") == "sold"
+    assert _listing_availability_signal("<p>Item has been sold</p>") == "sold"
+    assert _listing_availability_signal("<p>Contact dealer for details</p>") == "unknown"
+
+
+def test_market_search_uses_fetched_page_availability_over_model_guess():
+    sold_url = "https://www.vcoins.com/en/stores/a/1/product/sold/1"
+    available_url = "https://www.vcoins.com/en/stores/a/1/product/live/2"
+    candidates = [
+        _dealer_candidate(sourceUrl=sold_url, availability="Available"),
+        _dealer_candidate(sourceUrl=available_url, availability="Unknown"),
+    ]
+    fetched = (
+        f"--- Source: {sold_url} ---\nAvailability signal: sold\nPage content summary: Sold\n\n"
+        f"--- Source: {available_url} ---\nAvailability signal: available\nPage content summary: Add to cart"
+    )
+
+    normalized = _apply_observed_availability(candidates, fetched)
+
+    assert [item["availability"] for item in normalized] == ["Sold", "Available"]
 
 
 @pytest.mark.asyncio
@@ -417,6 +478,43 @@ async def test_price_trends_default_runner_reuses_canonical_search(monkeypatch):
     )
 
     assert search_calls == ["Domitian denarius"]
+    assert result.outcome == "complete"
+    assert len(result.items) == 1
+
+
+@pytest.mark.asyncio
+async def test_price_trends_extracts_json_from_anthropic_content_blocks(monkeypatch):
+    async def search_results(_llm_config, _query):
+        return "NumisBids completed-sale evidence"
+
+    class Response:
+        content = [
+            {"type": "thinking", "thinking": "private", "signature": "secret"},
+            {
+                "type": "text",
+                "text": (
+                    "```json\n"
+                    '[{"url":"https://www.numisbids.com/sale/10489/lot/1",'
+                    '"title":"Domitian denarius","saleDate":"2026-01-01",'
+                    '"amount":200,"currency":"USD","priceBasis":"hammer"}]'
+                    "\n```"
+                ),
+            },
+        ]
+
+    async def invoke(_model, _messages):
+        return Response()
+
+    monkeypatch.setattr("app.teams.price_trends.search_auction_results", search_results)
+    monkeypatch.setattr("app.teams.price_trends.get_chat_model", lambda _config: object())
+    monkeypatch.setattr("app.teams.price_trends.ainvoke_with_retry", invoke)
+
+    result = await run_price_trends(
+        {"query": "Domitian denarius"},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        observed_at=OBSERVED_AT,
+    )
+
     assert result.outcome == "complete"
     assert len(result.items) == 1
 

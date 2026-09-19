@@ -557,8 +557,8 @@ func TestDeepIdentificationProposal_ImageOnlyFieldRetainedWithEmptyEvidence(t *t
 	if !ok || notes == nil {
 		t.Fatal("image-only field must not be dropped from the proposal document — it must be present for owner review")
 	}
-	if notes.Proposed != "Bought at a show; dealer said Severan." {
-		t.Fatalf("expected the AI-proposed value preserved even without provider evidence, got %#v", notes.Proposed)
+	if notes.Proposed != "A silver denarius of Septimius Severus.\n\nBought at a show; dealer said Severan." {
+		t.Fatalf("expected the narrative and AI-proposed note preserved even without provider evidence, got %#v", notes.Proposed)
 	}
 	if len(notes.Evidence) != 0 {
 		t.Fatalf("expected an empty evidence array for an image-only field (no provider citation exists), got %#v", notes.Evidence)

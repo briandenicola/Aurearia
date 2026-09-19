@@ -16,6 +16,7 @@ from typing import Annotated, Any, TypedDict
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
+from app.llm.content import extract_text_content
 from app.llm.provider import get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
@@ -108,7 +109,7 @@ async def search_auction_results(llm_config: LLMConfig, query: str) -> str:
         HumanMessage(content=f"Find recent auction results for: {query}"),
     ]
     response = await ainvoke_with_retry(search_model, messages)
-    return response.content if isinstance(response.content, str) else str(response.content)
+    return extract_text_content(response.content)
 
 
 async def analyze_price_results(chat_model, query: str, search_results: str) -> str:
@@ -118,7 +119,7 @@ async def analyze_price_results(chat_model, query: str, search_results: str) -> 
         HumanMessage(content=f"Coin query: {query}\n\nSearch results:\n\n{search_results}"),
     ]
     response = await ainvoke_with_retry(chat_model, messages)
-    return response.content if isinstance(response.content, str) else str(response.content)
+    return extract_text_content(response.content)
 
 
 def _parse_sale_observations(text: str) -> list[dict[str, Any]]:
@@ -152,7 +153,7 @@ async def _collect_price_observations(
     ]
     response = await ainvoke_with_retry(model, messages)
     await raise_if_cancelled(cancellation_check)
-    content = response.content if isinstance(response.content, str) else str(response.content)
+    content = extract_text_content(response.content)
     return _parse_sale_observations(content)[:limit]
 
 

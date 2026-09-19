@@ -293,7 +293,11 @@ class CopilotCollectionToolClient:
                     ).hexdigest()
             result = await self._execute_callback(tool_name, tool_call_id, callback_args)
         else:
-            result = await self._execute_local(tool_name, args.model_dump(exclude_none=True))
+            result = await self._execute_local(
+                tool_name,
+                tool_call_id,
+                args.model_dump(exclude_none=True),
+            )
         try:
             validated_model = RESULT_MODELS[tool_name].model_validate(result)
         except ValidationError as exc:
@@ -356,6 +360,7 @@ class CopilotCollectionToolClient:
     async def _execute_local(
         self,
         tool_name: str,
+        tool_call_id: str,
         args: dict[str, Any],
     ) -> BaseModel | dict[str, Any]:
         if tool_name not in LOCAL_TOOLS:
@@ -366,10 +371,22 @@ class CopilotCollectionToolClient:
         if tool_name in VIRTUAL_TOOLS:
             summary_result = self._results.get("collection_summary")
             if not summary_result or "summary" not in summary_result:
-                raise CopilotToolError(
-                    "invalid_tool_call",
-                    f"{tool_name} requires a completed collection_summary call.",
+                summary_result = await self._execute_callback(
+                    "collection_summary",
+                    hashlib.sha256(
+                        f"{tool_call_id}:collection_summary".encode("utf-8")
+                    ).hexdigest(),
+                    {},
                 )
+                try:
+                    validated_summary = CollectionSummaryResult.model_validate(summary_result)
+                except ValidationError as exc:
+                    raise CopilotToolError(
+                        "invalid_tool_call",
+                        "The collection summary returned an invalid result.",
+                    ) from exc
+                summary_result = validated_summary.model_dump(mode="json")
+                self._results["collection_summary"] = summary_result
             result = await runner(summary_result["summary"])
             if not isinstance(result, str):
                 raise CopilotToolError("invalid_tool_call", f"{tool_name} returned an invalid result.")

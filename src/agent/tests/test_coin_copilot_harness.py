@@ -277,6 +277,27 @@ async def test_model_tool_batch_runs_three_at_a_time_and_preserves_result_order(
 
 
 @pytest.mark.asyncio
+async def test_checkpoint_compacts_completed_results_before_frame_limit():
+    calls = [
+        {"name": "collection_summary", "args": {}, "id": f"call_{index}", "type": "tool_call"}
+        for index in range(1, 4)
+    ]
+    model = _SequenceModel([
+        AIMessage(content="", tool_calls=calls),
+        AIMessage(content="The combined result is ready."),
+    ])
+    tools = _ToolClient([{"payload": "x" * 24000} for _ in calls])
+
+    frames = await _frames(_request(max_concurrent_tools=3), model, tools)
+
+    checkpoints = [frame.payload for frame in frames if frame.type == "checkpoint"]
+    assert checkpoints
+    assert all(len(checkpoint.model_dump_json().encode("utf-8")) <= 64 * 1024 for checkpoint in checkpoints)
+    assert any(tool.truncated for tool in checkpoints[0].completed_tools)
+    assert frames[-1].type == "completed"
+
+
+@pytest.mark.asyncio
 async def test_model_tool_batch_respects_snapshotted_maximum_of_five():
     calls = [
         {

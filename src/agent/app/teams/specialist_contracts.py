@@ -1169,6 +1169,8 @@ async def run_provider_search(
                 except (ValueError, TypeError):
                     invalid_count += 1
                     continue
+                if isinstance(item, DealerListing) and item.availability != "available":
+                    continue
                 normalized.append(item)
             if invalid_count and not normalized:
                 raise ProviderMalformedError
