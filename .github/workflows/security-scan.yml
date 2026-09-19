@@ -77,7 +77,14 @@ jobs:
         run: npm ci
 
       - name: Run npm audit
-        run: npm audit --audit-level=high
+        run: |
+          for attempt in 1 2 3; do
+            npm audit --audit-level=high && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
 
   pip-audit:
     name: pip-audit

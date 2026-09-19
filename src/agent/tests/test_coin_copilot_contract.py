@@ -29,6 +29,7 @@ from app.teams.specialist_contracts import (
     SpecialistQuery,
     SpecialistResult,
     TruncationMetadata,
+    validate_registered_source_url,
 )
 from app.tools.copilot_collection_tools import (
     ARG_MODELS,
@@ -1000,7 +1001,6 @@ def test_invalid_specialist_fixtures_fail_closed(fixture):
 @pytest.mark.parametrize(
     "fixture",
     [
-        "invalid_source_host.json",
         "malformed_provider_attempt.json",
         "token_shaped_content.json",
         "incomparable_trend.json",
@@ -1010,6 +1010,18 @@ def test_invalid_specialist_fixtures_fail_closed(fixture):
 def test_adversarial_specialist_fixtures_fail_closed(fixture):
     with pytest.raises(ValidationError):
         SpecialistResult.model_validate(_load_adversarial_specialist(fixture))
+
+
+def test_configured_specialist_source_host_fails_closed():
+    payload = _load_adversarial_specialist("invalid_source_host.json")
+    source_url = payload["items"][0]["source_url"]
+
+    with pytest.raises(ValueError, match="not configured"):
+        validate_registered_source_url(
+            "configured_dealer_search",
+            source_url,
+            frozenset({"cngcoins.com"}),
+        )
 
 
 def test_prompt_injection_in_declared_title_fails_for_semantic_reason():

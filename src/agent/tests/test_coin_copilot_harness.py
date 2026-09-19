@@ -1039,7 +1039,7 @@ async def test_auction_search_stops_after_each_await_when_cancellation_wins(
         operations.append("search")
         if cancel_after == "search":
             cancelled = True
-        return [{"url": "https://www.numisbids.com/n.php?p=lot&sid=1&lot=2"}]
+        return "https://www.numisbids.com/n.php?p=lot&sid=1&lot=2"
 
     async def fetch(*_args, **_kwargs):
         nonlocal cancelled
@@ -1048,10 +1048,11 @@ async def test_auction_search_stops_after_each_await_when_cancellation_wins(
             cancelled = True
         return []
 
-    monkeypatch.setattr(auction_search, "_search_auction_lots", search)
-    monkeypatch.setattr(auction_search, "_fetch_auction_lots", fetch)
+    monkeypatch.setattr(auction_search, "_search_dealer_pages", search)
+    monkeypatch.setattr(auction_search, "_fetch_dealer_pages", fetch)
     request = _request()
     request.allowed_tools.append("auction_search")
+    request.auction_search_sources = ["numisbids.com"]
     model = _SequenceModel(
         [
             AIMessage(

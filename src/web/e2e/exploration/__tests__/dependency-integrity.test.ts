@@ -17,7 +17,7 @@ describe('Feature 360 dependency integrity', () => {
     const lockedRoot = packages[''].devDependencies as Record<string, string>
 
     expect(devDependencies['@playwright/test']).toBe('1.63.0')
-    expect((packageJson.engines as Record<string, string>).node).toContain('20.19.0')
+    expect((packageJson.engines as Record<string, string>).node).toBe('^22.22.2 || >=24.15.0')
     expect(lockedRoot['@playwright/test']).toBe('1.63.0')
     expect(packages['node_modules/@playwright/test'].version).toBe('1.63.0')
     expect(packages['node_modules/@playwright/test'].resolved).toBe(
