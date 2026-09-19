@@ -7,9 +7,9 @@
 
 Coin Copilot can sequence collection search, coin detail, collection summary,
 top-value, portfolio-review, structural gap-analysis, dealer search, auction
-search, and completed-sale price-trend capabilities. It does not expose
-writes, approvals, similar lots, deep-identification handoff, long-term memory,
-arbitrary HTTP, filesystem, shell, code execution, or direct database access.
+search, completed-sale price-trend, and an owner-scoped Deep Analysis handoff.
+It does not expose writes, approvals, similar lots, long-term memory, arbitrary
+HTTP, filesystem, shell, code execution, or direct database access.
 
 The existing drawer calls `GET /api/agent/copilot/capability` before starting a
 run. Copilot mode is selected only when `CoinCopilotEnabled` is on (it defaults
@@ -18,6 +18,32 @@ Anthropic must bind the fixed tool schemas; Ollama must explicitly advertise
 the `tools` capability through `/api/show`. Disabled, unconfigured,
 unsupported, ambiguous, or unavailable states use the unchanged legacy
 `POST /api/agent/chat` flow.
+
+## Deep Analysis handoff
+
+When `CoinCopilotAttributionEnabled` and `DeepIdentificationEnabled` are also
+on, Copilot may request, inspect, reuse, or explicitly rerun the existing Deep
+Analysis workflow for one exact owned coin or active Quick Capture draft.
+Route context (`activeCoinId` or `activeDraftId`) is bounded but
+non-authoritative; ambiguous or conflicting context requires clarification.
+
+Go resolves ownership and images, snapshots the target, admits the durable job,
+and returns a typed bounded result through the fixed internal callback.
+Python cannot call providers directly for this handoff and cannot create,
+edit, or apply a proposal. `request` and `rerun` execute without concurrent
+sibling tools; `status` is read-only. Replayed completed checkpoints reuse
+persisted facts without another callback or provider run.
+
+The chat card shows lifecycle state, persisted narrative, disagreements,
+provider coverage, limitations, and deterministic omission counts. Its only
+action is **Open Deep Analysis**, validated as the exact relative
+`/deep-analysis/{jobId}` route. `DeepAnalysisPage` remains the sole
+progress/retry/cancel/review/editor/apply surface.
+
+The handoff request/public-event envelope is capped at 64 KiB and the persisted
+result at 32 KiB. Unknown, foreign, unbound, or invalid targets return the same
+non-disclosing `not_eligible` outcome. A target that disappears after a valid
+durable owner binding returns `target_unavailable` without target metadata.
 
 ## State, privacy, and retention
 
@@ -73,9 +99,19 @@ frames or tool results arriving after cancellation wins are discarded.
 ## Rollback and operations
 
 Set `CoinCopilotEnabled=false` to stop new starts and resumes and return the
-drawer to legacy chat. Existing threads/runs remain readable and cancellable;
-additive tables may remain in place. Stale-run recovery and retention cleanup
-must continue until outstanding state settles.
+drawer to legacy chat. Setting `CoinCopilotAttributionEnabled=false` or
+`DeepIdentificationEnabled=false` blocks new handoffs and reruns. Existing
+accepted jobs use finish-existing semantics: worker settlement, owner status,
+events, cancellation, report/proposal review, edits, and confirmed apply remain
+available. Existing threads/runs remain readable and cancellable; additive
+tables and nullable columns remain in place.
+
+Rollback must target a binary containing the Feature 362 source-vocabulary
+guard. The mixed-binary workflow boots that guard against a copied migrated
+database, proves unknown `copilot_draft` rows and artifacts remain byte
+preserved and unadopted, then re-upgrades and verifies restoration. See
+[ADR 0017](../adr/0017-coin-copilot-deep-analysis-handoff.md) and the
+[Feature 362 evidence](../../specs/362-coin-copilot-attribution/quickstart-evidence.md).
 
 Operational verification is documented in
 [Testing Strategy](../testing.md#10-coin-copilot-contract-and-operations-testing).

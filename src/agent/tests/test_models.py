@@ -139,6 +139,7 @@ def test_coin_search_request_accepts_app_context_shape():
     assert request.model_dump(by_alias=True)["app_context"] == {
         "route": "/coin/42",
         "activeCoinId": 42,
+        "activeDraftId": None,
     }
 
 

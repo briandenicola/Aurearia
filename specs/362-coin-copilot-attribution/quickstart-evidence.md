@@ -113,3 +113,74 @@ Date: 2026-09-18
 - `.github/workflows/feature362-compatibility.yml` now runs this full matrix
   after the immutable guard-only prerequisite on pushes and pull requests to
   `beta` and `main`.
+- Audit correction: this matrix directly proves preservation and fail-closed
+  adoption for an `intake` job and a queued `copilot_draft` handoff. T069 and
+  T070 remain open until the same copied-database lifecycle explicitly settles
+  a saved-coin handoff, exercises disable/drain/cancel, rejects guard-era
+  apply, and restores status/review/apply after re-upgrade.
+
+## Feature 362 local quality gates
+
+Date: 2026-09-18
+
+- Targeted Go Feature 362 contract, owner/auth, snapshot, idempotency, status,
+  projection, apply, cancellation, and finish-existing suites passed:
+  `go test ./services ./handlers ./integration -run "Feature362|DeepAnalysisHandoff|CoinCopilot" -count=1`.
+- Architecture and route-contract gates passed:
+  `go test -run TestArchitecture ./...` and
+  `go test -run "TestRegisteredAPIRoutesAreDocumentedInOpenAPI|TestOpenAPI" ./...`.
+- Existing Deep Analysis, Fast Identify/provider, legacy fallback, collection
+  tools, specialist tools, manual-data, and additive-reference regressions
+  passed through the complete Python, web, and Go suites below.
+- OpenAPI was regenerated with `swag init -g main.go -o ./docs
+  --parseDependency --parseInternal`; the four generated contract files now
+  include optional `activeDraftId`, and OpenAPI route tests pass.
+- Python gate passed: editable dev install, `uv sync --extra dev`,
+  compileall, Ruff, and `uv run pytest tests -q` (`621 passed`; eight existing
+  dependency/serialization deprecation warnings).
+- Web gate passed: `npm ci`, ESLint with zero warnings, Vue TypeScript build,
+  Vitest (`1,581 passed`, one skipped), and production Vite/PWA build.
+- Go build, vet, architecture tests, and complete `go test ./...` passed.
+- The cancellation settlement race passed 10 repeated 40-iteration runs
+  after closing the cancel-after-result-before-settlement window.
+- Local `CGO_ENABLED=1 go test -race ./...` is blocked before compilation
+  because this Windows host has no `gcc`; the Linux hosted Go race check is
+  required before T078 can close.
+
+## Feature 362 local security gates
+
+Date: 2026-09-18
+
+- Gitleaks scanned the Feature 362 checkpoint diff: no leaks found.
+- `govulncheck ./...`: zero called vulnerabilities. One required-module
+  vulnerability is not reachable from imported code.
+- `npm audit --audit-level=high`: zero vulnerabilities.
+- `uv run pip-audit`: no known vulnerabilities; the local project package is
+  correctly skipped because it is not a PyPI dependency.
+- The agent runtime-image no-pip and `/health` smoke could not run locally
+  because Docker is not installed on this Windows host. The repository's
+  hosted `Agent image - no pip in runtime` workflow check is required before
+  T079 can close.
+- `.github/workflows/security-scan.yml` now includes app and agent OCI image
+  builds with BuildKit SBOM/provenance, Trivy High/Critical enforcement,
+  exported SPDX SBOM artifacts, and push provenance attestations. T079 remains
+  open until those hosted jobs and the existing agent no-pip/health job pass.
+
+## Feature 362 browser and mobile evidence
+
+Date: 2026-09-18
+
+- Added deterministic Playwright coverage in
+  `src/web/e2e/workflows/coin-copilot-deep-analysis.spec.ts`.
+- At a 390 by 844 viewport, the real chat drawer consumed a streamed typed
+  Deep Analysis handoff, rendered a conflict, provider coverage, limitations,
+  and deterministic omitted-item disclosure, and exposed no Apply action.
+- The fixed `Open Deep Analysis` link measured at least 44 px high, the result
+  card remained horizontally contained, and activation navigated only to the
+  exact same-job `/deep-analysis/17` route.
+- The new workflow passed together with all five existing deterministic Deep
+  Analysis Playwright workflows, which cover intake/saved-coin admission,
+  streamed progress, cancellation, partial proposal review, explicit draft
+  apply, and explicit saved-coin apply.
+- T080 and T081 remain open for their broader lifecycle matrix, independent
+  dual-SSE restoration/background-resume, and keyboard-only acceptance.

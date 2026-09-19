@@ -489,6 +489,36 @@ func (r *DeepIdentificationRepository) ApplyJob(jobID, userID uint, appliedCoinI
 	return result.RowsAffected > 0, nil
 }
 
+// ReplaceDeletedAppliedCoin relinks an intake proposal only when its prior
+// owner-scoped destination was deleted. The caller creates the replacement in
+// the same transaction, so no partial coin or linkage can survive a failure.
+func (r *DeepIdentificationRepository) ReplaceDeletedAppliedCoin(
+	jobID, userID, deletedCoinID, replacementCoinID uint,
+	appliedAt time.Time,
+) (bool, error) {
+	missingPriorCoin := r.db.Model(&models.Coin{}).
+		Select("1").
+		Where("id = ? AND user_id = ?", deletedCoinID, userID)
+	result := r.db.Model(&models.DeepIdentificationJob{}).
+		Where(
+			"id = ? AND user_id = ? AND source = ? AND applied_coin_id = ? AND applied_at IS NOT NULL",
+			jobID, userID, models.DeepJobSourceIntake, deletedCoinID,
+		).
+		Where("status IN ?", []models.DeepJobStatus{
+			models.DeepJobStatusCompleted,
+			models.DeepJobStatusPartial,
+		}).
+		Where("NOT EXISTS (?)", missingPriorCoin).
+		Updates(map[string]interface{}{
+			"applied_coin_id": replacementCoinID,
+			"applied_at":      appliedAt,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 // RecoverStaleJobs flips running jobs whose heartbeat is older than
 // staleAfter to failed:stale_restart, appending exactly one terminal event
 // per job (FR-012). It never leaves a job running forever across a process

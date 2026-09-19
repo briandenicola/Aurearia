@@ -25355,6 +25355,9 @@ const docTemplate = `{
                 "activeCoinId": {
                     "type": "integer"
                 },
+                "activeDraftId": {
+                    "type": "integer"
+                },
                 "route": {
                     "type": "string"
                 }

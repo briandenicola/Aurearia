@@ -760,10 +760,16 @@ characters).
   "threadId": "cct_optional",
   "appContext": {
     "route": "/stats",
-    "activeCoinId": null
+    "activeCoinId": null,
+    "activeDraftId": null
   }
 }
 ```
+
+`activeCoinId` is emitted only on coin-detail routes and `activeDraftId` only
+on the exact active Quick Capture draft route. Both are optional positive safe
+integers and remain non-authoritative hints; they never bypass owner-scoped
+target resolution or clarification.
 
 Returns `202` for a new run or `200` for an identical idempotent replay:
 
@@ -834,6 +840,35 @@ Returns `202`, or `200` for an identical replay. A stale checkpoint, expired
 7-day resume window, non-paused run, or conflicting key returns `409`.
 Disabling the feature blocks starts and resumes but existing runs remain
 readable and cancellable.
+
+##### Deep Analysis handoff events
+
+When all attribution gates are enabled, a `tool_completed` event for
+`deep_analysis_handoff` may include `deepAnalysisHandoffResult`. Its sole
+top-level discriminant is `outcome`:
+
+`accepted`, `reused_active`, `reused_result`, `status`, `retry_available`,
+`missing_images`, `target_unavailable`, `not_eligible`, `unavailable`, or
+`cancelled`.
+
+Unknown, foreign, and unbound identifiers return exactly:
+
+```json
+{"outcome":"not_eligible","reason":null}
+```
+
+Only a previously validated durable owner binding may return
+`target_unavailable`, also without target metadata. Results may contain the
+bounded target/job projection, persisted narrative and fields, disagreements,
+coverage, attributions, limitations, truncation counts, and the exact relative
+review URL `/deep-analysis/{jobId}`. They never contain proposal mutation or
+apply controls. Public events accept at most 64 KiB; persisted callback results
+accept at most 32 KiB and disclose deterministic omission counts.
+
+`CoinCopilotEnabled`, `CoinCopilotAttributionEnabled`, model tool capability,
+and `DeepIdentificationEnabled` are checked before new admission or rerun.
+After durable acceptance, status/events/cancel/review/edit/confirmed apply and
+worker settlement remain available under finish-existing semantics.
 
 ##### GET /api/agent/copilot/runs/:runId/events
 

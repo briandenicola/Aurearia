@@ -432,6 +432,15 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 	}
 
 	var draftID, coinID *uint
+	var replaceDeletedCoinID *uint
+	if target == "wishlist" && job.AppliedCoinID != nil && job.AppliedAt != nil {
+		if _, err := s.coinRepo.FindByID(*job.AppliedCoinID, userID); repository.IsRecordNotFound(err) {
+			value := *job.AppliedCoinID
+			replaceDeletedCoinID = &value
+		} else if err != nil {
+			return nil, err
+		}
+	}
 	switch target {
 	case "draft":
 		id, appliedAtomically, err := s.applyToDraft(job, userID, doc, fieldNames)
@@ -456,7 +465,7 @@ func (s *DeepIdentificationProposalService) Apply(jobID, userID uint, target str
 			}, nil
 		}
 	case "wishlist":
-		id, appliedAtomically, err := s.applyToWishlist(job, userID, doc, fieldNames)
+		id, appliedAtomically, err := s.applyToWishlist(job, userID, doc, fieldNames, replaceDeletedCoinID)
 		if err != nil {
 			return nil, err
 		}
@@ -840,7 +849,13 @@ func deepWishlistCoinName(doc *deepProposalDocument) string {
 // owner is always the caller's userID/coin.ID; no user or coin identifier
 // is ever read from the proposal document. Coin creation, references,
 // journal, and job settlement share one transaction.
-func (s *DeepIdentificationProposalService) applyToWishlist(job *models.DeepIdentificationJob, userID uint, doc *deepProposalDocument, fieldNames []string) (uint, bool, error) {
+func (s *DeepIdentificationProposalService) applyToWishlist(
+	job *models.DeepIdentificationJob,
+	userID uint,
+	doc *deepProposalDocument,
+	fieldNames []string,
+	replaceDeletedCoinID *uint,
+) (uint, bool, error) {
 	coin := &models.Coin{UserID: userID, IsWishlist: true}
 	var catalogRefs []models.CoinReference
 	applyCatalogReferences := false
@@ -882,11 +897,22 @@ func (s *DeepIdentificationProposalService) applyToWishlist(job *models.DeepIden
 			if err != nil {
 				return err
 			}
+			replacingDeletedCoin := replaceDeletedCoinID != nil &&
+				currentJob.AppliedCoinID != nil &&
+				*currentJob.AppliedCoinID == *replaceDeletedCoinID &&
+				currentJob.AppliedAt != nil
 			if currentJob.Source != models.DeepJobSourceIntake ||
 				currentJob.ProposalJSON != job.ProposalJSON ||
-				currentJob.AppliedAt != nil ||
+				(currentJob.AppliedAt != nil && !replacingDeletedCoin) ||
 				(currentJob.Status != models.DeepJobStatusCompleted && currentJob.Status != models.DeepJobStatusPartial) {
 				return ErrDeepProposalReReviewRequired
+			}
+			if replacingDeletedCoin {
+				if _, err := txCoinRepo.FindByID(*replaceDeletedCoinID, userID); err == nil {
+					return ErrDeepProposalReReviewRequired
+				} else if !repository.IsRecordNotFound(err) {
+					return err
+				}
 			}
 			txCoinSvc := *s.coinSvc
 			txCoinSvc.repo = txCoinRepo
@@ -904,7 +930,14 @@ func (s *DeepIdentificationProposalService) applyToWishlist(job *models.DeepIden
 			}); err != nil {
 				return err
 			}
-			won, err := txDeepRepo.ApplyJob(job.ID, userID, &coin.ID, nil, appliedAt)
+			var won bool
+			if replacingDeletedCoin {
+				won, err = txDeepRepo.ReplaceDeletedAppliedCoin(
+					job.ID, userID, *replaceDeletedCoinID, coin.ID, appliedAt,
+				)
+			} else {
+				won, err = txDeepRepo.ApplyJob(job.ID, userID, &coin.ID, nil, appliedAt)
+			}
 			if err != nil {
 				return err
 			}

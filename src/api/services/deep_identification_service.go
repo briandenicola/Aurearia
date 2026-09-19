@@ -846,6 +846,27 @@ func (s *DeepIdentificationService) runJob(parent context.Context, job *models.D
 	}
 
 	won, err := s.repo.SettleTerminal(job.ID, []models.DeepJobStatus{models.DeepJobStatusRunning}, newStatus, reportJSON, proposalJSON, failureCode, failureMessage)
+	if err == nil && !won && newStatus != models.DeepJobStatusCancelled {
+		fresh, getErr := s.repo.GetJob(job.ID, job.UserID)
+		if getErr == nil &&
+			fresh.Status == models.DeepJobStatusRunning &&
+			fresh.CancelRequestedAt != nil {
+			won, err = s.repo.SettleTerminal(
+				job.ID,
+				[]models.DeepJobStatus{models.DeepJobStatusRunning},
+				models.DeepJobStatusCancelled,
+				"",
+				"",
+				"",
+				"",
+			)
+			if won {
+				newStatus = models.DeepJobStatusCancelled
+			}
+		} else if getErr != nil {
+			err = getErr
+		}
+	}
 	if err != nil {
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to settle job %d: %v", job.ID, err)
