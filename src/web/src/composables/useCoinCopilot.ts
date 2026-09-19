@@ -23,6 +23,8 @@ import type {
 } from '@/types'
 
 const ACTIVE_RUN_KEY = 'coinCopilot:activeRun'
+// Kept after a run finishes so reopening the chat restores the conversation.
+const LAST_THREAD_KEY = 'coinCopilot:lastThread'
 const MAX_RECONNECTS = 3
 
 type StoredRunCursor = {
@@ -166,6 +168,11 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
   )
 
   function persistCursor() {
+    if (run.value) {
+      try {
+        sessionStorage.setItem(LAST_THREAD_KEY, run.value.threadId)
+      } catch { /* storage unavailable */ }
+    }
     if (!run.value || (terminal.value && !hasUnappliedEvents())) {
       sessionStorage.removeItem(ACTIVE_RUN_KEY)
       return
@@ -195,6 +202,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     error.value = ''
     seenSeqs.clear()
     sessionStorage.removeItem(ACTIVE_RUN_KEY)
+    sessionStorage.removeItem(LAST_THREAD_KEY)
   }
 
   async function resolveCapability(force = false): Promise<CoinCopilotCapability> {
@@ -475,9 +483,29 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     }
   }
 
+  async function restoreFinishedThread(): Promise<boolean> {
+    let threadId: string
+    try {
+      threadId = sessionStorage.getItem(LAST_THREAD_KEY) ?? ''
+    } catch {
+      return false
+    }
+    if (!threadId) return false
+    try {
+      const response = await getCoinCopilotThread(threadId)
+      options.onRecoveredThread?.(response.data.thread)
+      return true
+    } catch {
+      try {
+        sessionStorage.removeItem(LAST_THREAD_KEY)
+      } catch { /* storage unavailable */ }
+      return false
+    }
+  }
+
   async function restoreActiveRun() {
     const stored = readStoredCursor()
-    if (!stored) return false
+    if (!stored) return restoreFinishedThread()
     try {
       const [runResponse, threadResponse] = await Promise.all([
         getCoinCopilotRun(stored.runId),

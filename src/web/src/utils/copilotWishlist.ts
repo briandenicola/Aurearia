@@ -8,9 +8,11 @@ export function isEligibleCopilotDealerListing(
   capability: CoinCopilotSpecialistCapability,
   item: CoinCopilotSpecialistEvidence,
 ): boolean {
+  // Listings read from search results are only partially verified; the wish
+  // list re-checks availability later, so they stay saveable.
   return capability === 'market_search' &&
     item.kind === 'dealer_listing' &&
-    item.verificationState === 'verified' &&
+    (item.verificationState === 'verified' || item.verificationState === 'partial') &&
     (item.availability === 'available' || item.availability === 'unknown') &&
     item.title.trim().length > 0 &&
     item.sourceUrl.trim().length > 0

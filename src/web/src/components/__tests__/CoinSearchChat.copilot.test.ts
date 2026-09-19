@@ -236,6 +236,14 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     expect(wrapper.findAll('button').some(button => button.text() === 'Save')).toBe(false)
   })
 
+  it('offers conversation save again once the Coin Copilot run has finished', () => {
+    mocks.active = true
+    mocks.run = activeRun('completed')
+    const wrapper = mountChat()
+
+    expect(wrapper.findAll('button').some(button => button.text() === 'Save')).toBe(true)
+  })
+
   it('renders compact beta plan/tool progress and cancellation in the same responsive drawer', async () => {
     mocks.active = true
     mocks.run = activeRun('running')
@@ -337,7 +345,7 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     progress.vm.$emit(
       'addToWishlist',
       'market_search',
-      { ...result.items[0], verificationState: 'partial' },
+      { ...result.items[0], availability: 'sold' },
       'forged-key',
     )
     await wrapper.vm.$nextTick()

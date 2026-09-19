@@ -116,10 +116,14 @@ describe('CopilotRunProgress collector wishlist action', () => {
     expect(mountProgress(evidence({ availability: 'unknown' })).find('button').exists()).toBe(true)
   })
 
+  it('shows the action for a partially verified listing read from search results', () => {
+    const item = evidence({ verificationState: 'partial', confidence: 'medium', availability: 'unknown' })
+    expect(mountProgress(item).find('button').exists()).toBe(true)
+  })
+
   it.each([
     ['wrong capability', evidence(), 'auction_search'],
     ['auction evidence', evidence({ kind: 'auction_lot' }), 'market_search'],
-    ['partial verification', evidence({ verificationState: 'partial' }), 'market_search'],
     ['not available', evidence({ availability: 'sold' }), 'market_search'],
     ['non-canonical availability', evidence({ availability: 'AVAILABLE' as 'available' }), 'market_search'],
     ['missing title', evidence({ title: ' ' }), 'market_search'],

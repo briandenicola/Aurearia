@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-[1400] flex h-dvh justify-end bg-black/50" @click.self="$emit('close')">
     <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_rgba(0,0,0,0.3)] sm:w-[480px]">
       <ChatHeader
-        :has-messages="messages.length > 0 && !copilotRun"
+        :has-messages="messages.length > 0 && !copilotBusy"
         :saving="saving"
         :conversation-id="conversationId"
         :save-label="saveLabel"
@@ -201,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type {
   CoinCopilotSpecialistCapability,
   CoinCopilotSpecialistEvidence,
@@ -239,6 +239,10 @@ const messagesEl = ref<HTMLElement>()
 const inputBarEl = ref<InstanceType<typeof ChatInputBar>>()
 const sentInitialPrompts = new Set<string>()
 const { showAlert } = useDialog()
+// A finished Coin Copilot conversation is savable like a legacy one; only an
+// in-flight run hides the action.
+const copilotBusy = computed(() =>
+  ['queued', 'running', 'cancel_requested', 'paused'].includes(copilotRun.value?.status ?? ''))
 const noteDraftOpen = ref(false)
 const noteSaving = ref(false)
 const noteDraft = ref({

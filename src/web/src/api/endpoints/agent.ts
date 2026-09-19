@@ -484,11 +484,31 @@ function isBoundedStrings(value: unknown, maximum: number, itemMaximum = 500): v
     value.every(item => typeof item === 'string' && item.length <= itemMaximum)
 }
 
+function isOptionalBoundedString(value: unknown, max: number): boolean {
+  return value === undefined || (typeof value === 'string' && value.length <= max)
+}
+
 function isSpecialistEvidence(value: unknown, expectedKind: CoinCopilotEvidenceKind): boolean {
+  // Keep in step with CopilotSpecialistPublicEvidence in the Go API: an
+  // unlisted key here silently discards the whole tool_completed event.
   if (!isRecord(value) || !hasOnlyKeys(value, [
     'kind', 'title', 'sourceUrl', 'observedAt', 'confidence', 'verificationState',
     'facts', 'matchedAttributes', 'materialDifferences',
+    'description', 'dealerName', 'listedPrice', 'currency', 'availability',
+    'ruler', 'denomination', 'era', 'material',
   ])) return false
+  if (
+    !isOptionalBoundedString(value.description, 2000) ||
+    !isOptionalBoundedString(value.dealerName, 300) ||
+    !isOptionalBoundedString(value.currency, 3) ||
+    !isOptionalBoundedString(value.availability, 50) ||
+    !isOptionalBoundedString(value.ruler, 200) ||
+    !isOptionalBoundedString(value.denomination, 200) ||
+    !isOptionalBoundedString(value.era, 100) ||
+    !isOptionalBoundedString(value.material, 100) ||
+    (value.listedPrice !== undefined &&
+      !(typeof value.listedPrice === 'number' && Number.isFinite(value.listedPrice)))
+  ) return false
   if (
     value.kind !== expectedKind ||
     typeof value.title !== 'string' ||
