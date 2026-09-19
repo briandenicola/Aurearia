@@ -424,11 +424,8 @@ def build_copilot_tool_definitions(
         "top_coins_by_value": "Read the owner's highest-valued coins.",
         "portfolio_review": "Analyze validated collection summary data only.",
         "gap_analysis": "Identify structural collection gaps without market or acquisition advice.",
-        "market_search": (
-            "Search supported dealer sites (VCoins, MA-Shops, Forum Ancient Coins, "
-            "Biddr, Catawiki, and HJB) for current listings."
-        ),
-        "auction_search": "Search NumisBids for relevant auction lots.",
+        "market_search": "Search the administrator-configured dealer sources for current listings.",
+        "auction_search": "Search the administrator-configured auction sources for relevant lots.",
         "price_trends": "Analyze source-backed completed-sale observations.",
         "similar_lots": "Find and rank source-backed similar auction lots.",
         "deep_analysis_handoff": "Request, read, or explicitly rerun the existing owner-scoped Deep Analysis workflow.",

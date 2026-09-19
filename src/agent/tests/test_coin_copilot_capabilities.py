@@ -30,6 +30,12 @@ async def test_anthropic_binds_fixed_tools_strictly(monkeypatch):
     monkeypatch.setattr("app.llm.capabilities.get_chat_model", lambda _config: model)
     tools = build_copilot_tool_definitions()
 
+    descriptions = {tool.name: tool.description for tool in tools}
+    assert "administrator-configured dealer sources" in descriptions["market_search"]
+    assert "administrator-configured auction sources" in descriptions["auction_search"]
+    assert "VCoins" not in descriptions["market_search"]
+    assert "NumisBids" not in descriptions["auction_search"]
+
     bound = await bind_coin_copilot_model(
         LLMConfig(provider="anthropic", api_key="key", model="claude-sonnet-5"),
         tools,

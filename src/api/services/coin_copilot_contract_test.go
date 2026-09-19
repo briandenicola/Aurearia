@@ -175,6 +175,18 @@ func TestSanitizeCopilotJSONUsesCrossLanguageCanonicalEncoding(t *testing.T) {
 	}
 }
 
+func TestSanitizeCopilotJSONPreservesPythonDecimalLexemes(t *testing.T) {
+	raw := []byte(`{"current_bid":99.50,"estimate":250.0}`)
+	bounded, original, truncated, digest, err := SanitizeCopilotJSON(raw, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expected = `{"current_bid":99.50,"estimate":250.0}`
+	if string(bounded) != expected || original != len(raw) || truncated || len(digest) != 64 {
+		t.Fatalf("unexpected canonical decimal result: %s", bounded)
+	}
+}
+
 func TestValidateCopilotCheckpointRejectsDuplicateAndOverBudgetTools(t *testing.T) {
 	run := &models.CoinCopilotRun{MaxIterations: 8, MaxToolCalls: 1}
 	state := CopilotCheckpointState{

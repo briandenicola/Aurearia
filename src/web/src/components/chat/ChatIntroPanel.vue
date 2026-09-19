@@ -6,7 +6,7 @@
         Search for coins, find upcoming shows, or get a portfolio analysis -- ask me anything about collecting.
       </p>
       <p class="m-0 max-w-[340px] text-center text-tiny leading-relaxed text-text-muted">
-        Dealer search covers VCoins, MA-Shops, Forum Ancient Coins, Biddr, Catawiki, and HJB. Auction search uses NumisBids.
+        Dealer and auction searches use the sources configured by your administrator.
       </p>
       <div class="mt-2 flex w-full flex-col gap-2">
         <button

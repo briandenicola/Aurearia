@@ -7,6 +7,9 @@ describe('ChatIntroPanel', () => {
     const wrapper = mount(ChatIntroPanel)
     const buttons = wrapper.findAll('button')
 
+    expect(wrapper.text()).toContain('sources configured by your administrator')
+    expect(wrapper.text()).not.toContain('NumisBids')
+
     await buttons[0]!.trigger('click')
     await buttons[1]!.trigger('click')
     await buttons[3]!.trigger('click')

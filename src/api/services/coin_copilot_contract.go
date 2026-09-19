@@ -338,7 +338,12 @@ func SanitizeCopilotJSON(raw []byte, maxBytes int) ([]byte, int, bool, string, e
 	}
 	originalBytes := len(raw)
 	var value any
-	if err := json.Unmarshal(raw, &value); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&value); err != nil {
+		return nil, 0, false, "", ErrInvalidCopilotFrame
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, 0, false, "", ErrInvalidCopilotFrame
 	}
 	value = sanitizeCopilotValue(value)

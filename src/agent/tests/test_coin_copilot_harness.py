@@ -162,6 +162,13 @@ def test_curator_policy_is_read_only_and_uses_existing_analysis_capabilities():
     assert "must not create or change" in prompt.lower()
 
 
+def test_search_policy_uses_configured_sources_without_stale_provider_names():
+    prompt = coin_copilot.COPILOT_SYSTEM_PROMPT
+
+    assert "configured dealer and auction sources" in prompt
+    assert "NumisBids" not in prompt
+
+
 @pytest.mark.asyncio
 async def test_collector_context_is_labeled_untrusted_and_kept_separate_from_collection_facts():
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
