@@ -248,3 +248,74 @@ Date: 2026-09-18
   targets `main` from `beta`, follows the repository template, cites ADR 0017,
   Principles II/III/IV/V/VIII/IX and Constitution §§17/21/22, enumerates the
   affected workflows and rollback/security evidence, and remains unmerged.
+
+## Post-Major-Work QC Audit — Feature 362 / F014
+
+**Audited by:** GitHub Copilot CLI with focused code-review verification
+**Date:** 2026-09-18
+**Changeset:** `d8d17be15e314306dfb620237b1b06fb3619ced6..090fc1f2`
+**Spec / design:** `specs/362-coin-copilot-attribution/spec.md`, plan/tasks,
+ADR 0017
+
+### Scope Summary
+
+The audit covered 106 F014 files across Go persistence/services/handlers,
+Python harness contracts, Vue chat/review surfaces, schema migration, OpenAPI,
+Docker/CI, compatibility scripts, tests, and documentation. It traversed
+owner/auth boundaries, cancellation/idempotency, manual-data preservation,
+bounded projection, feature-disable behavior, rollback, mobile/PWA behavior,
+and supply-chain/deployment evidence.
+
+### Artifact Checklist
+
+- [x] Exact F014 diff bounded and all changed domains inventoried
+- [x] Production, test, migration, workflow, generated contract, and
+      documentation changes reviewed
+- [x] Constitution, spec, plan, ADR 0017, CI workflows, and PR DoD reviewed
+- [x] All eight audit domains traversed
+- [x] Hosted Quality Gate, race, compatibility/browser, Security Scan, and
+      CodeQL rerun after implementation changes
+
+### Blockers
+
+| ID | Domain | File : Line | Finding | Disposition |
+|----|--------|-------------|---------|-------------|
+| B1 | Test fidelity / §17 | `src/web/e2e/workflows/coin-copilot-deep-analysis.spec.ts` | Initial T080 evidence used component/integration tests for cases the task required at browser level. | **Resolved:** added the 11-outcome target/lifecycle/eligibility/fallback browser matrix with explicit mutation interception, plus wishlist scalar/notes/reference decision coverage in `deep-analysis.spec.ts`. |
+| B2 | Mobile/PWA / §17 | `src/web/e2e/workflows/coin-copilot-deep-analysis.spec.ts` | Initial T081 browser evidence did not background/restore both SSE cursors. | **Resolved:** added a 390 by 844 Chromium scenario that persists separate cursor values, dispatches hidden/visible lifecycle events, restores both surfaces, and verifies independent `?since=4` and `?since=42` requests. |
+
+### Follow-Ups
+
+No non-blocking finding remains.
+
+### Positive Observations
+
+- Go retains fixed callback authority, owner scoping, durable idempotency,
+  cancellation linearization, and transactional admission/apply.
+- Collection, wishlist, and draft destinations retain closed allowlists,
+  current-state revalidation, additive references, keyed note append, and
+  all-or-nothing writes.
+- Python remains stateless and receives no generic network, database,
+  filesystem, shell, provider, or write capability.
+- Vue exposes no conversational proposal mutation and validates the exact
+  same-job review URL before navigation.
+- The immutable guard matrix now proves cancel, fail-closed unknown-source
+  read/apply, byte preservation, and re-upgrade review/apply restoration.
+- All workflow actions remain SHA pinned; runtime images remain non-root and
+  pass Trivy, SBOM, provenance, and health gates.
+
+### Confidence Notes
+
+Generated OpenAPI was validated by route-contract tests rather than manually
+reviewing every generated line. Final local affected gates passed: nine
+Playwright workflows, ESLint for both browser files, the expanded rollback
+matrix, and the integration package. Post-fix hosted runs all passed:
+[Quality Gate 35416506039](https://github.com/briandenicola/Aurearia/actions/runs/35416506039),
+[Feature 362 Compatibility 35416506141](https://github.com/briandenicola/Aurearia/actions/runs/35416506141),
+[Security Scan 35416506117](https://github.com/briandenicola/Aurearia/actions/runs/35416506117),
+and [CodeQL 35416505650](https://github.com/briandenicola/Aurearia/actions/runs/35416505650).
+The PR-triggered Gitleaks job additionally exposed an older F013 privacy-policy
+prose false positive; `.gitleaks.toml` now has a narrow path-and-text allowlist,
+and local Gitleaks 8.24.3 reports no leaks across the full 69-commit PR range.
+
+**Final disposition:** PASS. Both audit blockers are resolved; no production,
+security, contract, data-loss, rollback, or quality-gate blocker remains.

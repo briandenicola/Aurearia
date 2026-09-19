@@ -90,3 +90,14 @@ commits = [
   '''4789e4759520b7e87d12b1db7413811885a7543b''',
   '''eb9805c359ed4a06abac6dcbfd9d98303d31f47c'''
 ]
+
+[[allowlists]]
+description = "Coin Copilot privacy-policy prose"
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''specs/359-coin-copilot-harness/research\.md'''
+]
+regexes = [
+  '''provider credentials, JWTs/internal tokens'''
+]

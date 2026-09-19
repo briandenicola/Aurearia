@@ -213,7 +213,7 @@
 - [x] T081 Run narrow-viewport mobile/PWA acceptance for both independent SSE resumptions, background/restore, keyboard operation, 44 px touch targets, dark-theme/design-token layout, safe review navigation, truncation disclosure, horizontal containment, and absence of duplicate editor; record the pass in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
 - [x] T082 Verify every applicable hosted PR check passes—including Quality Gate, Go race, compatibility matrix, Security Scan, CodeQL, container image build/scan, and SBOM/provenance checks—and record check names and URLs/IDs in `specs/362-coin-copilot-attribution/quickstart-evidence.md`
 - [x] T083 Complete the PR description from `.github/pull_request_template.md` with the Constitution §17/§21 Definition of Done and workflow-contract self-check, citing ADR 0017, Principles II/III/IV/V/VIII/IX, rollback artifact retention, test-first evidence, security evidence, and exact affected workflows without modifying the template
-- [ ] T084 Invoke the `post-major-work-qc-audit` skill after T070–T083 pass, resolve all blocking findings in the exact implementation/docs/test files identified by the audit, rerun affected gates, and append the final passing disposition to `specs/362-coin-copilot-attribution/quickstart-evidence.md`
+- [x] T084 Invoke the `post-major-work-qc-audit` skill after T070–T083 pass, resolve all blocking findings in the exact implementation/docs/test files identified by the audit, rerun affected gates, and append the final passing disposition to `specs/362-coin-copilot-attribution/quickstart-evidence.md`
 
 **Checkpoint**: Every configured gate has a local or equivalent hosted pass; no environment limitation is accepted as evidence.
 
