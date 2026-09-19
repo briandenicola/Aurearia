@@ -50,16 +50,16 @@
 
 ### Tests for User Story 3 — write and run first
 
-- [ ] T012 [P] [US3] Add failing Go contract/worker tests for an optional bounded `collector_context`, one owner-scoped snapshot per run, neutral absence, omission of IDs/credentials/action URLs, typed dealer-field projection compatibility, and no profile text in logs in `src/api/services/coin_copilot_contract_test.go` and `src/api/services/coin_copilot_worker_test.go`
-- [ ] T013 [P] [US3] Add failing Python contract and harness tests for `extra="forbid"`, valid/empty bounded context, inert prompt-like profile text, exactly `collection_summary` + `portfolio_review` + `gap_analysis`, no invented preferences, and no create/save/wishlist callback or tool in `src/agent/tests/test_coin_copilot_contract.py`, `src/agent/tests/test_coin_copilot_harness.py`, and `src/agent/tests/test_coin_copilot_security.py`
-- [ ] T014 [P] [US3] Add failing read-only row-set tests covering start, replay, resume, cancel, and fallback so only existing Coin Copilot run/checkpoint/event durability may change while coin, wishlist, draft, profile, and setting rows remain unchanged in `src/api/integration/coin_copilot_seam_test.go`
+- [x] T012 [P] [US3] Add failing Go contract/worker tests for an optional bounded `collector_context`, one owner-scoped snapshot per run, neutral absence, omission of IDs/credentials/action URLs, typed dealer-field projection compatibility, and no profile text in logs in `src/api/services/coin_copilot_contract_test.go` and `src/api/services/coin_copilot_worker_test.go`
+- [x] T013 [P] [US3] Add failing Python contract and harness tests for `extra="forbid"`, valid/empty bounded context, inert prompt-like profile text, exactly `collection_summary` + `portfolio_review` + `gap_analysis`, no invented preferences, and no create/save/wishlist callback or tool in `src/agent/tests/test_coin_copilot_contract.py`, `src/agent/tests/test_coin_copilot_harness.py`, and `src/agent/tests/test_coin_copilot_security.py`
+- [x] T014 [P] [US3] Add failing read-only row-set tests covering start, replay, resume, cancel, and fallback so only existing Coin Copilot run/checkpoint/event durability may change while coin, wishlist, draft, profile, and setting rows remain unchanged in `src/api/integration/coin_copilot_seam_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] Extend the existing Go execution contract with the optional bounded collector context and preserve backward-compatible specialist evidence projection in `src/api/services/coin_copilot_contract.go`
-- [ ] T016 [US3] Load the authenticated owner's profile once, capture one immutable context value for the run, and pass it through the existing worker without adding persistence or write authority in `src/api/services/coin_copilot_worker.go`
-- [ ] T017 [P] [US3] Add the optional strict `collector_context` request model with the profile's existing bounds and no owner/action fields in `src/agent/app/models/requests.py`
-- [ ] T018 [US3] Update the existing planner/supervisor instructions to use only the three shipped analysis capabilities and to separate observed facts, suggestions, explicit profile influences, conflicts, and limitations in `src/agent/app/teams/coin_copilot.py`
+- [x] T015 [US3] Extend the existing Go execution contract with the optional bounded collector context and preserve backward-compatible specialist evidence projection in `src/api/services/coin_copilot_contract.go`
+- [x] T016 [US3] Load the authenticated owner's profile once, capture one immutable context value for the run, and pass it through the existing worker without adding persistence or write authority in `src/api/services/coin_copilot_worker.go`
+- [x] T017 [P] [US3] Add the optional strict `collector_context` request model with the profile's existing bounds and no owner/action fields in `src/agent/app/models/requests.py`
+- [x] T018 [US3] Update the existing planner/supervisor instructions to use only the three shipped analysis capabilities and to separate observed facts, suggestions, explicit profile influences, conflicts, and limitations in `src/agent/app/teams/coin_copilot.py`
 
 **Checkpoint**: US3 is independently testable through the existing Coin Copilot transport and remains read-only.
 

@@ -41,6 +41,7 @@ func newCopilotServiceTest(t *testing.T) (*gorm.DB, *CoinCopilotService) {
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
 		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.CollectorProfile{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func newCopilotServiceTest(t *testing.T) (*gorm.DB, *CoinCopilotService) {
 		repository.NewCoinCopilotRepository(db), settings,
 		NewAgentProxy(agent.URL, "internal", NewLogger(10)),
 		NewInternalTokenService("01234567890123456789012345678901"), NewLogger(10), "http://api:8080",
-	)
+	).WithCollectorProfileService(NewCollectorProfileService(repository.NewCollectorProfileRepository(db)))
 	return db, service
 }
 

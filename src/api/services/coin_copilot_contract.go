@@ -275,19 +275,20 @@ type CopilotCheckpointProxy struct {
 }
 
 type CopilotExecuteProxyRequest struct {
-	SchemaVersion  int                    `json:"schema_version"`
-	ThreadID       string                 `json:"thread_id"`
-	RunID          string                 `json:"run_id"`
-	ExecutionID    string                 `json:"execution_id"`
-	Goal           string                 `json:"goal"`
-	Messages       []CopilotMessage       `json:"messages"`
-	Checkpoint     CopilotCheckpointProxy `json:"checkpoint"`
-	AppContext     map[string]any         `json:"app_context"`
-	LLM            LLMConfig              `json:"llm"`
-	Limits         CopilotLimitsProxy     `json:"limits"`
-	ToolsBaseURL   string                 `json:"tools_base_url"`
-	ExecutionToken string                 `json:"execution_token"`
-	AllowedTools   []string               `json:"allowed_tools"`
+	SchemaVersion    int                    `json:"schema_version"`
+	ThreadID         string                 `json:"thread_id"`
+	RunID            string                 `json:"run_id"`
+	ExecutionID      string                 `json:"execution_id"`
+	Goal             string                 `json:"goal"`
+	Messages         []CopilotMessage       `json:"messages"`
+	Checkpoint       CopilotCheckpointProxy `json:"checkpoint"`
+	AppContext       map[string]any         `json:"app_context"`
+	CollectorContext *CollectorContext      `json:"collector_context,omitempty"`
+	LLM              LLMConfig              `json:"llm"`
+	Limits           CopilotLimitsProxy     `json:"limits"`
+	ToolsBaseURL     string                 `json:"tools_base_url"`
+	ExecutionToken   string                 `json:"execution_token"`
+	AllowedTools     []string               `json:"allowed_tools"`
 }
 
 type CopilotAgentFrame struct {

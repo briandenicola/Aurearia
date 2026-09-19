@@ -280,7 +280,40 @@ func newCoinCopilotSeamService(t *testing.T, db *gorm.DB, agentURL, internalToke
 		services.NewLogger(100),
 		"http://api.test",
 	)
+	service.WithCollectorProfileService(
+		services.NewCollectorProfileService(repository.NewCollectorProfileRepository(db)),
+	)
 	return service, tokenSvc
+}
+
+func snapshotCoinCopilotReadOnlyDomain(t *testing.T, db *gorm.DB) []byte {
+	t.Helper()
+	snapshot := struct {
+		Coins       []models.Coin
+		Drafts      []models.QuickCaptureDraft
+		Profiles    []models.CollectorProfile
+		AppSettings []models.AppSetting
+	}{}
+	for _, query := range []struct {
+		model any
+		dest  any
+	}{
+		{&models.Coin{}, &snapshot.Coins},
+		{&models.QuickCaptureDraft{}, &snapshot.Drafts},
+		{&models.CollectorProfile{}, &snapshot.Profiles},
+	} {
+		if err := db.Model(query.model).Order("id").Find(query.dest).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Order("key").Find(&snapshot.AppSettings).Error; err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }
 
 func waitForCoinCopilotRun(t *testing.T, service *services.CoinCopilotService, runID string, predicate func(*models.CoinCopilotRun) bool) *models.CoinCopilotRun {
@@ -516,7 +549,16 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
 		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.CollectorProfile{},
 	); err != nil {
+		t.Fatal(err)
+	}
+	currency := "USD"
+	if err := db.Create(&models.CollectorProfile{
+		UserID: 7, Currency: &currency,
+		PreferredCategories: models.StringList{"Roman"},
+		CollectingGoals:     models.StringList{"Build a representative denarius collection"},
+	}).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -530,6 +572,7 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	repo := repository.NewCoinCopilotRepository(db)
 
 	firstService, firstTokenSvc := newCoinCopilotSeamService(t, db, server.URL, internalToken, tokenSecret)
+	readOnlyDomainBefore := snapshotCoinCopilotReadOnlyDomain(t, db)
 	firstCtx, stopFirst := context.WithCancel(context.Background())
 	firstService.StartWorkers(firstCtx)
 	run, reused, err := firstService.Start(7, services.CoinCopilotStartInput{
@@ -546,6 +589,11 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	requests, tokens := agent.snapshot()
 	if len(requests) != 1 || requests[0].ExecutionID != firstExecutionID || len(tokens) != 1 {
 		t.Fatalf("initial execution request mismatch: requests=%#v tokens=%d", requests, len(tokens))
+	}
+	if requests[0].CollectorContext == nil ||
+		requests[0].CollectorContext.Currency == nil ||
+		*requests[0].CollectorContext.Currency != currency {
+		t.Fatalf("initial execution omitted collector context: %#v", requests[0].CollectorContext)
 	}
 	firstToken := tokens[0]
 	stopFirst()
@@ -598,6 +646,11 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	}
 	if resumeRequest.ExecutionID != resumed.ExecutionID {
 		t.Fatalf("worker claim replaced resume execution id: resume=%s execute=%s", resumed.ExecutionID, resumeRequest.ExecutionID)
+	}
+	if resumeRequest.CollectorContext == nil ||
+		resumeRequest.CollectorContext.Currency == nil ||
+		*resumeRequest.CollectorContext.Currency != currency {
+		t.Fatalf("resumed execution omitted collector context: %#v", resumeRequest.CollectorContext)
 	}
 
 	checkpoint, err := repo.GetLatestCheckpoint(run.ID, 7)
@@ -695,6 +748,9 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	}
 	if terminalCount != 1 || cancelEvents[len(cancelEvents)-1].Type != models.CopilotEventRunCancelled {
 		t.Fatalf("cancel terminal events=%d events=%#v", terminalCount, cancelEvents)
+	}
+	if after := snapshotCoinCopilotReadOnlyDomain(t, db); !bytes.Equal(readOnlyDomainBefore, after) {
+		t.Fatal("Coin Copilot changed a coin, Quick Capture draft, collector profile, or app setting")
 	}
 
 	select {

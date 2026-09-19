@@ -279,6 +279,32 @@ def test_request_rejects_unknown_and_duplicate_allowed_tools():
         CopilotExecuteRequest.model_validate(payload)
 
 
+def test_request_accepts_bounded_collector_context_and_rejects_action_fields():
+    payload = _load("valid_execute_request.json")
+    payload["collector_context"] = {
+        "budget_min": 100,
+        "budget_max": 500,
+        "currency": "USD",
+        "preferred_periods": ["Roman Imperial"],
+        "preferred_categories": ["Roman"],
+        "excluded_categories": [],
+        "preferred_dealers": ["VCoins"],
+        "collecting_goals": ["Build a representative Probus mint set"],
+        "captured_at": "2026-09-19T13:00:00Z",
+    }
+
+    request = CopilotExecuteRequest.model_validate(payload)
+
+    assert request.collector_context.currency == "USD"
+    assert request.collector_context.collecting_goals == [
+        "Build a representative Probus mint set"
+    ]
+
+    payload["collector_context"]["owner_id"] = 7
+    with pytest.raises(ValidationError):
+        CopilotExecuteRequest.model_validate(payload)
+
+
 def test_request_rejects_checkpoint_over_budget():
     payload = _load("valid_execute_request.json")
     payload["checkpoint"]["counters"]["tool_calls"] = 13

@@ -52,13 +52,14 @@ type CoinCopilotCapability struct {
 }
 
 type CoinCopilotService struct {
-	repo         *repository.CoinCopilotRepository
-	settingsSvc  *SettingsService
-	proxy        *AgentProxy
-	tokenSvc     *InternalTokenService
-	broker       *CoinCopilotBroker
-	logger       *Logger
-	toolsBaseURL string
+	repo                *repository.CoinCopilotRepository
+	settingsSvc         *SettingsService
+	collectorProfileSvc *CollectorProfileService
+	proxy               *AgentProxy
+	tokenSvc            *InternalTokenService
+	broker              *CoinCopilotBroker
+	logger              *Logger
+	toolsBaseURL        string
 
 	wake            chan struct{}
 	cancelMu        sync.Mutex
@@ -84,6 +85,11 @@ func NewCoinCopilotService(repo *repository.CoinCopilotRepository, settingsSvc *
 		wake: make(chan struct{}, 1), cancels: make(map[string]context.CancelFunc),
 		activeToolCalls: make(map[string]*copilotToolCallTracker),
 	}
+}
+
+func (s *CoinCopilotService) WithCollectorProfileService(profileSvc *CollectorProfileService) *CoinCopilotService {
+	s.collectorProfileSvc = profileSvc
+	return s
 }
 
 func (s *CoinCopilotService) Broker() *CoinCopilotBroker { return s.broker }

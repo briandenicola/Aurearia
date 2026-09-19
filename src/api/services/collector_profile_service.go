@@ -98,12 +98,28 @@ func (s *CollectorProfileService) Context(userID uint) (CollectorContext, error)
 	if err != nil {
 		return CollectorContext{}, err
 	}
+	return collectorContextFromResponse(response), nil
+}
+
+func (s *CollectorProfileService) OptionalContext(userID uint) (*CollectorContext, error) {
+	response, err := s.Get(userID)
+	if err != nil {
+		return nil, err
+	}
+	if response.IsDefault {
+		return nil, nil
+	}
+	context := collectorContextFromResponse(response)
+	return &context, nil
+}
+
+func collectorContextFromResponse(response CollectorProfileResponse) CollectorContext {
 	return CollectorContext{
 		BudgetMin: response.BudgetMin, BudgetMax: response.BudgetMax, Currency: response.Currency,
 		PreferredPeriods: response.PreferredPeriods, PreferredCategories: response.PreferredCategories,
 		ExcludedCategories: response.ExcludedCategories, PreferredDealers: response.PreferredDealers,
 		CollectingGoals: response.CollectingGoals, CapturedAt: time.Now().UTC(),
-	}, nil
+	}
 }
 
 func neutralCollectorProfile() CollectorProfileResponse {

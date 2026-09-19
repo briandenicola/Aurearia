@@ -282,7 +282,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	coinCopilotRepo := repository.NewCoinCopilotRepository(database.DB)
 	coinCopilotSvc := services.NewCoinCopilotService(
 		coinCopilotRepo, settingsSvc, agentProxy, internalTokenSvc, logger, cfg.AgentInternalCallbackURL,
-	)
+	).WithCollectorProfileService(collectorProfileSvc)
 	quickCaptureRepo := repository.NewQuickCaptureRepository(database.DB)
 	deepAnalysisHandoffSvc := services.NewDeepAnalysisHandoffService(
 		coinCopilotRepo, deepIdentificationRepo, coinRepo, quickCaptureRepo,

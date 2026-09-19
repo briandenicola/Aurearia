@@ -77,6 +77,55 @@ func TestCoinCopilotInitialExecutionIncludesBoundedPublicThreadHistory(t *testin
 	}
 }
 
+func TestCoinCopilotExecutionIncludesOptionalBoundedCollectorContext(t *testing.T) {
+	_, service := newCopilotServiceTest(t)
+	run := &models.CoinCopilotRun{
+		ID: "ccr_collector_context", ThreadID: "cct_collector_context", UserID: 7,
+		Status: models.CopilotRunRunning, Goal: "Act as my collection curator",
+		ExecutionID: "cce_collector_context", MaxIterations: 8, MaxToolCalls: 12,
+		MaxConcurrentTools: 1, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
+	}
+
+	withoutProfile, err := service.executionRequest(run, LLMConfig{}, "token", CopilotLimitsProxy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withoutProfile.CollectorContext != nil {
+		t.Fatalf("absent profile should be omitted: %#v", withoutProfile.CollectorContext)
+	}
+
+	minimum, maximum := 100.0, 500.0
+	currency := "USD"
+	if _, err := service.collectorProfileSvc.Replace(7, CollectorProfileInput{
+		BudgetMin: &minimum, BudgetMax: &maximum, Currency: &currency,
+		PreferredPeriods: []string{"Roman Imperial"}, PreferredCategories: []string{"Roman"},
+		PreferredDealers: []string{"VCoins"},
+		CollectingGoals:  []string{"Build a representative Probus mint set"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	request, err := service.executionRequest(run, LLMConfig{}, "token", CopilotLimitsProxy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.CollectorContext == nil ||
+		request.CollectorContext.Currency == nil ||
+		*request.CollectorContext.Currency != "USD" ||
+		len(request.CollectorContext.CollectingGoals) != 1 {
+		t.Fatalf("collector context = %#v", request.CollectorContext)
+	}
+	encoded, err := json.Marshal(request.CollectorContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"user_id", "owner_id", "token", "secret", "action_url"} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("collector context leaked forbidden field %q: %s", forbidden, encoded)
+		}
+	}
+}
+
 func TestCoinCopilotWorkerPersistsCheckpointAndSingleTerminalEvent(t *testing.T) {
 	db, service := newCopilotServiceTest(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

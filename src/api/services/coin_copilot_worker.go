@@ -255,6 +255,14 @@ func (s *CoinCopilotService) executionRequest(run *models.CoinCopilotRun, llm LL
 			return CopilotExecuteProxyRequest{}, err
 		}
 	}
+	var collectorContext *CollectorContext
+	if s.collectorProfileSvc != nil {
+		contextSnapshot, err := s.collectorProfileSvc.OptionalContext(run.UserID)
+		if err != nil {
+			return CopilotExecuteProxyRequest{}, err
+		}
+		collectorContext = contextSnapshot
+	}
 	return CopilotExecuteProxyRequest{
 		SchemaVersion: 1, ThreadID: run.ThreadID, RunID: run.ID, ExecutionID: run.ExecutionID,
 		Goal: run.Goal, Messages: state.Messages,
@@ -262,7 +270,8 @@ func (s *CoinCopilotService) executionRequest(run *models.CoinCopilotRun, llm LL
 			Version: version, Plan: state.Plan, CompletedTools: state.CompletedTools,
 			PendingClarification: state.PendingClarification, NextAction: state.NextAction, Counters: state.Counters,
 		},
-		AppContext: appContext, LLM: llm, Limits: limits, ToolsBaseURL: s.toolsBaseURL,
+		AppContext: appContext, CollectorContext: collectorContext,
+		LLM: llm, Limits: limits, ToolsBaseURL: s.toolsBaseURL,
 		ExecutionToken: token, AllowedTools: append([]string(nil), CoinCopilotAllowedTools...),
 	}, nil
 }
