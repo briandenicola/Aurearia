@@ -1,12 +1,13 @@
-# Feature Specification: Coin Copilot Collector Curator
+# Feature Specification: Coin Copilot Collector Curator and Wishlist Capture
 
 **Feature Branch**: `beta` (existing worktree; no feature branch created)
 **Created**: 2026-09-18
 **Rewritten**: 2026-09-19
 **Status**: Draft — user-approved SMALL F015 scope
 **Input**: Extend the shipped Coin Copilot harness with lightweight private
-collector context, read-only curator guidance, and restoration of the existing
-dealer-result **Add to Wishlist** behavior.
+collector context, read-only curator guidance, restoration of the existing
+dealer-result **Add to Wishlist** behavior, and native wishlist capture from a
+coin-listing URL.
 
 ## Scope
 
@@ -18,7 +19,10 @@ capabilities. It adds:
 2. read-only curator guidance composed from the existing collection summary,
    portfolio review, and gap-analysis capabilities; and
 3. the existing **Add to Wishlist** action on typed Coin Copilot cards for
-   verified dealer listings that are currently available.
+   verified dealer listings that are currently available; and
+4. a native **Add to Wishlist by URL** intake that replaces the external n8n
+   workflow with bounded listing retrieval, structured extraction, owner
+   review, duplicate prevention, and canonical wishlist creation.
 
 This feature does not create a new agent, orchestration, browsing, persistence,
 or write platform. Profile storage follows existing owner-scoped application
@@ -28,9 +32,15 @@ explicitly selects the UI action on an eligible dealer result. The action
 reuses the canonical wishlist coin creation flow and its existing validation
 and safeguards.
 
+URL intake is a separate explicit owner workflow, not an AI write tool. The
+owner submits one public coin-listing URL, reviews the extracted proposal and
+listing status, and confirms creation through the same canonical wishlist
+path. Retrieval and extraction may run asynchronously, but no wishlist coin is
+created merely because retrieval or AI extraction completed.
+
 This scope applies Constitution Principle IV: the change restores one complete
-user workflow and adds only the minimum private context and read-only guidance
-needed to support it.
+user workflow, internalizes one existing owner workflow, and adds only the
+minimum private context and read-only guidance needed to support them.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -144,6 +154,64 @@ writes.
    the interaction ends, **Then** no collection, wishlist, draft, profile, or
    application-setting data is changed.
 
+---
+
+### User Story 4 - Add a coin to the wishlist from a listing URL (Priority: P1)
+
+As a collector, I want to submit a coin-listing URL and review the extracted
+coin details so I can add the listing to my wishlist without relying on the
+external n8n workflow.
+
+**Why this priority**: This brings an existing, useful acquisition workflow
+inside the authenticated application while reusing its canonical wishlist
+validation, duplicate protection, and image handling.
+
+**Independent Test**: Submit controlled dealer and auction-lot fixture URLs,
+verify one bounded page is retrieved and converted to a reviewable proposal,
+confirm it, and verify exactly one owner-scoped wishlist coin is created with
+the original source URL, listing status, supported fields, and at most one safe
+image. Repeat with a duplicate URL, sold listing, thin page, blocked host,
+redirect to a private address, and extraction failure.
+
+**Acceptance Scenarios**:
+
+1. **Given** an authenticated owner enters a valid public HTTP(S) coin-listing
+   URL, **When** intake starts, **Then** tracking parameters are removed while
+   meaningful routing fragments and source identity are preserved.
+2. **Given** the canonical URL already belongs to one of that owner's wishlist
+   coins, **When** it is submitted again, **Then** no retrieval or creation is
+   performed and the existing coin is identified to the owner.
+3. **Given** a safe reachable listing, **When** retrieval runs, **Then** it
+   fetches only the submitted page with bounded redirects, bytes, duration,
+   and content type and does not crawl related links.
+4. **Given** usable page content, **When** extraction completes, **Then** the
+   owner receives a reviewable proposal containing only stated listing facts,
+   with inscriptions, descriptions, measurements, price/currency, dealer,
+   references, provenance, and listing status mapped to their proper fields.
+5. **Given** facts are absent, ambiguous, or unsupported, **When** extraction
+   completes, **Then** those fields remain empty and the proposal identifies
+   missing or thin data rather than inventing values.
+6. **Given** navigation, cookie, shipping, bidding, countdown, error-widget, or
+   related-item text appears on the page, **When** extraction runs, **Then**
+   that page chrome does not become coin data or notes.
+7. **Given** a listing is sold, reserved, closed, or otherwise unavailable,
+   **When** the proposal is shown, **Then** its status and displayed price are
+   retained and clearly flagged before the owner decides whether to save it.
+8. **Given** an optional owner-supplied or safely discovered coin image,
+   **When** the owner confirms the proposal, **Then** at most one image is
+   attached through the existing safe image flow; image failure does not
+   duplicate or roll back the saved coin.
+9. **Given** the owner edits supported proposal fields and explicitly confirms
+   **Add to Wishlist**, **When** creation succeeds, **Then** exactly one
+   owner-scoped wishlist coin is created through the canonical coin path and
+   retains the original listing URL as provenance.
+10. **Given** retrieval, extraction, validation, or creation fails, or the
+    owner cancels review, **When** the workflow ends, **Then** no partial or
+    duplicate coin remains and the owner receives a clear status.
+11. **Given** an auction-lot URL, **When** it is processed as a generic
+    external listing, **Then** no auction model, route, tracked lot, bid,
+    status, synchronization, or conversion behavior is read or changed.
+
 ### Edge Cases
 
 - The result changes from available to unavailable before the owner selects
@@ -162,6 +230,17 @@ writes.
 - Coin Copilot or one of the existing analysis capabilities is unavailable;
   the owner receives a clear unavailable or fallback state and no mutation
   occurs.
+- A URL uses credentials, a non-HTTP protocol, malformed host syntax, an IP
+  literal, localhost, private/link-local network target, or redirects to one;
+  retrieval is rejected before any protected resource can be reached.
+- A canonical URL differs only by removable tracking parameters, casing, or a
+  trailing slash; duplicate matching treats it as the same owner source while
+  preserving meaningful query and fragment routing.
+- A page is blocked, empty, too large, non-HTML, dynamically incomplete, or
+  below the useful-content threshold; no facts are guessed and the owner sees
+  a retry/reviewable failure state.
+- Dealer pages repeat bidding panels or contain other coins; only the submitted
+  listing is extracted.
 
 ## Requirements *(mandatory)*
 
@@ -249,6 +328,61 @@ writes.
   confirmation is cancelled, the result is ineligible, a duplicate is
   prevented, or optional image attachment fails.
 
+#### Add to Wishlist by URL
+
+- **FR-024**: The authenticated application MUST provide a native intake for
+  one public HTTP(S) coin-listing URL at a time without requiring n8n, Apify,
+  an iOS Shortcut, or a separate API key.
+- **FR-025**: URL normalization MUST remove known tracking parameters while
+  preserving query values or fragments required to identify the listing.
+  Owner-scoped duplicate detection MUST use the canonical source URL and MUST
+  return the existing wishlist coin without retrieving or creating another.
+- **FR-026**: Server-side retrieval MUST reject credentials, unsupported
+  schemes, malformed hosts, IP literals, localhost, and private, loopback,
+  link-local, multicast, or otherwise non-public destinations. Every redirect
+  MUST be revalidated against the same policy.
+- **FR-027**: Retrieval MUST be bounded to the submitted page with explicit
+  limits for redirects, response bytes, content type, duration, and
+  concurrency. It MUST NOT follow listing links or crawl the source site.
+- **FR-028**: Extracted listing content MUST exclude navigation, cookie and
+  shipping notices, bidding controls, countdowns, connection errors, repeated
+  panels, and related listings before structured extraction.
+- **FR-029**: Structured extraction MUST distinguish page-stated facts from
+  optional AI commentary. It MUST NOT invent absent listing facts. Legends
+  MUST remain separate from descriptions, numeric values MUST be normalized,
+  and missing values MUST remain empty.
+- **FR-029a**: Cleaned listing evidence MUST reuse the Deep Analysis
+  evidence-to-structured-coin projection and canonical proposal mapping. The
+  URL workflow MUST NOT introduce a parallel coin-field extractor or wishlist
+  write path.
+- **FR-030**: The review proposal MUST support the existing wishlist field
+  boundaries plus listing status, dealer/source identity, vendor or lot
+  identifiers, sale name, displayed price/currency, catalog reference text,
+  and provenance notes where the canonical coin model supports them. It MUST
+  NOT populate purchase date, purchase price, storage, sold ownership state,
+  or auction-tracking state.
+- **FR-031**: A sold, reserved, closed, unknown, or thin listing MAY be
+  reviewed and saved to the wishlist only after its limitation is visibly
+  presented. Status MUST NOT be silently converted to available.
+- **FR-032**: Retrieval and extraction MUST produce a transient review
+  proposal and MUST NOT create a coin. Only the authenticated owner's explicit
+  confirmation from that review MAY invoke canonical wishlist creation.
+- **FR-033**: The owner MAY edit only fields accepted by the canonical
+  wishlist flow before confirmation. Server-side validation, owner scope,
+  duplicate protection, and field allowlists remain authoritative.
+- **FR-034**: URL intake MAY accept one optional owner-supplied image and MAY
+  discover one safe listing image. At most one image MAY be attached after
+  creation through the existing image validation/proxy/upload path. Image
+  failure MUST be non-fatal and MUST NOT retry coin creation.
+- **FR-035**: The workflow MUST expose clear pending, duplicate, needs-review,
+  ready, failed, cancelled, created, and created-with-image-warning outcomes.
+  It MUST NOT expose retrieved page content, credentials, private addresses,
+  or internal errors in logs, notifications, or client responses.
+- **FR-036**: An auction-lot URL MAY be treated only as an external listing
+  source. URL intake MUST NOT call or change auction subsystem models,
+  repositories, services, routes, tracked-lot state, bid state, synchronization,
+  or won-lot conversion behavior.
+
 ### Key Entities
 
 - **Collector Profile**: Private, optional context belonging to one owner. It
@@ -262,6 +396,9 @@ writes.
 - **Wishlist Coin**: The existing canonical coin record created with wishlist
   status. It remains distinct from an owned collection coin and from a
   quick-capture draft.
+- **URL Intake Proposal**: A transient, owner-scoped, reviewable extraction
+  from one external listing URL. It grants no write authority and is not a
+  staged wishlist-action record.
 
 ## Dependencies and Existing Boundaries
 
@@ -277,13 +414,15 @@ writes.
   authoritative and best-effort.
 - Existing duplicate safeguards remain authoritative; this feature does not
   introduce a second identity or transaction model.
+- Existing safe URL validation, HTTP client limits, image proxy, and canonical
+  wishlist mapping MUST be reused or extended rather than duplicated.
 - Collection records, wishlist records, and quick-capture drafts retain their
   current field and lifecycle boundaries.
 
 ## Non-Goals
 
-- Any change to the auction subsystem; auction results are not eligible for
-  this action.
+- Any change to the auction subsystem. A submitted auction-lot URL is treated
+  only as an external listing and cannot create or modify tracked auction data.
 - Watchlist evaluation, candidate scoring, market-result ranking, or a
   watchlist subsystem.
 - Provenance-risk scoring, suspicious-listing detection, duplicate-image
@@ -291,8 +430,9 @@ writes.
 - Wishlist-action stage, revision, revoke, expiry, or confirm endpoints.
 - Wishlist action or audit tables, durable action workflows, or a parallel
   transaction platform.
-- A new agent orchestration platform, AI provider, browsing mechanism, search
-  provider, or persistence subsystem.
+- A new agent orchestration platform, AI provider, search provider, or
+  persistence subsystem. Native bounded URL retrieval is limited to this
+  intake and does not become a general-purpose browser or crawler.
 - Autonomous, conversational, scheduled, or bulk wishlist creation.
 - AI-initiated writes, arbitrary write tools, purchasing, bidding, offers, or
   payments.
@@ -339,6 +479,16 @@ writes.
 - **SC-010**: Regression checks confirm no behavioral change to collection
   creation, quick-capture drafts, existing wishlist management, or ineligible
   Coin Copilot result cards.
+- **SC-011**: Across controlled URL fixtures, 100% of supported stated values
+  are mapped to their corresponding review fields, 0 absent facts are
+  invented, and 0 page-chrome or related-listing values become coin data.
+- **SC-012**: Duplicate, repeated-confirmation, retry, and concurrent URL
+  intake tests create at most one owner-scoped wishlist coin per canonical URL.
+- **SC-013**: SSRF tests reject 100% of non-public initial and redirected
+  destinations before a request reaches them, while approved public fixture
+  URLs remain retrievable within configured bounds.
+- **SC-014**: URL intake creates zero wishlist coins before explicit review
+  confirmation and changes zero auction subsystem records for every fixture.
 
 ## Assumptions
 

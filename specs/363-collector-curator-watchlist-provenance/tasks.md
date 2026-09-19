@@ -3,12 +3,14 @@
 **Input**: Design documents in `specs/363-collector-curator-watchlist-provenance/`
 **Branch constraint**: Work directly in the existing `beta` worktree; do not create or switch branches.
 **Tests**: Mandatory and test-first. Add each phase's focused tests, run them to prove the intended assertions fail, and only then implement that phase.
-**Scope constraint**: Add one `collector_profiles` table, bounded read-only curator context, and the existing UI-owned dealer-result wishlist flow only. Do not add an action lifecycle, another provider/orchestrator/browser/persistence system, or any auction implementation change.
+**Scope constraint**: Add one `collector_profiles` table, bounded read-only curator context, the existing UI-owned dealer-result wishlist flow, and native single-URL wishlist intake. Do not add an action lifecycle, another provider/orchestrator/general-purpose browser/persistence system, or any auction implementation change.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]** marks tasks that touch different files and can proceed concurrently after their shared prerequisites.
 - **[US1]** is dealer-result Add to Wishlist, **[US2]** is private collector context, and **[US3]** is read-only curator guidance, matching `spec.md`.
+- **[US4]** is native Add to Wishlist by URL with bounded retrieval and
+  transient owner review.
 - Every implementation phase starts with tests. Generated OpenAPI files are changed only by `task openapi`.
 
 ---
@@ -90,15 +92,47 @@
 
 ---
 
-## Phase 4: Focused Regression, Full Quality Gates, Evidence, and Later Release Audit
+## Phase 4: Native Add to Wishlist by URL (US4)
+
+**Goal**: Replace the external n8n workflow with authenticated single-listing
+intake, strict extraction, transient review, and canonical wishlist creation.
+
+**Independent Test**: Submit public dealer and auction-lot fixtures plus
+duplicate, sold, thin, blocked, private-address, redirect, oversized,
+non-HTML, malformed extraction, and image-failure fixtures. Confirm no coin is
+created before explicit review confirmation, exactly one is created after
+confirmation, and no auction subsystem state changes.
+
+### Tests for User Story 4 — write and run first
+
+- [ ] T030 [P] [US4] Add failing URL-policy tests for normalization, tracking removal, meaningful fragments, public HTTP(S)-only hosts, IP literals, credentials, DNS/private ranges, redirect revalidation, response byte/content-type/time limits, and single-page/no-link crawling.
+- [ ] T031 [P] [US4] Add failing extraction contract tests for chrome removal, repeated/related listing exclusion, strict stated-fact mapping, legend/description separation, numeric normalization, sold/reserved/closed status, missing values, thin content, malformed model output, and bounded optional commentary.
+- [ ] T032 [P] [US4] Add failing owner-scope and idempotency tests for canonical-URL duplicate short-circuit, cross-owner independence, repeated confirmation, concurrent creation, cancellation, and no partial coin after validation or creation failure.
+- [ ] T033 [P] [US4] Add failing browser tests for URL entry, optional image, pending/duplicate/needs-review/ready/failed/cancelled/created/image-warning states, editable allowlisted fields, explicit confirmation, keyboard use, 44px controls, dark theme, and 320px/PWA layout.
+- [ ] T034 [P] [US4] Add a failing architecture guard proving URL intake does not import or invoke auction models, repositories, services, routes, tracked-lot state, bid state, synchronization, or conversion behavior.
+
+### Implementation for User Story 4
+
+- [ ] T035 [US4] Define strict URL intake, transient proposal, extracted field, listing-status, limitation, and outcome contracts without action-stage persistence or credentials.
+- [ ] T036 [US4] Implement canonicalization, owner-scoped duplicate lookup, SSRF-safe initial/redirect validation, and bounded single-page retrieval by extending existing URL/HTTP helpers rather than creating a general crawler.
+- [ ] T037 [US4] Implement deterministic content cleanup and strict structured extraction that preserves source provenance, missing fields, listing status, and page-stated versus AI-commentary boundaries.
+- [ ] T038 [US4] Build the responsive URL intake and transient review/edit/confirm UI, including explicit limitations and optional image preview, using existing design tokens and wishlist field controls.
+- [ ] T039 [US4] Route confirmed proposals through canonical wishlist validation and creation exactly once, then attach at most one safe image best-effort and report the final outcome without touching auction state.
+
+**Checkpoint**: US4 replaces the n8n workflow inside the authenticated app;
+retrieval and extraction remain read-only until explicit owner confirmation.
+
+---
+
+## Phase 5: Focused Regression, Full Quality Gates, Evidence, and Later Release Audit
 
 **Purpose**: Prove the three increments together, preserve existing boundaries, and hand off the separately tracked combined F014/F015 audit before v4.2.
 
-- [ ] T030 Add profile-route/OpenAPI drift assertions for only GET/PUT `/api/collector-profile`, absence of wishlist-action/Python callback routes, optional dealer projection fields, and unchanged existing contracts in `src/api/openapi_feature363_test.go`
-- [ ] T031 Regenerate and verify Swagger/OpenAPI for the profile handlers and additive dealer fields using `task openapi`, updating only `src/api/docs/docs.go`, `src/api/docs/swagger.json`, `src/api/docs/swagger.yaml`, and `docs/openapi.json`
-- [ ] T032 Run the focused Go, Python, and Vue suites from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; record exact commands/results plus controlled profile-isolation, curator-read-only, eligibility-tamper, field-separation, duplicate, cancellation, and image-failure evidence in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
-- [ ] T033 Run the full Go build/vet/test/architecture, Python ruff/pytest, Vue lint/type-check/test/build, and OpenAPI cleanliness gates from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; inventory the final diff to prove no excluded subsystem or new platform/action lifecycle was added, and record results in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
-- [ ] T034 After T033 and before the v4.2 release, execute the separately tracked combined F014/F015 engineering audit, resolve every release-blocking finding, and record scope, findings, dispositions, and release decision in `specs/363-collector-curator-watchlist-provenance/qc-audit.md`
+- [ ] T040 Add profile-route/OpenAPI drift assertions for only GET/PUT `/api/collector-profile`, bounded URL-intake surfaces, absence of wishlist-action/Python callback routes, optional dealer projection fields, and unchanged existing contracts in `src/api/openapi_feature363_test.go`
+- [ ] T041 Regenerate and verify Swagger/OpenAPI for the profile handlers, additive dealer fields, and URL intake using `task openapi`, updating only `src/api/docs/docs.go`, `src/api/docs/swagger.json`, `src/api/docs/swagger.yaml`, and `docs/openapi.json`
+- [ ] T042 Run the focused Go, Python, and Vue suites from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; record exact commands/results plus controlled profile-isolation, curator-read-only, eligibility-tamper, URL-policy, extraction, field-separation, duplicate, cancellation, auction-isolation, and image-failure evidence in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
+- [ ] T043 Run the full Go build/vet/test/architecture, Python ruff/pytest, Vue lint/type-check/test/build, and OpenAPI cleanliness gates from `specs/363-collector-curator-watchlist-provenance/quickstart.md`; inventory the final diff to prove no excluded subsystem or new platform/action lifecycle was added, and record results in `specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md`
+- [ ] T044 After T043 and before the v4.2 release, execute the separately tracked combined F014/F015 engineering audit, resolve every release-blocking finding, and record scope, findings, dispositions, and release decision in `specs/363-collector-curator-watchlist-provenance/qc-audit.md`
 
 ---
 
@@ -109,13 +143,19 @@
 - **Phase 1 (US2 profile)** starts immediately and establishes the only new persistence plus the owner-scoped context source.
 - **Phase 2 (US3 curator)** depends on T008 and T009 for bounded owner-context capture; it does not depend on wishlist work.
 - **Phase 3 (US1 wishlist)** may begin after the Phase 1 tests establish ownership conventions, and can run in parallel with Phase 2; it does not require profile values.
-- **Phase 4 (quality/evidence)** depends on all selected implementation phases. T031 depends on T009, T024, and T030; T032 depends on T031; T033 depends on T032; T034 is a later release gate and depends on T033.
+- **Phase 4 (US4 URL intake)** may begin after Phase 1 establishes owner-scope
+  conventions and can proceed independently of curator behavior.
+- **Phase 5 (quality/evidence)** depends on all selected implementation phases.
+  T041 depends on T009, T024, T035, and T040; T042 depends on T041; T043
+  depends on T042; T044 is a later release gate and depends on T043.
 
 ### User Story Dependencies
 
 - **US2 (P2 in `spec.md`)**: Independent profile increment and prerequisite only for profile-influenced US3 behavior.
 - **US3 (P3 in `spec.md`)**: Depends on the US2 context projection but remains functional with neutral empty context.
 - **US1 (P1 in `spec.md`)**: Functionally independent of US2/US3 and remains the MVP user workflow; it reuses existing coin creation rather than profile or curator code.
+- **US4 (P1 in `spec.md`)**: Functionally independent of curator guidance and
+  reuses the same canonical wishlist authority after a transient URL review.
 
 ### Within Each Phase
 
@@ -140,6 +180,14 @@ T012, T013, and T014 can be written in parallel. Once their failure modes are es
 
 T019–T023 are parallel test-first work across Go contracts, Go persistence, and Vue behavior. After T024, T025 can proceed independently; T026 then provides the card event, T027 provides the defensive parent guard/adapter, and T028 reuses the canonical UI mutation flow while T029 independently completes server-side duplicate protection.
 
+### Phase 4 / US4
+
+T030–T034 can be written in parallel across URL security, extraction,
+ownership/idempotency, browser UX, and architecture isolation. T035 fixes the
+contract before T036/T037 implement retrieval and extraction; T038 can then
+integrate the review UI while T039 wires only the confirmed proposal into the
+canonical wishlist path.
+
 ---
 
 ## Implementation Strategy
@@ -149,8 +197,10 @@ T019–T023 are parallel test-first work across Go contracts, Go persistence, an
 1. Complete Phase 1 to establish private owner context.
 2. Complete Phase 2 to add read-only curator value without writes.
 3. Complete Phase 3 to restore the explicit dealer-card wishlist workflow.
-4. Complete focused and full gates before treating Feature 363 as complete.
-5. Perform the combined F014/F015 engineering audit later as a distinct v4.2 release gate.
+4. Complete Phase 4 to internalize wishlist-by-URL without a new action
+   platform or auction integration.
+5. Complete focused and full gates before treating Feature 363 as complete.
+6. Perform the combined F014/F015 engineering audit later as a distinct v4.2 release gate.
 
 ### MVP Validation
 
@@ -164,4 +214,6 @@ US1 is the product-priority MVP workflow even though its implementation phase fo
 - Do not add watchlist evaluation/ranking, provenance-risk, suspicious-listing, duplicate-image, forensic, purchase, bid, or autonomous action behavior.
 - Do not add wishlist action endpoints, stages, revisions, revoke/confirm operations, action/audit tables, or a parallel lifecycle.
 - Do not add another agent, graph, provider, browser, scheduler, or persistence system.
+- URL intake must remain single-page and purpose-built; do not turn it into a
+  reusable open proxy, general crawler, or arbitrary authenticated fetch API.
 - Preserve the distinct collection, wishlist, and quick-capture/deep-analysis draft field and lifecycle rules in T020 and T023.

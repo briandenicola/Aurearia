@@ -1,4 +1,4 @@
-# Implementation Plan: Coin Copilot Collector Curator
+# Implementation Plan: Coin Copilot Collector Curator and Wishlist Capture
 
 **Branch**: `beta` (existing worktree; do not create or switch branches)
 **Date**: 2026-09-19
@@ -14,7 +14,10 @@ workflow:
    existing `collection_summary`, `portfolio_review`, and `gap_analysis`
    capabilities; and
 3. restore the existing `useCoinSearchChat.addToWishlist` interaction on
-   eligible cards rendered by `CopilotRunProgress.vue`.
+   eligible cards rendered by `CopilotRunProgress.vue`; and
+4. add native, authenticated wishlist intake from one external coin-listing
+   URL with bounded retrieval, structured extraction, transient review, and
+   canonical wishlist creation.
 
 The wishlist interaction remains a direct user action. It converts an eligible
 typed dealer result to the existing `CoinSuggestion` shape, then reuses
@@ -25,6 +28,12 @@ protections. The AI receives no write tool or credential.
 There is no watchlist evaluator, provenance workflow, auction change, staged
 wishlist action, action/audit persistence, new provider, browser, agent,
 orchestration layer, or persistence platform.
+
+The URL workflow replaces the external n8n orchestration but does not copy its
+credentials or direct-write behavior. URL submission starts bounded analysis;
+the owner reviews the extracted proposal and explicitly confirms creation.
+Auction-lot URLs are treated only as generic external listing pages and never
+enter the auction subsystem.
 
 ## Technical Context
 
@@ -40,13 +49,14 @@ Utils and strict Vue type checking
 desktop/mobile installed PWA
 **Performance Goals**: one owner-scoped profile read per relevant Copilot run;
 no extra provider fan-out; wishlist save has the same latency as the shipped
-legacy suggestion flow
+legacy suggestion flow; URL retrieval is single-page, response-size limited,
+timeout bounded, and asynchronously reportable
 **Constraints**: owner-derived scope; bounded profile values; Python remains
 stateless/read-only; only verified and currently available `dealer_listing`
 items from `market_search` are eligible; auction source/config/model/route/
 service/UI files are untouched
 **Scale/Scope**: personal-scale application, fewer than 10 concurrent users;
-one profile row per owner
+one profile row per owner; one listing URL per intake
 
 There are no unresolved `NEEDS CLARIFICATION` items.
 
@@ -92,6 +102,8 @@ is justified.
 | `CoinSearchChat.vue` | Pass the existing wishlist callback/state into `CopilotRunProgress` and keep the existing category/era modal at the parent level. |
 | `collection_summary`, `portfolio_review`, `gap_analysis` | Remain the complete analysis set for curator guidance. No new curator agent or provider is added. |
 | `SettingsPage.vue` and settings component conventions | Add a compact Collector Profile section using the existing API client and design system. Do not use global admin settings. |
+| Existing URL validation, HTTP client, and image proxy helpers | Reuse for public-destination enforcement, redirect validation, response limits, and one best-effort image attachment. |
+| Existing canonical wishlist payload and coin creation path | Convert a confirmed URL proposal without introducing action-stage tables or a second write API. |
 
 ### Important current-contract gap
 
@@ -211,6 +223,28 @@ Research is recorded in [research.md](./research.md). The decisions are:
 - Return clear existing error/success states; distinguish an image warning
   after successful creation without retrying creation.
 
+### Add to Wishlist by URL
+
+- Add an authenticated browser intake for one listing URL with optional image.
+- Canonicalize the URL, enforce public HTTP(S)-only SSRF protections on the
+  initial destination and every redirect, and check owner-scoped duplicates
+  before retrieval.
+- Retrieve only the submitted page under explicit redirect, byte, content-type,
+  duration, and concurrency bounds; do not crawl links.
+- Remove page chrome and repeated/related content, then extract a strict
+  review proposal that separates stated facts from optional commentary and
+  preserves missing fields as unknown.
+- Feed cleaned listing evidence through the reusable Deep Analysis
+  evidence-to-structured-coin projection and canonical proposal mapping rather
+  than building a second field extractor or wishlist writer.
+- Show listing status, thin/missing fields, source provenance, and extraction
+  limitations before the owner confirms.
+- Reuse canonical wishlist validation, creation, duplicate protection, and
+  one best-effort image attachment. Keep proposal state transient and add no
+  wishlist-action/audit table.
+- Treat auction-lot URLs only as generic source pages; do not import, update,
+  or call any auction subsystem behavior.
+
 ## Implementation Phases
 
 ### Phase 1 — Private collector profile
@@ -250,11 +284,26 @@ Research is recorded in [research.md](./research.md). The decisions are:
 
 **Estimated size**: 1–2 implementation days.
 
-### Phase 4 — Focused regression and documentation sync
+### Phase 4 — Native Add to Wishlist by URL
+
+1. Add URL intake and transient review contracts with strict URL, field, and
+   outcome bounds.
+2. Add owner-scoped canonical-URL duplicate detection and SSRF-safe,
+   single-page retrieval with redirect revalidation.
+3. Add deterministic content cleanup and strict structured extraction without
+   guessed listing facts.
+4. Add a responsive review/edit/confirm UI with explicit sold/thin/failure
+   states and optional image handling.
+5. Reuse canonical wishlist creation and verify no auction subsystem access.
+
+**Estimated size**: 2–3 implementation days.
+
+### Phase 5 — Focused regression and documentation sync
 
 Run the targeted suites in [quickstart.md](./quickstart.md), regenerate
-OpenAPI for the profile routes and additive result fields, then run the normal
-full quality gates. Confirm no auction file or behavior changed.
+OpenAPI for the profile routes, additive result fields, and URL intake
+contract, then run the normal full quality gates. Confirm no auction file or
+behavior changed.
 
 **Estimated size**: 0.5–1 implementation day.
 
