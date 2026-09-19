@@ -514,8 +514,10 @@ func validCopilotSpecialistSource(capability string, item CopilotSpecialistEvide
 		return item.Provider == "configured_dealer_search" || item.Provider == "cng_dealer_search"
 	case "auction_search":
 		return item.Provider == "configured_auction_search" || item.Provider == "numisbids"
-	case "price_trends", "similar_lots":
+	case "price_trends":
 		return item.Provider == "numisbids"
+	case "similar_lots":
+		return item.Provider == "numisbids" || item.Provider == "configured_auction_search"
 	default:
 		return false
 	}

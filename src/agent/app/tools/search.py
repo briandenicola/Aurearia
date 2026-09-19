@@ -126,6 +126,11 @@ _USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/131.0.0.0 Safari/537.36"
 )
+_BROWSER_HEADERS = {
+    "User-Agent": _USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 
 @tool
@@ -220,19 +225,23 @@ async def _fetch_dealer_page(
                 url,
                 validator=validator,
                 field_name="url",
-                headers={"User-Agent": _USER_AGENT},
+                headers=_BROWSER_HEADERS,
                 timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
             )
         else:
             resp = await safe_get(
                 url,
                 field_name="url",
-                headers={"User-Agent": _USER_AGENT},
+                headers=_BROWSER_HEADERS,
                 timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
             )
 
         if resp.status_code != 200:
             if allowed_hosts is not None:
+                logger.warning(
+                    "Dealer source returned non-success status status_code=%d",
+                    resp.status_code,
+                )
                 raise httpx.TransportError("dealer source returned a non-success status")
             return f"Error: HTTP {resp.status_code} fetching {url}"
 
@@ -250,7 +259,7 @@ async def _fetch_dealer_page(
             return _parse_generic(html, url)
 
     except Exception as e:
-        logger.warning("Dealer page fetch failed")
+        logger.warning("Dealer page fetch failed error_type=%s", type(e).__name__)
         if require_registered_source or allowed_hosts is not None:
             raise
         return f"Error fetching page: {e}"

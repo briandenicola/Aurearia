@@ -76,7 +76,9 @@ _CAPABILITY_PROVIDERS = {
         {"numisbids", "configured_auction_search", "auction_search_secondary"}
     ),
     "price_trends": frozenset({"numisbids", "price_trends_secondary"}),
-    "similar_lots": frozenset({"numisbids", "similar_lots_secondary"}),
+    "similar_lots": frozenset(
+        {"numisbids", "configured_auction_search", "similar_lots_secondary"}
+    ),
 }
 _TOKEN_RE = re.compile(
     r"(?i)(?:bearer\s+[A-Za-z0-9._~+/\-=]{12,}|"
@@ -1097,9 +1099,9 @@ def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
 
 def _finalize_result(
     *,
-    capability: Literal["market_search", "auction_search", "price_trends"],
+    capability: SpecialistCapability,
     outcome: SpecialistOutcome,
-    items: Sequence[DealerListing | AuctionLot | SaleObservation],
+    items: Sequence[DealerListing | AuctionLot | SaleObservation | SimilarLot],
     provider_attempts: Sequence[ProviderAttempt],
     warnings: Sequence[str],
     omitted_items: int,
@@ -1136,6 +1138,125 @@ def _finalize_result(
             return result
         size = encoded_size
     return result
+
+
+_SIMILARITY_STOPWORDS = frozenset(
+    {
+        "active",
+        "auction",
+        "coin",
+        "coins",
+        "find",
+        "for",
+        "lot",
+        "lots",
+        "my",
+        "of",
+        "similar",
+        "the",
+        "to",
+        "with",
+    }
+)
+
+
+def project_similar_lots(query: str, auction_result: SpecialistResult) -> SpecialistResult:
+    """Rank configured auction evidence against explicit query attributes."""
+    if auction_result.capability != "auction_search":
+        raise ValueError("similar-lot projection requires auction search evidence")
+
+    normalized_query = query.casefold()
+    query_terms = {
+        term
+        for term in re.findall(r"[a-z0-9]+", normalized_query)
+        if len(term) >= 3 and term not in _SIMILARITY_STOPWORDS
+    }
+    projected: list[SimilarLot] = []
+    for item in auction_result.items:
+        if not isinstance(item, AuctionLot):
+            continue
+        matched: list[str] = []
+        for label, value in (
+            ("ruler", item.ruler),
+            ("denomination", item.denomination),
+            ("era", item.era),
+            ("material", item.material),
+        ):
+            if value and value.casefold() in normalized_query:
+                matched.append(f"{label}: {value}")
+        title_terms = {
+            term
+            for term in re.findall(r"[a-z0-9]+", item.title.casefold())
+            if len(term) >= 3 and term not in _SIMILARITY_STOPWORDS
+        }
+        for term in sorted(query_terms.intersection(title_terms))[:5]:
+            marker = f"title term: {term}"
+            if marker not in matched:
+                matched.append(marker)
+        if not matched:
+            continue
+        similarity_score = min(1.0, 0.35 + (0.1 * len(matched)))
+        provenance_fields = ["title"]
+        if item.description is not None:
+            provenance_fields.append("description")
+        projected.append(
+            SimilarLot(
+                kind="similar_lot",
+                source_url=item.source_url,
+                canonical_source_id=item.canonical_source_id,
+                provider=item.provider,
+                observed_at=item.observed_at,
+                confidence=item.confidence,
+                verification_state=item.verification_state,
+                title=item.title,
+                description=item.description,
+                similarity_score=similarity_score,
+                matched_attributes=matched,
+                material_differences=[],
+                provenance=_provenance(
+                    provenance_fields,
+                    source_url=item.source_url,
+                    observed_at=item.observed_at,
+                    confidence=item.confidence,
+                    verification_state=item.verification_state,
+                ),
+            )
+        )
+
+    projected.sort(key=lambda item: (-item.similarity_score, item.canonical_source_id))
+    projected_count = len(projected)
+    result_limit = min(projected_count, 10)
+    projected = projected[:result_limit]
+    degraded = any(
+        attempt.status in _DEGRADED_PROVIDER_STATUSES
+        for attempt in auction_result.provider_attempts
+    )
+    if projected:
+        outcome: SpecialistOutcome = "partial" if degraded else "complete"
+    elif degraded:
+        outcome = "unavailable"
+    else:
+        outcome = "no_match"
+    attempts = [
+        attempt.model_copy(
+            update={
+                "status": attempt.status if attempt.status in _DEGRADED_PROVIDER_STATUSES else (
+                    "success" if projected else "no_match"
+                ),
+                "accepted_items": len(projected) if attempt.status not in _DEGRADED_PROVIDER_STATUSES else 0,
+                "warning_code": attempt.warning_code if attempt.status in _DEGRADED_PROVIDER_STATUSES else None,
+            }
+        )
+        for attempt in auction_result.provider_attempts
+    ]
+    return _finalize_result(
+        capability="similar_lots",
+        outcome=outcome,
+        items=projected,
+        provider_attempts=attempts,
+        warnings=auction_result.warnings,
+        omitted_items=max(0, projected_count - result_limit),
+    )
 
 
 async def run_provider_search(

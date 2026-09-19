@@ -19,6 +19,7 @@ from app.teams.specialist_contracts import (
     ProviderMalformedError,
     ProviderRunner,
     ProviderUnavailableError,
+    project_similar_lots,
 )
 from app.tools.search import _listing_availability_signal, validate_search_source_url
 
@@ -111,6 +112,45 @@ async def test_configured_cng_auction_source_is_accepted():
 
     assert result.outcome == "complete"
     assert result.items[0].source_url.startswith("https://www.cngcoins.com/")
+
+
+@pytest.mark.asyncio
+async def test_similar_lots_project_configured_auction_evidence_deterministically():
+    async def configured_provider(_query, _limit):
+        return [
+            _auction_candidate(
+                url="https://www.cngcoins.com/Coin.aspx?CoinID=400001",
+                ruler="Domitian",
+                denomination="Denarius",
+                material="Silver",
+            )
+        ]
+
+    auction_result = await run_auction_search(
+        {"query": "Domitian silver denarius", "limit": 5},
+        provider_runners=[
+            ProviderRunner(
+                provider="configured_auction_search",
+                run=configured_provider,
+                allowed_hosts=frozenset({"cngcoins.com"}),
+            )
+        ],
+        observed_at=OBSERVED_AT,
+    )
+
+    result = project_similar_lots("Domitian silver denarius", auction_result)
+
+    assert result.capability == "similar_lots"
+    assert result.outcome == "complete"
+    assert len(result.items) == 1
+    assert result.items[0].provider == "configured_auction_search"
+    assert result.items[0].matched_attributes == [
+        "ruler: Domitian",
+        "denomination: Denarius",
+        "material: Silver",
+        "title term: denarius",
+        "title term: domitian",
+    ]
 
 
 @pytest.mark.asyncio

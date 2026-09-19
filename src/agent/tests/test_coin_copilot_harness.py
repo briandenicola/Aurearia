@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage
 from app.models.requests import CopilotExecuteRequest
 from app.teams import auction_search, coin_copilot, coin_search, price_trends
 from app.teams.coin_copilot import run_coin_copilot
+from app.teams.specialist_contracts import SpecialistResult
 from app.tools.copilot_collection_tools import (
     CopilotCollectionToolClient,
     CopilotToolError,
@@ -824,6 +825,81 @@ async def test_duplicate_and_malformed_tool_calls_fail_closed():
 
 
 @pytest.mark.asyncio
+async def test_query_tools_fill_missing_query_and_clamp_model_generated_limits():
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "search_my_collection",
+                        "args": {"limit": 100},
+                        "id": "call_search",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content="Collection search complete."),
+        ]
+    )
+    tools = _ToolClient([{"coins": []}])
+    request = _request()
+
+    frames = await _frames(request, model, tools)
+
+    assert tools.calls == [
+        (
+            "search_my_collection",
+            "call_search",
+            {"query": request.goal, "limit": 20},
+        )
+    ]
+    assert frames[-1].type == "completed"
+
+
+@pytest.mark.asyncio
+async def test_similar_lots_allowed_tool_has_a_complete_runtime_path(monkeypatch):
+    auction_payload = json.loads(
+        (
+            FIXTURE.parent
+            / "specialists"
+            / "auction_search_complete.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    async def auction_runner(*_args, **_kwargs):
+        return SpecialistResult.model_validate(auction_payload)
+
+    monkeypatch.setattr(coin_copilot, "run_auction_search", auction_runner)
+    request = _request()
+    request.allowed_tools.append("similar_lots")
+    request.auction_search_sources = ["numisbids.com"]
+    model = _SequenceModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "similar_lots",
+                        "args": {"query": "Domitian silver denarius"},
+                        "id": "call_similar",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            AIMessage(content="Similar auction evidence is ready."),
+        ]
+    )
+
+    frames = await _frames(request, model, tool_client=None)
+
+    completed = next(frame for frame in frames if frame.type == "tool_completed")
+    assert completed.payload.result.capability == "similar_lots"
+    assert completed.payload.result.items[0].kind == "similar_lot"
+    assert frames[-1].type == "completed"
+
+
+@pytest.mark.asyncio
 async def test_tool_and_iteration_budgets_stop_before_next_operation():
     first = AIMessage(
         content="", tool_calls=[{"name": "collection_summary", "args": {}, "id": "call_1", "type": "tool_call"}]
@@ -1192,6 +1268,16 @@ async def test_specialist_runner_executes_locally_without_callback_route_authori
     assert callback_requests == []
     assert result["capability"] == "market_search"
     assert truncated is False
+
+
+def test_tool_client_rejects_allowed_local_capability_without_runtime_runner():
+    with pytest.raises(ValueError, match="similar_lots"):
+        CopilotCollectionToolClient(
+            tools_base_url="http://test-api:8080",
+            execution_token="execution-token",
+            allowed_tools=["similar_lots"],
+            max_result_bytes=32768,
+        )
 
 
 @pytest.mark.asyncio

@@ -255,6 +255,12 @@ class CopilotCollectionToolClient:
         self.local_runners = {**(analysis_runners or {}), **(local_runners or {})}
         if not set(self.local_runners).issubset(LOCAL_TOOLS):
             raise ValueError("local runners contain an unsupported capability")
+        missing_local_runners = (allowed & LOCAL_TOOLS) - set(self.local_runners)
+        if missing_local_runners:
+            raise ValueError(
+                "local runners missing allowed capabilities: "
+                + ",".join(sorted(missing_local_runners))
+            )
         self._client = client
         self._completed_call_ids = set(completed_call_ids or ())
         self._results = self._validate_completed_results(completed_results or {})
@@ -293,6 +299,20 @@ class CopilotCollectionToolClient:
         try:
             args = ARG_MODELS[tool_name].model_validate(raw_args)
         except ValidationError as exc:
+            invalid_fields = sorted(
+                {
+                    str(error["loc"][0])
+                    for error in exc.errors()
+                    if error.get("loc")
+                    and isinstance(error["loc"][0], str)
+                    and error["loc"][0] in ARG_MODELS[tool_name].model_fields
+                }
+            )
+            logger.warning(
+                "Coin Copilot tool arguments rejected tool=%s fields=%s",
+                tool_name,
+                ",".join(invalid_fields) or "unknown",
+            )
             raise CopilotToolError("invalid_tool_call", "The tool arguments are invalid.") from exc
 
         if tool_name in CALLBACK_TOOLS:
@@ -418,7 +438,11 @@ def build_copilot_tool_definitions(
         raise RuntimeError("Coin Copilot tools are executed by the bounded harness")
 
     descriptions = {
-        "search_my_collection": "Search only the owner's collection.",
+        "search_my_collection": (
+            "Search only the owner's collection. Pass query as one plain-text "
+            "description of the requested coins or missing metadata; optional limit is 1-20. "
+            "Do not pass filter objects."
+        ),
         "get_coin": "Read one owner-scoped coin by id.",
         "collection_summary": "Read owner-scoped aggregate collection statistics.",
         "top_coins_by_value": "Read the owner's highest-valued coins.",

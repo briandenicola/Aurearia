@@ -304,6 +304,10 @@ func TestValidateCopilotSimilarLotsContract(t *testing.T) {
 	if err := ValidateCopilotSpecialistResult(result, "similar_lots"); err != nil {
 		t.Fatalf("valid similar-lot result rejected: %v", err)
 	}
+	result.Items[0].Provider = "configured_auction_search"
+	if err := ValidateCopilotSpecialistResult(result, "similar_lots"); err != nil {
+		t.Fatalf("configured auction similar-lot result rejected: %v", err)
+	}
 	result.Items[0].MatchedAttributes = nil
 	if !errors.Is(ValidateCopilotSpecialistResult(result, "similar_lots"), ErrInvalidCopilotFrame) {
 		t.Fatal("similar lot without matched attributes was accepted")

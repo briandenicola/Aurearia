@@ -32,6 +32,7 @@ from app.teams.coin_search import run_market_search
 from app.teams.gap_analysis import build_read_only_gap_analysis
 from app.teams.portfolio_review import build_collection_only_portfolio_review
 from app.teams.price_trends import run_price_trends
+from app.teams.specialist_contracts import project_similar_lots
 from app.tools.copilot_collection_tools import (
     CopilotCollectionToolClient,
     CopilotToolError,
@@ -88,6 +89,7 @@ _TOOL_LABELS = {
     "market_search": "Search dealer listings",
     "auction_search": "Search auction lots",
     "price_trends": "Analyze completed-sale price trends",
+    "similar_lots": "Find similar auction lots",
     "deep_analysis_handoff": "Use existing Deep Analysis",
 }
 _TOOL_SUMMARIES = {
@@ -100,11 +102,19 @@ _TOOL_SUMMARIES = {
     "market_search": "Dealer search completed with source-backed evidence.",
     "auction_search": "Auction search completed with source-backed evidence.",
     "price_trends": "Price trend analysis completed with source-backed evidence.",
+    "similar_lots": "Similar-lot search completed with source-backed evidence.",
     "deep_analysis_handoff": "Deep Analysis handoff returned.",
 }
 _TRUNCATION_DISCLOSURE = (
     "Some tool evidence was omitted because it exceeded the saved-result limit."
 )
+_QUERY_TOOL_LIMITS = {
+    "search_my_collection": (4000, 20),
+    "market_search": (500, 10),
+    "auction_search": (500, 10),
+    "price_trends": (500, 10),
+    "similar_lots": (500, 10),
+}
 _MAX_CHECKPOINT_PAYLOAD_BYTES = 64 * 1024
 
 
@@ -168,6 +178,28 @@ def _parse_clarification(content: str) -> CopilotClarification | None:
     payload = dict(payload)
     payload.pop("action", None)
     return CopilotClarification.model_validate(payload)
+
+
+def _normalize_model_tool_arguments(
+    tool_name: str,
+    raw_args: dict[str, Any],
+    goal: str,
+) -> dict[str, Any]:
+    normalized = dict(raw_args)
+    query_limits = _QUERY_TOOL_LIMITS.get(tool_name)
+    if query_limits is not None:
+        max_query_length, max_limit = query_limits
+        query = normalized.get("query")
+        if query is None or (isinstance(query, str) and not query.strip()):
+            normalized["query"] = goal.strip()[:max_query_length]
+        limit = normalized.get("limit")
+        if isinstance(limit, int) and not isinstance(limit, bool):
+            normalized["limit"] = max(1, min(limit, max_limit))
+    elif tool_name == "top_coins_by_value":
+        limit = normalized.get("limit")
+        if isinstance(limit, int) and not isinstance(limit, bool):
+            normalized["limit"] = max(1, min(limit, 10))
+    return normalized
 
 
 def _checkpoint_messages(request: CopilotExecuteRequest, answer: str | None = None) -> list[dict[str, str]]:
@@ -283,6 +315,15 @@ async def run_coin_copilot(
             cancellation_check=cancellation_check,
         )
 
+    async def similar_lot_runner(args: dict[str, Any]):
+        auction_result = await run_auction_search(
+            args,
+            llm_config=request.llm,
+            cancellation_check=cancellation_check,
+            source_hosts=set(request.auction_search_sources),
+        )
+        return project_similar_lots(str(args.get("query", "")), auction_result)
+
     try:
         if model is None:
             model = await bind_coin_copilot_model(
@@ -311,6 +352,7 @@ async def run_coin_copilot(
                     "market_search": market_runner,
                     "auction_search": auction_runner,
                     "price_trends": price_trend_runner,
+                    "similar_lots": similar_lot_runner,
                 },
             )
 
@@ -453,7 +495,13 @@ async def run_coin_copilot(
                         retryable=False,
                     )
                 batch_call_ids.add(tool_call_id)
-                prepared_calls.append((tool_name, tool_call_id, raw_args))
+                prepared_calls.append(
+                    (
+                        tool_name,
+                        tool_call_id,
+                        _normalize_model_tool_arguments(tool_name, raw_args, request.goal),
+                    )
+                )
 
             messages.append(response)
 
