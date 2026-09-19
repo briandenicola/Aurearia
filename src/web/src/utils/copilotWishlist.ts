@@ -11,7 +11,7 @@ export function isEligibleCopilotDealerListing(
   return capability === 'market_search' &&
     item.kind === 'dealer_listing' &&
     item.verificationState === 'verified' &&
-    item.availability === 'available' &&
+    (item.availability === 'available' || item.availability === 'unknown') &&
     item.title.trim().length > 0 &&
     item.sourceUrl.trim().length > 0
 }

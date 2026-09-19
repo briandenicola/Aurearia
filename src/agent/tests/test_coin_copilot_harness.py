@@ -1122,7 +1122,7 @@ async def test_auction_search_stops_after_each_await_when_cancellation_wins(
         operations.append("search")
         if cancel_after == "search":
             cancelled = True
-        return "https://www.numisbids.com/n.php?p=lot&sid=1&lot=2"
+        return "https://www.cngcoins.com/Coin.aspx?CoinID=1"
 
     async def fetch(*_args, **_kwargs):
         nonlocal cancelled
@@ -1135,7 +1135,8 @@ async def test_auction_search_stops_after_each_await_when_cancellation_wins(
     monkeypatch.setattr(auction_search, "_fetch_dealer_pages", fetch)
     request = _request()
     request.allowed_tools.append("auction_search")
-    request.auction_search_sources = ["numisbids.com"]
+    # NumisBids uses the direct scraper; this exercises the web-search path.
+    request.auction_search_sources = ["cngcoins.com"]
     model = _SequenceModel(
         [
             AIMessage(
@@ -1198,6 +1199,7 @@ async def test_price_trends_stops_after_each_await_when_cancellation_wins(
     monkeypatch.setattr(price_trends, "ainvoke_with_retry", extract)
     request = _request()
     request.allowed_tools.append("price_trends")
+    request.auction_search_sources = ["numisbids.com"]
     model = _SequenceModel(
         [
             AIMessage(
@@ -1316,3 +1318,21 @@ async def test_specialist_runner_rejects_mismatched_result_without_callback():
 
     assert exc.value.code == "invalid_tool_call"
     assert callback_requests == []
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"outcome": "complete"}, "Dealer search returned source-backed evidence."),
+        ({"outcome": "partial"}, "Dealer search returned partial evidence; at least one source failed."),
+        ({"outcome": "no_match"}, "Dealer search found no matching evidence in the configured sources."),
+        ({"outcome": "unavailable"}, "Dealer search could not reach its configured sources."),
+        ({"truncated": True}, "Dealer search completed."),
+    ],
+)
+def test_specialist_tool_summary_reflects_outcome(result, expected):
+    assert coin_copilot._tool_summary("market_search", result) == expected
+
+
+def test_non_specialist_tool_summary_is_unchanged():
+    assert coin_copilot._tool_summary("get_coin", {"outcome": "unavailable"}) == "Coin details returned."

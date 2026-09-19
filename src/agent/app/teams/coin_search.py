@@ -18,7 +18,7 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
-from app.llm.content import extract_text_content
+from app.llm.content import extract_search_text, extract_text_content
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import AlertDiscoveryRequest, LLMConfig
@@ -136,7 +136,7 @@ async def _search_dealer_pages(
         return extract_text_content(last_msg.content)
     model = get_search_model(llm_config)
     response = await ainvoke_with_retry(model, messages)
-    return extract_text_content(response.content)
+    return extract_search_text(response.content)
 
 
 async def _fetch_dealer_pages(
@@ -215,9 +215,13 @@ def _apply_observed_availability(
         ).strip()
         availability = observed.get(source_url)
         if availability is not None:
+            # The candidate is the fetched page itself, so the page signal wins.
             item["availability"] = availability.title()
-        if availability is not None:
-            normalized.append(item)
+        elif not source_url or source_url not in fetched_listings:
+            # Listings found on a search/results page keep the formatter's
+            # availability, but their URL must appear in the fetched data.
+            continue
+        normalized.append(item)
     return normalized
 
 

@@ -1,6 +1,7 @@
 """Contract-first tests for Coin Copilot market and auction specialist runners."""
 
 import asyncio
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -264,7 +265,7 @@ async def test_market_search_returns_source_backed_success():
 
 
 @pytest.mark.asyncio
-async def test_market_search_excludes_sold_and_unverified_availability():
+async def test_market_search_excludes_sold_but_keeps_unknown_availability():
     result = await run_market_search(
         {"query": "Julius Caesar denarius", "limit": 5},
         provider_runners=[
@@ -290,8 +291,9 @@ async def test_market_search_excludes_sold_and_unverified_availability():
     )
 
     assert result.outcome == "complete"
-    assert [item.source_url for item in result.items] == [
-        "https://www.vcoins.com/en/stores/a/1/product/live/3"
+    assert [(item.source_url, item.availability) for item in result.items] == [
+        ("https://www.vcoins.com/en/stores/a/1/product/unknown/2", "unknown"),
+        ("https://www.vcoins.com/en/stores/a/1/product/live/3", "available"),
     ]
 
 
@@ -317,6 +319,25 @@ def test_market_search_uses_fetched_page_availability_over_model_guess():
     normalized = _apply_observed_availability(candidates, fetched)
 
     assert [item["availability"] for item in normalized] == ["Sold", "Available"]
+
+
+def test_market_search_keeps_listings_found_on_a_fetched_results_page():
+    results_page = "https://www.vcoins.com/en/Search.aspx?searchstring=aurelian"
+    listing_url = "https://www.vcoins.com/en/stores/x/1/product/aurelian_as/13896/Default.aspx"
+    fabricated_url = "https://www.vcoins.com/en/stores/x/1/product/invented/99999/Default.aspx"
+    candidates = [
+        _dealer_candidate(sourceUrl=listing_url, availability="Available"),
+        _dealer_candidate(sourceUrl=fabricated_url, availability="Available"),
+    ]
+    fetched = (
+        f"--- Source: {results_page} ---\nAvailability signal: available\n"
+        f"Found 1 links on page. Most relevant:\n\n1. Aurelian As, Rome\n   URL: {listing_url}\n"
+    )
+
+    normalized = _apply_observed_availability(candidates, fetched)
+
+    assert [item["sourceUrl"] for item in normalized] == [listing_url]
+    assert normalized[0]["availability"] == "Available"
 
 
 @pytest.mark.asyncio
@@ -519,9 +540,9 @@ async def test_price_trends_maps_degraded_provider_outcomes(error, status, warni
 async def test_price_trends_default_runner_reuses_canonical_search(monkeypatch):
     search_calls = []
 
-    async def search_results(_llm_config, query):
-        search_calls.append(query)
-        return "NumisBids completed-sale evidence"
+    async def search_results(_llm_config, query, source_hosts):
+        search_calls.append((query, source_hosts))
+        return "Completed sale https://www.numisbids.com/sale/10489/lot/1"
 
     class Response:
         content = (
@@ -542,18 +563,22 @@ async def test_price_trends_default_runner_reuses_canonical_search(monkeypatch):
     result = await run_price_trends(
         {"query": "Domitian denarius"},
         llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"numisbids.com"},
         observed_at=OBSERVED_AT,
     )
 
-    assert search_calls == ["Domitian denarius"]
+    assert search_calls == [("Domitian denarius", {"numisbids.com"})]
     assert result.outcome == "complete"
     assert len(result.items) == 1
+    assert result.items[0].provider == "configured_auction_search"
+    assert result.items[0].verification_state == "partial"
+    assert result.trend.state == "unknown"
 
 
 @pytest.mark.asyncio
 async def test_price_trends_extracts_json_from_anthropic_content_blocks(monkeypatch):
-    async def search_results(_llm_config, _query):
-        return "NumisBids completed-sale evidence"
+    async def search_results(_llm_config, _query, _source_hosts):
+        return "Completed sale https://www.numisbids.com/sale/10489/lot/1"
 
     class Response:
         content = [
@@ -580,6 +605,7 @@ async def test_price_trends_extracts_json_from_anthropic_content_blocks(monkeypa
     result = await run_price_trends(
         {"query": "Domitian denarius"},
         llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"numisbids.com"},
         observed_at=OBSERVED_AT,
     )
 
@@ -786,3 +812,238 @@ async def test_price_trends_derives_direction_deterministically(amounts, expecte
 
     assert result.trend is not None
     assert result.trend.state == expected
+
+
+@pytest.mark.asyncio
+async def test_market_search_pipeline_returns_listing_from_real_search_response_shape(monkeypatch):
+    """Guardrail: only the network and models are faked; every pipeline stage runs for real."""
+    from langchain_core.messages import AIMessage
+
+    import app.tools.search as search_tools
+    from app.teams import coin_search
+
+    results_page = "https://www.vcoins.com/en/Search.aspx?searchstring=aurelian"
+    blocked_page = "https://www.ma-shops.com/dealer/item.php?id=1"
+    listing_url = "https://www.vcoins.com/en/stores/sovereign_rarities/263/product/aurelian_as/13896/Default.aspx"
+    search_content = [
+        {"type": "text", "text": "I'll search the configured dealers for Aurelian coins."},
+        {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {"query": "Aurelian"}},
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_1",
+            "content": [
+                {"type": "web_search_result", "title": "Aurelian", "url": results_page, "encrypted_content": "x"},
+                {"type": "web_search_result", "title": "Aurelian", "url": blocked_page, "encrypted_content": "x"},
+            ],
+        },
+        {"type": "text", "text": "VCoins has Aurelian listings."},
+    ]
+    results_html = (
+        "<html><head><title>Aurelian | VCoins</title></head><body>"
+        f'<a href="{listing_url}">Aurelian (AD 270-275). AE As. Rome, AD 275</a>'
+        "<span>GBP 130.00</span><button>Add To Cart</button></body></html>"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.vcoins.com":
+            return httpx.Response(200, text=results_html)
+        return httpx.Response(403, text="blocked")
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        search_tools.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+
+    class FakeModel:
+        def __init__(self, content):
+            self.content = content
+            self.seen = []
+
+        async def ainvoke(self, messages, **_kwargs):
+            self.seen.append(messages)
+            return AIMessage(content=self.content)
+
+    search_model = FakeModel(search_content)
+    format_model = FakeModel(
+        "```json\n"
+        + json.dumps([
+            {
+                "name": "Aurelian (AD 270-275). AE As. Rome, AD 275",
+                "description": "Severina and Aurelian reverse",
+                "estPrice": "GBP 130.00",
+                "availability": "Available",
+                "sourceUrl": listing_url,
+                "sourceName": "VCoins - Sovereign Rarities",
+                "ruler": "Aurelian",
+                "denomination": "As",
+                "material": "Bronze",
+            }
+        ])
+        + "\n```"
+    )
+    monkeypatch.setattr(coin_search, "get_search_model", lambda _config: search_model)
+    monkeypatch.setattr(coin_search, "get_chat_model", lambda _config: format_model)
+
+    result = await run_market_search(
+        {"query": "Aurelian coins under $500", "limit": 5},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"vcoins.com", "ma-shops.com"},
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "complete"
+    assert [item.source_url for item in result.items] == [listing_url]
+    assert result.items[0].currency == "GBP"
+    formatter_input = format_model.seen[0][1].content
+    assert f"--- Source: {results_page} ---" in formatter_input
+    assert blocked_page not in formatter_input
+
+
+class _FakeTool:
+    def __init__(self, handler):
+        self.handler = handler
+        self.calls = []
+
+    async def ainvoke(self, args):
+        self.calls.append(args)
+        return self.handler(args)
+
+
+@pytest.mark.asyncio
+async def test_numisbids_auction_search_uses_scraper_without_model(monkeypatch):
+    from app.teams import auction_search
+
+    lot_url = "https://www.numisbids.com/sale/10489/lot/7"
+    search = _FakeTool(lambda _args: [
+        {"url": lot_url, "title": "noisy summary", "estimate": 200, "currency": "USD"},
+    ])
+    scrape = _FakeTool(lambda args: {
+        "url": args["url"],
+        "title": "Domitian AR denarius, Minerva reverse",
+        "description": "Silver denarius of Domitian.",
+        "auctionHouse": "Example Numismatic Auction",
+        "saleName": "Ancient Coins 42",
+        "lotNumber": 7,
+        "estimate": 250,
+        "currentBid": None,
+        "currency": "USD",
+    })
+    monkeypatch.setattr(auction_search, "search_numisbids", search)
+    monkeypatch.setattr(auction_search, "scrape_numisbids_lot", scrape)
+
+    async def no_web_search(*_args, **_kwargs):
+        raise AssertionError("NumisBids must not use the model web-search path")
+
+    monkeypatch.setattr(auction_search, "_search_dealer_pages", no_web_search)
+
+    result = await run_auction_search(
+        {"query": "Domitian denarius", "limit": 5},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"numisbids.com"},
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "complete"
+    assert [(item.provider, item.source_url, item.title) for item in result.items] == [
+        ("numisbids", lot_url, "Domitian AR denarius, Minerva reverse")
+    ]
+    assert search.calls == [{"query": "Domitian denarius"}]
+
+
+@pytest.mark.asyncio
+async def test_numisbids_search_error_is_reported_as_failure_not_no_match(monkeypatch):
+    from app.teams import auction_search
+
+    monkeypatch.setattr(
+        auction_search,
+        "search_numisbids",
+        _FakeTool(lambda _args: [{"error": "Auction search could not be reached."}]),
+    )
+
+    result = await run_auction_search(
+        {"query": "Domitian denarius"},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"numisbids.com"},
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "unavailable"
+    assert result.provider_attempts[0].status == "failure"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [KeyError("candidate"), AttributeError("parse"), TypeError("bad")])
+async def test_provider_defects_propagate_instead_of_reporting_unavailable(error):
+    with pytest.raises(type(error)):
+        await run_market_search(
+            {"query": "Domitian denarius"},
+            provider_runners=[_provider("cng_dealer_search", error=error)],
+            observed_at=OBSERVED_AT,
+        )
+    with pytest.raises(type(error)):
+        await run_price_trends(
+            {"query": "Domitian denarius"},
+            provider_runners=[_provider("numisbids", error=error)],
+            observed_at=OBSERVED_AT,
+        )
+
+
+@pytest.mark.asyncio
+async def test_provider_network_errors_still_degrade_to_failure():
+    result = await run_market_search(
+        {"query": "Domitian denarius"},
+        provider_runners=[_provider("cng_dealer_search", error=httpx.ConnectError("refused"))],
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "unavailable"
+    assert result.provider_attempts[0].status == "failure"
+
+
+@pytest.mark.asyncio
+async def test_price_trends_drop_sales_whose_url_the_search_did_not_return(monkeypatch):
+    returned = "https://www.cngcoins.com/Coin.aspx?CoinID=1"
+    invented = "https://www.cngcoins.com/Coin.aspx?CoinID=999"
+
+    async def search_results(_llm_config, _query, _source_hosts):
+        return f"Search result URLs:\n{returned}"
+
+    class Response:
+        content = "```json\n" + json.dumps([
+            {"url": returned, "title": "Athens owl tetradrachm", "saleDate": "2026-01-01",
+             "amount": 2000, "currency": "USD", "priceBasis": "hammer"},
+            {"url": invented, "title": "Athens owl tetradrachm", "saleDate": "2026-02-01",
+             "amount": 9000, "currency": "USD", "priceBasis": "hammer"},
+        ]) + "\n```"
+
+    async def invoke(_model, _messages):
+        return Response()
+
+    monkeypatch.setattr("app.teams.price_trends.search_auction_results", search_results)
+    monkeypatch.setattr("app.teams.price_trends.get_chat_model", lambda _config: object())
+    monkeypatch.setattr("app.teams.price_trends.ainvoke_with_retry", invoke)
+
+    result = await run_price_trends(
+        {"query": "Athenian owl tetradrachm"},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts={"numisbids.com", "cngcoins.com"},
+        observed_at=OBSERVED_AT,
+    )
+
+    assert [item.source_url for item in result.items] == [returned]
+    assert result.trend.median == 2000
+
+
+@pytest.mark.asyncio
+async def test_price_trends_without_configured_auction_sources_is_unavailable():
+    result = await run_price_trends(
+        {"query": "Athenian owl tetradrachm"},
+        llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
+        source_hosts=set(),
+        observed_at=OBSERVED_AT,
+    )
+
+    assert result.outcome == "unavailable"
+    assert result.provider_attempts[0].status == "unavailable"

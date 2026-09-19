@@ -497,6 +497,28 @@ func TestValidateCopilotSpecialistResultRejectsCapabilityProviderMismatch(t *tes
 	}
 }
 
+func TestValidateCopilotPriceTrendsAcceptsConfiguredAuctionProvider(t *testing.T) {
+	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+		t,
+		filepath.Join("specialists", "price_trends_complete.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range result.Items {
+		result.Items[i].Provider = "configured_auction_search"
+	}
+	for i := range result.ProviderAttempts {
+		result.ProviderAttempts[i].Provider = "configured_auction_search"
+	}
+	if err := ValidateCopilotSpecialistResult(result, "price_trends"); err != nil {
+		t.Fatalf("price trends rejected configured auction source evidence: %v", err)
+	}
+	if !errors.Is(ValidateCopilotSpecialistResult(result, "market_search"), ErrInvalidCopilotFrame) {
+		t.Fatal("market search accepted price-trend evidence")
+	}
+}
+
 func TestProjectCopilotPriceTrendPreservesTypedEvidenceAndSources(t *testing.T) {
 	for _, name := range []string{"price_trends_complete.json", "price_trends_no_match.json", "price_trends_unavailable.json"} {
 		t.Run(name, func(t *testing.T) {

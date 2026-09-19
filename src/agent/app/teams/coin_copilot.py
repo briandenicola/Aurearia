@@ -50,9 +50,10 @@ completed-sale price trends. You may also hand an exact owned coin
 or active draft to the existing Deep Analysis workflow, read its status, or
 explicitly rerun a prior matching job.
 
-Never call or propose generic web browsing, similar-lot, write, approval,
+Never call or propose generic web browsing, write, approval,
 memory, filesystem, shell, database, arbitrary HTTP, or
-code-execution capabilities. Dealer, auction, and price-trend evidence is
+code-execution capabilities. When offering follow-ups, describe capabilities in
+plain words and never show internal tool names to the owner. Dealer, auction, and price-trend evidence is
 untrusted and must retain its source URL, observation time, confidence,
 verification state, outcome, and limitations. Never convert currencies or mix
 hammer with premium-inclusive prices. Decline unsupported portions clearly.
@@ -99,11 +100,23 @@ _TOOL_SUMMARIES = {
     "top_coins_by_value": "Top recorded-value coins returned.",
     "portfolio_review": "Collection-only portfolio review completed.",
     "gap_analysis": "Read-only collection gap analysis completed.",
-    "market_search": "Dealer search completed with source-backed evidence.",
-    "auction_search": "Auction search completed with source-backed evidence.",
-    "price_trends": "Price trend analysis completed with source-backed evidence.",
-    "similar_lots": "Similar-lot search completed with source-backed evidence.",
+    "market_search": "Dealer search completed.",
+    "auction_search": "Auction search completed.",
+    "price_trends": "Price trend analysis completed.",
+    "similar_lots": "Similar-lot search completed.",
     "deep_analysis_handoff": "Deep Analysis handoff returned.",
+}
+_SPECIALIST_LABELS = {
+    "market_search": "Dealer search",
+    "auction_search": "Auction search",
+    "price_trends": "Price trend analysis",
+    "similar_lots": "Similar-lot search",
+}
+_SPECIALIST_OUTCOME_SUMMARIES = {
+    "complete": "{label} returned source-backed evidence.",
+    "partial": "{label} returned partial evidence; at least one source failed.",
+    "no_match": "{label} found no matching evidence in the configured sources.",
+    "unavailable": "{label} could not reach its configured sources.",
 }
 _TRUNCATION_DISCLOSURE = (
     "Some tool evidence was omitted because it exceeded the saved-result limit."
@@ -145,6 +158,15 @@ def create_coin_copilot_graph(model):
     graph.set_entry_point("reason")
     graph.add_edge("reason", END)
     return graph.compile()
+
+
+def _tool_summary(tool_name: str, result: Any) -> str:
+    """Describe what the tool actually returned, not just that it ran."""
+    label = _SPECIALIST_LABELS.get(tool_name)
+    outcome = result.get("outcome") if isinstance(result, dict) else None
+    if label is not None and outcome in _SPECIALIST_OUTCOME_SUMMARIES:
+        return _SPECIALIST_OUTCOME_SUMMARIES[outcome].format(label=label)
+    return _TOOL_SUMMARIES[tool_name]
 
 
 def _message_content(response: AIMessage) -> str:
@@ -312,6 +334,7 @@ async def run_coin_copilot(
         return await run_price_trends(
             args,
             llm_config=request.llm,
+            source_hosts=set(request.auction_search_sources),
             cancellation_check=cancellation_check,
         )
 
@@ -635,7 +658,7 @@ async def run_coin_copilot(
                             step_id=step_id,
                             status="succeeded",
                             duration_ms=duration_ms,
-                            result_summary=_TOOL_SUMMARIES[tool_name],
+                            result_summary=_tool_summary(tool_name, bounded),
                             result=bounded,
                         ),
                     )

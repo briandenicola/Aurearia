@@ -1,10 +1,14 @@
 """Team 5: Auction Search across administrator-configured auction sources.
 
+NumisBids is searched and scraped directly (no model in the loop); any other
+configured auction host goes through the web-search pipeline below.
+
 Phase 1: Search configured auction sites for lots matching the user's query.
 Phase 2: Fetch top results for full lot details.
 Phase 3: Format results into structured AuctionLotSuggestion JSON.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Mapping, Sequence
@@ -35,6 +39,7 @@ from app.teams.specialist_contracts import (
     raise_if_cancelled,
     run_provider_search,
 )
+from app.tools.numisbids import scrape_numisbids_lot, search_numisbids
 
 logger = logging.getLogger(__name__)
 
@@ -109,15 +114,12 @@ async def _format_auction_candidates(
         ],
     )
     candidates = _extract_json_array_strict(extract_text_content(response.content))
-    observed_urls = {
-        block.partition(" ---\n")[0].strip()
-        for block in fetched_lots.split("--- Source: ")[1:]
-        if " ---\n" in block
-    }
+    # Lots may come from a sale/results page rather than a fetched lot page;
+    # keep any lot whose URL appears in the fetched data.
     return [
         candidate
         for candidate in candidates
-        if str(candidate.get("url") or "").strip() in observed_urls
+        if (url := str(candidate.get("url") or "").strip()) and url in fetched_lots
     ]
 
 
@@ -142,6 +144,38 @@ async def _collect_auction_candidates(
     return lots[:limit]
 
 
+def _is_numisbids_host(host: str) -> bool:
+    return host == "numisbids.com" or host.endswith(".numisbids.com")
+
+
+async def _collect_numisbids_lots(
+    query: str,
+    limit: int,
+    cancellation_check: CancellationCheck | None = None,
+) -> list[dict[str, Any]]:
+    """Search NumisBids and scrape the top lot pages without model involvement."""
+    results = await search_numisbids.ainvoke({"query": query})
+    if not isinstance(results, list):
+        raise ProviderMalformedError
+    if any(isinstance(result, dict) and "error" in result for result in results):
+        raise httpx.TransportError("NumisBids search failed")
+    summaries = [result for result in results if isinstance(result, dict) and result.get("url")][:limit]
+    await raise_if_cancelled(cancellation_check)
+    pages = await asyncio.gather(
+        *(scrape_numisbids_lot.ainvoke({"url": summary["url"]}) for summary in summaries),
+        return_exceptions=True,
+    )
+    await raise_if_cancelled(cancellation_check)
+    lots: list[dict[str, Any]] = []
+    for summary, page in zip(summaries, pages, strict=True):
+        if isinstance(page, dict) and "error" not in page and page.get("title"):
+            lots.append({**page, "url": summary["url"]})
+        else:
+            # Lot page unavailable: fall back to the search-result summary.
+            lots.append(summary)
+    return lots
+
+
 async def run_auction_search(
     query: SpecialistQuery | Mapping[str, Any],
     *,
@@ -155,23 +189,31 @@ async def run_auction_search(
     if provider_runners is None:
         if llm_config is None or not source_hosts:
             raise ProviderUnavailableError
+        web_search_hosts = {host for host in source_hosts if not _is_numisbids_host(host)}
+
+        async def numisbids_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
+            return await _collect_numisbids_lots(search_query, limit, cancellation_check)
 
         async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
             return await _collect_auction_candidates(
                 llm_config,
                 search_query,
                 limit,
-                source_hosts,
+                web_search_hosts,
                 cancellation_check=cancellation_check,
             )
 
-        provider_runners = [
-            ProviderRunner(
-                provider="configured_auction_search",
-                run=canonical_provider,
-                allowed_hosts=frozenset(source_hosts),
+        provider_runners = []
+        if len(web_search_hosts) < len(source_hosts):
+            provider_runners.append(ProviderRunner(provider="numisbids", run=numisbids_provider))
+        if web_search_hosts:
+            provider_runners.append(
+                ProviderRunner(
+                    provider="configured_auction_search",
+                    run=canonical_provider,
+                    allowed_hosts=frozenset(web_search_hosts),
+                )
             )
-        ]
     return await run_provider_search(
         capability="auction_search",
         query=query,

@@ -112,6 +112,10 @@ describe('CopilotRunProgress collector wishlist action', () => {
     ]])
   })
 
+  it('shows the action for a listing whose availability the page did not state', () => {
+    expect(mountProgress(evidence({ availability: 'unknown' })).find('button').exists()).toBe(true)
+  })
+
   it.each([
     ['wrong capability', evidence(), 'auction_search'],
     ['auction evidence', evidence({ kind: 'auction_lot' }), 'market_search'],

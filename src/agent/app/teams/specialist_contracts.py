@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import ipaddress
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
+from anthropic import APIError as AnthropicAPIError
+from ollama import ResponseError as OllamaResponseError
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -75,7 +78,7 @@ _CAPABILITY_PROVIDERS = {
     "auction_search": frozenset(
         {"numisbids", "configured_auction_search", "auction_search_secondary"}
     ),
-    "price_trends": frozenset({"numisbids", "price_trends_secondary"}),
+    "price_trends": frozenset({"numisbids", "configured_auction_search", "price_trends_secondary"}),
     "similar_lots": frozenset(
         {"numisbids", "configured_auction_search", "similar_lots_secondary"}
     ),
@@ -148,6 +151,24 @@ _WARNING_CODES: dict[str, ProviderWarningCode] = {
     "unavailable": "provider_unavailable",
     "malformed": "provider_malformed",
 }
+
+
+logger = logging.getLogger(__name__)
+
+# Failures of an outside service (network, HTTP, model API). Anything else a
+# provider raises is a defect and must propagate instead of being reported to
+# the model as an unavailable source.
+_EXTERNAL_PROVIDER_ERRORS = (httpx.HTTPError, OSError, AnthropicAPIError, OllamaResponseError)
+
+
+def _log_degraded_provider(capability: str, provider: str, status: str, exc: BaseException) -> None:
+    logger.warning(
+        "Specialist provider degraded capability=%s provider=%s status=%s error_type=%s",
+        capability,
+        provider,
+        status,
+        type(exc).__name__,
+    )
 
 
 class ProviderUnavailableError(RuntimeError):
@@ -841,11 +862,13 @@ def adapt_sale_observation(
     *,
     provider: str,
     observed_at: datetime,
+    allowed_hosts: frozenset[str] | None = None,
 ) -> SaleObservation:
     """Normalize one completed-sale observation without conversion or inference."""
     source_url = validate_registered_source_url(
         provider,
         str(candidate.get("url") or candidate.get("sourceUrl") or candidate.get("source_url") or "").strip(),
+        allowed_hosts,
     )
     title = _clean_optional_text(candidate.get("title") or candidate.get("name"))
     sale_date = _parse_sale_date(candidate.get("saleDate") or candidate.get("sale_date"))
@@ -1308,7 +1331,7 @@ async def run_provider_search(
                 except (ValueError, TypeError):
                     invalid_count += 1
                     continue
-                if isinstance(item, DealerListing) and item.availability != "available":
+                if isinstance(item, DealerListing) and item.availability == "sold":
                     continue
                 normalized.append(item)
             if invalid_count and not normalized:
@@ -1326,18 +1349,18 @@ async def run_provider_search(
                     warning_code=None,
                 )
             )
-        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException):
+        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException) as exc:
             status = "timeout"
-        except ProviderUnavailableError:
+            _log_degraded_provider(capability, provider_runner.provider, status, exc)
+        except ProviderUnavailableError as exc:
             status = "unavailable"
-        except ProviderMalformedError:
+            _log_degraded_provider(capability, provider_runner.provider, status, exc)
+        except (ProviderMalformedError, ValueError) as exc:
             status = "malformed"
-        except ValueError:
-            status = "malformed"
-        except httpx.TransportError:
+            _log_degraded_provider(capability, provider_runner.provider, status, exc)
+        except _EXTERNAL_PROVIDER_ERRORS as exc:
             status = "failure"
-        except Exception:
-            status = "failure"
+            _log_degraded_provider(capability, provider_runner.provider, status, exc)
         if status in _DEGRADED_PROVIDER_STATUSES:
             attempts.append(
                 ProviderAttempt(
@@ -1406,6 +1429,7 @@ async def run_price_trend_search(
                             candidate,
                             provider=provider_runner.provider,
                             observed_at=timestamp,
+                            allowed_hosts=provider_runner.allowed_hosts,
                         )
                     )
                 except (TypeError, ValueError):
@@ -1425,16 +1449,18 @@ async def run_price_trend_search(
                     warning_code=None,
                 )
             )
-        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException):
+        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException) as exc:
             status = "timeout"
-        except ProviderUnavailableError:
+            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
+        except ProviderUnavailableError as exc:
             status = "unavailable"
-        except (ProviderMalformedError, ValueError):
+            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
+        except (ProviderMalformedError, ValueError) as exc:
             status = "malformed"
-        except httpx.TransportError:
+            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
+        except _EXTERNAL_PROVIDER_ERRORS as exc:
             status = "failure"
-        except Exception:
-            status = "failure"
+            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
         if status in _DEGRADED_PROVIDER_STATUSES:
             attempts.append(
                 ProviderAttempt(
