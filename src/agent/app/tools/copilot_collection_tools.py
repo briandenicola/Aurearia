@@ -198,7 +198,12 @@ def sanitize_untrusted_tool_data(value: Any) -> Any:
 def bound_tool_result(value: dict[str, Any], max_bytes: int) -> tuple[dict[str, Any], int, bool, str]:
     """Return a canonical, sanitized result within the persisted byte boundary."""
     sanitized = sanitize_untrusted_tool_data(value)
-    encoded = json.dumps(sanitized, separators=(",", ":"), sort_keys=True).encode()
+    encoded = json.dumps(
+        sanitized,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
     digest = hashlib.sha256(encoded).hexdigest()
     if len(encoded) <= max_bytes:
         return sanitized, len(encoded), False, digest
@@ -208,7 +213,14 @@ def bound_tool_result(value: dict[str, Any], max_bytes: int) -> tuple[dict[str, 
         "digest": digest,
         "summary": "Tool result exceeded the persisted-result limit.",
     }
-    if len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()) > max_bytes:
+    if len(
+        json.dumps(
+            bounded,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+    ) > max_bytes:
         raise CopilotToolError("invalid_tool_call", "Tool result limit is too small.")
     return bounded, len(encoded), True, digest
 
@@ -412,8 +424,11 @@ def build_copilot_tool_definitions(
         "top_coins_by_value": "Read the owner's highest-valued coins.",
         "portfolio_review": "Analyze validated collection summary data only.",
         "gap_analysis": "Identify structural collection gaps without market or acquisition advice.",
-        "market_search": "Search configured dealer sources for current market listings.",
-        "auction_search": "Search configured auction sources for relevant lots.",
+        "market_search": (
+            "Search supported dealer sites (VCoins, MA-Shops, Forum Ancient Coins, "
+            "Biddr, Catawiki, and HJB) for current listings."
+        ),
+        "auction_search": "Search NumisBids for relevant auction lots.",
         "price_trends": "Analyze source-backed completed-sale observations.",
         "similar_lots": "Find and rank source-backed similar auction lots.",
         "deep_analysis_handoff": "Request, read, or explicitly rerun the existing owner-scoped Deep Analysis workflow.",

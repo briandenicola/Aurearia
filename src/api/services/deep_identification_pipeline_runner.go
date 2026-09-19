@@ -940,7 +940,7 @@ func buildDeepIntakeProposalFields(
 		}
 	}
 
-	for _, name := range []string{"era", "dateRange"} {
+	for name := range deepProposalCoinFieldAllowlist {
 		if proposed, ok := proposedFields[name]; ok && strings.TrimSpace(proposed.Value) != "" {
 			entry := newEntry(proposed.Value)
 			entry.Confidence = proposed.Confidence
@@ -954,8 +954,20 @@ func buildDeepIntakeProposalFields(
 			titleParts = append(titleParts, strings.TrimSpace(proposed.Value))
 		}
 	}
-	if len(titleParts) > 0 {
-		fields["workingTitle"] = newEntry(truncateDeepProposalText(strings.Join(titleParts, " "), 200))
+	workingTitle := strings.Join(titleParts, " ")
+	if workingTitle == "" {
+		if proposed, ok := proposedFields["coin_type"]; ok {
+			workingTitle = strings.TrimSpace(proposed.Value)
+		}
+	}
+	if workingTitle == "" {
+		workingTitle = strings.TrimSpace(hypothesisCoinType)
+	}
+	if workingTitle == "" && (len(proposedFields) > 0 || strings.TrimSpace(hypothesisCoinType) != "") {
+		workingTitle = deepProposalWishlistFallbackName
+	}
+	if workingTitle != "" {
+		fields["workingTitle"] = newEntry(truncateDeepProposalText(workingTitle, 200))
 	}
 
 	notesParts := make([]string, 0, 2)

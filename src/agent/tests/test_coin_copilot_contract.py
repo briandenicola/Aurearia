@@ -842,6 +842,17 @@ def test_oversized_result_uses_deterministic_32_kib_digest_fallback():
     assert len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()) <= 32768
 
 
+def test_tool_result_uses_cross_language_canonical_encoding():
+    value = {"description": "Athens & Roma <rare>", "name": "Στατήρ"}
+
+    bounded, original_bytes, truncated, digest = bound_tool_result(value, 1024)
+
+    assert bounded == value
+    assert original_bytes == 60
+    assert truncated is False
+    assert digest == "fc06f8ca69f700c291ba61e9940d10aca1a20189c6ec6b6721175d1df877fdc3"
+
+
 @pytest.mark.parametrize(
     "capability",
     ["market_search", "auction_search", "price_trends", "similar_lots"],

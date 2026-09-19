@@ -493,9 +493,9 @@ func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing
 	if notes == nil || !strings.Contains(notes.Proposed.(string), "mint: Rome") {
 		t.Fatalf("expected structured findings in draft notes, got %#v", notes)
 	}
-	for name := range doc.Fields {
-		if _, allowed := deepProposalDraftFieldAllowlist[name]; !allowed && name != "notes" {
-			t.Fatalf("intake proposal contains non-draft field %q", name)
+	for _, name := range []string{"ruler", "denomination", "mint"} {
+		if doc.Fields[name] == nil {
+			t.Fatalf("intake proposal did not preserve typed field %q", name)
 		}
 	}
 }
@@ -646,6 +646,7 @@ func TestDeepPipelineRemainingBudgetAfterQuickLookupMeetsMinimumForDefaults(t *t
 		QuickLookupTimeout: 90 * time.Second,
 		MaxProviders:       4,
 	}
+
 	bounds := deepPipelineBounds(settings)
 
 	// Simulate the ctx deadline as it stands immediately after quick lookup
@@ -670,5 +671,35 @@ func TestDeepPipelineRemainingBudgetAfterQuickLookupMeetsMinimumForDefaults(t *t
 	const preChangeBaseline = 265
 	if adjusted.TotalTimeoutS < preChangeBaseline {
 		t.Fatalf("post-quick-lookup TotalTimeoutS = %d regresses below the pre-change ~265s baseline (SC-013)", adjusted.TotalTimeoutS)
+	}
+}
+
+func TestBuildDeepIntakeProposalPreservesCoinFieldsAndAlwaysProvidesTitle(t *testing.T) {
+	proposed := map[string]deepSynthesisProposedField{
+		"ruler":        {Value: "Hadrian", Confidence: 0.92},
+		"denomination": {Value: "Denarius", Confidence: 0.88},
+		"material":     {Value: "Silver", Confidence: 0.9},
+		"mint":         {Value: "Rome", Confidence: 0.8},
+	}
+	fields := buildDeepIntakeProposalFields("", proposed, nil, nil, "", nil)
+	if fields["workingTitle"] == nil || fields["workingTitle"].Proposed != "Hadrian Denarius" {
+		t.Fatalf("working title not derived from accepted identification: %#v", fields["workingTitle"])
+	}
+	for _, name := range []string{"ruler", "denomination", "material", "mint"} {
+		if fields[name] == nil || fields[name].Proposed != proposed[name].Value {
+			t.Fatalf("%s was not retained as a typed proposal field", name)
+		}
+	}
+
+	fallback := buildDeepIntakeProposalFields(
+		"",
+		map[string]deepSynthesisProposedField{"material": {Value: "Silver", Confidence: 0.8}},
+		nil,
+		nil,
+		"",
+		nil,
+	)
+	if fallback["workingTitle"] == nil || fallback["workingTitle"].Proposed != deepProposalWishlistFallbackName {
+		t.Fatalf("honest title fallback missing: %#v", fallback["workingTitle"])
 	}
 }

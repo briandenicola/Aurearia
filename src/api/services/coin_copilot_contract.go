@@ -340,7 +340,7 @@ func SanitizeCopilotJSON(raw []byte, maxBytes int) ([]byte, int, bool, string, e
 		return nil, 0, false, "", ErrInvalidCopilotFrame
 	}
 	value = sanitizeCopilotValue(value)
-	sanitized, err := json.Marshal(value)
+	sanitized, err := marshalCopilotCanonical(value)
 	if err != nil {
 		return nil, 0, false, "", err
 	}
@@ -355,7 +355,7 @@ func SanitizeCopilotJSON(raw []byte, maxBytes int) ([]byte, int, bool, string, e
 		"digest":         digestText,
 		"summary":        "Tool result exceeded the persisted-result limit.",
 	}
-	bounded, err := json.Marshal(summary)
+	bounded, err := marshalCopilotCanonical(summary)
 	if err != nil {
 		return nil, 0, false, "", err
 	}
@@ -363,6 +363,16 @@ func SanitizeCopilotJSON(raw []byte, maxBytes int) ([]byte, int, bool, string, e
 		return nil, 0, false, "", fmt.Errorf("%w: persisted result limit too small", ErrInvalidCopilotFrame)
 	}
 	return bounded, originalBytes, true, digestText, nil
+}
+
+func marshalCopilotCanonical(value any) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'}), nil
 }
 
 func sanitizeCopilotValue(value any) any {

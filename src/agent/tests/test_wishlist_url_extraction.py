@@ -3,7 +3,11 @@ from pydantic import ValidationError
 
 from app.models.requests import LLMConfig, WishlistURLExtractionRequest
 from app.models.responses import WishlistURLHypothesis, WishlistURLHypothesisField
-from app.teams.wishlist_url_extraction import _validated_listing_hypothesis
+from app.teams import wishlist_url_extraction
+from app.teams.wishlist_url_extraction import (
+    _validated_listing_hypothesis,
+    extract_wishlist_url,
+)
 
 
 def _request() -> WishlistURLExtractionRequest:
@@ -115,3 +119,47 @@ def test_wishlist_hypothesis_rejects_malformed_model_output():
                 "unexpected_write_instruction": "create now",
             }
         )
+
+
+@pytest.mark.asyncio
+async def test_extract_wishlist_url_unwraps_include_raw_result(monkeypatch):
+    parsed = WishlistURLHypothesis(
+        name=_field("Hadrian Silver Denarius", "Hadrian Silver Denarius"),
+    )
+
+    monkeypatch.setattr(
+        wishlist_url_extraction,
+        "get_structured_model",
+        lambda *_args: object(),
+    )
+
+    async def invoke(*_args, **_kwargs):
+        return {"raw": object(), "parsed": parsed, "parsing_error": None}
+
+    monkeypatch.setattr(wishlist_url_extraction, "ainvoke_with_retry", invoke)
+
+    response = await extract_wishlist_url(_request())
+
+    assert response.hypothesis.name is not None
+    assert response.hypothesis.name.value == "Hadrian Silver Denarius"
+
+
+@pytest.mark.asyncio
+async def test_extract_wishlist_url_rejects_unparsed_include_raw_result(monkeypatch):
+    monkeypatch.setattr(
+        wishlist_url_extraction,
+        "get_structured_model",
+        lambda *_args: object(),
+    )
+
+    async def invoke(*_args, **_kwargs):
+        return {
+            "raw": object(),
+            "parsed": None,
+            "parsing_error": ValueError("malformed"),
+        }
+
+    monkeypatch.setattr(wishlist_url_extraction, "ainvoke_with_retry", invoke)
+
+    with pytest.raises(ValueError, match="did not return a parsed result"):
+        await extract_wishlist_url(_request())

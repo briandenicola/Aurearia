@@ -1,6 +1,7 @@
 <template>
   <section class="url-intake">
     <button
+      v-if="!embedded"
       type="button"
       class="btn btn-secondary btn-sm"
       :aria-expanded="expanded"
@@ -9,7 +10,7 @@
       <Link :size="16" /> Add from URL
     </button>
 
-    <div v-if="expanded" class="url-intake-panel">
+    <div v-if="expanded" class="url-intake-panel" :class="{ embedded }">
       <form class="url-row" @submit.prevent="analyze">
         <label for="wishlist-url" class="sr-only">Public coin listing URL</label>
         <input
@@ -152,6 +153,12 @@ import { analyzeWishlistURL, createCoin, getApiErrorMessage, proxyImage, uploadI
 import type { Category, CoinMutationPayload, Material, WishlistURLAnalysis, WishlistURLHypothesis } from '@/types'
 import { useCoinOptions } from '@/composables/useCoinOptions'
 
+const props = withDefaults(defineProps<{
+  embedded?: boolean
+}>(), {
+  embedded: false,
+})
+
 const emit = defineEmits<{ created: [] }>()
 
 const textFields = [
@@ -181,7 +188,7 @@ type Draft = Record<DraftKey, string> & {
   notes: string
 }
 
-const expanded = ref(false)
+const expanded = ref(props.embedded)
 const { categoryOptions, eraOptions, materialOptions, loadOptions } = useCoinOptions()
 const sourceURL = ref('')
 const status = ref<'idle' | 'pending' | 'cancelled' | 'creating' | 'created' | 'image-warning' | 'failed'>('idle')
@@ -376,6 +383,13 @@ onMounted(loadOptions)
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-card);
+}
+
+.url-intake-panel.embedded {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .url-row,

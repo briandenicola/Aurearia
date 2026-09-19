@@ -57,7 +57,10 @@ func TestCleanWishlistListingHTMLRemovesChromeAndRepeatedText(t *testing.T) {
 	title, text, metadata, err := cleanWishlistListingHTML(strings.NewReader(`
 		<html><head><title>Roman Denarius</title>
 		<meta property="og:image" content="/coin.jpg">
-		<meta name="description" content="Dealer description"></head>
+		<meta name="description" content="Dealer description">
+		<script>window.secret = "discarded"</script>
+		<script type="application/ld+json">{"@type":"Product","name":"Hadrian Denarius","offers":{"price":"125"}}</script>
+		</head>
 		<body><nav>Browse auctions</nav><main>
 		<h1>Hadrian Denarius</h1><p>HADRIANVS AVG COS III P P</p>
 		<p>HADRIANVS AVG COS III P P</p><form><button>Bid now</button></form>
@@ -72,7 +75,10 @@ func TestCleanWishlistListingHTMLRemovesChromeAndRepeatedText(t *testing.T) {
 	if strings.Count(text, "HADRIANVS AVG COS III P P") != 1 {
 		t.Fatalf("expected deduplicated legend, got %q", text)
 	}
-	for _, excluded := range []string{"Browse auctions", "Bid now", "Other coin", "Shipping policy"} {
+	if !strings.Contains(text, `"@type":"Product"`) || !strings.Contains(text, `"price":"125"`) {
+		t.Fatalf("valid product JSON-LD was not retained: %q", text)
+	}
+	for _, excluded := range []string{"window.secret", "Browse auctions", "Bid now", "Other coin", "Shipping policy"} {
 		if strings.Contains(text, excluded) {
 			t.Fatalf("cleaned text retained %q: %q", excluded, text)
 		}
@@ -117,6 +123,10 @@ func TestWishlistURLAnalyzeFetchesOneBoundedPage(t *testing.T) {
 	var requests atomic.Int32
 	service.client = &http.Client{Transport: wishlistURLRoundTripper(func(req *http.Request) (*http.Response, error) {
 		requests.Add(1)
+		if !strings.HasPrefix(req.Header.Get("User-Agent"), "Mozilla/5.0") ||
+			req.Header.Get("Accept-Language") == "" {
+			t.Fatalf("listing request did not use browser-compatible headers: %#v", req.Header)
+		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},

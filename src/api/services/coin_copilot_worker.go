@@ -164,6 +164,15 @@ func (s *CoinCopilotService) runExecution(parent context.Context, run *models.Co
 	if errors.Is(streamErr, ErrInvalidCopilotFrame) || errors.Is(streamErr, ErrDuplicateFrame) {
 		code = "invalid_agent_frame"
 		message = "Coin Copilot returned an invalid execution frame."
+		if s.logger != nil {
+			s.logger.Error(
+				"coin-copilot",
+				"execution frame rejected run_id=%s execution_id=%s error=%v",
+				run.ID,
+				run.ExecutionID,
+				streamErr,
+			)
+		}
 	}
 	s.failExecution(fresh, code, message)
 }

@@ -151,11 +151,27 @@ func TestSanitizeCopilotJSONTruncatesAndRedactsSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if original != len(raw) || !truncated || len(bounded) > 512 || len(digest) != 64 {
 		t.Fatalf("unexpected bounds original=%d truncated=%v len=%d digest=%q", original, truncated, len(bounded), digest)
 	}
 	if bytes.Contains(bounded, []byte("sk-secret")) || bytes.Contains(bounded, []byte("abcdefghijklmnopqrstuvwxyz")) {
 		t.Fatalf("secret leaked: %s", bounded)
+	}
+}
+
+func TestSanitizeCopilotJSONUsesCrossLanguageCanonicalEncoding(t *testing.T) {
+	raw := []byte(`{"description":"Athens & Roma <rare>","name":"Στατήρ"}`)
+	bounded, original, truncated, digest, err := SanitizeCopilotJSON(raw, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expected = `{"description":"Athens & Roma <rare>","name":"Στατήρ"}`
+	if string(bounded) != expected || original != len(raw) || truncated {
+		t.Fatalf("unexpected canonical result: %s", bounded)
+	}
+	if digest != "fc06f8ca69f700c291ba61e9940d10aca1a20189c6ec6b6721175d1df877fdc3" {
+		t.Fatalf("unexpected canonical digest: %s", digest)
 	}
 }
 

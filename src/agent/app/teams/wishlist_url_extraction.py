@@ -140,11 +140,15 @@ async def extract_wishlist_url(
             HumanMessage(content=_listing_corpus(request)),
         ],
     )
-    raw = (
-        result
-        if isinstance(result, WishlistURLHypothesis)
-        else WishlistURLHypothesis.model_validate(result)
-    )
+    if isinstance(result, WishlistURLHypothesis):
+        raw = result
+    elif isinstance(result, dict):
+        parsed = result.get("parsed")
+        if not isinstance(parsed, WishlistURLHypothesis):
+            raise ValueError("structured wishlist URL extraction did not return a parsed result")
+        raw = parsed
+    else:
+        raise ValueError("structured wishlist URL extraction returned an invalid result")
     hypothesis = _validated_listing_hypothesis(raw, request)
     warnings: list[str] = []
     if hypothesis.name is None:

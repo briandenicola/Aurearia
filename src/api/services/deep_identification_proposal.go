@@ -72,10 +72,8 @@ var deepProposalCoinFieldAllowlist = map[string]string{
 
 // deepProposalDraftFieldAllowlist maps a Proposal.fields JSON key to the
 // QuickCaptureDraft field it may seed on the "target: draft" apply path.
-// QuickCaptureDraft intentionally has no denomination/ruler/mint/material
-// columns of its own (identification detail is only recorded on
-// models.Coin once promoted), so those keys are simply not writable for a
-// draft target - proposing them is fine, applying them to a draft is not.
+// Accepted coin fields remain in the immutable applied proposal and are
+// projected onto the Coin when the draft is promoted.
 var deepProposalDraftFieldAllowlist = map[string]string{
 	"workingTitle": "WorkingTitle",
 	"era":          "Era",
@@ -504,8 +502,8 @@ func validateDeepProposalFieldApplicability(job *models.DeepIdentificationJob, t
 		case "coin", "wishlist":
 			allowed = isDeepProposalScalarCoinField(name) || isDeepProposalCollectionField(name) || name == "notes"
 		case "draft":
-			allowed = isDeepProposalScalarDraftField(name) || name == "notes" ||
-				(job.Source == models.DeepJobSourceCopilotDraft && isDeepProposalCollectionField(name))
+			allowed = isDeepProposalScalarDraftField(name) || isDeepProposalScalarCoinField(name) ||
+				isDeepProposalCollectionField(name) || name == "notes"
 		}
 		if !allowed {
 			return fmt.Errorf("%w: %w: %q", ErrDeepProposalReReviewRequired, ErrDeepProposalFieldNotAllowed, name)
@@ -979,6 +977,8 @@ func (s *DeepIdentificationProposalService) applyToDraft(job *models.DeepIdentif
 				case "DateRange":
 					updates["date_range"] = value
 				}
+			case isDeepProposalScalarCoinField(name):
+				// Staged in the immutable applied proposal for promotion.
 			case name == "notes":
 				updates["notes"] = mergeDeepProposalNotes(draft.Notes, job.ID, deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name])), time.Now().UTC())
 			case isDeepProposalCollectionField(name):
@@ -1007,8 +1007,13 @@ func (s *DeepIdentificationProposalService) applyToDraft(job *models.DeepIdentif
 	}
 	for _, name := range fieldNames {
 		draftField, ok := deepProposalDraftFieldAllowlist[name]
-		if !ok && name != "notes" {
-			return 0, false, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+		if !ok {
+			if isDeepProposalScalarCoinField(name) || isDeepProposalCollectionField(name) {
+				continue
+			}
+			if name != "notes" {
+				return 0, false, fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, name)
+			}
 		}
 		value := deepProposalValueToString(resolveDeepProposalFieldValue(doc.Fields[name]))
 		if name == "notes" {

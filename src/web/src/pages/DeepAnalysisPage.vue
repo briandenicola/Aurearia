@@ -93,11 +93,26 @@
               <p class="m-0 text-body text-text-secondary">
                 Review the report, choose the details you want to keep, then save the result.
               </p>
+              <div
+                v-if="deep.proposal.value && showProposalEditor"
+                class="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-border-accent bg-card p-3"
+              >
+                <p class="m-0 text-body text-text-primary">
+                  Nothing has been saved yet. Review and accept the proposed fields before continuing.
+                </p>
+                <button type="button" class="btn btn-primary btn-sm" @click="scrollToProposal">
+                  Review fields
+                </button>
+              </div>
             </div>
             <DeepReportPanel :report="deep.report.value" />
           </template>
 
-          <template v-if="isTerminal && deep.proposal.value && showProposalEditor">
+          <div
+            v-if="isTerminal && deep.proposal.value && showProposalEditor"
+            id="deep-proposal-review"
+            class="scroll-mt-4"
+          >
             <p v-if="needsReapply" role="status" class="m-0 text-body text-gold">
               The linked coin was removed from your collection. Apply again to relink these results.
             </p>
@@ -110,7 +125,7 @@
               @confirm="onApplyProposal"
             />
             <p v-if="applyError" role="alert" class="text-body text-byzantine">{{ applyError }}</p>
-          </template>
+          </div>
 
           <div
             v-else-if="isTerminal && deep.report.value && !job.appliedAt"
@@ -343,6 +358,10 @@ const needsReapply = computed(() =>
   Boolean(job.value?.appliedAt) && job.value?.source === 'saved_coin' && job.value?.appliedCoinExists === false,
 )
 const showProposalEditor = computed(() => !job.value?.appliedAt || needsReapply.value)
+
+function scrollToProposal() {
+  document.getElementById('deep-proposal-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 const deleteError = ref('')
 const canDelete = computed(() => ['completed', 'partial', 'failed', 'cancelled'].includes(terminalStatus.value ?? ''))

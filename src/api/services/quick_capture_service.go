@@ -534,6 +534,11 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	// Build coin from draft fields + overrides
 	coin := s.buildCoinFromDraft(draft, input.Overrides)
 	coin.IsWishlist = target == QuickCapturePromotionTargetWishlist
+	stagedReferences, err := s.applyStagedDeepProposal(draftID, userID, coin)
+	if err != nil {
+		return nil, err
+	}
+	applyDeepPromotionOverrides(coin, input.Overrides)
 
 	// Validate minimum coin requirements
 	if fieldErrors := s.validateCoinMinimumForPromotion(coin); len(fieldErrors) > 0 {
@@ -541,10 +546,6 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	}
 
 	// Transactional promotion
-	stagedReferences, err := s.stagedDeepProposalReferences(draftID, userID)
-	if err != nil {
-		return nil, err
-	}
 	_, createdCoin, err := s.repo.PromoteDraftTransaction(draftID, userID, coin, stagedReferences)
 	if err != nil {
 		if errors.Is(err, repository.ErrDraftNotClaimable) {
@@ -561,7 +562,7 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	}, nil
 }
 
-func (s *QuickCaptureService) stagedDeepProposalReferences(draftID, userID uint) ([]models.CoinReference, error) {
+func (s *QuickCaptureService) applyStagedDeepProposal(draftID, userID uint, coin *models.Coin) ([]models.CoinReference, error) {
 	if s.deepRepo == nil || s.referenceSvc == nil {
 		return nil, nil
 	}
@@ -576,17 +577,42 @@ func (s *QuickCaptureService) stagedDeepProposalReferences(draftID, userID uint)
 		if err != nil {
 			return nil, err
 		}
-		entry := doc.Fields["catalogReferences"]
-		if entry == nil || entry.Accepted == nil || !*entry.Accepted {
-			continue
-		}
-		refs, err := proposalDecoder.resolveDeepProposalCatalogReferences(entry)
+		fieldNames, err := selectDeepAppliedFieldNames(doc, nil)
 		if err != nil {
 			return nil, err
 		}
-		staged = append(staged, refs...)
+		for _, name := range fieldNames {
+			switch {
+			case isDeepProposalScalarCoinField(name):
+				if err := setCoinFieldFromProposalValue(
+					coin,
+					deepProposalCoinFieldAllowlist[name],
+					resolveDeepProposalFieldValue(doc.Fields[name]),
+				); err != nil {
+					return nil, err
+				}
+			case isDeepProposalCollectionField(name):
+				refs, err := proposalDecoder.resolveDeepProposalCatalogReferences(doc.Fields[name])
+				if err != nil {
+					return nil, err
+				}
+				staged = append(staged, refs...)
+			}
+		}
 	}
 	return staged, nil
+}
+
+func applyDeepPromotionOverrides(coin *models.Coin, overrides PromoteOverrides) {
+	if overrides.Category != nil {
+		coin.Category = models.Category(strings.TrimSpace(*overrides.Category))
+	}
+	if overrides.Material != nil {
+		coin.Material = models.Material(strings.TrimSpace(*overrides.Material))
+	}
+	if overrides.Era != nil {
+		coin.Era = models.Era(strings.TrimSpace(*overrides.Era))
+	}
 }
 
 func normalizeQuickCapturePromotionTarget(target QuickCapturePromotionTarget) (QuickCapturePromotionTarget, error) {

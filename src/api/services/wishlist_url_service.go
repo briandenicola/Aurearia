@@ -22,6 +22,7 @@ import (
 const (
 	wishlistURLMaxResponseBytes = 1 << 20
 	wishlistURLMaxCleanedChars  = 50_000
+	wishlistURLUserAgent        = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 
 var (
@@ -190,7 +191,8 @@ func (s *WishlistURLService) fetchAndClean(ctx context.Context, sourceURL string
 		return "", "", WishlistURLPageMetadata{}, "", fmt.Errorf("%w: %v", ErrWishlistURLInvalid, err)
 	}
 	request.Header.Set("Accept", "text/html,application/xhtml+xml")
-	request.Header.Set("User-Agent", "Aurearia/1.0 (+wishlist listing import)")
+	request.Header.Set("User-Agent", wishlistURLUserAgent)
+	request.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	response, err := s.client.Do(request)
 	if err != nil {
@@ -241,6 +243,12 @@ func cleanWishlistListingHTML(reader io.Reader) (string, string, WishlistURLPage
 	walk = func(node *html.Node, skip bool) {
 		if node.Type == html.ElementNode {
 			tag := strings.ToLower(node.Data)
+			if tag == "script" {
+				if structured := wishlistURLStructuredData(node); structured != "" && !seen[structured] {
+					seen[structured] = true
+					lines = append(lines, structured)
+				}
+			}
 			skip = skip || wishlistURLSkipTags[tag] || wishlistURLNoiseNode(node)
 			if tag == "meta" {
 				readWishlistURLMeta(node, &metadata)
@@ -263,13 +271,34 @@ func cleanWishlistListingHTML(reader io.Reader) (string, string, WishlistURLPage
 	walk(document, false)
 
 	text := strings.Join(lines, "\n")
-	if len(text) > wishlistURLMaxCleanedChars {
-		text = text[:wishlistURLMaxCleanedChars]
-	}
+	text = truncateWishlistURLText(text)
 	if title == "" {
 		title = firstWishlistNonEmpty(metadata.SiteName, metadata.Description)
 	}
 	return title, text, metadata, nil
+}
+
+func wishlistURLStructuredData(node *html.Node) string {
+	for _, attr := range node.Attr {
+		if strings.EqualFold(attr.Key, "type") && strings.EqualFold(strings.TrimSpace(attr.Val), "application/ld+json") {
+			if node.FirstChild == nil {
+				return ""
+			}
+			raw := strings.TrimSpace(node.FirstChild.Data)
+			if raw == "" || !json.Valid([]byte(raw)) {
+				return ""
+			}
+			return truncateWishlistURLText("Structured listing data: " + raw)
+		}
+	}
+	return ""
+}
+
+func truncateWishlistURLText(value string) string {
+	if len(value) > wishlistURLMaxCleanedChars {
+		return value[:wishlistURLMaxCleanedChars]
+	}
+	return value
 }
 
 func wishlistURLNoiseNode(node *html.Node) bool {

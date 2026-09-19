@@ -85,6 +85,65 @@ func acceptTrue() *bool {
 	return &v
 }
 
+func TestDeepIdentificationProposal_DraftPromotionPreservesAcceptedCoinFields(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	fields := map[string]any{
+		"workingTitle":       "Hadrian Denarius",
+		"category":           "Roman",
+		"denomination":       "Denarius",
+		"ruler":              "Hadrian",
+		"era":                "ancient",
+		"dateRange":          "117-138 CE",
+		"mint":               "Rome",
+		"material":           "Silver",
+		"weightGrams":        3.12,
+		"diameterMm":         18.0,
+		"obverseInscription": "HADRIANVS AVG",
+		"reverseDescription": "Roma seated left",
+		"grade":              "VF",
+		"rarityRating":       "R2",
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, fields)
+	edits := make(map[string]DeepProposalFieldEdit, len(fields))
+	for name := range fields {
+		edits[name] = DeepProposalFieldEdit{Accepted: acceptTrue()}
+	}
+	if _, err := svc.UpdateProposal(jobID, userID, edits); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := svc.Apply(jobID, userID, "draft", nil)
+	if err != nil {
+		t.Fatalf("apply to draft: %v", err)
+	}
+	if applied.DraftID == nil {
+		t.Fatal("draft id was not returned")
+	}
+
+	promoted, err := svc.qcSvc.PromoteDraft(userID, *applied.DraftID, PromoteDraftInput{
+		Confirm: true,
+		Target:  QuickCapturePromotionTargetCollection,
+	})
+	if err != nil {
+		t.Fatalf("promote draft: %v", err)
+	}
+	var coin models.Coin
+	if err := db.First(&coin, promoted.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if coin.Name != "Hadrian Denarius" || coin.Category != models.Category("Roman") ||
+		coin.Denomination != "Denarius" || coin.Ruler != "Hadrian" ||
+		coin.Era != models.EraAncient || coin.DateRange != "117-138 CE" ||
+		coin.Mint != "Rome" || coin.Material != models.Material("Silver") ||
+		coin.WeightGrams == nil || *coin.WeightGrams != 3.12 ||
+		coin.DiameterMm == nil || *coin.DiameterMm != 18 ||
+		coin.ObverseInscription != "HADRIANVS AVG" ||
+		coin.ReverseDescription != "Roma seated left" ||
+		coin.Grade != "VF" || coin.RarityRating != "R2" {
+		t.Fatalf("promoted coin lost accepted Deep Analysis fields: %#v", coin)
+	}
+}
+
 func seedFeature362DraftJob(
 	t *testing.T,
 	db *gorm.DB,

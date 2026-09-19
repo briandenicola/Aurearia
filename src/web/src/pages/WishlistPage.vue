@@ -33,13 +33,15 @@
         >
           <History :size="22" />
         </router-link>
-        <router-link
-          to="/lookup"
+        <button
+          type="button"
           class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-          title="Identify Coin"
+          title="Add to wishlist"
+          aria-label="Add to wishlist"
+          @click="showAddDialog = true"
         >
           <CirclePlus :size="22" />
-        </router-link>
+        </button>
       </div>
       <!-- Desktop: full text buttons -->
       <div v-else class="header-actions flex-wrap gap-3">
@@ -70,16 +72,15 @@
         >
           <History :size="16" /> Run History
         </router-link>
-        <router-link
-          to="/lookup"
+        <button
+          type="button"
           class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          @click="showAddDialog = true"
         >
-          <CirclePlus :size="16" /> Identify Coin
-        </router-link>
+          <CirclePlus :size="16" /> Add Coin
+        </button>
       </div>
     </div>
-
-    <WishlistURLIntake @created="loadCoins" />
 
     <div
       v-if="checkResult"
@@ -149,12 +150,65 @@
       @confirm="handlePurchaseConfirm"
     />
 
+    <div
+      v-if="showAddDialog"
+      class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4"
+      @click.self="closeAddDialog"
+      @keydown.esc="closeAddDialog"
+    >
+      <div
+        ref="addDialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="wishlist-add-title"
+        class="card max-h-[90vh] w-full max-w-2xl overflow-y-auto !p-6"
+        tabindex="-1"
+      >
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <h2 id="wishlist-add-title" class="m-0 text-heading">Add to wishlist</h2>
+          <button
+            type="button"
+            class="pwa-icon-btn"
+            title="Close"
+            aria-label="Close"
+            @click="closeAddDialog"
+          >
+            <X :size="18" />
+          </button>
+        </div>
+
+        <div v-if="addMethod === null" class="grid gap-3 sm:grid-cols-2">
+          <button type="button" class="add-method" @click="addMethod = 'url'">
+            <Link :size="24" />
+            <span>
+              <strong>Add from URL</strong>
+              <small>Import and review a public dealer listing.</small>
+            </span>
+          </button>
+          <router-link to="/lookup" class="add-method" @click="closeAddDialog">
+            <ScanLine :size="24" />
+            <span>
+              <strong>Add from image analysis</strong>
+              <small>Photograph or upload a coin for identification.</small>
+            </span>
+          </router-link>
+        </div>
+
+        <div v-else>
+          <button type="button" class="btn btn-ghost btn-xs mb-4" @click="addMethod = null">
+            <ChevronLeft :size="15" /> Add another way
+          </button>
+          <WishlistURLIntake embedded @created="handleURLCreated" />
+        </div>
+      </div>
+    </div>
+
     <CoinSearchChat v-if="showChat" @close="showChat = false" @added="loadCoins" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { nextTick, ref, watch, onBeforeUnmount } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import CoinCard from '@/components/CoinCard.vue'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
@@ -162,7 +216,7 @@ import PurchaseModal from '@/components/PurchaseModal.vue'
 import WishlistURLIntake from '@/components/wishlist/WishlistURLIntake.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus, listPurchaseReminders } from '@/api/client'
 import type { Coin, AvailabilityRunSummary, PurchaseReminder } from '@/types'
-import { CirclePlus, Bot, ShieldCheck, CalendarClock, History } from 'lucide-vue-next'
+import { CirclePlus, Bot, ShieldCheck, CalendarClock, History, ChevronLeft, Link, ScanLine, X } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 
@@ -170,6 +224,9 @@ const store = useCoinsStore()
 const { isPwa } = usePwa()
 const { refresh: refreshQuickAccess } = useQuickAccess()
 const showChat = ref(false)
+const showAddDialog = ref(false)
+const addMethod = ref<'url' | null>(null)
+const addDialog = ref<HTMLElement | null>(null)
 const purchaseTarget = ref<Coin | null>(null)
 const checking = ref(false)
 const checkResult = ref<AvailabilityRunSummary | null>(null)
@@ -197,7 +254,22 @@ function loadCoins() {
   fetchReminderMap()
 }
 
+function closeAddDialog() {
+  showAddDialog.value = false
+  addMethod.value = null
+}
+
+function handleURLCreated() {
+  loadCoins()
+  closeAddDialog()
+}
+
 watch(page, loadCoins)
+watch(showAddDialog, async (open) => {
+  if (!open) return
+  await nextTick()
+  addDialog.value?.focus()
+})
 
 function openPurchaseModal(coin: Coin) {
   purchaseTarget.value = coin
@@ -246,3 +318,45 @@ onBeforeUnmount(() => {
   if (dismissTimer) clearTimeout(dismissTimer)
 })
 </script>
+
+<style scoped>
+.add-method {
+  display: flex;
+  min-height: 96px;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: left;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+
+.add-method:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+}
+
+.add-method svg {
+  flex-shrink: 0;
+  color: var(--accent-gold);
+}
+
+.add-method span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.add-method strong {
+  font-size: 0.9rem;
+}
+
+.add-method small {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+</style>

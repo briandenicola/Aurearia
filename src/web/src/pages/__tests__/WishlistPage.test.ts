@@ -145,13 +145,14 @@ describe('WishlistPage', () => {
     expect(finderLink.text()).toContain('Add Wish List Finder Agent')
   })
 
-  it('routes the desktop add action to the Identify Coin workflow', () => {
+  it('opens the desktop add dialog with URL and image-analysis choices', async () => {
     const wrapper = mountPage()
 
-    const links = wrapper.findAll('a')
-    expect(links.filter(link => link.attributes('href') === '/lookup')).toHaveLength(1)
-    expect(links.some(link => link.attributes('href') === '/lookup' && link.text().includes('Identify Coin'))).toBe(true)
-    expect(links.some(link => link.attributes('href') === '/add?wishlist=true')).toBe(false)
+    await wrapper.get('.header-actions button:last-child').trigger('click')
+
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Add from URL')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Add from image analysis')
+    expect(wrapper.get('a[href="/lookup"]').text()).toContain('Add from image analysis')
   })
 
   it('shows the desktop search alerts action with text when wishlist coins are present', () => {
@@ -166,15 +167,15 @@ describe('WishlistPage', () => {
     expect(finderLink.text()).toContain('Search Alerts')
   })
 
-  it('routes the PWA plus icon to the Identify Coin workflow', () => {
+  it('opens the add dialog from the PWA plus icon', async () => {
     mockIsPwa = true
 
     const wrapper = mountPage()
 
-    const lookupLink = wrapper.find('a[title="Identify Coin"]')
-    expect(lookupLink.exists()).toBe(true)
-    expect(lookupLink.attributes('href')).toBe('/lookup')
-    expect(wrapper.find('a[href="/add?wishlist=true"]').exists()).toBe(false)
+    await wrapper.get('button[aria-label="Add to wishlist"]').trigger('click')
+
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Add from URL')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Add from image analysis')
   })
 
   it('shows the finder agent icon in PWA mode when wishlist coins are present', () => {

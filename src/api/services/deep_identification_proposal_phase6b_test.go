@@ -459,12 +459,7 @@ func TestDeepProposalApply_WishlistJournalNamesFieldNeverValues(t *testing.T) {
 	}
 }
 
-// --- Draft target behavior is unchanged: catalogReferences is not in
-// deepProposalDraftFieldAllowlist, so requesting it on "draft" is rejected
-// exactly like any other unknown field, and no DraftLifecycleEvent/draft
-// row is affected by catalogReferences content ---
-
-func TestDeepProposalApply_DraftTargetDoesNotApplyCatalogReferences(t *testing.T) {
+func TestDeepProposalApply_DraftStagesCatalogReferencesUntilPromotion(t *testing.T) {
 	svc, _, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)
 	seedDeepProposalCatalog(t, db, "RIC", false)
@@ -481,35 +476,9 @@ func TestDeepProposalApply_DraftTargetDoesNotApplyCatalogReferences(t *testing.T
 		t.Fatalf("update proposal: %v", err)
 	}
 
-	// Explicitly requesting catalogReferences on the draft target is
-	// rejected - it is not a key in deepProposalDraftFieldAllowlist.
-	if _, err := svc.Apply(jobID, userID, "draft", []string{"catalogReferences"}); !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
-		t.Fatalf("expected ErrDeepProposalFieldNotAllowed for catalogReferences on draft target, got %v", err)
-	}
-
-	// The nil-fieldsFilter path (apply every accepted field) also never
-	// silently drops into a catalogReferences write for drafts: since both
-	// "notes" and "catalogReferences" are accepted, this must still fail
-	// the same way, proving there is no draft code path that reaches
-	// AppendForCoin/CoinReferenceService at all.
-	if _, err := svc.Apply(jobID, userID, "draft", nil); !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
-		t.Fatalf("expected ErrDeepProposalFieldNotAllowed for draft apply with catalogReferences accepted, got %v", err)
-	}
-
-	var draftCount int64
-	if err := db.Model(&models.QuickCaptureDraft{}).Count(&draftCount).Error; err != nil {
-		t.Fatal(err)
-	}
-	if draftCount != 0 {
-		t.Fatal("expected no draft row created when the draft apply is rejected for an unsupported field")
-	}
-
-	// With catalogReferences excluded from the fieldsFilter, the draft
-	// target still works normally on its own scalar fields - unchanged
-	// behavior.
-	result, err := svc.Apply(jobID, userID, "draft", []string{"notes"})
+	result, err := svc.Apply(jobID, userID, "draft", nil)
 	if err != nil {
-		t.Fatalf("apply draft with only supported fields: %v", err)
+		t.Fatalf("apply draft: %v", err)
 	}
 	if result.DraftID == nil {
 		t.Fatal("expected a draft id")
@@ -521,7 +490,24 @@ func TestDeepProposalApply_DraftTargetDoesNotApplyCatalogReferences(t *testing.T
 		t.Fatal(err)
 	}
 	if refCount != 0 {
-		t.Fatalf("expected zero coin_references rows to ever exist - draft apply has no coin to attach references to, got %d", refCount)
+		t.Fatalf("references must remain staged until promotion, got %d", refCount)
+	}
+
+	promoted, err := svc.qcSvc.PromoteDraft(userID, *result.DraftID, PromoteDraftInput{
+		Confirm: true,
+		Target:  QuickCapturePromotionTargetCollection,
+		Overrides: PromoteOverrides{
+			Name: stringPointer("Trajan Denarius"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("promote draft: %v", err)
+	}
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", promoted.CoinID).Count(&refCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refCount != 1 {
+		t.Fatalf("expected one staged reference after promotion, got %d", refCount)
 	}
 	_ = refRepo
 }

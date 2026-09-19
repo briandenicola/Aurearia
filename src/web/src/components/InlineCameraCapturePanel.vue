@@ -207,16 +207,16 @@ defineExpose({
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 1rem;
+  padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .camera-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: clamp(240px, 48vh, 420px);
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--bg-primary);
@@ -317,8 +317,8 @@ defineExpose({
 .shutter-btn {
   grid-column: 2;
   justify-self: center;
-  width: 4rem;
-  height: 4rem;
+  width: 3.5rem;
+  height: 3.5rem;
   border-radius: var(--radius-full);
   background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
   border: 2px solid var(--border-white-dim);
@@ -329,6 +329,12 @@ defineExpose({
   cursor: pointer;
   transition: all var(--transition-fast);
   box-shadow: var(--shadow-card);
+}
+
+@media (max-height: 700px) {
+  .camera-container {
+    height: 40vh;
+  }
 }
 
 .shutter-btn:hover:not(:disabled) {

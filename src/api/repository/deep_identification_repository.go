@@ -215,14 +215,14 @@ func (r *DeepIdentificationRepository) ApplyBoundDraftProposal(
 }
 
 // ListAppliedDraftProposalJSON returns immutable, accepted proposal documents
-// linked to a draft by the copilot_draft apply transaction. Promotion uses
-// these documents to carry staged references into the resulting coin.
+// applied to a draft. Promotion uses these documents to carry staged
+// identification fields and references into the resulting coin.
 func (r *DeepIdentificationRepository) ListAppliedDraftProposalJSON(draftID, userID uint) ([]string, error) {
 	var proposalJSON []string
 	err := r.db.Model(&models.DeepIdentificationJob{}).
 		Where(
-			"user_id = ? AND source = ? AND source_draft_id = ? AND applied_draft_id = ? AND applied_at IS NOT NULL",
-			userID, models.DeepJobSourceCopilotDraft, draftID, draftID,
+			"user_id = ? AND applied_draft_id = ? AND applied_at IS NOT NULL",
+			userID, draftID,
 		).
 		Order("id ASC").
 		Pluck("proposal_json", &proposalJSON).Error

@@ -1,16 +1,16 @@
 <template>
-  <section class="flex flex-col gap-6" aria-labelledby="capture-wizard-title">
-    <div class="flex flex-col gap-4">
+  <section class="flex flex-col gap-4" aria-labelledby="capture-wizard-title">
+    <div class="flex flex-col gap-3">
       <div>
         <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
         <span class="section-label">Step {{ step + 1 }} of 3</span>
         <h2 class="mt-1 text-heading">{{ currentStep.title }}</h2>
-        <p class="mt-2 text-base leading-6 text-text-secondary">{{ currentStep.description }}</p>
+        <p class="mt-1 text-small leading-5 text-text-secondary">{{ currentStep.description }}</p>
       </div>
 
       <div
         v-if="currentImage"
-        class="relative mx-auto aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-sm border border-border-accent bg-card"
+        class="capture-preview relative mx-auto w-full max-w-2xl overflow-hidden rounded-sm border border-border-accent bg-card"
       >
         <img :src="currentImage.preview" :alt="`${currentStep.label} coin image`" class="h-full w-full object-contain" />
         <button
@@ -67,7 +67,7 @@
         <span>{{ deepRequirementError }}</span>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="workflow-actions sticky bottom-0 z-10 flex items-center gap-2">
         <button
           v-if="step > 0"
           type="button"
@@ -233,3 +233,21 @@ function stopCamera() {
 
 defineExpose({ stopCamera })
 </script>
+
+<style scoped>
+.capture-preview {
+  height: clamp(240px, 48vh, 420px);
+}
+
+.workflow-actions {
+  margin: 0 -0.25rem -0.25rem;
+  padding: 0.75rem 0.25rem 0.25rem;
+  background: linear-gradient(to bottom, transparent, var(--bg-primary) 30%);
+}
+
+@media (max-height: 700px) {
+  .capture-preview {
+    height: 40vh;
+  }
+}
+</style>
