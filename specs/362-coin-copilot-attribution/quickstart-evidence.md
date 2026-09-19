@@ -204,5 +204,47 @@ Date: 2026-09-18
   Analysis Playwright workflows, which cover intake/saved-coin admission,
   streamed progress, cancellation, partial proposal review, explicit draft
   apply, and explicit saved-coin apply.
-- T080 and T081 remain open for their broader lifecycle matrix, independent
-  dual-SSE restoration/background-resume, and keyboard-only acceptance.
+- The expanded browser workflow streams 11 closed handoff results in one
+  durable run and visibly verifies collection, wishlist, and draft targets;
+  accepted/active/reused/retry/cancelled lifecycle states; missing-image,
+  anonymous-ineligible, target-unavailable, and disabled fallbacks; and zero
+  coin/draft/proposal/apply mutation requests from conversation. The original
+  partial fixture separately verifies conflicts, provider coverage,
+  limitations, and deterministic omission disclosure.
+- A dedicated wishlist browser review accepts exactly `mint`, `notes`, and
+  `catalogReferences`, rejects `denomination`, verifies the actual
+  PATCH-proposal decisions followed by the existing POST-apply contract, and
+  confirms manual notes, purchase price, storage, and wishlist status are not
+  changed or bypassed by a direct coin update. The real SQLite integration
+  matrix remains the authoritative persistence proof for collection,
+  wishlist, and draft all-or-nothing apply, cancel races, and finish-existing.
+- Mobile background/restore is exercised in Chromium by persisting a Coin
+  Copilot cursor at sequence 4 and a separate Deep Analysis cursor at sequence
+  42, dispatching hidden/visible lifecycle events, reopening the drawer/page,
+  and observing independent `?since=4` and `?since=42` requests.
+- The mobile workflow activates the review link with keyboard focus plus Enter
+  and verifies the 44 px target and horizontal containment at 390 by 844. It
+  uses the production dark-theme/token classes and the existing Deep page,
+  with no duplicate editor in chat.
+- The expanded local browser gate passes nine workflows: the three Coin
+  Copilot/mobile cases plus six direct Deep Analysis admission, cancellation,
+  draft/coin/wishlist review, and explicit-apply cases. The hosted workflow is
+  required to rerun this exact suite before final merge readiness.
+
+## Feature 362 hosted release gates and PR
+
+Date: 2026-09-18
+
+- [Quality Gate 35415527189](https://github.com/briandenicola/Aurearia/actions/runs/35415527189):
+  Go API, Linux race detector, Python Agent, and Vue Web passed.
+- [Feature 362 Compatibility 35415527170](https://github.com/briandenicola/Aurearia/actions/runs/35415527170):
+  immutable mixed-binary guard and hosted Chromium acceptance passed.
+- [Security Scan 35415527194](https://github.com/briandenicola/Aurearia/actions/runs/35415527194):
+  all seven jobs passed, including both container scans, SPDX SBOM exports,
+  provenance attestations, and agent runtime health.
+- [CodeQL 35415527069](https://github.com/briandenicola/Aurearia/actions/runs/35415527069)
+  passed.
+- Release PR [#725](https://github.com/briandenicola/Aurearia/pull/725)
+  targets `main` from `beta`, follows the repository template, cites ADR 0017,
+  Principles II/III/IV/V/VIII/IX and Constitution §§17/21/22, enumerates the
+  affected workflows and rollback/security evidence, and remains unmerged.
