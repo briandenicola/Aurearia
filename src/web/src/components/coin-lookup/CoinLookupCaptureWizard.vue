@@ -104,57 +104,57 @@
         </div>
 
         <div class="workflow-actions sticky bottom-0 z-10 flex items-center gap-2">
-        <button
-          v-if="step > 0"
-          type="button"
-          class="btn btn-secondary min-h-11 shrink-0 justify-center"
-          title="Previous step"
-          aria-label="Previous step"
-          @click="step -= 1"
-        >
-          <ChevronLeft :size="20" aria-hidden="true" />
-          <span class="hidden sm:inline">Previous</span>
-        </button>
+          <button
+            v-if="step > 0"
+            type="button"
+            class="btn btn-secondary min-h-11 shrink-0 justify-center"
+            title="Previous step"
+            aria-label="Previous step"
+            @click="step -= 1"
+          >
+            <ChevronLeft :size="20" aria-hidden="true" />
+            <span class="hidden sm:inline">Previous</span>
+          </button>
 
-        <button
-          v-if="obverse"
-          type="button"
-          class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
-          :disabled="submitting || preparingImage"
-          @click="$emit('analyze')"
-        >
-          <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
-          <span v-else-if="preparingImage" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
-          <Search v-else :size="19" class="hidden sm:block" />
-          {{ submitting ? 'Analyzing...' : preparingImage ? 'Preparing image...' : 'Analyze Photos' }}
-        </button>
+          <button
+            v-if="obverse"
+            type="button"
+            class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
+            :disabled="submitting || preparingImage"
+            @click="$emit('analyze')"
+          >
+            <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
+            <span v-else-if="preparingImage" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
+            <Search v-else :size="19" class="hidden sm:block" />
+            {{ submitting ? 'Analyzing...' : preparingImage ? 'Preparing image...' : 'Analyze Photos' }}
+          </button>
 
-        <button
-          v-if="obverse && deepAnalysisEnabled"
-          type="button"
-          class="btn btn-secondary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
-          :disabled="submitting || preparingImage || deepAnalysisDisabled"
-          :title="deepAnalysisDisabled ? deepAnalysisDisabledTitle : undefined"
-          @click="startDeepAnalysis"
-        >
-          <Microscope :size="19" class="hidden sm:block" aria-hidden="true" />
-          Deep Analysis
-        </button>
+          <button
+            v-if="obverse && deepAnalysisEnabled"
+            type="button"
+            class="btn btn-secondary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
+            :disabled="submitting || preparingImage || deepAnalysisDisabled"
+            :title="deepAnalysisDisabled ? deepAnalysisDisabledTitle : undefined"
+            @click="startDeepAnalysis"
+          >
+            <Microscope :size="19" class="hidden sm:block" aria-hidden="true" />
+            Deep Analysis
+          </button>
 
-        <button
-          v-if="step < 2"
-          type="button"
-          class="btn btn-secondary ml-auto min-h-11 shrink-0 justify-center"
-          :disabled="!obverse || preparingImage"
-          :title="step === 0 ? 'Add reverse image' : 'Add notes'"
-          :aria-label="step === 0 ? 'Add reverse image' : 'Add notes'"
-          @click="step += 1"
-        >
-          <span class="hidden sm:inline">{{ step === 0 ? 'Next: Reverse' : 'Next: Notes' }}</span>
-          <ChevronRight :size="20" aria-hidden="true" />
-        </button>
+          <button
+            v-if="step < 2"
+            type="button"
+            class="btn btn-secondary ml-auto min-h-11 shrink-0 justify-center"
+            :disabled="!obverse || preparingImage"
+            :title="step === 0 ? 'Add reverse image' : 'Add notes'"
+            :aria-label="step === 0 ? 'Add reverse image' : 'Add notes'"
+            @click="step += 1"
+          >
+            <span class="hidden sm:inline">{{ step === 0 ? 'Next: Reverse' : 'Next: Notes' }}</span>
+            <ChevronRight :size="20" aria-hidden="true" />
+          </button>
+        </div>
       </div>
-    </div>
     </div>
   </section>
 </template>

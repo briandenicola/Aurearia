@@ -16,7 +16,7 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   await page.goto('/lookup')
   await expect(page.getByRole('heading', { name: 'Identify Coin' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'obverse.png',
     mimeType: 'image/png',
@@ -24,7 +24,7 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   })
   await page.getByRole('button', { name: 'Deep Analysis' }).click()
   await expect(page.getByText('Add a reverse image before starting Deep Analysis.')).toBeVisible()
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'reverse.png',
     mimeType: 'image/png',
@@ -68,14 +68,14 @@ test('T108: observes streamed progress and can cancel a running Deep Analysis jo
   await installWorkflowApiMocks(page)
 
   await page.goto('/lookup')
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'obverse.png',
     mimeType: 'image/png',
     buffer: tinyPng,
   })
   await page.getByRole('button', { name: 'Add reverse image' }).click()
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'reverse.png',
     mimeType: 'image/png',
