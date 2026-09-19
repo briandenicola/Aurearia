@@ -1749,6 +1749,35 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.collectorProfileRequest:
+    properties:
+      budgetMax:
+        type: number
+      budgetMin:
+        type: number
+      collectingGoals:
+        items:
+          type: string
+        type: array
+      currency:
+        type: string
+      excludedCategories:
+        items:
+          type: string
+        type: array
+      preferredCategories:
+        items:
+          type: string
+        type: array
+      preferredDealers:
+        items:
+          type: string
+        type: array
+      preferredPeriods:
+        items:
+          type: string
+        type: array
+    type: object
   handlers.copilotResumeRequest:
     properties:
       answer:
@@ -4534,6 +4563,39 @@ definitions:
         $ref: '#/definitions/services.HealthTrend30D'
       weights:
         $ref: '#/definitions/services.HealthWeights'
+    type: object
+  services.CollectorProfileResponse:
+    properties:
+      budgetMax:
+        type: number
+      budgetMin:
+        type: number
+      collectingGoals:
+        items:
+          type: string
+        type: array
+      currency:
+        type: string
+      excludedCategories:
+        items:
+          type: string
+        type: array
+      isDefault:
+        type: boolean
+      preferredCategories:
+        items:
+          type: string
+        type: array
+      preferredDealers:
+        items:
+          type: string
+        type: array
+      preferredPeriods:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
     type: object
   services.CommitCollectionProposalResult:
     properties:
@@ -11153,6 +11215,70 @@ paths:
       summary: Match a category/era candidate against known values
       tags:
       - coins
+  /collector-profile:
+    get:
+      description: Returns the authenticated owner's saved collector profile or neutral
+        defaults.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CollectorProfileResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get collector profile
+      tags:
+      - Collector Profile
+    put:
+      consumes:
+      - application/json
+      description: Validates and atomically replaces the authenticated owner's complete
+        collector profile.
+      parameters:
+      - description: Collector profile
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.collectorProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CollectorProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Replace collector profile
+      tags:
+      - Collector Profile
   /deep-identification/capability:
     get:
       description: Returns the Deep Analysis feature-flag state so the client can

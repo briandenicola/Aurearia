@@ -353,6 +353,7 @@ func (trueLegacyAvailabilityResult) TableName() string { return "availability_re
 // incident) instead of tests quietly continuing to exercise a stale, hand-picked subset.
 var productionModelConstructors = map[string]func() any{
 	"User":                          func() any { return &models.User{} },
+	"CollectorProfile":              func() any { return &models.CollectorProfile{} },
 	"StorageLocation":               func() any { return &models.StorageLocation{} },
 	"MintLocation":                  func() any { return &models.MintLocation{} },
 	"Coin":                          func() any { return &models.Coin{} },

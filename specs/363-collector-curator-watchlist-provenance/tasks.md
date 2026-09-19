@@ -21,20 +21,20 @@
 
 ### Tests for User Story 2 — write and run first
 
-- [ ] T001 [P] [US2] Add failing model and migration tests for the single `collector_profiles` table, unique owner row, JSON-array round trips, neutral absence without a row, and owner deletion cleanup in `src/api/models/collector_profile_test.go` and `src/api/database/database_test.go`
-- [ ] T002 [P] [US2] Add failing repository/service tamper tests for owner A/B isolation, same-owner replacement, foreign-owner lookup attempts, finite budget and ordering bounds, normalized duplicate arrays, atomic invalid-update rollback, and unchanged global settings in `src/api/repository/collector_profile_repository_test.go` and `src/api/services/collector_profile_service_test.go`
-- [ ] T003 [P] [US2] Add failing GET/PUT contract tests for authentication, neutral defaults, unknown-field rejection including forged `userId`/`ownerId`, body limits, sanitized field errors, and administrator/public/follower non-disclosure in `src/api/handlers/collector_profile_test.go`
-- [ ] T004 [P] [US2] Add failing compact-form tests for load/save/reload/edit/clear, server validation display, no `localStorage`/admin-setting persistence, keyboard use, 44px controls, dark theme, and 320px/PWA layout in `src/web/src/components/settings/__tests__/CollectorProfileSection.test.ts`
+- [X] T001 [P] [US2] Add failing model and migration tests for the single `collector_profiles` table, unique owner row, JSON-array round trips, neutral absence without a row, and owner deletion cleanup in `src/api/models/collector_profile_test.go` and `src/api/database/database_test.go`
+- [X] T002 [P] [US2] Add failing repository/service tamper tests for owner A/B isolation, same-owner replacement, foreign-owner lookup attempts, finite budget and ordering bounds, normalized duplicate arrays, atomic invalid-update rollback, and unchanged global settings in `src/api/repository/collector_profile_repository_test.go` and `src/api/services/collector_profile_service_test.go`
+- [X] T003 [P] [US2] Add failing GET/PUT contract tests for authentication, neutral defaults, unknown-field rejection including forged `userId`/`ownerId`, body limits, sanitized field errors, and administrator/public/follower non-disclosure in `src/api/handlers/collector_profile_test.go`
+- [X] T004 [P] [US2] Add failing compact-form tests for load/save/reload/edit/clear, server validation display, no `localStorage`/admin-setting persistence, keyboard use, 44px controls, dark theme, and 320px/PWA layout in `src/web/src/components/settings/__tests__/CollectorProfileSection.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T005 [US2] Define the one-row `CollectorProfile` model with nullable budgets/currency, bounded JSON arrays, timestamps, and unique `UserID` ownership in `src/api/models/collector_profile.go`
-- [ ] T006 [US2] Register only `CollectorProfile` in the existing additive migration and account-deletion model set in `src/api/database/database.go`
-- [ ] T007 [US2] Implement owner-scoped get and transactional full replacement without accepting an owner from caller data in `src/api/repository/collector_profile_repository.go`
-- [ ] T008 [US2] Implement neutral defaults, whitespace normalization, exact list/string/number bounds, case-insensitive duplicate detection, atomic validation, and a bounded internal context projection in `src/api/services/collector_profile_service.go`
-- [ ] T009 [US2] Implement authenticated GET/PUT handlers with strict DTO decoding, server-derived owner identity, sanitized errors, and Swagger annotations, then wire them through `src/api/handlers/collector_profile.go`, `src/api/routes_protected.go`, and `src/api/main.go`
-- [ ] T010 [P] [US2] Add strict browser profile types and typed GET/PUT calls through the existing Go API client in `src/web/src/types/collectorProfile.ts` and `src/web/src/api/endpoints/collectorProfile.ts`
-- [ ] T011 [US2] Build the compact private profile form and mount it without extending global admin settings in `src/web/src/components/settings/CollectorProfileSection.vue` and `src/web/src/pages/SettingsPage.vue`
+- [X] T005 [US2] Define the one-row `CollectorProfile` model with nullable budgets/currency, bounded JSON arrays, timestamps, and unique `UserID` ownership in `src/api/models/collector_profile.go`
+- [X] T006 [US2] Register only `CollectorProfile` in the existing additive migration and account-deletion model set in `src/api/database/database.go`
+- [X] T007 [US2] Implement owner-scoped get and transactional full replacement without accepting an owner from caller data in `src/api/repository/collector_profile_repository.go`
+- [X] T008 [US2] Implement neutral defaults, whitespace normalization, exact list/string/number bounds, case-insensitive duplicate detection, atomic validation, and a bounded internal context projection in `src/api/services/collector_profile_service.go`
+- [X] T009 [US2] Implement authenticated GET/PUT handlers with strict DTO decoding, server-derived owner identity, sanitized errors, and Swagger annotations, then wire them through `src/api/handlers/collector_profile.go`, `src/api/routes_protected.go`, and `src/api/main.go`
+- [X] T010 [P] [US2] Add strict browser profile types and typed GET/PUT calls through the existing Go API client in `src/web/src/types/collectorProfile.ts` and `src/web/src/api/endpoints/collectorProfile.ts`
+- [X] T011 [US2] Build the compact private profile form and mount it without extending global admin settings in `src/web/src/components/settings/CollectorProfileSection.vue` and `src/web/src/pages/SettingsPage.vue`
 
 **Checkpoint**: US2 is independently usable; profile data is private, optional, bounded, and stored in exactly one new table.
 

@@ -49,6 +49,7 @@ type appDeps struct {
 	coinRepo                       *repository.CoinRepository
 	journalRepo                    *repository.JournalRepository
 	noteRepo                       *repository.NoteRepository
+	collectorProfileHandler        *handlers.CollectorProfileHandler
 	socialRepo                     *repository.SocialRepository
 	notifRepo                      *repository.NotificationRepository
 	notifSvc                       *services.NotificationService
@@ -274,6 +275,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	journalRepo := repository.NewJournalRepository(database.DB)
 	collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
 	noteRepo := repository.NewNoteRepository(database.DB)
+	collectorProfileRepo := repository.NewCollectorProfileRepository(database.DB)
+	collectorProfileSvc := services.NewCollectorProfileService(collectorProfileRepo)
+	collectorProfileHandler := handlers.NewCollectorProfileHandler(collectorProfileSvc)
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo).WithSettingsSupport(settingsSvc)
 	coinCopilotRepo := repository.NewCoinCopilotRepository(database.DB)
 	coinCopilotSvc := services.NewCoinCopilotService(
@@ -313,6 +317,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		coinRepo:                       coinRepo,
 		journalRepo:                    journalRepo,
 		noteRepo:                       noteRepo,
+		collectorProfileHandler:        collectorProfileHandler,
 		socialRepo:                     socialRepo,
 		notifRepo:                      notifRepo,
 		notifSvc:                       notifSvc,

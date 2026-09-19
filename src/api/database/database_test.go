@@ -10,6 +10,39 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestCollectorProfileMigrationIsSingleTableAndCascadesWithOwner(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("PRAGMA foreign_keys=ON").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.CollectorProfile{}); err != nil {
+		t.Fatal(err)
+	}
+	if !db.Migrator().HasTable(&models.CollectorProfile{}) {
+		t.Fatal("collector_profiles table was not created")
+	}
+	user := models.User{Username: "profile-owner", Email: "profile-owner@example.test", PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.CollectorProfile{UserID: user.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Delete(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	if err := db.Model(&models.CollectorProfile{}).Where("user_id = ?", user.ID).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("owner deletion left %d collector profile rows", count)
+	}
+}
+
 type preFeature362DeepJob struct {
 	ID               uint `gorm:"primaryKey"`
 	UserID           uint `gorm:"not null"`

@@ -85,6 +85,9 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		protected.PUT("/notes/:id", noteHandler.Update)
 		protected.DELETE("/notes/:id", noteHandler.Delete)
 
+		protected.GET("/collector-profile", d.collectorProfileHandler.Get)
+		protected.PUT("/collector-profile", d.writeRateLimit, d.collectorProfileHandler.Put)
+
 		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
 		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)
 		protected.GET("/storage-locations", storageLocationHandler.List)

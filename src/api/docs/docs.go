@@ -9371,6 +9371,104 @@ const docTemplate = `{
                 }
             }
         },
+        "/collector-profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated owner's saved collector profile or neutral defaults.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Collector Profile"
+                ],
+                "summary": "Get collector profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CollectorProfileResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Validates and atomically replaces the authenticated owner's complete collector profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Collector Profile"
+                ],
+                "summary": "Replace collector profile",
+                "parameters": [
+                    {
+                        "description": "Collector profile",
+                        "name": "profile",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.collectorProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CollectorProfileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/deep-identification/capability": {
             "get": {
                 "description": "Returns the Deep Analysis feature-flag state so the client can hide or disable the entry point. The backend remains authoritative; job creation is independently gated.",
@@ -21362,6 +21460,50 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.collectorProfileRequest": {
+            "type": "object",
+            "properties": {
+                "budgetMax": {
+                    "type": "number"
+                },
+                "budgetMin": {
+                    "type": "number"
+                },
+                "collectingGoals": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "excludedCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredDealers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredPeriods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "handlers.copilotResumeRequest": {
             "type": "object",
             "properties": {
@@ -25383,6 +25525,56 @@ const docTemplate = `{
                 },
                 "weights": {
                     "$ref": "#/definitions/services.HealthWeights"
+                }
+            }
+        },
+        "services.CollectorProfileResponse": {
+            "type": "object",
+            "properties": {
+                "budgetMax": {
+                    "type": "number"
+                },
+                "budgetMin": {
+                    "type": "number"
+                },
+                "collectingGoals": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "excludedCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "isDefault": {
+                    "type": "boolean"
+                },
+                "preferredCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredDealers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredPeriods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },

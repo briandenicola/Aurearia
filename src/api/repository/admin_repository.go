@@ -132,6 +132,11 @@ func userHasUsableLocalAdminCredentials(user models.User) bool {
 }
 
 func deleteUserCascadeInTx(tx *gorm.DB, userID uint) (*gorm.DB, error) {
+	if tx.Migrator().HasTable(&models.CollectorProfile{}) {
+		if err := tx.Scopes(OwnedBy(userID)).Delete(&models.CollectorProfile{}).Error; err != nil {
+			return nil, err
+		}
+	}
 	var coinIDs []uint
 	if err := tx.Model(&models.Coin{}).Where("user_id = ?", userID).Pluck("id", &coinIDs).Error; err != nil {
 		return nil, err

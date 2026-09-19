@@ -44,7 +44,10 @@
           </button>
         </div>
 
-        <SettingsAccountSection v-if="activeTab === 'account'" ref="accountSection" :show-connections="false" />
+        <template v-if="activeTab === 'account'">
+          <SettingsAccountSection ref="accountSection" :show-connections="false" />
+          <CollectorProfileSection />
+        </template>
         <SettingsConnectionsSection v-if="activeTab === 'connections'" />
 
         <SettingsAppearanceSection
@@ -123,6 +126,7 @@ import SavedConversationsSection from '@/components/settings/SavedConversationsS
 import SettingsToolsSection from '@/components/settings/SettingsToolsSection.vue'
 import SettingsShipmentsSection from '@/components/settings/SettingsShipmentsSection.vue'
 import SettingsConnectionsSection from '@/components/settings/SettingsConnectionsSection.vue'
+import CollectorProfileSection from '@/components/settings/CollectorProfileSection.vue'
 import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive, KeyRound, Truck, Link } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = {
