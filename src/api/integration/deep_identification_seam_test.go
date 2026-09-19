@@ -229,7 +229,8 @@ func TestDeepIdentificationSeam_RealPythonServiceRoundTrip(t *testing.T) {
 	}
 	for _, key := range []string{
 		"narrative", "proposed_fields", "disagreements",
-		"unresolved_questions", "coverage", "attributions", "partial_success",
+		"unresolved_questions", "coverage", "attributions", "face_analyses",
+		"partial_success",
 	} {
 		if _, ok := report[key]; !ok {
 			t.Errorf("terminal synthesis report missing expected field %q; got keys=%v", key, seamMapKeys(report))

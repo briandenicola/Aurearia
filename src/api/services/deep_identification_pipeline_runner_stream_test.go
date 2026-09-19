@@ -290,6 +290,12 @@ func TestDeepIdentificationPipelineRunnerPassesQuickLookupEvidence(t *testing.T)
 
 	runner, _, db := newDeepRunnerStreamTestDeps(t, server.URL)
 	runner.WithQuickEvidence(NewCoinLookupService(runner.proxy, runner.settingsSvc, NewLogger(20)))
+	if err := runner.settingsSvc.SetSetting(SettingObversePrompt, "custom obverse examination"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.settingsSvc.SetSetting(SettingReversePrompt, "custom reverse examination"); err != nil {
+		t.Fatal(err)
+	}
 	job, userID := seedDeepRunnerJob(t, db, models.DeepJobSourceIntake, nil)
 	imagePath := filepath.Join(t.TempDir(), "obverse.png")
 	if err := os.WriteFile(imagePath, []byte("valid-enough-for-proxy-test"), 0o600); err != nil {
@@ -322,6 +328,10 @@ func TestDeepIdentificationPipelineRunnerPassesQuickLookupEvidence(t *testing.T)
 	}
 	if len([]rune(request.QuickEvidence.LabelText)) != 2000 {
 		t.Fatalf("label text length = %d, want 2000", len([]rune(request.QuickEvidence.LabelText)))
+	}
+	if request.ObversePrompt != "custom obverse examination" ||
+		request.ReversePrompt != "custom reverse examination" {
+		t.Fatalf("configured face prompts were not passed to Deep Analysis: %#v", request)
 	}
 }
 

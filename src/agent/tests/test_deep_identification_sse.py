@@ -336,21 +336,22 @@ async def test_timeout_with_partial_evidence_falls_back_to_partial_synthesis(mon
 
     assert frames[-1]["type"] == "synthesis"
     assert frames[-1]["report"]["partial_success"] is True
+    assert len(frames[-1]["report"]["face_analyses"]) == 2
 
 
 @pytest.mark.asyncio
 async def test_timeout_with_zero_evidence_emits_typed_error(monkeypatch):
-    # The router (Phase 6, T044) is now a pure, LLM-free function — it can no
-    # longer be made to hang. To exercise the zero-evidence timeout path,
-    # hang the sole automatable provider's fan-out node instead, so the
-    # total timeout fires before any evidence has been collected.
-    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
+    class HangingFaceModel:
+        async def ainvoke(self, messages, **kwargs):
+            await asyncio.sleep(30)
 
-    async def hanging_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: HangingFaceModel())
+
+    async def unreachable_numista_run(entry, tools, quick_evidence, notes, hypothesis=None):
         await asyncio.sleep(30)
         return ProviderEvidence(provider="numista", status="no_match", automatable=True)
 
-    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", hanging_numista_run)
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", unreachable_numista_run)
 
     request = _request(total_timeout_s=1)
     request.provider_catalog = [

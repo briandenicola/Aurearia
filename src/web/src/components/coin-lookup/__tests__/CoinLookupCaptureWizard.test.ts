@@ -75,6 +75,21 @@ describe('CoinLookupCaptureWizard', () => {
     expect(wrapper.find('[aria-label="Remove reverse image"]').exists()).toBe(true)
   })
 
+  it('constrains the desktop camera and preview on every step', async () => {
+    const wrapper = mountWizard()
+
+    expect(wrapper.find('.camera-stub').classes()).toContain('max-w-2xl')
+
+    await wrapper.setProps({ obverse: image('obverse.jpg') })
+    expect(wrapper.find('img[alt="Obverse coin image"]').element.parentElement?.classList).toContain('max-w-2xl')
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    expect(wrapper.find('.camera-stub').classes()).toContain('max-w-2xl')
+
+    await wrapper.setProps({ reverse: image('reverse.jpg') })
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    expect(wrapper.find('.camera-stub').classes()).toContain('max-w-2xl')
+  })
+
   it('uses the shared wizard for Deep Analysis and guides users to a missing reverse', async () => {
     const wrapper = mountWizard({
       obverse: image('obverse.jpg'),

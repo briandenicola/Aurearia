@@ -47,6 +47,7 @@ var (
 // the only write-surface allowlist for the "target: coin" apply path
 // (Principle IV / F012 allowlist precedent, no silent new write surface).
 var deepProposalCoinFieldAllowlist = map[string]string{
+	"category":           "Category",
 	"denomination":       "Denomination",
 	"ruler":              "Ruler",
 	"era":                "Era",
@@ -59,6 +60,8 @@ var deepProposalCoinFieldAllowlist = map[string]string{
 	"reverseInscription": "ReverseInscription",
 	"obverseDescription": "ObverseDescription",
 	"reverseDescription": "ReverseDescription",
+	"grade":              "Grade",
+	"rarityRating":       "RarityRating",
 	// coin_type carries the OCRE RIC-style catalog type label (e.g.
 	// "RIC II Hadrian 39b"). It reuses the existing ReferenceText column —
 	// no schema migration — because a coin-type is a catalogue reference.
@@ -1114,6 +1117,8 @@ func (s *DeepIdentificationProposalService) deepJobFaceImages(job *models.DeepId
 // type. Only fields in deepProposalCoinFieldAllowlist ever reach here.
 func setCoinFieldFromProposalValue(coin *models.Coin, field string, value any) error {
 	switch field {
+	case "Category":
+		coin.Category = models.Category(deepProposalValueToString(value))
 	case "Denomination":
 		coin.Denomination = deepProposalValueToString(value)
 	case "Ruler":
@@ -1146,6 +1151,10 @@ func setCoinFieldFromProposalValue(coin *models.Coin, field string, value any) e
 		coin.ObverseDescription = deepProposalValueToString(value)
 	case "ReverseDescription":
 		coin.ReverseDescription = deepProposalValueToString(value)
+	case "Grade":
+		coin.Grade = deepProposalValueToString(value)
+	case "RarityRating":
+		coin.RarityRating = deepProposalValueToString(value)
 	case "Notes":
 		coin.Notes = deepProposalValueToString(value)
 	case "ReferenceText":

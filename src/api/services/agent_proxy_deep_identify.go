@@ -65,6 +65,8 @@ type DeepIdentifyProxyRequest struct {
 	LLM              LLMConfig                       `json:"llm"`
 	Images           []DeepIdentifyImageProxy        `json:"images"`
 	Notes            string                          `json:"notes,omitempty"`
+	ObversePrompt    string                          `json:"obverse_prompt"`
+	ReversePrompt    string                          `json:"reverse_prompt"`
 	QuickEvidence    *DeepQuickEvidenceProxy         `json:"quick_evidence,omitempty"`
 	ProviderOverride []string                        `json:"provider_override,omitempty"`
 	ProviderCatalog  []DeepProviderCatalogEntryProxy `json:"provider_catalog"`

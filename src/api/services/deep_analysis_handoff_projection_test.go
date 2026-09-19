@@ -32,8 +32,8 @@ func oversizedDeepAnalysisHandoffResult() DeepAnalysisHandoffResult {
 			ID: 314, Source: "saved_coin", Status: "completed", Reused: true,
 			CreatedAt: "2026-09-18T18:00:00Z", CompletedAt: stringPointer("2026-09-18T18:02:00Z"),
 		},
-		InputDigest:           strings.Repeat("a", 64),
-		ReviewURL:            "/deep-analysis/314",
+		InputDigest:            strings.Repeat("a", 64),
+		ReviewURL:              "/deep-analysis/314",
 		FreshAnalysisAvailable: true,
 		Result: &DeepAnalysisHandoffResultBody{
 			State:          "complete",
@@ -158,6 +158,10 @@ func TestFeature362BuildsOnlyValidatedPersistedDeepResultVariants(t *testing.T) 
 				{"provider":"rpc","status":"unavailable"}
 			],
 			"attributions":[{"provider":"numista","text":"Numista attribution"}],
+			"face_analyses":[
+				{"role":"obverse","status":"completed","narrative":"Radiate portrait.","limitation":""},
+				{"role":"reverse","status":"completed","narrative":"Pax reverse.","limitation":""}
+			],
 			"partial_success":false
 		}`,
 		ProposalJSON: `{
@@ -265,8 +269,8 @@ func TestFeature362PersistedProjectionRejectsMalformedDeepState(t *testing.T) {
 	now := time.Now().UTC()
 	target := &DeepAnalysisHandoffTarget{Type: "coin", ID: 41}
 	for name, report := range map[string]string{
-		"invalid JSON": `{`,
-		"unknown provider": `{"narrative":"x","proposed_fields":{},"coverage":[{"provider":"forged","status":"contributed"}]}`,
+		"invalid JSON":            `{`,
+		"unknown provider":        `{"narrative":"x","proposed_fields":{},"coverage":[{"provider":"forged","status":"contributed"}]}`,
 		"out of range confidence": `{"narrative":"x","proposed_fields":{"ruler":{"value":"x","confidence":1.1,"evidence_refs":[{"provider":"image"}]}}}`,
 	} {
 		t.Run(name, func(t *testing.T) {

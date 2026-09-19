@@ -2,22 +2,24 @@
 
 **Amends**: `specs/344-deep-agentic-coin-identification/contracts/agent-internal-contract.md`
 **Direction**: internal to the Python pipeline, plus additive fields on the
-existing Go ← Python `synthesis` frame. **No public (browser-facing) contract
-change** — `contracts/sse-events.md` is untouched.
+existing Go ← Python `synthesis` frame. ADR 0018 additively exposes retained
+`face_analyses` in the owner-facing report; older reports omit the field.
 
 This document is the delta. Everything not stated here is unchanged from the
 Feature 344 internal contract.
 
 ---
 
-## 1. `CoinHypothesis` (new — the vision node's typed output)
+## 1. `CoinHypothesis` (the Deep image-evidence hypothesis)
 
 Replaces the free-prose `state["image_analysis"]` string, which was written by
-`graph.py` and read by nothing. Produced by the **same single vision LLM call**
-that already runs on every job (structured output binding; no second call).
+`graph.py` and read by nothing. As amended by ADR 0018, it is produced by a
+bounded text-only structured step from two retained, role-specific Collection
+AI Analysis narratives, Quick Lookup evidence, and collector notes.
 
 ```jsonc
 {
+  "category":         { "value": "Roman",               "confidence": 0.95 },
   "ruler":            { "value": "Maximinus I (Thrax)", "confidence": 0.86 },
   "denomination":     { "value": "Denarius",            "confidence": 0.9  },
   "material":         { "value": "Silver",              "confidence": 0.85 },
@@ -30,10 +32,39 @@ that already runs on every job (structured output binding; no second call).
   "reverseDescription": { "value": "Pax standing left, holding branch and sceptre", "confidence": 0.6 },
   "diameterMm":       { "value": "20",   "confidence": 0.3 },
   "weightGrams":      { "value": "3.2",  "confidence": 0.2 },
+  "grade":            { "value": "VF",   "confidence": 0.55 },
+  "rarityRating":     { "value": "Scarce", "confidence": 0.4 },
   "observations": "Silvered surfaces, high relief portrait, legend fully legible on obverse.",
   "legible": true
 }
 ```
+
+## 1a. `face_analyses` (additive retained review evidence)
+
+Deep Analysis runs the shared collection image-examination stage once per
+required role. The report retains at most one entry for each role:
+
+```jsonc
+[
+  {
+    "role": "obverse",
+    "status": "completed",
+    "narrative": "Detailed role-specific analysis...",
+    "limitation": ""
+  },
+  {
+    "role": "reverse",
+    "status": "completed",
+    "narrative": "Detailed role-specific analysis...",
+    "limitation": ""
+  }
+]
+```
+
+`status` is `completed` or `unavailable`. An unavailable face has an empty
+`narrative` and a bounded user-safe `limitation`. These entries are internal
+image evidence, never provider coverage or attribution. Old reports may omit
+the entire field.
 
 Rules:
 
@@ -44,6 +75,12 @@ Rules:
   the Go proposal allowlist (`deepProposalCoinFieldAllowlist`), so an image-only
   field lands in the draft through the existing allowlist with **no new write
   surface**. Any key outside that vocabulary is dropped during normalization.
+- The vocabulary covers every safe identification property supported by the
+  existing proposal writer: category, ruler, denomination, era, date range,
+  mint, material, weight, diameter, grade, obverse/reverse inscriptions,
+  obverse/reverse descriptions, rarity, notes, and catalogue coin type.
+  Acquisition, value, ownership, storage, sale, and workflow fields remain
+  excluded.
 - The hypothesis carries **no citation** and is never converted into a
   `ProviderClaim` (spec FR-004).
 - `observations` is a short bounded prose summary for the narrative writer only.

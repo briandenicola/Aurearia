@@ -8,7 +8,10 @@
         <p class="mt-2 text-base leading-6 text-text-secondary">{{ currentStep.description }}</p>
       </div>
 
-      <div v-if="currentImage" class="relative aspect-[4/3] overflow-hidden rounded-sm border border-border-accent bg-card">
+      <div
+        v-if="currentImage"
+        class="relative mx-auto aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-sm border border-border-accent bg-card"
+      >
         <img :src="currentImage.preview" :alt="`${currentStep.label} coin image`" class="h-full w-full object-contain" />
         <button
           type="button"
@@ -39,6 +42,7 @@
       <InlineCameraCapturePanel
         v-if="!currentImage"
         ref="cameraPanel"
+        class="mx-auto w-full max-w-2xl"
         :filename-prefix="`lookup-${currentStep.role}`"
         :instruction="currentStep.instruction"
         @captured="$emit('captured', currentStep.role, $event)"

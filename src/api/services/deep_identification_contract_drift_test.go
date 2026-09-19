@@ -83,7 +83,7 @@ package services
 //     named, reflectable struct (`deepSynthesisProposedField` and its nested
 //     evidence_refs entry), this file compares it mechanically. Where it does
 //     not (`disagreements`, `unresolved_questions`, `coverage`,
-//     `attributions`, `image_hypothesis`, `partial_success`'s own anonymous
+//     `attributions`, `face_analyses`, `image_hypothesis`, `partial_success`'s own anonymous
 //     struct, and the `narrative`/`proposed_fields` wrapper key names
 //     themselves), this file falls back to pinning the literal, known
 //     top-level property set read from the schema fixture - this is the one
@@ -375,6 +375,7 @@ func TestDeepSynthesisKnownTopLevelFieldsMatchPython(t *testing.T) {
 		"attributions",
 		"coverage",
 		"disagreements",
+		"face_analyses",
 		"image_hypothesis",
 		"narrative",
 		"partial_success",

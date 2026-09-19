@@ -30,6 +30,28 @@
 
     <DeepProviderCoverageList :coverage="report.coverage" />
 
+    <div v-if="report.face_analyses?.length" class="grid min-w-0 gap-2">
+      <h3 class="m-0 text-lg font-semibold text-text-primary">Face analysis</h3>
+      <details
+        v-for="face in report.face_analyses"
+        :key="face.role"
+        class="min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
+      >
+        <summary class="cursor-pointer select-none text-sm font-semibold uppercase tracking-[0.08em] text-text-muted">
+          {{ face.role }} analysis
+        </summary>
+        <p
+          v-if="face.status === 'completed'"
+          class="mb-0 mt-3 whitespace-pre-line break-words text-sm text-text-secondary [overflow-wrap:anywhere]"
+        >
+          {{ face.narrative }}
+        </p>
+        <p v-else class="mb-0 mt-3 text-sm text-text-secondary">
+          {{ face.limitation || 'This face could not be analyzed.' }}
+        </p>
+      </details>
+    </div>
+
     <div v-if="report.disagreements?.length" class="grid gap-2">
       <h3 class="m-0 text-lg font-semibold text-text-primary">Disagreements</h3>
       <ul class="m-0 grid gap-3 p-0" style="list-style: none;">
@@ -60,7 +82,7 @@
       class="min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
     >
       <summary class="cursor-pointer select-none text-sm font-semibold uppercase tracking-[0.08em] text-text-muted">
-        What the images alone said
+        Structured image hypothesis
       </summary>
 
       <div class="mt-3 grid min-w-0 gap-3">

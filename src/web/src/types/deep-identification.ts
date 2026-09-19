@@ -111,9 +111,10 @@ export interface HypothesisFieldValue {
 }
 
 /**
- * The vision node's typed output — "what the images alone said" before any
- * provider/catalogue evidence was combined (FR-008, RD-6). Field names
- * mirror the coin-field vocabulary shared with `DeepProposal.fields`.
+ * The typed image-evidence hypothesis derived from the role-specific face
+ * analyses, Quick Lookup evidence, and collector context before provider
+ * catalogue evidence is combined. Field names mirror the coin-field
+ * vocabulary shared with `DeepProposal.fields`.
  */
 
 export interface CoinHypothesis {
@@ -141,6 +142,13 @@ export interface CoinHypothesis {
   legible: boolean
 }
 
+export interface DeepFaceAnalysis {
+  role: 'obverse' | 'reverse'
+  status: 'completed' | 'unavailable'
+  narrative: string
+  limitation: string
+}
+
 export interface DeepReport {
   schemaVersion: number
   narrative: string
@@ -158,6 +166,11 @@ export interface DeepReport {
    * (it completed and genuinely found nothing).
    */
   quickLookupOutcome?: 'ok' | 'no_data' | 'unavailable'
+  /**
+   * Additive role-specific Collection AI Analysis evidence. Absent on reports
+   * persisted before ADR 0018.
+   */
+  face_analyses?: DeepFaceAnalysis[]
   /**
    * Additive, optional (contract `vision-hypothesis.md` §4, FR-008). Present
    * when the vision call produced anything; absent on reports persisted

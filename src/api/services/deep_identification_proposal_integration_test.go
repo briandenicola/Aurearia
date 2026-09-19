@@ -21,11 +21,12 @@ func TestFeature362ProposalScalarMatricesAreClosed(t *testing.T) {
 	t.Parallel()
 
 	wantCoin := map[string]string{
-		"denomination": "Denomination", "ruler": "Ruler", "era": "Era",
+		"category": "Category", "denomination": "Denomination", "ruler": "Ruler", "era": "Era",
 		"dateRange": "DateRange", "mint": "Mint", "material": "Material",
 		"weightGrams": "WeightGrams", "diameterMm": "DiameterMm",
 		"obverseInscription": "ObverseInscription", "reverseInscription": "ReverseInscription",
 		"obverseDescription": "ObverseDescription", "reverseDescription": "ReverseDescription",
+		"grade": "Grade", "rarityRating": "RarityRating",
 		"coin_type": "ReferenceText",
 	}
 	wantDraft := map[string]string{
@@ -43,11 +44,12 @@ func TestFeature362ProposalScalarMatricesAreClosed(t *testing.T) {
 
 func TestFeature362AcceptedCoinScalarsReplaceOnlyThemselves(t *testing.T) {
 	values := map[string]any{
-		"denomination": "Denarius", "ruler": "Hadrian", "era": string(models.EraAncient),
+		"category": string(models.CategoryGreek), "denomination": "Denarius", "ruler": "Hadrian", "era": string(models.EraAncient),
 		"dateRange": "117-138", "mint": "Rome", "material": string(models.MaterialGold),
 		"weightGrams": 3.25, "diameterMm": 19.5,
 		"obverseInscription": "HADRIANVS", "reverseInscription": "PAX",
 		"obverseDescription": "Laureate bust", "reverseDescription": "Pax standing",
+		"grade": "VF", "rarityRating": "Scarce",
 		"coin_type": "RIC II 42",
 	}
 	for _, wishlist := range []bool{false, true} {
@@ -62,6 +64,7 @@ func TestFeature362AcceptedCoinScalarsReplaceOnlyThemselves(t *testing.T) {
 				weight, diameter := 1.1, 10.1
 				coin := models.Coin{
 					UserID: userID, Name: "Manual", IsWishlist: wishlist,
+					Category: models.CategoryRoman, Grade: "Fine", RarityRating: "Common",
 					Denomination: "As", Ruler: "Augustus", Era: models.EraModern,
 					DateRange: "old date", Mint: "old mint", Material: models.MaterialSilver,
 					WeightGrams: &weight, DiameterMm: &diameter,

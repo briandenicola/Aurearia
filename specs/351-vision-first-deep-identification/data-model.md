@@ -7,11 +7,12 @@ already exist, or is confined to in-memory Python pipeline state. The four
 Feature 344 tables (`deep_identification_jobs`, `_events`, `_provider_runs`,
 `_artifacts`) are untouched in shape.
 
-## 1. New logical entity — Coin Hypothesis (image-derived)
+## 1. Logical entity — Coin Hypothesis (image-derived)
 
-The typed output of the single vision call. Lives in Python graph state for the
-duration of one request and is persisted **only** as an additive key inside the
-existing report JSON.
+The typed output derived from role-specific obverse/reverse analysis
+narratives, Quick Lookup evidence, and collector notes. It lives in Python
+graph state for one request and is persisted **only** as an additive key inside
+the existing report JSON.
 
 | Attribute | Type | Notes |
 |---|---|---|
@@ -39,19 +40,21 @@ Generalizes "provider" for evaluation and proposal-evidence purposes.
 model widening. `ProviderCoverageEntry.provider` and
 `ProviderAttribution.provider` remain the `ProviderName` literal union.
 
-## 3. Coin-field vocabulary (unchanged, reused)
+## 3. Coin-field vocabulary (reused and widened)
 
 Hypothesis keys are normalized into the existing
 `deepProposalCoinFieldAllowlist` vocabulary
 (`src/api/services/deep_identification_proposal.go`) so image-derived fields
 reach the draft through the **existing** write allowlist:
 
-`denomination`, `ruler`, `era`, `dateRange`, `mint`, `material`, `weightGrams`,
+`category`, `denomination`, `ruler`, `era`, `dateRange`, `mint`, `material`, `weightGrams`,
 `diameterMm`, `obverseInscription`, `reverseInscription`, `obverseDescription`,
-`reverseDescription`, `notes`, `coin_type`.
+`reverseDescription`, `grade`, `rarityRating`, `notes`, `coin_type`.
 
-Keys outside this list are dropped during normalization. **No new writable field
-is introduced by this feature.**
+Keys outside this list are dropped during normalization. The added category,
+grade, and rarity mappings reuse existing `models.Coin` properties and the
+existing confirm-gated proposal/apply mechanism; no new persistence column,
+endpoint, or automatic write path is introduced.
 
 The intake/draft path continues to use the narrower
 `deepProposalDraftFieldAllowlist` (`workingTitle`, `era`, `dateRange`, `notes`)

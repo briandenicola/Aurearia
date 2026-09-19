@@ -13,9 +13,13 @@ from pydantic import ValidationError
 
 from app.models.hypothesis import CoinHypothesis, HypothesisField
 from app.models.requests import DeepProviderCatalogEntry, LLMConfig, QuickEvidence, QuickEvidenceNGC
-from app.models.responses import DeepSynthesis, ProviderCoverageEntry
+from app.models.responses import DeepFaceAnalysis, DeepSynthesis, ProviderCoverageEntry
 from app.teams.deep_identification import hypothesis as hypothesis_module
-from app.teams.deep_identification.hypothesis import build_hypothesis_from_quick_evidence, build_hypothesis_from_vision
+from app.teams.deep_identification.hypothesis import (
+    build_hypothesis_from_face_analyses_traced,
+    build_hypothesis_from_quick_evidence,
+    build_hypothesis_from_vision,
+)
 
 
 def test_absent_quick_evidence_yields_empty_hypothesis():
@@ -30,25 +34,31 @@ def test_coin_fields_are_mapped_onto_the_shared_vocabulary():
     quick_evidence = QuickEvidence(
         confidence="high",
         coin_fields={
+            "category": "Roman",
             "ruler": "Maximinus I",
             "denomination": "Denarius",
             "material": "Silver",
             "era": "ancient",
             "mint": "Rome",
+            "grade": "VF",
+            "rarityRating": "Scarce",
         },
     )
 
     hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
 
     assert hypothesis.legible is True
+    assert hypothesis.category.value == "Roman"
     assert hypothesis.ruler == HypothesisField(value="Maximinus I", confidence=0.75)
     assert hypothesis.denomination.value == "Denarius"
     assert hypothesis.material.value == "Silver"
     assert hypothesis.era.value == "ancient"
     assert hypothesis.mint.value == "Rome"
+    assert hypothesis.grade.value == "VF"
+    assert hypothesis.rarityRating.value == "Scarce"
 
 
-def test_era_and_material_values_that_do_not_canonicalize_are_dropped():
+def test_category_era_and_material_values_that_do_not_canonicalize_are_dropped():
     """Go casts a proposed `era`/`material` value straight into
     `models.Era`/`models.Material` with no validation of its own
     (deep_identification_proposal.go::setCoinFieldFromProposalValue), so a
@@ -57,11 +67,12 @@ def test_era_and_material_values_that_do_not_canonicalize_are_dropped():
     """
     quick_evidence = QuickEvidence(
         confidence="medium",
-        coin_fields={"era": "Roman Imperial", "material": "Billon"},
+        coin_fields={"category": "Roman Provincial", "era": "Roman Imperial", "material": "Billon"},
     )
 
     hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
 
+    assert hypothesis.category is None
     assert hypothesis.era is None
     assert hypothesis.material is None
     # Nothing else supported either, and no NGC data -> genuinely empty.
@@ -84,13 +95,11 @@ def test_ngc_cert_and_grade_become_observations_even_without_coin_fields():
     assert "1234567-001" in hypothesis.observations
     assert "MS 65" in hypothesis.observations
     assert hypothesis.legible is True
-    # Cert/grade are never proposed as coin fields themselves (no allowlist
-    # entry for them) — they only ever reach the narrative via observations.
-    assert hypothesis.fields() == {}
+    assert hypothesis.grade == HypothesisField(value="MS 65", confidence=0.5)
 
 
 def test_blank_and_unknown_coin_fields_are_ignored():
-    quick_evidence = QuickEvidence(coin_fields={"ruler": "   ", "grade": "MS65", "name": "Denarius"})
+    quick_evidence = QuickEvidence(coin_fields={"ruler": "   ", "name": "Denarius"})
 
     hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
 
@@ -156,6 +165,86 @@ class _StructuredRaises:
     async def ainvoke(self, messages, **kwargs):
         self.calls += 1
         raise RuntimeError("provider unavailable")
+
+
+def test_face_analyses_and_probus_notes_feed_the_structured_hypothesis(monkeypatch):
+    class CapturingStructuredModel(_StructuredOK):
+        def __init__(self):
+            super().__init__(
+                CoinHypothesis(
+                    category=HypothesisField(value="Roman", confidence=0.95),
+                    ruler=HypothesisField(value="Probus", confidence=0.9),
+                    denomination=HypothesisField(value="Antoninianus", confidence=0.85),
+                    mint=HypothesisField(value="Tripolis", confidence=0.8),
+                    grade=HypothesisField(value="VF", confidence=0.7),
+                    rarityRating=HypothesisField(value="Scarce", confidence=0.65),
+                    reverseInscription=HypothesisField(value="CLEMENTIA TEMP", confidence=0.8),
+                    coin_type=HypothesisField(value="RIC V.2 927", confidence=0.75),
+                    legible=True,
+                )
+            )
+            self.messages = None
+
+        async def ainvoke(self, messages, **kwargs):
+            self.messages = messages
+            return await super().ainvoke(messages, **kwargs)
+
+    fake = CapturingStructuredModel()
+    monkeypatch.setattr(hypothesis_module, "get_structured_model", lambda config, schema: fake)
+    notes = "Probus AD 276-282, BI Antoninianus, Tripolis, CLEMENTIA TEMP, RIC V.2 927."
+    faces = [
+        DeepFaceAnalysis(
+            role="obverse",
+            status="completed",
+            narrative="Radiate cuirassed bust right; IMP C M AVR PROBVS AVG.",
+        ),
+        DeepFaceAnalysis(
+            role="reverse",
+            status="completed",
+            narrative="Clementia standing with emperor; CLEMENTIA TEMP; Tripolis mintmark.",
+        ),
+    ]
+
+    hypothesis, source = asyncio.run(
+        build_hypothesis_from_face_analyses_traced(
+            _LLM_CONFIG,
+            faces,
+            quick_evidence=None,
+            notes=notes,
+        )
+    )
+
+    prompt = fake.messages[1].content
+    assert "OBVERSE ANALYSIS" in prompt
+    assert "IMP C M AVR PROBVS AVG" in prompt
+    assert "REVERSE ANALYSIS" in prompt
+    assert "CLEMENTIA TEMP" in prompt
+    assert "Tripolis" in prompt
+    assert "RIC V.2 927" in prompt
+    assert source == "structured"
+    assert hypothesis.category.value == "Roman"
+    assert hypothesis.ruler.value == "Probus"
+    assert hypothesis.mint.value == "Tripolis"
+    assert hypothesis.grade.value == "VF"
+    assert hypothesis.rarityRating.value == "Scarce"
+
+
+def test_missing_face_analyses_degrades_without_structured_call(monkeypatch):
+    fake = _StructuredOK(CoinHypothesis(ruler=HypothesisField(value="unused", confidence=0.9)))
+    monkeypatch.setattr(hypothesis_module, "get_structured_model", lambda config, schema: fake)
+    quick = QuickEvidence(confidence="high", coin_fields={"ruler": "Probus"})
+
+    hypothesis, source = asyncio.run(
+        build_hypothesis_from_face_analyses_traced(
+            _LLM_CONFIG,
+            [],
+            quick_evidence=quick,
+        )
+    )
+
+    assert fake.calls == 0
+    assert source == "no_face_analysis"
+    assert hypothesis.ruler.value == "Probus"
 
 
 def test_vision_call_schema_conformant_result_is_used_directly(monkeypatch):

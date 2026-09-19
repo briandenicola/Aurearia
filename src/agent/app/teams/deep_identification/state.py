@@ -20,7 +20,7 @@ from typing import Annotated, TypedDict
 
 from app.models.hypothesis import CoinHypothesis
 from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepProviderCatalogEntry, QuickEvidence
-from app.models.responses import DisagreementEntry, ProviderEvidence
+from app.models.responses import DeepFaceAnalysis, DisagreementEntry, ProviderEvidence
 
 
 class RouterSkip(TypedDict):
@@ -36,40 +36,26 @@ class DeepIdentificationState(TypedDict, total=False):
     job_id: int
     images: list[DeepIdentifyImage]
     notes: str
+    obverse_prompt: str
+    reverse_prompt: str
     quick_evidence: QuickEvidence | None
     catalog: list[DeepProviderCatalogEntry]
     provider_override: list[str]
     bounds: DeepIdentifyBounds
 
-    # prepare_evidence (vision) output — the typed hypothesis (Phase 3/4,
-    # contracts/vision-hypothesis.md §1). Produced primarily by a real
-    # single-vision-LLM-call structured extraction
-    # (`app/teams/deep_identification/hypothesis.py::build_hypothesis_from_vision`);
-    # degrades through prose extraction and a deterministic quick-evidence
-    # adapter on any vision failure, never to an unhandled exception (spec
-    # FR-006). It carries no citation and is never converted into a
-    # `ProviderClaim`; `"image"` may appear only as an `EvidenceRef.provider`
-    # value, never in `ProviderName`, `provider_catalog`, `coverage`, or
-    # `attributions` (spec FR-004).
-    #
-    # The contract specifies FOUR consumers: the router (provider selection
-    # signals), provider query construction (deterministic query terms), the
-    # evaluator (a first-class claim source alongside provider claims,
-    # tagged `source="image"`), and the synthesizer (narrative input plus
-    # image-derived proposed fields). As of this batch (Phase 3/4 — the
-    # keystone), only the synthesizer reads this key; router/query/evaluator
-    # wiring is Phase 5-7 scope and NOT yet done — until it lands, the B2
-    # "write-only state field" defect this feature exists to remove is only
-    # partially fixed. This corrects an earlier, long-false version of this
-    # docstring that claimed the vision output was router/synthesis context
-    # only and "never itself a typed provider claim" while the field itself
-    # (`image_analysis: str`) had zero readers for the entire life of the
-    # feature.
+    # Role-specific Collection AI Analysis evidence retained for review. It
+    # is not provider evidence and never mutates saved side-analysis fields.
+    face_analyses: list[DeepFaceAnalysis]
+
+    # Typed hypothesis derived from both face narratives, Quick Lookup
+    # evidence, and collector notes. It carries no citation and is consumed by
+    # routing, query construction, deterministic evaluation, and synthesis.
     hypothesis: CoinHypothesis
 
     # Which rung of the hypothesis degrade ladder actually produced
     # `hypothesis` above: "structured" | "prose" | "deterministic_fallback"
-    # | "no_images" (see `hypothesis.py::build_hypothesis_from_vision_traced`).
+    # | "no_face_analysis" (see
+    # `hypothesis.py::build_hypothesis_from_face_analyses_traced`).
     # Consumed only by the streaming driver's FR-040 `vision_completed`
     # progress message — never a claim/citation source, never persisted to
     # the coin record.

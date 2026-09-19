@@ -146,6 +146,8 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		LLM:              llmCfg,
 		Images:           images,
 		Notes:            job.Notes,
+		ObversePrompt:    r.settingsSvc.GetSetting(SettingObversePrompt),
+		ReversePrompt:    r.settingsSvc.GetSetting(SettingReversePrompt),
 		QuickEvidence:    quickEvidence,
 		ProviderOverride: providerOverride,
 		ProviderCatalog:  deepPipelineProviderCatalog(settings),

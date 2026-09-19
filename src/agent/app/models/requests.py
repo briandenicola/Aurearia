@@ -773,6 +773,8 @@ class DeepIdentifyRequest(StrictRequestModel):
     llm: LLMConfig
     images: list[DeepIdentifyImage] = Field(default_factory=list, max_length=MAX_DEEP_IMAGES)
     notes: BoundedDeepNotes = ""
+    obverse_prompt: BoundedPrompt = ""
+    reverse_prompt: BoundedPrompt = ""
     quick_evidence: QuickEvidence | None = None
     provider_override: list[Literal["numista", "nomisma", "ngc", "ocre", "rpc"]] = Field(
         default_factory=list, max_length=MAX_DEEP_PROVIDER_OVERRIDE_ENTRIES

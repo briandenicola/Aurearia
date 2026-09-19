@@ -13,6 +13,7 @@ import logging
 from app.llm.content import extract_text_content
 from app.models.hypothesis import CoinHypothesis
 from app.models.responses import (
+    DeepFaceAnalysis,
     DeepSynthesis,
     DisagreementEntry,
     EvidenceRef,
@@ -148,7 +149,9 @@ async def synthesize(
     partial_success: bool,
     hypothesis: CoinHypothesis | None = None,
     notes: str = "",
+    face_analyses: list[DeepFaceAnalysis] | None = None,
 ) -> DeepSynthesis:
+    face_analyses = face_analyses or []
     disagreement_fields = {d.field for d in disagreements}
     proposed_fields = _build_proposed_fields(evidence, disagreement_fields, hypothesis)
     coverage = _build_coverage(evidence)
@@ -161,11 +164,19 @@ async def synthesize(
     # with zero contributing providers (the exact Maximinus shape — NGC
     # not_automated, everything else no_match/failed) must still get a real
     # narrative, not this fallback.
-    if not contributing and not hypothesis_supported:
+    face_supported = any(item.status == "completed" for item in face_analyses)
+    if not contributing and not hypothesis_supported and not face_supported:
         narrative = FALLBACK_NARRATIVE_NO_EVIDENCE
     else:
         narrative = (
-            await _write_narrative(model, evidence, disagreements, hypothesis, notes)
+            await _write_narrative(
+                model,
+                evidence,
+                disagreements,
+                hypothesis,
+                notes,
+                face_analyses,
+            )
             or FALLBACK_NARRATIVE_ON_ERROR
         )
 
@@ -176,6 +187,7 @@ async def synthesize(
         unresolved_questions=unresolved_questions[:20],
         coverage=coverage,
         attributions=attributions,
+        face_analyses=face_analyses,
         # T030/contracts/vision-hypothesis.md §4: additive, present only
         # when the vision call actually produced something, so a
         # typed-empty hypothesis (e.g. no images, or every rung of the
@@ -191,12 +203,22 @@ async def _write_narrative(
     disagreements: list[DisagreementEntry],
     hypothesis: CoinHypothesis | None,
     notes: str = "",
+    face_analyses: list[DeepFaceAnalysis] | None = None,
 ) -> str | None:
     from langchain_core.messages import HumanMessage, SystemMessage
 
     from app.llm.retry import ainvoke_with_retry
 
     summary_lines: list[str] = []
+    for face in face_analyses or []:
+        if face.status == "completed":
+            summary_lines.append(
+                f"{face.role.capitalize()} visual analysis: {face.narrative[:8000]}"
+            )
+        elif face.limitation:
+            summary_lines.append(
+                f"{face.role.capitalize()} visual analysis unavailable: {face.limitation}"
+            )
     if hypothesis is not None and not hypothesis.is_empty():
         hyp_fields = hypothesis.fields()
         if hyp_fields:

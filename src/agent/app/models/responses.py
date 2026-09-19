@@ -748,6 +748,25 @@ class ProviderAttribution(StrictResponseModel):
     identifier: str | None = None
 
 
+class DeepFaceAnalysis(StrictResponseModel):
+    """Retained role-specific visual evidence for owner review."""
+
+    role: Literal["obverse", "reverse"]
+    status: Literal["completed", "unavailable"]
+    narrative: Annotated[str, StringConstraints(max_length=8000)] = ""
+    limitation: Annotated[str, StringConstraints(max_length=500)] = ""
+
+    @model_validator(mode="after")
+    def validate_status_shape(self) -> "DeepFaceAnalysis":
+        if self.status == "completed" and not self.narrative.strip():
+            raise ValueError("completed face analysis requires a narrative")
+        if self.status == "unavailable" and self.narrative:
+            raise ValueError("unavailable face analysis must not include a narrative")
+        if self.status == "unavailable" and not self.limitation.strip():
+            raise ValueError("unavailable face analysis requires a limitation")
+        return self
+
+
 class DeepSynthesis(StrictResponseModel):
     """Typed final synthesis output (§5) — the terminal-success SSE frame
     payload. `proposed_fields` keys are re-validated against the coin-field
@@ -762,12 +781,19 @@ class DeepSynthesis(StrictResponseModel):
     )
     coverage: list[ProviderCoverageEntry] = Field(default_factory=list, max_length=10)
     attributions: list[ProviderAttribution] = Field(default_factory=list, max_length=10)
+    face_analyses: list[DeepFaceAnalysis] = Field(default_factory=list, max_length=2)
     # Additive, optional (contracts/vision-hypothesis.md §4 / spec FR-008):
-    # present when the vision call produced anything, so the raw hypothesis
+    # present when the image-evidence pipeline produced anything, so the raw hypothesis
     # is recoverable from the persisted report even where `proposed_fields`
     # only carries the fields that survived corroboration/disagreement
-    # filtering. Absent in reports persisted before this feature; Go's
-    # report reader unmarshals only `narrative`/`proposed_fields`, so this
-    # key is ignored by existing code (additive-safe).
+    # filtering. Absent in reports persisted before this feature.
     image_hypothesis: CoinHypothesis | None = None
     partial_success: bool = False
+
+    @field_validator("face_analyses")
+    @classmethod
+    def validate_unique_face_roles(cls, faces: list[DeepFaceAnalysis]) -> list[DeepFaceAnalysis]:
+        roles = [face.role for face in faces]
+        if len(roles) != len(set(roles)):
+            raise ValueError("face_analyses contains duplicate roles")
+        return faces

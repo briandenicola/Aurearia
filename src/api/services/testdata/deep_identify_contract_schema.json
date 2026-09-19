@@ -263,6 +263,12 @@
         "title": "Notes",
         "type": "string"
       },
+      "obverse_prompt": {
+        "default": "",
+        "maxLength": 12000,
+        "title": "Obverse Prompt",
+        "type": "string"
+      },
       "provider_catalog": {
         "items": {
           "$ref": "#/$defs/DeepProviderCatalogEntry"
@@ -297,6 +303,12 @@
         ],
         "default": null
       },
+      "reverse_prompt": {
+        "default": "",
+        "maxLength": 12000,
+        "title": "Reverse Prompt",
+        "type": "string"
+      },
       "schema_version": {
         "default": 1,
         "title": "Schema Version",
@@ -323,6 +335,17 @@
         "additionalProperties": false,
         "description": "Coin-field vocabulary shared with `proposed_fields` / the Go\nproposal allowlist (contract \u00a71), so an image-only field lands in the\ndraft through the *existing* allowlist \u2014 no new write surface. Carries\nno citation and is never converted into a `ProviderClaim` (FR-004).",
         "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "coin_type": {
             "anyOf": [
               {
@@ -368,6 +391,17 @@
             "default": null
           },
           "era": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "grade": {
             "anyOf": [
               {
                 "$ref": "#/$defs/HypothesisField"
@@ -444,6 +478,17 @@
             ],
             "default": null
           },
+          "rarityRating": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HypothesisField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "reverseDescription": {
             "anyOf": [
               {
@@ -490,6 +535,46 @@
           }
         },
         "title": "CoinHypothesis",
+        "type": "object"
+      },
+      "DeepFaceAnalysis": {
+        "additionalProperties": false,
+        "description": "Retained role-specific visual evidence for owner review.",
+        "properties": {
+          "limitation": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Limitation",
+            "type": "string"
+          },
+          "narrative": {
+            "default": "",
+            "maxLength": 8000,
+            "title": "Narrative",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "obverse",
+              "reverse"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "status"
+        ],
+        "title": "DeepFaceAnalysis",
         "type": "object"
       },
       "DisagreementEntry": {
@@ -716,6 +801,14 @@
         },
         "maxItems": 50,
         "title": "Disagreements",
+        "type": "array"
+      },
+      "face_analyses": {
+        "items": {
+          "$ref": "#/$defs/DeepFaceAnalysis"
+        },
+        "maxItems": 2,
+        "title": "Face Analyses",
         "type": "array"
       },
       "image_hypothesis": {

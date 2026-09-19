@@ -38,20 +38,28 @@ type persistedDeepHandoffDisagreement struct {
 	Resolution string                            `json:"resolution"`
 }
 
+type persistedDeepHandoffFaceAnalysis struct {
+	Role       string `json:"role"`
+	Status     string `json:"status"`
+	Narrative  string `json:"narrative"`
+	Limitation string `json:"limitation"`
+}
+
 type persistedDeepHandoffReport struct {
-	Narrative           string                                 `json:"narrative"`
-	ProposedFields      map[string]persistedDeepHandoffField   `json:"proposed_fields"`
-	Disagreements       []persistedDeepHandoffDisagreement     `json:"disagreements"`
-	UnresolvedQuestions []string                               `json:"unresolved_questions"`
-	Coverage            []DeepAnalysisHandoffCoverage          `json:"coverage"`
+	Narrative           string                               `json:"narrative"`
+	ProposedFields      map[string]persistedDeepHandoffField `json:"proposed_fields"`
+	Disagreements       []persistedDeepHandoffDisagreement   `json:"disagreements"`
+	UnresolvedQuestions []string                             `json:"unresolved_questions"`
+	Coverage            []DeepAnalysisHandoffCoverage        `json:"coverage"`
 	Attributions        []struct {
 		Provider   string  `json:"provider"`
 		Text       string  `json:"text"`
 		Identifier *string `json:"identifier"`
 	} `json:"attributions"`
-	ImageHypothesis    json.RawMessage `json:"image_hypothesis"`
-	PartialSuccess     bool            `json:"partial_success"`
-	QuickLookupOutcome string          `json:"quickLookupOutcome"`
+	ImageHypothesis    json.RawMessage                    `json:"image_hypothesis"`
+	FaceAnalyses       []persistedDeepHandoffFaceAnalysis `json:"face_analyses"`
+	PartialSuccess     bool                               `json:"partial_success"`
+	QuickLookupOutcome string                             `json:"quickLookupOutcome"`
 }
 
 func decodeStrictPersistedJSON(raw string, destination any) error {
@@ -118,6 +126,21 @@ func BuildDeepAnalysisHandoffResultFromJob(
 	if err := decodeStrictPersistedJSON(job.ReportJSON, &report); err != nil {
 		return DeepAnalysisHandoffResult{}, err
 	}
+	if len(report.FaceAnalyses) > 2 {
+		return DeepAnalysisHandoffResult{}, ErrInvalidCopilotFrame
+	}
+	seenFaceRoles := map[string]bool{}
+	for _, face := range report.FaceAnalyses {
+		if !oneOf(face.Role, "obverse", "reverse") ||
+			!oneOf(face.Status, "completed", "unavailable") ||
+			seenFaceRoles[face.Role] ||
+			(face.Status == "completed" && strings.TrimSpace(face.Narrative) == "") ||
+			(face.Status == "unavailable" &&
+				(face.Narrative != "" || strings.TrimSpace(face.Limitation) == "")) {
+			return DeepAnalysisHandoffResult{}, ErrInvalidCopilotFrame
+		}
+		seenFaceRoles[face.Role] = true
+	}
 	var proposal deepProposalDocument
 	if err := decodeStrictPersistedJSON(job.ProposalJSON, &proposal); err != nil ||
 		proposal.SchemaVersion != 1 || proposal.Fields == nil {
@@ -127,7 +150,7 @@ func BuildDeepAnalysisHandoffResultFromJob(
 	body := &DeepAnalysisHandoffResultBody{
 		State: "complete", Narrative: strings.TrimSpace(report.Narrative),
 		PartialSuccess: job.Status == models.DeepJobStatusPartial || job.PartialSuccess || report.PartialSuccess,
-		Fields: []DeepAnalysisHandoffField{}, Disagreements: []DeepAnalysisHandoffDisagreement{},
+		Fields:         []DeepAnalysisHandoffField{}, Disagreements: []DeepAnalysisHandoffDisagreement{},
 		UnresolvedQuestions: []string{}, Coverage: []DeepAnalysisHandoffCoverage{},
 		Attributions: []DeepAnalysisHandoffAttribution{}, Limitations: []string{},
 	}
@@ -307,9 +330,9 @@ func ProjectDeepAnalysisHandoffResult(result DeepAnalysisHandoffResult, maximum 
 		}
 		projection.Bytes = complete
 		projection.Metadata = DeepAnalysisHandoffTruncation{
-			OriginalBytes: len(complete),
+			OriginalBytes:  len(complete),
 			PersistedBytes: len(complete),
-			Digest: hex.EncodeToString(digest[:]),
+			Digest:         hex.EncodeToString(digest[:]),
 		}
 		return projection, nil
 	}

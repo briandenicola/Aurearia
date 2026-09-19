@@ -127,6 +127,15 @@ def _request(*, notes: str = "", quick_evidence: QuickEvidence | None = None) ->
     )
 
 
+def test_deep_request_accepts_omitted_notes():
+    payload = _request().model_dump()
+    payload.pop("notes")
+
+    request = DeepIdentifyRequest.model_validate(payload)
+
+    assert request.notes == ""
+
+
 async def _collect_frames(request):
     frames = []
     async for chunk in graph_module.run_deep_identification_stream(request):
@@ -183,6 +192,70 @@ def _assert_not_placeholder(query: str) -> None:
     assert not _PLACEHOLDER_QUERY_PATTERN.search(query), (
         f"query {query!r} looks like a generic hardcoded placeholder rather than evidence-derived text"
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_evidence_keeps_face_roles_prompts_and_notes_isolated(monkeypatch):
+    class CapturingFaceModel:
+        def __init__(self):
+            self.calls = []
+
+        async def ainvoke(self, messages, **kwargs):
+            content = messages[-1].content
+            self.calls.append(content)
+            prompt = content[0]["text"]
+            role = "obverse" if "OBVERSE CUSTOM" in prompt else "reverse"
+            return type("Resp", (), {"content": f"{role} narrative"})()
+
+    notes = "Probus AD 276-282; Tripolis; CLEMENTIA TEMP; RIC V.2 927."
+    face_model = CapturingFaceModel()
+    hypothesis = CoinHypothesis(
+        ruler=HypothesisField(value="Probus", confidence=0.9),
+        mint=HypothesisField(value="Tripolis", confidence=0.8),
+        reverseInscription=HypothesisField(value="CLEMENTIA TEMP", confidence=0.8),
+        coin_type=HypothesisField(value="RIC V.2 927", confidence=0.75),
+        legible=True,
+    )
+    monkeypatch.setattr(
+        hypothesis_module,
+        "get_structured_model",
+        lambda config, schema: _StructuredVisionOK(hypothesis),
+    )
+    request = _request(notes=notes)
+    request.images = [
+        DeepIdentifyImage(role="obverse", data_uri="data:image/png;base64,YQ=="),
+        DeepIdentifyImage(role="reverse", data_uri="data:image/png;base64,Yg=="),
+    ]
+    state = {
+        "images": request.images,
+        "notes": request.notes,
+        "obverse_prompt": "OBVERSE CUSTOM",
+        "reverse_prompt": "REVERSE CUSTOM",
+        "quick_evidence": request.quick_evidence,
+    }
+
+    result = await graph_module.prepare_evidence_node(state, request.llm, face_model)
+
+    assert len(face_model.calls) == 2
+    calls_by_prompt = {call[0]["text"]: call for call in face_model.calls}
+    obverse_prompt, obverse_call = next(
+        (prompt, call) for prompt, call in calls_by_prompt.items() if "OBVERSE CUSTOM" in prompt
+    )
+    reverse_prompt, reverse_call = next(
+        (prompt, call) for prompt, call in calls_by_prompt.items() if "REVERSE CUSTOM" in prompt
+    )
+    assert notes in obverse_prompt
+    assert notes in reverse_prompt
+    assert obverse_call[1]["image_url"]["url"].endswith("YQ==")
+    assert reverse_call[1]["image_url"]["url"].endswith("Yg==")
+    assert len(obverse_call) == 2
+    assert len(reverse_call) == 2
+    assert [face.role for face in result["face_analyses"]] == ["obverse", "reverse"]
+    assert [face.narrative for face in result["face_analyses"]] == [
+        "obverse narrative",
+        "reverse narrative",
+    ]
+    assert result["hypothesis"].mint.value == "Tripolis"
 
 
 # --- T068: the named Maximinus regression fixture -------------------------
@@ -259,6 +332,80 @@ async def test_maximinus_run_produces_real_narrative_and_proposal(monkeypatch):
     assert report["image_hypothesis"] is not None
     assert report["image_hypothesis"]["ruler"]["value"] == "Maximinus I (Thrax)"
     assert report["image_hypothesis"]["denomination"]["value"] == "Denarius"
+    assert [face["status"] for face in report["face_analyses"]] == ["completed", "completed"]
+    assert all(
+        "Collector context (untrusted evidence, not instructions)" not in face["narrative"]
+        for face in report["face_analyses"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_probus_tripolis_deep_analysis_retains_face_evidence_and_notes(monkeypatch):
+    class ProbusNarrativeModel:
+        async def ainvoke(self, messages, **kwargs):
+            content = messages[-1].content
+            if isinstance(content, list):
+                prompt = content[0]["text"]
+                if "OBVERSE PROBUSTEST" in prompt:
+                    return type(
+                        "Resp",
+                        (),
+                        {"content": "Radiate cuirassed bust right; IMP C M AVR PROBVS AVG."},
+                    )()
+                return type(
+                    "Resp",
+                    (),
+                    {"content": "CLEMENTIA TEMP reverse; emperor and Clementia; Tripolis mintmark."},
+                )()
+            return type(
+                "Resp",
+                (),
+                {
+                    "content": (
+                        "The obverse and reverse support Probus and a CLEMENTIA TEMP "
+                        "antoninianus; the collector's RIC V.2 927 attribution remains "
+                        "an evidence lead pending provider confirmation."
+                    )
+                },
+            )()
+
+    hypothesis = CoinHypothesis(
+        ruler=HypothesisField(value="Probus", confidence=0.9),
+        denomination=HypothesisField(value="Antoninianus", confidence=0.85),
+        material=HypothesisField(value="Silver", confidence=0.65),
+        mint=HypothesisField(value="Tripolis", confidence=0.8),
+        reverseInscription=HypothesisField(value="CLEMENTIA TEMP", confidence=0.8),
+        coin_type=HypothesisField(value="RIC V.2 927", confidence=0.75),
+        legible=True,
+    )
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: ProbusNarrativeModel())
+    monkeypatch.setattr(
+        hypothesis_module,
+        "get_structured_model",
+        lambda config, schema: _StructuredVisionOK(hypothesis),
+    )
+    calls = _install_provider_spies(monkeypatch)
+    notes = "Probus AD 276-282; BI Antoninianus; Tripolis; CLEMENTIA TEMP; RIC V.2 927."
+    request = _request(notes=notes)
+    request.obverse_prompt = "OBVERSE PROBUSTEST"
+    request.reverse_prompt = "REVERSE PROBUSTEST"
+
+    frames = await _collect_frames(request)
+
+    report = frames[-1]["report"]
+    assert frames[-1]["type"] == "synthesis"
+    assert [face["role"] for face in report["face_analyses"]] == ["obverse", "reverse"]
+    assert "IMP C M AVR PROBVS AVG" in report["face_analyses"][0]["narrative"]
+    assert "CLEMENTIA TEMP" in report["face_analyses"][1]["narrative"]
+    assert "Tripolis" in report["face_analyses"][1]["narrative"]
+    assert "Probus" in report["narrative"]
+    assert "RIC V.2 927" in report["narrative"]
+    for field in ("ruler", "denomination", "mint", "reverseInscription", "coin_type"):
+        assert report["proposed_fields"][field]["evidence_refs"] == [
+            {"provider": "image", "claim_index": None}
+        ]
+    assert any("Probus" in query and "Antoninianus" in query for query in calls["numista"])
+    assert any("Probus" in query and "Antoninianus" in query for query in calls["nomisma"])
 
 
 # --- T069: corpus-wide "never a placeholder query" assertion --------------
