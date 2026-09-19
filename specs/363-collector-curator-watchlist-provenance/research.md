@@ -1,232 +1,178 @@
-# Research: Collector Curator, Watchlist, and Provenance
+# Research: Coin Copilot Collector Curator
 
-## R1. Dedicated profile storage
+## R1. Profile storage
 
-- **Decision**: Add one `CollectorProfile` per owner plus separate
-  `CollectingGoal` rows. Store bounded preference lists as validated JSON on
-  the profile; update profile and complete goal set atomically with optimistic
-  `version`.
-- **Rationale**: Current `AppSetting` is global/admin configuration and current
-  `User` fields are account/privacy/integration toggles. Neither safely models
-  private collecting intent. Separate goal rows provide stable owner-generated
-  identities and lifecycle timestamps without adding 50 opaque objects to one
-  blob.
-- **Alternatives considered**: Admin settings (privacy/ownership mismatch);
-  more `User` columns (schema sprawl and mixed responsibility); Python memory
-  (stateless boundary violation); one unvalidated JSON document (weak
-  identities and constraints).
+- **Decision**: Add one `CollectorProfile` row per authenticated owner. Keep all
+  optional preferences and collecting goals in that row, using bounded JSON
+  string arrays for the list values.
+- **Rationale**: The information is private owner data and does not belong in
+  global `AppSetting`. One row is enough for the lightweight scope and follows
+  the existing Go/GORM/SQLite persistence boundary.
+- **Alternatives considered**: Add columns to `User` (mixes account identity
+  and optional Coin Copilot context); separate goal/history tables (unneeded
+  lifecycle complexity); Python memory or a new persistence service (violates
+  the stateless agent boundary).
 
-## R2. Snapshot persistence
+## R2. Profile API shape
 
-- **Decision**: Do not add a profile-snapshot table. Put the validated bounded
-  profile version, normalized values, digest, and relevant goal versions in
-  the existing Coin Copilot completed-tool checkpoint/result that already
-  explains each read-only run.
-- **Rationale**: Checkpoints are owner-bound, bounded, replayable, digested and
-  already retain tool facts. Recommendations need explainability for the run,
-  not a second mutable profile history.
-- **Alternatives considered**: New snapshot/event store (duplicate
-  durability); reread current profile during inference (mixed-version race);
-  Python cache (statelessness violation).
+- **Decision**: Add authenticated `GET /api/collector-profile` and
+  `PUT /api/collector-profile`. GET returns neutral empty values when no row
+  exists; PUT performs one complete validated replacement.
+- **Rationale**: A small dedicated resource keeps profile privacy and
+  validation explicit. Full replacement makes clearing values predictable and
+  prevents partial invalid updates.
+- **Alternatives considered**: Extend `/api/user/profile` (would enlarge an
+  already broad account contract and risk exposing context through
+  `/api/auth/me`); field-by-field endpoints (unnecessary); admin settings
+  endpoints (wrong ownership).
 
-## R3. Curator composition
+## R3. Profile bounds
 
-- **Decision**: Add one fixed read-only curator capability that consumes the
-  existing collection summary, portfolio review and gap-analysis projections.
-  Go supplies one owner/profile snapshot; Python ranks and explains without new
-  collection queries.
-- **Rationale**: Current `AgentRepository` portfolio summary,
-  `CollectionToolsService`, and Coin Copilot collection tools are canonical.
-  The feature needs synthesis, not another agent or repository.
-- **Alternatives considered**: A new curator graph/platform (redundant);
-  direct Python database reads (forbidden); recomputing portfolio gaps in Vue
-  (contract drift).
+- **Decision**: Support nullable budget minimum/maximum, optional three-letter
+  uppercase currency, and bounded unique arrays for preferred periods,
+  preferred categories, excluded categories, preferred dealers, and
+  collecting goals.
+  Use small limits documented in `data-model.md`.
+- **Rationale**: Bounds protect request size and prompt size while preserving
+  every field required by the spec. Empty fields are neutral and never
+  inferred.
+- **Alternatives considered**: Unbounded free-form JSON (weak validation);
+  normalized taxonomy tables (too large for optional advisory context);
+  currency conversion (explicitly out of scope).
 
-## R4. Watchlist input boundary
+## R4. Curator composition
 
-- **Decision**: Accept only discriminated, Go-resolved snapshots of an owned
-  wishlist coin, active collecting goal, or retained eligible Feature 361
-  `dealer_listing`/`auction_lot`.
-- **Rationale**: This implements the settled scope and composes authoritative
-  wishlist availability, auction state, collection coverage and specialist
-  evidence without new provider work.
-- **Alternatives considered**: Direct URL or saved-search ingestion (deferred);
-  model-supplied identifiers (cross-user risk); fresh scraping during
-  evaluation (new automation and stale/replay ambiguity).
+- **Decision**: Keep the existing Coin Copilot harness and its current
+  `collection_summary`, `portfolio_review`, and `gap_analysis` tools. Add the
+  profile as optional request context and update the existing planner prompt so
+  curator requests compose those capabilities.
+- **Rationale**: The three capabilities already exist in
+  `copilot_collection_tools.py`, `coin_copilot.py`,
+  `portfolio_review.py`, and `gap_analysis.py`. The feature needs synthesis
+  and context, not another graph or platform.
+- **Alternatives considered**: A new curator agent/tool family (duplicates the
+  harness); direct Python database reads (forbidden); a separate curator REST
+  workflow (unnecessary public surface).
 
-## R5. Eligible market result
+## R5. Curator write boundary
 
-- **Decision**: Go re-resolves an item by owner-bound run, execution, tool-call,
-  canonical source identity and retained result digest. Eligibility requires a
-  successful retained Feature 361 dealer/auction item, approved provider and
-  HTTPS host, field provenance, non-cancelled run, valid observation timestamp,
-  and freshness policy. Raw provider responses are never accepted.
-- **Rationale**: Vue state and model prose are not authority. Feature 361's
-  normalized specialist result already supplies the minimum evidence.
-- **Alternatives considered**: Post the card JSON back and trust it (tampering);
-  accept final Markdown (untyped); call the provider again at confirmation
-  (new side effect and race).
+- **Decision**: Profile context is advisory data only. It contains no action
+  URL, credential, approval flag, or tool authority. Curator requests may
+  create only normal Coin Copilot run/checkpoint/event records.
+- **Rationale**: The current tool allowlist is read-only for the three required
+  capabilities. Keeping writes outside the agent makes the read-only promise
+  testable.
+- **Alternatives considered**: Conversational save commands, generic action
+  tools, or Python calls to `POST /api/coins` (all violate the spec).
 
-## R6. Risk vocabulary
+## R6. Typed dealer eligibility
 
-- **Decision**: Closed kinds are `missing_provenance`,
-  `unverified_claim`, `conflicting_claim`, `duplicate_image`,
-  `broken_source_link`, and `documentation_gap`. Closed tiers are
-  `review_low`, `review_medium`, `review_high`; all output contains the literal
-  phrase “needs review” and separates observed facts, source claims, conflicts,
-  recommendations, evidence, confidence, why-it-matters and limitations.
-- **Rationale**: The schema makes cautious language testable and prevents
-  inference from becoming an accusation or authenticity determination.
-- **Alternatives considered**: Free-form severity/labels (unsafe drift); hide
-  low confidence (conceals uncertainty); fraud/authenticity scores (out of
-  scope and harmful).
+- **Decision**: A Copilot card is eligible only when the validated typed result
+  says:
 
-## R7. Feature 362 dependency
+  ```text
+  capability = market_search
+  item.kind = dealer_listing
+  item.verificationState = verified
+  item.availability = available
+  ```
 
-- **Decision**: Ship profile, curator, watchlist, baseline documentation/link
-  review, and confirmed wishlist action before Feature 362. Gate only findings
-  that require persisted Deep Analysis attribution, provider contradictions,
-  proposal confidence or citations. After 362, consume its validated
-  projection without reinterpretation.
-- **Rationale**: The baseline has independent value and no need to block on
-  attribution handoff. Missing 362 evidence is not negative evidence.
-- **Alternatives considered**: Block the entire suite (unnecessary coupling);
-  infer attribution from existing coin text (unsupported); copy Deep raw JSON
-  (contract/privacy drift).
+  Any absent, partial, unknown, sold, malformed, or auction value is
+  ineligible.
+- **Rationale**: These fields already exist in the internal
+  `CopilotSpecialistEvidence`/Pydantic `DealerListing`. The active spec names
+  this exact boundary.
+- **Alternatives considered**: Parse rendered `facts` text (fragile);
+  infer from URL/provider/title (unsafe); recheck through an auction or new
+  browser subsystem (excluded).
 
-## R8. Wishlist mapping
+## R7. Public specialist projection
 
-- **Decision**: Map only proven destination-valid fields: title→`Name`;
-  supported denomination/ruler/era/mint/material/grade fields to the matching
-  `Coin` fields; source URL→`ReferenceURL`; observed supported listing price→
-  `CurrentValue`; and supported listing state→existing listing-status fields.
-  Always set `IsWishlist=true`. Preserve currency/provider/source identity/
-  observation/provenance/evidence/limitations in the linked stage/outcome, not
-  unrelated `Coin` fields.
-- **Rationale**: Current normal creation is
-  `AddCoinPage.vue` → `stores/coins.ts:addCoin` → `handlers/coins.go:Create` →
-  `CoinService.CreateCoin`. Reusing its validation and transaction seam keeps
-  wishlist semantics while a narrow DTO prevents accidental population of
-  purchase/private/manual fields.
-- **Alternatives considered**: Submit the full Add Coin form DTO (overbroad);
-  put provider metadata in notes/purchase location (semantic corruption);
-  set `PurchasePrice` from a listing (not a purchase); copy images (duplicate
-  and unsafe).
+- **Decision**: Extend `CopilotSpecialistPublicEvidence` and the matching
+  TypeScript type with optional typed dealer fields already present in the
+  validated internal result: description, dealer name, listed price, currency,
+  availability, ruler, denomination, era, and material.
+- **Rationale**: The current public projection drops these fields and retains
+  them only as display strings. The browser needs typed values for eligibility
+  and `CoinSuggestion` mapping. This is an additive projection, not a provider
+  or auction change.
+- **Alternatives considered**: Parse `facts` strings (not a contract); post
+  the card to a new server action endpoint (rejected architecture); expose raw
+  provider payloads (privacy and contract violation).
 
-## R9. Stage and audit schema
+## R8. Wishlist UI integration
 
-- **Decision**: Add immutable `WishlistActionStage` and
-  `WishlistActionOutcome`. Stage stores the exact bounded normalized evidence
-  and mapping snapshot with expiry/fingerprint. Outcome is inserted only by
-  confirmation in the same transaction as canonical coin creation and journal
-  append. Unique owner/source and idempotency indexes provide replay safety.
-- **Rationale**: Coin Copilot checkpoints can establish source evidence but are
-  prunable and cannot represent user confirmation. Coin journals describe a
-  created coin but cannot authorize or linearize creation.
-- **Alternatives considered**: Mutable staged coin (partial write before
-  consent); session/local storage (tamper/restart unsafe); checkpoint-only
-  confirmation (wrong authority); journal-only idempotency (post-write race).
+- **Decision**: `CopilotRunProgress.vue` emits an eligible item from an explicit
+  **Add to Wishlist** button. `CoinSearchChat.vue` adapts or forwards it to the
+  existing `useCoinSearchChat.addToWishlist` flow.
+- **Rationale**: The existing composable already owns `addingIdx`, `addedSet`,
+  category/era confirmation, payload mapping, coin creation, and image
+  attachment. Reuse avoids a second write workflow.
+- **Alternatives considered**: A new review modal, staged action, or new
+  composable (duplicates shipped behavior); model-triggered save (forbidden).
 
-## R10. Explicit mutation boundary
+## R9. Dealer result to `CoinSuggestion`
 
-- **Decision**: Only Vue's rendered result-card button may start staging.
-  Stage and confirm are authenticated public Go endpoints, never Coin Copilot
-  callback tools. Confirmation requires a second event and exact stage version.
-  Python receives neither route nor DTO nor generic credential.
-- **Rationale**: This proves mutation is outside model tool selection and
-  separates recommendation from consent.
-- **Alternatives considered**: Conversational “save this” intent (ambiguous);
-  model-generated action URL (self-approval path); Python calling public APIs
-  with a user token (credential/boundary violation).
+- **Decision**: Adapt only typed dealer fields:
+  title → name; description → description; dealer name → source name; listed
+  price/currency → display price for the existing parser; source URL → source
+  URL; ruler/denomination/era/material → matching fields. Category may be empty
+  and follows the existing safe fallback/confirmation behavior. Image URL may
+  be empty because the existing flow first attempts source-page scraping.
+- **Rationale**: `buildWishlistCoinPayload` already bounds and maps only the
+  accepted wishlist fields and sets `isWishlist: true`.
+- **Alternatives considered**: Map `facts` text, auction fields, purchase
+  fields, storage, sold state, or arbitrary provider metadata (all semantically
+  wrong).
 
-## R11. Idempotency and duplicate policy
+## R10. Category, era, and image behavior
 
-- **Decision**: Hash idempotency keys at rest. Same owner/key/fingerprint
-  returns the original stage/outcome; key reuse with another fingerprint is
-  `409`. Confirmation serializes by unique
-  `(user_id, source_kind, source_result_identity_digest)` and rechecks existing
-  wishlist normalized URL/source linkage before calling `CoinService`.
-- **Rationale**: This covers browser retries, two tabs, replay and retained
-  source duplicates while preserving a warning for manually created wishlist
-  items.
-- **Alternatives considered**: Title matching only (false positives); frontend
-  de-duplication (racy); acknowledge-and-force duplicate creation (violates
-  stable source identity).
+- **Decision**: Reuse `resolveCategoryAndEra` and
+  `CategoryEraConfirmModal.vue`. After successful `createCoin`, retain the
+  current source scrape → proxy → upload sequence and fallback to typed image
+  URL if available. Image failure is reported as a warning and never retries
+  coin creation.
+- **Rationale**: These are shipped safeguards and match the rewritten spec.
+- **Alternatives considered**: New validation endpoints or image pipeline
+  (duplicate); making image success transactional with coin creation (changes
+  existing semantics).
 
-## R12. URL, citation and provider data
+## R11. Duplicate behavior
 
-- **Decision**: Reuse specialist registered-host rules,
-  `validate_outbound_url`/`safe_get`, redirect revalidation, and wishlist
-  canonicalization. Require HTTPS, no user-info, no private/loopback/link-local/
-  metadata targets, max 2,048 characters, and citation/source match. Normalize
-  only for comparison. Treat all provider/goal text as delimited untrusted data
-  and reject instruction/token-shaped content from promoted factual fields.
-- **Rationale**: Existing controls are stronger and better tested than a new
-  validator; display URLs and canonical identities serve different purposes.
-- **Alternatives considered**: Trust model citations (fabrication/SSRF); invent
-  home-page URLs (false evidence); duplicate weaker validation in Vue.
+- **Decision**: Preserve `addingIdx` and `addedSet` for in-browser repeated
+  clicks. Reuse `CoinRepository.FindWishlistByReferenceURL` inside the existing
+  `CoinService.CreateCoin` transaction for wishlist coins with a non-empty
+  reference URL. A duplicate returns the existing clear conflict behavior and
+  does not create another coin.
+- **Rationale**: The repository already has the owner-scoped lookup, and
+  `CreateCoin` already owns the canonical transaction. The SQLite connection
+  uses immediate transactions, allowing the lookup and insert to serialize
+  without an action table.
+- **Alternatives considered**: Wishlist action/outcome tables (rejected);
+  frontend-only protection (cannot cover retries/tabs); a new source identity
+  model (disproportionate).
 
-## R13. Duplicate images and stale listings
+## R12. Auction exclusion
 
-- **Decision**: Feature 363 does not compare or fetch new images. It can cite a
-  duplicate-image finding only from an existing defensible comparison record
-  with algorithm/match basis and limitations. Listing state remains an
-  observation with timestamp; current wishlist availability/auction records
-  override specialist prose, and stale/contradictory state lowers confidence.
-- **Rationale**: Absence of a match or fresh listing proves nothing, and the
-  feature cannot add scraping/image automation.
-- **Alternatives considered**: Perceptual hashing provider images here (new
-  automation/dependency); treat last observed listing as current (stale claim);
-  choose one conflict silently.
+- **Decision**: Do not modify or call auction subsystem models, repositories,
+  services, routes, configuration, providers, or UI. `auction_search` and
+  `auction_lot` fail the UI eligibility predicate.
+- **Rationale**: The rewritten spec makes auction work an absolute exclusion.
+  The existing specialist renderer may continue displaying auction evidence,
+  but Feature 363 adds no action to it.
+- **Alternatives considered**: Reusing auction cards or auction status for
+  wishlist creation (explicitly rejected).
 
-## R14. Flags and rollback
+## R13. ADR decision
 
-- **Decision**: Use five default-off global settings following
-  `SettingsService` patterns. Migration is additive and non-destructive.
-  Disable later slices independently; keep profiles, stages, outcomes and
-  existing completed results readable/inert.
-- **Rationale**: Staged rollout and quick rollback cannot require destructive
-  migration or disable existing collection/wishlist/chat behavior.
-- **Alternatives considered**: One all-or-nothing flag (poor isolation);
-  delete rows on rollback (data loss); store profile in global settings.
-
-## R15. Observability and privacy
-
-- **Decision**: Log identifiers/digests, closed outcomes, counts, duration,
-  versions and truncation only. Exclude preference/goal text, budgets,
-  collection facts, evidence text, URLs, prompts, provider payloads,
-  credentials and raw errors. Audit rows contain only the bounded evidence
-  necessary to explain the owner's durable action.
-- **Rationale**: Diagnostics do not justify leaking private collection intent
-  or provider content.
-- **Alternatives considered**: Full payload logging (privacy/prompt-secret
-  risk); no audit linkage (unexplainable assisted write).
-
-## R16. Current code and UI composition
-
-- **Decision**: Extend `SettingsPage.vue`/settings component conventions,
-  `CopilotRunProgress.vue`'s `specialistResult` card,
-  `CoinCopilotSpecialistResult`, and modal patterns. Use the current Vue API
-  client and Go protected routes.
-- **Rationale**: These are the shipped account, evidence and confirmation
-  surfaces. New standalone pages or stores are unnecessary.
-- **Alternatives considered**: New curator app/page (fragmentation); browser
-  direct Python call (forbidden); hardcoded styles/icons (constitution
-  violation).
-
-## R17. OpenAPI and contract drift
-
-- **Decision**: Add profile, read-only workflow, stage and confirmation public
-  REST contracts with Swagger annotations. Internal Python execution mirrors
-  are documented but are not public paths. Regenerate generated Swagger and
-  `docs/openapi.json`; run route-drift and shared fixture tests.
-- **Rationale**: Public Go authority must be discoverable and generated from
-  one source without exposing internal callback topology.
-- **Alternatives considered**: SSE-only prose (weak contract); publish Python
-  endpoints (wrong boundary); hand-edit generated files (drift).
+- **Decision**: Delete ADR 0018 and do not replace it.
+- **Rationale**: The reduced design does not alter service boundaries, add a
+  new provider, introduce a semantic workflow platform, or require a complex
+  migration. Existing architectural rules fully determine the implementation.
+- **Alternatives considered**: Rewrite ADR 0018 around the smaller scope
+  (unnecessary documentation overhead under Principle IV).
 
 ## Clarification resolution
 
-All planning questions are resolved by the binding product decisions, current
-code evidence, and upstream feature contracts. There are no remaining
-`NEEDS CLARIFICATION` items.
+All technical choices needed by the rewritten spec are resolved. There are no
+remaining `NEEDS CLARIFICATION` items.

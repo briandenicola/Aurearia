@@ -1,323 +1,294 @@
-# Contract: Collector Profile and Read-Only Workflows
+# Contract: Collector Profile, Curator Context, and Dealer Wishlist Action
 
-## 1. Boundary and compatibility
+## 1. Boundary
 
-Vue calls authenticated Go `/api/*` routes only. Go derives owner identity and
-resolves every referenced profile, goal, coin, run, result and evidence record.
-Python receives only an internal, bounded execution request from Go and returns
-strict Pydantic values; it has no public route, database access, durable memory,
-write tool, approval field or generic credential.
+- Vue communicates only with the Go `/api/*` API.
+- Go derives the authenticated owner and owns profile and coin persistence.
+- Python remains stateless and receives bounded collector context only as part
+  of the existing Coin Copilot execution request.
+- The AI has no profile mutation, coin creation, wishlist action,
+  confirmation, browser, or generic write tool.
+- The only wishlist mutation is the existing browser call to
+  `POST /api/coins` after an explicit button click.
 
-All request decoders reject unknown fields. Go uses explicit DTOs and
-`DisallowUnknownFields`; Python models use `extra="forbid"`; TypeScript uses
-discriminated unions. Strings are UTF-8, trimmed and bounded. JSON request
-bodies are capped at 1 MiB; workflow-specific payload limits below are lower.
-Foreign and unknown identifiers return indistinguishable `404` responses.
+Unknown request fields are rejected. Strings are trimmed and bounded. Foreign
+owner identifiers are never accepted from clients.
 
-## 2. Closed vocabularies
+## 2. Collector profile public API
 
-```text
-confidence: low | medium | high
-goalPriority: low | medium | high
-goalState: active | inactive
-recommendationKind: strength | theme | gap | acquisition_idea
-profileEffect: included | excluded | deprioritized | neutral
-inputKind: wishlist_coin | collecting_goal | market_result
-marketKind: dealer_listing | auction_lot
-evaluationStatus: match | conflict | unknown | not_applicable
-riskKind: missing_provenance | unverified_claim | conflicting_claim |
-          duplicate_image | broken_source_link | documentation_gap
-riskTier: review_low | review_medium | review_high
-dependencyState: baseline | feature_362 | attribution_evidence_unavailable
-```
+Base path: `/api/collector-profile`.
 
-Unknown enum values fail closed. No “other” escape value is accepted at a
-service boundary.
+### `GET /api/collector-profile`
 
-## 3. Collector profile public contract
+Authentication is required. The owner is derived from the access token.
 
-Base path: `/api/collector/profile`.
-
-### `GET /api/collector/profile`
-
-`200`:
+`200` with no stored row:
 
 ```json
 {
   "budgetMin": null,
   "budgetMax": null,
-  "currency": "USD",
-  "favoritePeriods": [],
-  "dislikedCategories": [],
+  "currency": null,
+  "preferredPeriods": [],
+  "preferredCategories": [],
+  "excludedCategories": [],
   "preferredDealers": [],
-  "goals": [],
-  "version": 0,
+  "collectingGoals": [],
   "updatedAt": null,
   "isDefault": true
 }
 ```
 
-Missing storage returns this neutral projection. Currency is the existing
-owner display currency when supported, otherwise `USD`; it does not imply a
-preference.
-
-### `PUT /api/collector/profile`
+`200` with a stored row:
 
 ```json
 {
-  "expectedVersion": 2,
   "budgetMin": 100,
   "budgetMax": 500,
   "currency": "USD",
-  "favoritePeriods": ["Flavian"],
-  "dislikedCategories": ["Modern replicas"],
+  "preferredPeriods": ["Flavian"],
+  "preferredCategories": ["Roman"],
+  "excludedCategories": ["Modern"],
   "preferredDealers": ["Example Dealer"],
-  "goals": [
-    {
-      "id": "b8488f81-a94b-4cc6-93d1-8caebac57e25",
-      "title": "Add a Flavian denarius",
-      "description": "Prioritize documented examples.",
-      "priority": "high",
-      "state": "active",
-      "version": 1
-    }
-  ]
+  "collectingGoals": ["Add a documented Flavian denarius"],
+  "updatedAt": "2026-09-19T12:00:00Z",
+  "isDefault": false
 }
 ```
 
-Bounds are normative from `data-model.md`: amounts `0..100000000`; uppercase
-supported ISO-style three-letter currency; list counts `20/20/50`; goal count
-50; title 1..200; description ≤1000. Duplicate normalized entries, non-finite
-numbers, reversed budgets, unknown goal/version/state or stale
-`expectedVersion` reject the entire transaction. `409 profile_version_conflict`
-returns only current version and a refresh instruction, not profile content.
+The response does not expose owner ID or internal row ID.
 
-`200` returns the complete saved profile. Clearing nullable/scalar/list fields
-is explicit; omission is rejected because this is a full atomic replacement.
+### `PUT /api/collector-profile`
 
-## 4. Public read-only workflow requests
-
-The existing Coin Copilot durable start/stream/replay/cancel routes remain
-canonical. A new run request selects one closed workflow in the existing typed
-intent/capability contract:
+Authentication is required. The request is a complete replacement:
 
 ```json
 {
-  "workflow": "collector_curator",
-  "profileVersion": 2,
-  "inputs": []
+  "budgetMin": 100,
+  "budgetMax": 500,
+  "currency": "USD",
+  "preferredPeriods": ["Flavian"],
+  "preferredCategories": ["Roman"],
+  "excludedCategories": ["Modern"],
+  "preferredDealers": ["Example Dealer"],
+  "collectingGoals": ["Add a documented Flavian denarius"]
 }
 ```
 
-or:
+Normative bounds:
+
+- budget values: nullable finite numbers from `0` through `100000000`;
+- when both budgets exist, minimum must not exceed maximum;
+- currency: null/empty only when no currency is stated, otherwise exactly
+  three uppercase letters accepted by existing application conventions;
+- preferred periods: at most 20, each 1..100 characters;
+- preferred categories: at most 20, each 1..100 characters;
+- excluded categories: at most 20, each 1..100 characters;
+- preferred dealers: at most 20, each 1..200 characters;
+- collecting goals: at most 20, each 1..500 characters;
+- values are unique after trimmed, whitespace-collapsed, case-insensitive
+  normalization.
+
+`200` returns the complete stored profile with `isDefault: false`.
+
+Errors:
+
+| Status | Meaning |
+|---|---|
+| `400` | Invalid field, bound, ordering, duplicate normalized value, or unknown field. |
+| `401` | Authentication required. |
+| `413` | Request body exceeds the existing JSON cap. |
+| `500` | Sanitized persistence failure. |
+
+Validation failure leaves the previously saved profile unchanged.
+
+## 3. Internal collector context
+
+The existing Go → Python Coin Copilot request gains one optional field:
 
 ```json
 {
-  "workflow": "watchlist_evaluation",
-  "profileVersion": 2,
-  "inputs": [
-    {"kind": "wishlist_coin", "coinId": 42},
-    {"kind": "collecting_goal", "goalId": "b8488f81-a94b-4cc6-93d1-8caebac57e25"},
-    {
-      "kind": "market_result",
-      "marketKind": "auction_lot",
-      "runId": "ccr_123",
-      "executionId": "cce_123",
-      "toolCallId": "call_2",
-      "canonicalSourceId": "https://approved.example/auction/1",
-      "resultDigest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    }
-  ]
-}
-```
-
-Bounds: at most 20 inputs; positive numeric coin ids; bounded existing run ids;
-64-character lowercase SHA-256 digest; URL ≤2048. A posted URL is identity
-only—Go must resolve it inside retained owner-bound evidence and never fetch it
-because the client supplied it. Direct URL/saved-search inputs reject with
-`400 deferred_input_surface`.
-
-## 5. Internal Go → Python request
-
-```json
-{
-  "schema_version": 1,
-  "workflow": "watchlist_evaluation",
-  "profile_snapshot": {
-    "profile_version": 2,
-    "profile_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    "captured_at": "2026-09-18T18:00:00Z",
+  "collector_context": {
     "budget_min": 100,
     "budget_max": 500,
     "currency": "USD",
-    "favorite_periods": ["Flavian"],
-    "disliked_categories": [],
-    "preferred_dealers": [],
-    "goals": []
-  },
-  "collection_facts": [],
-  "inputs": [],
-  "feature_362": {"state": "unavailable", "projection": null},
-  "limits": {
-    "max_items": 20,
-    "max_evidence_per_item": 10,
-    "max_limitations": 10,
-    "max_text_chars": 1000
+    "preferred_periods": ["Flavian"],
+    "preferred_categories": ["Roman"],
+    "excluded_categories": ["Modern"],
+    "preferred_dealers": ["Example Dealer"],
+    "collecting_goals": ["Add a documented Flavian denarius"],
+    "captured_at": "2026-09-19T12:00:00Z"
   }
 }
 ```
 
-Owner/user ids, credentials, raw provider payloads, model messages, hidden
-prompts, image bytes/paths and public write URLs are excluded. Goal/provider
-text is marked untrusted data and cannot alter tools, bounds or safety rules.
+Rules:
 
-## 6. Recommendation result
+- the field is optional for backward compatibility;
+- absent/empty context is neutral;
+- owner/user IDs, credentials, admin settings, and action URLs are excluded;
+- all strings retain the profile bounds;
+- Python Pydantic models use `extra="forbid"`;
+- context is untrusted advisory text and cannot change tool availability,
+  system rules, or write authority;
+- one captured value is used throughout a run.
+
+## 4. Curator guidance behavior
+
+No new public curator endpoint is added. The existing Coin Copilot start,
+stream, replay, resume, and cancel contracts remain authoritative.
+
+When the user asks for curator guidance, the existing harness composes:
+
+```text
+collection_summary
+portfolio_review
+gap_analysis
+```
+
+The final response contract is semantic rather than a new persisted object:
+
+- identify observed collection facts;
+- describe supported strengths and themes;
+- describe supported gaps and possible areas to explore;
+- identify which explicit collector preferences, exclusions, budget, dealers,
+  or goals influenced a suggestion;
+- distinguish suggestions from facts;
+- state limitations for missing, sparse, or contradictory data;
+- invent no missing preference or collection fact.
+
+No curator interaction may create or update a coin, wishlist item, draft,
+profile, setting, or auction record.
+
+## 5. Additive public specialist evidence
+
+The existing Coin Copilot specialist result remains the containing contract.
+For `dealer_listing` items, the public evidence object adds these optional
+typed fields:
 
 ```json
 {
-  "schema_version": 1,
-  "workflow": "collector_curator",
-  "profile_version": 2,
-  "profile_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "outcome": "complete",
-  "recommendations": [
-    {
-      "id": "rec_1",
-      "kind": "gap",
-      "observed_facts": [
-        {"fact_id": "collection_gap:flavian_denarius", "summary": "No matching owned coin was found."}
-      ],
-      "recommendation": "Recommendation: review a documented Flavian denarius.",
-      "profile_effects": [
-        {"effect": "included", "field": "favorite_periods", "goal_id": null}
-      ],
-      "confidence": "medium",
-      "why_this_matters": "It addresses a supported collection gap.",
-      "citations": [{"kind": "internal_fact", "id": "collection_gap:flavian_denarius", "url": null}],
-      "limitations": ["Collection metadata may be incomplete."]
-    }
-  ],
-  "warnings": [],
-  "truncation": {"truncated": false, "omitted_items": 0}
+  "kind": "dealer_listing",
+  "title": "Trajan denarius",
+  "sourceUrl": "https://dealer.example/item/123",
+  "observedAt": "2026-09-19T12:00:00Z",
+  "confidence": "high",
+  "verificationState": "verified",
+  "facts": ["Dealer: Example Dealer", "Availability: available"],
+  "matchedAttributes": [],
+  "materialDifferences": [],
+  "description": "Silver denarius of Trajan",
+  "dealerName": "Example Dealer",
+  "listedPrice": 125,
+  "currency": "USD",
+  "availability": "available",
+  "ruler": "Trajan",
+  "denomination": "Denarius",
+  "era": "ancient",
+  "material": "Silver"
 }
 ```
 
-`outcome` is `complete|partial|no_match|unavailable`. At most 20 items, 10
-facts/citations/limitations each; summary/recommendation text ≤1000 characters.
-An empty profile has version 0 and produces no invented preference effects.
+`availability` is `available | sold | unknown | null`. Existing
+`verificationState` remains `verified | partial`.
 
-## 7. Watchlist evaluation result
+These properties are projected only from the validated internal
+`CopilotSpecialistEvidence`; raw provider payloads are not exposed. The
+existing `facts` array remains display-only and is never parsed for
+eligibility or coin mapping.
 
-```json
-{
-  "schema_version": 1,
-  "workflow": "watchlist_evaluation",
-  "profile_version": 2,
-  "outcome": "partial",
-  "evaluations": [
-    {
-      "id": "eval_1",
-      "input": {"kind": "market_result", "market_kind": "auction_lot", "source_identity_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
-      "checks": {
-        "goal_fit": "match",
-        "budget_fit": "unknown",
-        "preference_fit": "match",
-        "dealer_fit": "unknown",
-        "owned_duplicate": "conflict",
-        "wishlist_duplicate": "not_applicable",
-        "collection_coverage": "conflict",
-        "source_quality": "match",
-        "listing_state": "unknown",
-        "price_comparability": "unknown"
-      },
-      "evidence": [],
-      "confidence": "low",
-      "why_this_matters": "A possible owned duplicate requires review.",
-      "limitations": ["The listing currency cannot be compared.", "Availability evidence is stale."]
-    }
-  ],
-  "warnings": [],
-  "truncation": {"truncated": false, "omitted_items": 0}
-}
+## 6. Wishlist eligibility predicate
+
+The UI may render **Add to Wishlist** only when all conditions are true:
+
+```text
+specialistResult.capability === "market_search"
+item.kind === "dealer_listing"
+item.verificationState === "verified"
+item.availability === "available"
+item.sourceUrl is non-empty
+item.title is non-empty
 ```
 
-Unknown/missing/stale/contradictory values remain `unknown` and are never
-coerced. Existing availability and auction references include their observed
-timestamps and authoritative resource links.
+Everything else is ineligible, including:
 
-## 8. Risk result
+- `auction_search` and `auction_lot`;
+- `partial`, missing, or unknown verification;
+- sold, unknown, missing, withdrawn, or otherwise non-available state;
+- malformed or truncated values that cannot satisfy the typed contract;
+- text or `facts` that merely claim eligibility.
 
-```json
-{
-  "schema_version": 1,
-  "workflow": "provenance_risk_review",
-  "outcome": "partial",
-  "findings": [
-    {
-      "id": "risk_1",
-      "kind": "documentation_gap",
-      "tier": "review_low",
-      "needs_review": true,
-      "display_label": "Needs review: documentation gap",
-      "observed_facts": [],
-      "source_claims": [],
-      "conflicts": [],
-      "recommendation": "Request or record the missing ownership documentation.",
-      "evidence": [],
-      "confidence": "low",
-      "why_this_matters": "Documentation can help future review.",
-      "limitations": ["Absence in the current record does not prove the documentation does not exist."],
-      "dependency_state": "baseline"
-    }
-  ],
-  "gates": ["attribution_evidence_unavailable"],
-  "warnings": []
-}
+## 7. Explicit UI action
+
+`CopilotRunProgress.vue` emits the typed dealer item only from the owner's
+button click. Rendering, replay, SSE receipt, tool completion, model text, and
+conversation commands do not emit the action.
+
+`CoinSearchChat.vue` routes the event to the existing
+`useCoinSearchChat.addToWishlist` function and its state:
+
+```text
+addingIdx -> resolveCategoryAndEra -> buildWishlistCoinPayload
+          -> createCoin -> optional image attachment -> addedSet
 ```
 
-All findings require evidence or an explicit missing-field observation,
-`needs_review=true`, a safe display label, why-it-matters and at least one
-limitation. Low confidence remains visible in `review_low`. Output is rejected
-if it contains a person/dealer accusation, fraud conclusion, authenticity
-determination, unsupported duplicate-image claim, unsafe citation, or
-attribution inference while Feature 362 is gated.
+The existing `CategoryEraConfirmModal` remains the only confirmation needed
+when category or era reconciliation requires owner input. Cancelling it creates
+nothing. There is no stage/revision/revoke/confirm API.
 
-## 9. URL/citation rules
+## 8. Dealer result adapter
 
-- HTTPS only; hostname required; no user-info.
-- Reject localhost, loopback, private, link-local and metadata destinations.
-- Source host must match the registered provider boundary.
-- Revalidate every redirect at the existing outbound helper.
-- URLs ≤2048; citation URL must be present in the validated evidence set.
-- Preserve accepted display URL; canonicalize only for equality/duplicates.
-- No raw HTML, response body, provider JSON, base64 image or query credentials.
+The eligible item maps to `CoinSuggestion` as follows:
 
-## 10. Cancellation, replay and mutation absence
+```text
+title          -> name
+description    -> description (or "")
+""             -> category (existing safe handling)
+era            -> era (or "")
+ruler          -> ruler (or "")
+material       -> material (or "")
+denomination   -> denomination (or "")
+price/currency -> estPrice display string without conversion (or "")
+""             -> imageUrl unless already supplied by the typed contract
+sourceUrl      -> sourceUrl
+dealerName     -> sourceName (or "Dealer")
+```
 
-Go cancellation is checked before each capability, after every awaited
-operation, before persistence of result frames and before any stage request.
-Late frames are discarded after cancellation wins. Existing completed
-checkpoint values replay without provider/model reruns.
+Then `buildWishlistCoinPayload` remains authoritative. The adapter does not
+construct a `CoinMutationPayload` independently.
 
-The internal tool allowlist contains no create/save/stage/confirm/apply/bid/buy
-operation. Recommendation/evaluation/risk schemas contain no confirmation
-boolean, write token or public mutation URL. Viewing, dismissing, replaying or
-cancelling these values cannot mutate profile, coin, wishlist, auction,
-availability, Deep Analysis proposal or settings data.
+## 9. Existing coin and image contracts
 
-## 11. Cross-language fixtures
+The wishlist save continues to use:
 
-Go, Python and Vue must consume canonical valid/adversarial fixtures covering:
+- `POST /api/coins`;
+- `POST /api/coins/match-category-era`;
+- existing image scrape/proxy/upload endpoints used by
+  `useCoinSearchChat.addToWishlist`.
 
-- every closed enum and unknown enum/field;
-- min/max counts, lengths, amounts and non-finite JSON;
-- profile v0 and stale profile/goal versions;
-- all three input variants plus foreign/cross-user ids;
-- complete/partial/no-match/unavailable outcomes;
-- missing/stale/conflicting/incomparable evidence;
-- low-confidence visible risk and banned accusatory wording;
-- duplicate-image finding with/without defensible comparison evidence;
-- safe, unsafe, redirecting and unregistered URLs;
-- instruction/token-shaped provider and goal text;
-- cancellation, truncated result and replay digest mismatch;
-- Feature 362 available/unavailable projections.
+The coin API derives `userId` from authentication. Feature 363 does not add or
+change a wishlist-action endpoint.
+
+For wishlist coins with a non-empty `referenceUrl`, the canonical create
+transaction checks the existing owner-scoped
+`FindWishlistByReferenceURL`. A match returns a duplicate conflict and creates
+no row. The same URL may still exist for another owner.
+
+Image attachment is best effort after coin creation. Failure cannot roll back
+the coin, retry coin creation, or populate another field.
+
+## 10. Cross-language contract tests
+
+Go, Python, and TypeScript tests cover:
+
+- profile null/empty/max bounds and unknown fields;
+- cross-owner profile isolation;
+- empty context and prompt-like context text;
+- curator use of the three exact existing tools and absence of writes;
+- every dealer eligibility combination;
+- typed field projection without parsing `facts`;
+- auction result ineligibility;
+- `CoinSuggestion` adapter and `buildWishlistCoinPayload` mapping;
+- category/era cancellation;
+- repeated click and owner/reference duplicate conflict;
+- image success/failure after one successful coin create.

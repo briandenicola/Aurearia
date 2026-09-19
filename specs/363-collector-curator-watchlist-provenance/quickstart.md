@@ -1,209 +1,235 @@
 # Quickstart: Feature 363 Validation
 
-All acceptance uses controlled fixtures. Do not depend on live mutable dealer,
-auction or attribution sources.
+Use controlled fixtures. Do not depend on live dealer or auction sources.
+Feature implementation must not edit an auction subsystem file.
 
-## Prerequisites and rollout
+## Prerequisites
 
-1. Go API, Vue app and Python agent service are running.
-2. Two normal owners plus an administrator exist.
-3. Existing portfolio/gap, wishlist availability/search-alert, auction,
-   Deep Analysis and Coin Copilot suites pass as a baseline.
-4. Enable flags in order: profile, curator, evaluation, risk, wishlist action.
-5. Keep Feature 362 disabled for baseline scenarios, then enable its controlled
-   projection only for enriched-risk scenarios.
+1. Create owner A, owner B, and an administrator.
+2. Seed owner A with a small collection containing known strengths, gaps,
+   missing metadata, and one contradictory field.
+3. Prepare typed Coin Copilot specialist fixtures for:
+   - verified/available `dealer_listing`;
+   - verified/sold dealer listing;
+   - verified/unknown dealer listing;
+   - partial/available dealer listing;
+   - malformed or missing required data;
+   - verified auction lot from `auction_search`.
+4. Keep provider calls mocked. Record baseline row counts for coins, drafts,
+   auction tables, settings, and Coin Copilot run records.
 
 ## Scenario 1 — Private collector profile
 
-1. As owner A, open **Settings > Collector Profile** on desktop and installed
-   PWA. Verify missing storage displays neutral defaults.
-2. Save boundary-valid budgets, lists and 50 goals; verify one atomic version
-   increment.
-3. Submit negative/non-finite/reversed/oversized budgets, invalid currency,
-   duplicate normalized list entries, 51 goals, oversized text, unknown enums
-   and stale version; verify field errors and no partial change.
-4. Race two updates from the same version; exactly one succeeds.
-5. As owner B and admin, request A's guessed profile/goal ids; verify unknown-
-   equivalent response and zero data/log leakage.
-6. Disable the flag; verify profile is inert/recoverable and no admin setting
-   or other user field changed.
+1. As owner A, open the Collector Profile settings section with no saved row.
+2. Verify neutral empty values are displayed and Coin Copilot remains usable.
+3. Save a valid budget range, currency, preferred periods/categories,
+   exclusions, dealers, and collecting goals.
+4. Reload and verify exact round-trip values.
+5. Edit values, save, then clear every optional value and verify subsequent GET
+   returns the cleared state.
+6. Submit reversed budgets, negative/non-finite values, malformed currency,
+   duplicate normalized list values, oversized items, and too many items.
+7. Verify each invalid request returns field-specific guidance and the previous
+   row remains unchanged.
+8. As owner B, a public visitor, invited friend, and administrator outside A's
+   session, verify A's profile cannot be read or changed.
+9. Verify `/api/auth/me`, public profile, follower, export, and log payloads do
+   not accidentally disclose collector context except the owner's explicit
+   private export if that existing export policy includes it.
 
-## Scenario 2 — Read-only curator
+## Scenario 2 — Read-only curator guidance
 
-1. Seed known collection facts, gaps and conflicting/sparse metadata.
-2. Run curator with profile version N; edit profile during execution.
-3. Verify output cites only the N snapshot, separates observations from
-   recommendations, and shows strengths/themes/gaps/acquisition ideas,
-   confidence, why-it-matters, profile effects and limitations.
-4. Verify disliked/budget-conflicting results are excluded or visibly
-   deprioritized; empty profile invents nothing.
-5. View, rerun, replay, dismiss and cancel; compare database state and verify
-   zero profile/collection/wishlist/auction mutation beyond normal run records.
+1. Request curator guidance as owner A with the saved profile.
+2. Verify the existing Coin Copilot plan/tool progress uses:
+   `collection_summary`, `portfolio_review`, and `gap_analysis`.
+3. Verify the final answer separates:
+   - observed collection facts;
+   - strengths/themes;
+   - gaps and possible areas to explore;
+   - profile preferences/goals that influenced a suggestion;
+   - limitations and contradictory/missing data.
+4. Clear the profile and repeat. Verify no deleted preference or goal is
+   inferred.
+5. Repeat with sparse collection data and verify suggestions are not presented
+   as observed facts.
+6. View, replay, cancel, and dismiss guidance. Compare database state and
+   verify no coin, wishlist coin, quick-capture draft, profile, app setting, or
+   auction record changed. Only normal existing Coin Copilot run durability
+   may change.
+7. Verify the Python request contains bounded profile context but no owner ID,
+   credential, action URL, confirmation flag, or write tool.
 
-## Scenario 3 — Watchlist evaluation
+## Scenario 3 — Eligible dealer Add to Wishlist
 
-1. Evaluate owned wishlist items, active goals, and retained Feature 361 dealer/
-   auction results containing duplicates, missing prices, incomparable
-   currencies, stale states and provider degradation.
-2. Verify goal/budget/preference/dealer fit, owned/wishlist duplicates,
-   collection coverage, source quality, listing state and price comparability
-   are closed typed checks with explicit unknowns.
-3. Verify availability and auction state link to canonical records and are not
-   rewritten.
-4. Submit a direct URL, saved search, foreign coin/goal/run/result, altered
-   digest and raw provider payload; all fail closed with no provider call.
-5. Replay a completed run; provider call counts remain unchanged.
+1. Render a completed `market_search` result containing a typed
+   `dealer_listing` with:
+   `verificationState="verified"` and `availability="available"`.
+2. Verify `CopilotRunProgress.vue` displays an accessible explicit
+   **Add to Wishlist** button.
+3. Do not click it. Verify no coin or draft is created.
+4. Click it and verify the event flows through the existing
+   `useCoinSearchChat.addToWishlist`.
+5. When category or era needs confirmation, choose a valid current option and
+   verify `buildWishlistCoinPayload` and `createCoin` are called once.
+6. Verify the created coin belongs to owner A and has `isWishlist=true`.
+7. Verify only supported fields are present: name, category, material,
+   denomination, ruler, era, notes, source reference URL/text, supported
+   references, and interpretable current value.
+8. Verify purchase/acquisition, invoice/SKU, storage, sold, owned-collection,
+   auction, and draft fields remain empty/default.
 
-## Scenario 4 — Tiered risk and Feature 362
+## Scenario 4 — Eligibility exclusions
 
-1. Exercise every allowed finding kind at low/medium/high confidence.
-2. Verify every finding contains evidence or a missing-field fact, tier,
-   confidence, why-it-matters, limitations and visible “needs review.”
-3. Feed accusation/fraud/authenticity text, unsupported claims, invalid URLs,
-   missing citations and low confidence. Verify unsafe output rejects; valid
-   low confidence remains visible in `review_low`.
-4. Provide duplicate-image evidence with exact existing method/basis and
-   limitations, then omit that record; only the first may yield a finding.
-5. Disable Feature 362. Baseline findings work and attribution-dependent
-   behavior returns `attribution_evidence_unavailable`.
-6. Enable a validated Feature 362 projection. Verify its confidence, conflicts,
-   provider coverage, URLs and limitations survive unchanged.
+For each fixture below, verify no **Add to Wishlist** button is rendered and no
+call can be triggered:
 
-## Scenario 5 — Explicit stage, review and confirmation
+- `auction_search` or `kind="auction_lot"`;
+- `verificationState="partial"`;
+- absent/unknown verification;
+- `availability="sold"`;
+- `availability="unknown"` or null/absent;
+- malformed result;
+- non-specialist prose or rendered `facts` that merely contain words such as
+  “verified” or “available”;
+- price-trend, sale-observation, or similar-lot result.
 
-1. Render retained eligible dealer and auction cards. Verify only those typed
-   items have an accessible **Add to Wishlist** button; prose/non-market/stale/
-   cancelled/unverified items do not.
-2. Click the button. Verify Go creates only an immutable stage and the review
-   shows provider/source, evidence, observation, confidence, listing state,
-   price/currency, mapped/omitted fields, limitations and duplicates.
-3. Verify mapping sets `IsWishlist`, uses `CurrentValue` rather than
-   `PurchasePrice`, and does not populate purchase fields, invoice/SKU, sold,
-   storage, visibility, images, notes or unsupported references.
-4. Cancel/close/wait for expiry; zero coins and outcomes exist.
-5. Confirm with the exact stage version/fingerprint and fresh idempotency key.
-   Verify one owner-scoped wishlist coin, immutable outcome and assisted-create
-   coin journal record commit atomically.
-6. Replay same request/key; receive the same result. Reuse key with changed
-   fingerprint; receive `409`. Race two tabs/keys for the same source; at most
-   one coin exists.
-7. Alter owner, stage, version, URL, provider, provenance, result digest,
-   price/currency, mapping, expiry or confirmation literal; fail closed.
-8. Verify Python has no matching route/tool/DTO and cannot self-approve.
+Also verify no Feature 363 change is made to an auction model, repository,
+service, route, provider configuration, or UI component.
 
-## Scenario 6 — Threat and tamper matrix
+## Scenario 5 — Category/era cancellation and safe mapping
 
-- **Leakage**: private profile, prices, images, facts and recommendations never
-  reach owner B, follower/public DTOs, telemetry, browser storage or logs.
-- **Prompt injection**: provider/goal text asking for tools, prompts, secrets or
-  writes remains inert data; no allowlist or output safety changes.
-- **False accusations**: banned fraud/inauthentic/person/dealer assertions
-  reject the whole finding, not merely hide the label.
-- **SSRF**: file/non-HTTPS/user-info/localhost/private/link-local/metadata,
-  DNS rebinding, unsafe redirect and unregistered host fixtures are rejected.
-- **Duplicate images**: transformed/cropped/partial matches disclose the
-  method and uncertainty; no match identifies an “original.”
-- **Stale listings**: freshness expiry or authoritative state conflict blocks
-  staging/confirmation or becomes an explicit unknown.
-- **Cancellation/replay**: cancel before capability/stage/commit yields no
-  late result/write; committed confirmation remains idempotently readable.
-- **Cross-user ids**: every profile/goal/coin/run/result/stage id is
-  unknown-equivalent across owners.
+1. Use an eligible dealer result with an unknown category or era.
+2. Verify the existing `matchCategoryEra` flow runs and the existing
+   `CategoryEraConfirmModal` appears when needed.
+3. Cancel the confirmation and verify `createCoin` is never called.
+4. Repeat and choose a valid option; verify one wishlist coin is created.
+5. Use unsupported material and missing price fixtures. Verify material uses
+   the existing safe fallback and current value remains empty when price cannot
+   be interpreted.
+6. Verify long text is bounded by `buildWishlistCoinPayload` and unsupported
+   catalog references are omitted.
+
+## Scenario 6 — Duplicate and retry behavior
+
+1. Double-click an eligible card while creation is pending. Verify `addingIdx`
+   allows one request.
+2. Click an already-successful card. Verify `addedSet` prevents another
+   request.
+3. Seed an owner-scoped wishlist coin with the same reference URL, then click
+   an equivalent eligible card. Verify the transaction-scoped
+   `FindWishlistByReferenceURL` check prevents insertion and the owner receives
+   clear duplicate status.
+4. Run two concurrent create requests for owner A and the same non-empty
+   reference URL. Verify the canonical create transaction produces at most one
+   wishlist coin.
+5. Repeat for owner B and verify A's row does not block B; owner scoping
+   remains intact.
+6. Verify ordinary owned-collection creation and wishlist items without a
+   reference URL retain existing behavior.
+
+## Scenario 7 — Image attachment
+
+1. For a safe reachable source image, verify the existing sequence performs
+   source scrape, proxy, and one obverse upload after coin creation.
+2. For scrape failure with a typed fallback image URL, verify the existing
+   fallback is used.
+3. For unsafe, unreachable, empty, or unsupported images, verify:
+   - the wishlist coin remains saved;
+   - no second coin is created;
+   - no unrelated field is populated;
+   - the UI reports or logs a non-fatal image warning.
 
 ## Focused automated tests
 
 ### Go
 
-- repository: owner scopes, unique indexes, migration order, neutral defaults,
-  profile/goal transaction and stage/outcome immutability;
-- service: every validation boundary, snapshot consistency, composition reuse,
-  mapping allowlist, manual-field preservation, eligibility/freshness,
-  duplicate/idempotency and cancellation linearization;
-- handler/contract: strict JSON, body cap, auth, foreign-equals-unknown,
-  sanitized errors and Swagger;
-- integration: stage→confirm atomicity, two-tab race, transaction rollback,
-  journal linkage and existing workflow regression;
-- architecture: no GORM in handlers/services, no internal mutation callback,
-  no Python write route.
+- `CollectorProfile` validation, owner uniqueness, absent defaults, atomic
+  replacement, and cross-owner isolation;
+- handler auth/body/Swagger/error behavior;
+- Coin Copilot specialist public projection retains typed dealer fields;
+- `CoinService.CreateCoin` reuses owner/reference duplicate lookup inside the
+  transaction for wishlist records;
+- ordinary collection create, wishlist create without URL, structured
+  references, and value snapshots remain unchanged;
+- architecture tests prove handler → service → repository → database.
+
+Suggested focused commands for implementation:
 
 ```powershell
 Push-Location src/api
-go test ./repository ./services ./handlers ./integration -run 'Collector|Curator|WatchlistAction|Risk|Wishlist' -count=1
-go test . -run 'TestArchitecture|TestRegisteredAPIRoutesAreDocumentedInOpenAPI' -count=1
+go test ./models ./repository ./services ./handlers -run 'CollectorProfile|CopilotSpecialist|Wishlist|CreateCoin' -count=1
+go test -run TestArchitecture ./...
 Pop-Location
 ```
 
 ### Python
 
-- strict request/result fixtures and every enum/bound;
-- prompt-injection/token text, unsafe citations, raw provider keys and unknown
-  fields;
-- risk language, low-confidence visibility and Feature 362 gate;
-- cancellation/replay and payload truncation;
-- architecture import/allowlist tests proving read-only inference.
+- optional collector context accepts valid bounds and rejects unknown fields;
+- existing planner selects the three existing read-only capabilities for
+  curator requests;
+- empty context invents no preferences;
+- prompt-like profile text remains inert;
+- no create/save/wishlist action tool or callback is added.
 
 ```powershell
 Push-Location src/agent
-uv run ruff check app/ tests/
-uv run pytest tests/test_coin_copilot_contract.py `
+ruff check app/ tests/
+pytest tests/test_coin_copilot_contract.py `
   tests/test_coin_copilot_harness.py `
   tests/test_coin_copilot_security.py `
   tests/test_coin_copilot_architecture.py `
-  tests/test_coin_copilot_specialists.py `
-  tests/test_collector_workflows.py -v
+  tests/test_portfolio_review.py -v
 Pop-Location
 ```
 
 ### Vue
 
-- profile form boundaries/version conflict/clear behavior;
-- specialist-card eligibility and absence on other cards;
-- button keyboard/touch event, review focus trap/restore, ARIA/live status,
-  confirmation separation, cancel/expiry and retry;
-- stage rendering never trusts raw card JSON and never calls Python;
-- 320px mobile, installed PWA, dark/high-contrast/reduced-motion and offline
-  unavailable states.
+- collector profile form load/save/edit/clear and validation errors;
+- profile values are not written to `localStorage`;
+- `CopilotRunProgress` eligibility matrix;
+- button emission occurs only on an explicit click;
+- `CoinSearchChat` routes the event to the existing wishlist function;
+- category/era cancellation, mapping, repeat-click state, duplicate feedback,
+  image success, and image failure;
+- keyboard, 44px touch target, dark theme, 320px viewport, and installed-PWA
+  layout.
 
 ```powershell
 Push-Location src/web
 npx vitest run `
-  src/components/settings/__tests__/CollectorProfile.test.ts `
+  src/components/settings/__tests__/CollectorProfileSection.test.ts `
   src/components/chat/__tests__/CopilotRunProgress.collector.test.ts `
-  src/components/wishlist/__tests__/WishlistActionReview.test.ts `
-  src/composables/__tests__/useCoinCopilot.test.ts
+  src/composables/__tests__/useCoinSearchChat.test.ts `
+  src/components/__tests__/CoinSearchChat.copilot.test.ts
 npm run type-check
-npm run test:browser
 Pop-Location
 ```
 
 ## Existing-workflow regression gate
 
-Before and after implementation, run targeted suites proving unchanged:
+Verify unchanged:
 
-- collection create/update/portfolio/gap and Feature 012 tools;
-- wishlist create plus availability Features 337/353 and alert-candidate
-  conversion;
-- auction tracking;
-- Deep Analysis Features 344/351/352 and Feature 362 when present;
-- Coin Copilot harness/specialists, replay/cancel/fallback;
-- legacy `/api/agent/chat`.
+- normal collection coin creation and update;
+- legacy Coin Search suggestion cards and their current wishlist button;
+- wishlist page and availability checks;
+- quick-capture drafts and Deep Analysis;
+- Coin Copilot run/replay/cancel/fallback;
+- all auction tracking and auction-result rendering.
 
-Database assertions must compare affected row sets, not only HTTP results.
-
-## Full Quality Gate
+## Full quality gate for implementation
 
 ```powershell
 Push-Location src/api
 go build ./...
 go vet ./...
 go test ./...
-$env:CGO_ENABLED='1'; go test -race ./...; Remove-Item Env:CGO_ENABLED
+go test -run TestArchitecture ./...
 Pop-Location
 
 Push-Location src/agent
-uv sync --locked --extra dev
-uv run ruff check app/ tests/
-uv run pytest tests/ -v
+python -m pip install -e ".[dev]"
+ruff check app/ tests/
+pytest tests/ -v
 Pop-Location
 
 Push-Location src/web
@@ -212,39 +238,16 @@ npm run lint
 npm run type-check
 npm run test
 npm run build
-npm run test:browser
 Pop-Location
 
 task openapi
-git diff --exit-code -- src/api/docs/docs.go src/api/docs/swagger.json src/api/docs/swagger.yaml docs/openapi.json
 ```
-
-Also require:
-
-1. `.github/workflows/ci.yml` green, including Go race, Vue and Python jobs.
-2. `.github/workflows/security-scan.yml` green: Gitleaks, Govulncheck,
-   `npm audit`, `pip-audit`, and agent runtime-image pip/health checks.
-3. Repository CodeQL/default code-scanning checks green. There is no checked-in
-   CodeQL workflow today; do not invent or bypass one—verify the repository
-   branch-protection check or add a separately reviewed pinned-SHA workflow if
-   maintainers require it.
-4. Docker image workflows/builds green, including
-   `docker-publish-beta.yml`, `docker-publish.yml` when release-targeted, and
-   the agent runtime image check; no push/deploy occurs during implementation
-   validation without explicit release authorization.
-5. `.github/workflows/ai-browser-exploration.yml` and critical browser
-   workflows green with controlled provider fixtures and privacy-safe
-   artifacts.
-6. All actions remain SHA-pinned; no new dependency/provider is introduced.
-7. Run the `post-major-work-qc-audit` skill after the implementation is
-   complete. Resolve all High/Critical findings and document lower-severity
-   dispositions before merge.
 
 ## Expected result
 
-Each phase can be enabled and rolled back independently. Pre-362 profile,
-curator, watchlist, baseline risk and confirmed wishlist action remain usable;
-only attribution-rich findings wait for Feature 362. No recommendation,
-evaluation, risk result, Python/model action, cancellation or replay can write.
-Only the explicit Vue event plus separate Go confirmation creates one audited,
-owner-scoped wishlist item.
+Each owner may keep one small private context profile. Coin Copilot uses it
+only to contextualize its existing read-only collection analysis. A wishlist
+coin is created only when the owner explicitly clicks an eligible verified,
+available dealer card, through the existing canonical wishlist flow. Auction
+results never expose the action, and no action platform or additional
+subsystem exists.
