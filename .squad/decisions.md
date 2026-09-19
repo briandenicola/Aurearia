@@ -11315,10 +11315,35 @@ until owner deletion.
 
 **Deferred**: market/dealer search, auction search, price trends, similar lots,
 writes/approvals, deep-identification handoff, and long-term user memory.
-
 **Governance**: ADR 0016 records the material multi-service decision. No
 constitution amendment is needed because this design directly implements
 Principle II rather than changing it.
+
+---
+
+### Deep Analysis Must Reuse Collection-Grade Face Analysis
+
+**Date:** 2026-09-19
+**Owner:** Brian
+
+- Quick Lookup remains a fast, single combined-image vision pass.
+- When an NGC certification number is visible, Quick Lookup should prioritize
+  that number for lookup.
+- Deep Analysis must reuse the supplied images and collector notes through the
+  existing Collection AI Analysis behavior for dedicated obverse and reverse
+  examination.
+- Deep Analysis then combines those face-level observations with Numista,
+  Nomisma, OCRE, and other configured provider evidence.
+- A combined structured vision call that drops explicit obverse/reverse role
+  labels is not sufficient as the primary Deep Analysis examination.
+- Collector notes remain untrusted evidence rather than instructions or
+  automatically confirmed facts.
+
+**User clarification:** "Quick Lookup is fine to send both coins images in one
+go. The idea is quick while you see a coin. if there is a [NGC] number then use
+that for lookup, but deep analysis should do just that dig deeper. We should
+reuse the images and supplied notes through the Collection AI Analysis pipeline
++ Numista/Nomisma/OCRE and other configured providers."
 
 ---
 

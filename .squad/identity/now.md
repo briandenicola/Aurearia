@@ -3,6 +3,7 @@ updated_at: 2026-09-19T12:19:13Z
 focus_area: F014 stabilization complete; F015 paused after private profile foundation
 active_issues:
   - User retest pending for Coin Copilot execution frames and Deep Analysis notes
+  - Deep Analysis must be aligned with the collection obverse/reverse AI analysis pipeline
   - F015 T012-T034 intentionally paused for a new context
 handoff_commit: f0f3e807
 ---
@@ -47,7 +48,11 @@ tables, audit workflows, watchlist ranking, or provenance-risk workflows.
 
 1. Let the user retest Coin Search and Deep Analysis with detailed attribution
    notes.
-2. Re-read the constitution, Feature 363 spec/plan/tasks, and this handoff.
-3. Resume at T012 only when the user explicitly restarts F015.
-4. Run the combined F014/F015 engineering audit before any beta-to-main v4.2
+2. Correct Deep Analysis so it reuses the collection-grade obverse/reverse AI
+   analysis pipeline with supplied notes before provider verification. Quick
+   Lookup remains a separate fast combined-image pass and prioritizes an NGC
+   certification number when present.
+3. Re-read the constitution, Feature 363 spec/plan/tasks, and this handoff.
+4. Resume at T012 only when the user explicitly restarts F015.
+5. Run the combined F014/F015 engineering audit before any beta-to-main v4.2
    release PR.
