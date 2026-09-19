@@ -172,12 +172,14 @@ jobs:
             context: .
             file: Dockerfile
             image: ancient-coins-app:security
-            archive: ancient-coins-app.tar
+            archive: ancient-coins-app-oci
+            bundle: ancient-coins-app.tar
           - name: agent
             context: src/agent
             file: src/agent/Dockerfile
             image: ancient-coins-agent:security
-            archive: ancient-coins-agent.tar
+            archive: ancient-coins-agent-oci
+            bundle: ancient-coins-agent.tar
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -189,7 +191,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           tags: ${{ matrix.image }}
-          outputs: type=oci,dest=/tmp/${{ matrix.archive }}
+          outputs: type=oci,dest=/tmp/${{ matrix.archive }},tar=false
           sbom: true
           provenance: mode=max
 
@@ -206,15 +208,18 @@ jobs:
       - name: Generate image SBOM
         uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
         with:
-          image: oci-archive:/tmp/${{ matrix.archive }}
+          image: oci-dir:/tmp/${{ matrix.archive }}
           artifact-name: feature362-${{ matrix.name }}.spdx.json
           output-file: /tmp/feature362-${{ matrix.name }}.spdx.json
           format: spdx-json
           upload-artifact-retention: 30
           upload-release-assets: false
 
+      - name: Archive OCI image and attestations
+        run: tar -C /tmp -cf /tmp/${{ matrix.bundle }} ${{ matrix.archive }}
+
       - name: Attest image archive provenance
         if: github.event_name == 'push'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: /tmp/${{ matrix.archive }}
+          subject-path: /tmp/${{ matrix.bundle }}
