@@ -392,6 +392,23 @@ describe('useCoinCopilot', () => {
   })
 })
 
+describe('Coin Copilot reset during restore', () => {
+  it('does not resurrect a finished thread after New Chat', async () => {
+    sessionStorage.clear()
+    sessionStorage.setItem('coinCopilot:lastThread', 'old-thread')
+    let finish!: (value: unknown) => void
+    mocks.getThread.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const recovered = vi.fn()
+    const copilot = useCoinCopilot({ onRecoveredThread: recovered })
+    const pending = copilot.restoreActiveRun()
+    copilot.clearRun()
+    finish({ data: { thread: { id: 'old-thread', messages: [], runs: [] } } })
+    expect(await pending).toBe(false)
+    expect(recovered).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('coinCopilot:lastThread')).toBeNull()
+  })
+})
+
 describe('Coin Copilot SSE parser', () => {
   it('de-duplicates replayed sequences and ignores unknown events', () => {
     const events: CoinCopilotEvent[] = []

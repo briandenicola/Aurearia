@@ -1,4 +1,4 @@
-import { ref, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { computed, ref, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, getApiErrorMessage, matchCategoryEra, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
 import type { CoinMutationPayload, CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
@@ -205,7 +205,7 @@ export function buildWishlistCoinPayload(
 
 export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   const route = useRoute()
-  const { showAlert } = useDialog()
+  const { showAlert, showConfirm } = useDialog()
   const { categoryOptions, eraOptions, loadOptions: loadCoinOptions } = useCoinOptions()
 
   const messages = ref<ChatMsg[]>([])
@@ -226,6 +226,11 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   let pendingCategoryEraConfirm: ((value: string | null) => void) | null = null
   let saveLabelTimer: ReturnType<typeof setTimeout> | null = null
   let copilotAssistantIdx: number | null = null
+  let generation = 0
+  let legacyController: AbortController | null = null
+  const initializing = ref(true)
+  const resetting = ref(false)
+  const resolvingMode = ref(false)
 
   const copilot = useCoinCopilot({
     onRecoveredThread(thread) {
@@ -247,6 +252,45 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       scrollToBottom()
     },
   })
+
+  const newChatDisabled = computed(() =>
+    initializing.value || resetting.value || resolvingMode.value || copilot.starting.value ||
+    saving.value || addingIdx.value !== null || savingShow.value !== null || copilotCancelling.value)
+
+  async function newChat(): Promise<boolean> {
+    if (newChatDisabled.value) return false
+    resetting.value = true
+    try {
+      if (loading.value || copilot.canCancel.value || copilot.run.value?.status === 'cancel_requested') {
+        if (!await showConfirm('Cancel the current request and start a new chat?', {
+          title: 'New Chat', confirmLabel: 'Cancel and start new', cancelLabel: 'Keep chat',
+        })) return false
+        if (copilot.canCancel.value && !await copilot.cancel()) return false
+      }
+      generation += 1
+      legacyController?.abort()
+      legacyController = null
+      copilot.clearRun()
+      cancelCategoryEraConfirmation()
+      if (saveLabelTimer) clearTimeout(saveLabelTimer)
+      saveLabelTimer = null
+      copilotAssistantIdx = null
+      messages.value = []
+      input.value = ''
+      loading.value = false
+      conversationId.value = null
+      saveLabel.value = 'Save'
+      addedSet.value = new Set()
+      savedShows.value = new Set()
+      scrapedImages.value = new Map()
+      copilotResuming.value = false
+      await nextTick()
+      options.inputBarEl.value?.focus()
+      return true
+    } finally {
+      resetting.value = false
+    }
+  }
 
   function requestCategoryEraConfirmation(request: CategoryEraConfirmRequest): Promise<string | null> {
     return new Promise((resolve) => {
@@ -286,16 +330,20 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   }
 
   async function sendLegacyMessage(text: string, history: AgentChatMessage[], assistantIdx: number) {
+    const currentGeneration = generation
+    legacyController = new AbortController()
     await agentChatStream(
       text,
       history,
       (chunk: string) => {
+        if (currentGeneration !== generation) return
         const msg = messages.value[assistantIdx]!
         if (msg.statusText) msg.statusText = ''
         msg.content += chunk
         scrollToBottom()
       },
       (message: string, suggestions: CoinSuggestion[], collection?: CollectionChatResponse) => {
+        if (currentGeneration !== generation) return
         const msg = messages.value[assistantIdx]!
         msg.content = message
         msg.suggestions = suggestions
@@ -306,6 +354,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
         scrollToBottom()
       },
       (error: string) => {
+        if (currentGeneration !== generation) return
         const msg = messages.value[assistantIdx]!
         msg.content = error || 'Failed to get a response. Please try again.'
         msg.streaming = false
@@ -314,6 +363,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
         scrollToBottom()
       },
       (status: string) => {
+        if (currentGeneration !== generation) return
         const msg = messages.value[assistantIdx]!
         if (!msg.content) {
           msg.statusText = status
@@ -321,6 +371,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
         }
       },
       buildAppContext(),
+      legacyController.signal,
     )
   }
 
@@ -345,9 +396,13 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
 
   async function sendMessage() {
     const text = input.value.trim()
-    if (!text || loading.value) return
+    if (!text || loading.value || resolvingMode.value || resetting.value) return
 
+    const currentGeneration = generation
+    resolvingMode.value = true
     const mode = await copilot.resolveCapability()
+    resolvingMode.value = false
+    if (currentGeneration !== generation) return
     messages.value.push({ role: 'user', content: text })
     const history = buildHistory().slice(0, -1)
     input.value = ''
@@ -365,6 +420,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
 
     copilotAssistantIdx = assistantIdx
     const result = await copilot.start(text, buildAppContext(), copilot.run.value?.threadId)
+    if (currentGeneration !== generation) return
     if (!result.accepted && result.fallback) {
       await sendLegacyMessage(text, history, assistantIdx)
       return
@@ -397,6 +453,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   async function resumeCopilotRun(answer: string) {
     if (!copilot.canResume.value || copilotResuming.value) return
     copilotResuming.value = true
+    const currentGeneration = generation
     loading.value = true
     const assistantIdx = copilotAssistantIdx
     if (assistantIdx !== null && messages.value[assistantIdx]) {
@@ -405,6 +462,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     }
     try {
       const resumed = await copilot.resume(answer)
+      if (currentGeneration !== generation) return
       if (resumed && copilot.run.value) {
         settleCopilotMessage({
           status: copilot.run.value.status,
@@ -419,7 +477,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
         }
       }
     } finally {
-      copilotResuming.value = false
+      if (currentGeneration === generation) copilotResuming.value = false
     }
   }
 
@@ -429,8 +487,10 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   }
 
   async function sendPortfolioAnalysis() {
+    const currentGeneration = generation
     try {
       const res = await getPortfolioSummary()
+      if (currentGeneration !== generation) return
       const summary = res.data
       const missingProperties = Object.entries(summary.missingFields ?? {})
       const context = `Analyze my coin collection portfolio. Here is my collection summary:\n\n` +
@@ -447,6 +507,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       input.value = context
       sendMessage()
     } catch {
+      if (currentGeneration !== generation) return
       input.value = 'Analyze my coin collection portfolio and suggest areas for improvement.'
       sendMessage()
     }
@@ -640,9 +701,11 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   async function confirmCollectionProposal(msg: ChatMsg) {
     const proposal = msg.collection?.proposal
     if (!proposal) return
+    const currentGeneration = generation
 
     try {
       const res = await commitCollectionProposal(proposal.proposalId, proposal.proposalToken)
+      if (currentGeneration !== generation) return
       messages.value.push({
         role: 'assistant',
         content: res.data?.message || 'Update committed.',
@@ -653,6 +716,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       }
       scrollToBottom()
     } catch {
+      if (currentGeneration !== generation) return
       await showAlert('Failed to commit collection update proposal.', { title: 'Error' })
     }
   }
@@ -660,9 +724,11 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   async function cancelCollectionProposalMessage(msg: ChatMsg) {
     const proposal = msg.collection?.proposal
     if (!proposal) return
+    const currentGeneration = generation
 
     try {
       const res = await cancelCollectionProposal(proposal.proposalId)
+      if (currentGeneration !== generation) return
       messages.value.push({
         role: 'assistant',
         content: res.data?.message || 'Proposal cancelled.',
@@ -673,6 +739,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       }
       scrollToBottom()
     } catch {
+      if (currentGeneration !== generation) return
       await showAlert('Failed to cancel collection update proposal.', { title: 'Error' })
     }
   }
@@ -692,6 +759,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   }
 
   onMounted(async () => {
+    const currentGeneration = generation
     options.inputBarEl.value?.focus()
     loadCoinOptions()
     if (options.loadConversation) {
@@ -708,9 +776,12 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       providerConfigured.value = true
     }
     await copilot.resolveCapability()
+    if (currentGeneration !== generation) return
     if (!options.loadConversation) {
       await copilot.restoreActiveRun()
     }
+    if (currentGeneration !== generation) return
+    initializing.value = false
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportResize)
       window.visualViewport.addEventListener('scroll', handleViewportResize)
@@ -718,6 +789,8 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   })
 
   onBeforeUnmount(() => {
+    generation += 1
+    legacyController?.abort()
     if (window.visualViewport) {
       window.visualViewport.removeEventListener('resize', handleViewportResize)
       window.visualViewport.removeEventListener('scroll', handleViewportResize)
@@ -750,6 +823,8 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     copilotError: copilot.error,
     copilotCancelling,
     copilotResuming,
+    newChat,
+    newChatDisabled,
     chooseCategoryEraConfirmation,
     cancelCategoryEraConfirmation,
     sendMessage,

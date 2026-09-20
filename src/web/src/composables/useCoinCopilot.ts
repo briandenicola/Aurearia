@@ -154,6 +154,8 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
   const seenSeqs = new Set<number>()
   let abortController: AbortController | null = null
   let capabilityPromise: Promise<CoinCopilotCapability> | null = null
+  let generation = 0
+  const starting = ref(false)
 
   const active = computed(() => capability.value?.mode === 'copilot')
   const canCancel = computed(() =>
@@ -192,6 +194,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
   }
 
   function clearRun() {
+    generation += 1
     disconnect()
     run.value = null
     plan.value = []
@@ -317,7 +320,9 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
 
   async function refreshRun() {
     if (!run.value) return null
+    const currentGeneration = generation
     const response = await getCoinCopilotRun(run.value.id)
+    if (currentGeneration !== generation) return null
     run.value = response.data.run
     persistCursor()
     return run.value
@@ -326,10 +331,11 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
   async function connect(replayPaused = false): Promise<void> {
     if (!shouldStream(replayPaused)) return
     disconnect()
+    const currentGeneration = generation
     error.value = ''
     let reconnectAttempt = 0
 
-    while (shouldStream(replayPaused)) {
+    while (currentGeneration === generation && shouldStream(replayPaused)) {
       const currentRun = run.value
       if (!currentRun) break
       abortController = new AbortController()
@@ -337,10 +343,14 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
       try {
         connected.value = true
         await streamCoinCopilotRunEvents(currentRun.id, {
-          onEvent: applyEvent,
-          onTruncated: () => { truncated.value = true },
+          onEvent: event => !controller.signal.aborted && currentGeneration === generation && applyEvent(event),
+          onTruncated: () => {
+            if (!controller.signal.aborted && currentGeneration === generation) truncated.value = true
+          },
           onEnd: (end) => {
-            if (run.value) run.value = { ...run.value, status: end.status }
+            if (!controller.signal.aborted && currentGeneration === generation && run.value) {
+              run.value = { ...run.value, status: end.status }
+            }
           },
         }, {
           since: lastSeq.value,
@@ -350,6 +360,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
         if (controller.signal.aborted) break
         if (!hasUnappliedEvents() && (terminal.value || paused())) break
         await refreshRun()
+        if (currentGeneration !== generation) break
         if (!hasUnappliedEvents() && (terminal.value || paused())) break
         reconnectAttempt += 1
         if (reconnectAttempt > MAX_RECONNECTS) {
@@ -362,7 +373,9 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
         if (controller.signal.aborted) break
         try {
           await refreshRun()
+          if (currentGeneration !== generation) break
         } catch (refreshError: unknown) {
+          if (currentGeneration !== generation) break
           error.value = actionableError(refreshError, 'Coin Copilot could not reload the durable run.')
           break
         }
@@ -375,9 +388,10 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
         reconnecting.value = true
         await new Promise(resolve => setTimeout(resolve, reconnectAttempt * 250))
       } finally {
-        connected.value = false
+        if (currentGeneration === generation) connected.value = false
       }
     }
+    if (currentGeneration !== generation) return
     reconnecting.value = false
     abortController = null
     persistCursor()
@@ -388,6 +402,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     appContext?: AgentChatAppContext,
     threadId?: string,
   ): Promise<CoinCopilotStartResult> {
+    const currentGeneration = generation
     const resolved = await resolveCapability()
     if (resolved.mode !== 'copilot') return { accepted: false, fallback: true }
 
@@ -402,6 +417,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     const input = { goal, appContext, ...(threadId ? { threadId } : {}) }
 
     let response
+    starting.value = true
     try {
       response = await startCoinCopilotRun(input, key)
     } catch (firstError: unknown) {
@@ -419,11 +435,15 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
           error: actionableError(retryError, 'Coin Copilot start could not be confirmed. Try again to safely reuse the request.'),
         }
       }
+    } finally {
+      starting.value = false
     }
 
+    if (currentGeneration !== generation) return { accepted: false, fallback: false, error: 'Chat was reset.' }
     run.value = response.data.run
     persistCursor()
     await connect()
+    if (currentGeneration !== generation || !run.value) return { accepted: true, status: 'cancelled' }
     return {
       accepted: true,
       status: run.value.status,
@@ -451,29 +471,35 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     error.value = ''
     const key = createIdempotencyKey('resume')
     const checkpointVersion = clarification.value.checkpointVersion
+    const currentGeneration = generation
+    const runId = run.value.id
     try {
-      const response = await resumeCoinCopilotRun(run.value.id, {
+      const response = await resumeCoinCopilotRun(runId, {
         answer: answer.trim(),
         expectedCheckpointVersion: checkpointVersion,
       }, key)
+      if (currentGeneration !== generation) return false
       run.value = response.data.run
       clarification.value = null
       persistCursor()
       await connect()
       return true
     } catch (firstError: unknown) {
+      if (currentGeneration !== generation) return false
       if (responseStatus(firstError) === undefined) {
         try {
-          const response = await resumeCoinCopilotRun(run.value.id, {
+          const response = await resumeCoinCopilotRun(runId, {
             answer: answer.trim(),
             expectedCheckpointVersion: checkpointVersion,
           }, key)
+          if (currentGeneration !== generation) return false
           run.value = response.data.run
           clarification.value = null
           persistCursor()
           await connect()
           return true
         } catch (retryError: unknown) {
+          if (currentGeneration !== generation) return false
           error.value = actionableError(retryError, 'Coin Copilot could not resume this run.')
           return false
         }
@@ -484,6 +510,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
   }
 
   async function restoreFinishedThread(): Promise<boolean> {
+    const currentGeneration = generation
     let threadId: string
     try {
       threadId = sessionStorage.getItem(LAST_THREAD_KEY) ?? ''
@@ -493,9 +520,11 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     if (!threadId) return false
     try {
       const response = await getCoinCopilotThread(threadId)
+      if (currentGeneration !== generation) return false
       options.onRecoveredThread?.(response.data.thread)
       return true
     } catch {
+      if (currentGeneration !== generation) return false
       try {
         sessionStorage.removeItem(LAST_THREAD_KEY)
       } catch { /* storage unavailable */ }
@@ -504,6 +533,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
   }
 
   async function restoreActiveRun() {
+    const currentGeneration = generation
     const stored = readStoredCursor()
     if (!stored) return restoreFinishedThread()
     try {
@@ -511,6 +541,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
         getCoinCopilotRun(stored.runId),
         getCoinCopilotThread(stored.threadId),
       ])
+      if (currentGeneration !== generation) return false
       run.value = runResponse.data.run
       lastSeq.value = Math.min(stored.lastSeq, run.value.lastSeq)
       for (let seq = 1; seq <= lastSeq.value; seq += 1) seenSeqs.add(seq)
@@ -528,6 +559,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
       }
       return true
     } catch {
+      if (currentGeneration !== generation) return false
       clearRun()
       return false
     }
@@ -556,5 +588,6 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
     resume,
     disconnect,
     clearRun,
+    starting,
   }
 }

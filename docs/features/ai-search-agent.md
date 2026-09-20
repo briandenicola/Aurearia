@@ -107,6 +107,13 @@ Malformed model output remains an explicit provider failure, not "no matches."
 
 ### Typing a Description
 
+Use **New Chat** in the drawer header to clear the current conversation and
+start a fresh agent session. If a request is active or paused, confirm its
+cancellation first. If cancellation fails, the existing chat stays open.
+Saved conversations and historical runs are not deleted. New Chat also
+clears the local resume cursor, so reopening the drawer does not restore
+the previous session.
+
 Enter natural language descriptions:
 
 **Examples**:

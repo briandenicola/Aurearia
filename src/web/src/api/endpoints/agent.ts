@@ -45,6 +45,7 @@ export async function agentChatStream(
   onError: (error: string) => void,
   onStatus?: (status: string) => void,
   appContext?: AgentChatAppContext,
+  signal?: AbortSignal,
 ) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -69,6 +70,7 @@ export async function agentChatStream(
   try {
     const resp = await fetchWithAuthRetry(`${baseURL}/api/agent/chat`, {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -161,7 +163,7 @@ export async function agentChatStream(
       }
     }
   } catch (err: unknown) {
-    onError(err instanceof Error ? err.message : 'Stream failed')
+    if (!signal?.aborted) onError(err instanceof Error ? err.message : 'Stream failed')
   }
 }
 

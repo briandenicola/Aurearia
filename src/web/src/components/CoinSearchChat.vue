@@ -6,7 +6,9 @@
         :saving="saving"
         :conversation-id="conversationId"
         :save-label="saveLabel"
+        :new-chat-disabled="newChatDisabled || noteSaving"
         @save="handleSave"
+        @new-chat="handleNewChat"
         @close="$emit('close')"
       />
 
@@ -261,6 +263,8 @@ const {
   conversationId,
   saving,
   saveLabel,
+  newChat,
+  newChatDisabled,
   providerConfigured,
   categoryEraConfirmRequest,
   copilotRun,
@@ -294,6 +298,12 @@ const {
   inputBarEl,
   onAdded: () => emit('added'),
 })
+
+async function handleNewChat() {
+  if (noteSaving.value || !await newChat()) return
+  noteDraftOpen.value = false
+  noteDraft.value = { title: '', body: '' }
+}
 
 function addCopilotDealerToWishlist(
   capability: CoinCopilotSpecialistCapability,
