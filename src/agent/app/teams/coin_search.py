@@ -402,6 +402,7 @@ async def run_market_search(
     observed_at: datetime | None = None,
     cancellation_check: CancellationCheck | None = None,
     source_hosts: set[str] | None = None,
+    search_prompt: str = "",
 ) -> SpecialistResult:
     """Run the canonical dealer workflow and return a strict specialist result."""
     if provider_runners is None:
@@ -413,6 +414,7 @@ async def run_market_search(
                 llm_config,
                 search_query,
                 limit,
+                search_prompt=search_prompt,
                 allowed_fetch_hosts=source_hosts,
                 cancellation_check=cancellation_check,
             )
@@ -454,14 +456,8 @@ def create_coin_search_team(
         search_prompt: Additional context from admin settings (prepended)
         allowed_fetch_hosts: Optional host allowlist for fetched listing pages
     """
-    if search_prompt:
-        combined_search = (
-            f"{search_prompt}\n\n"
-            f"{_configured_source_prompt(allowed_fetch_hosts or set())}\n\n"
-            f"{SEARCH_PROMPT}"
-        )
-    else:
-        combined_search = f"{_configured_source_prompt(allowed_fetch_hosts or set())}\n\n{SEARCH_PROMPT}"
+    source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
+    combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
 
     async def search_node(state: CoinSearchState) -> dict:
         """Phase 1: Search the web for dealer pages."""

@@ -17,6 +17,48 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestCoinCopilotExecutionUsesLegacySearchConfiguration(t *testing.T) {
+	_, service := newCopilotServiceTest(t)
+	run := &models.CoinCopilotRun{
+		ID: "ccr_search_config", ThreadID: "cct_search_config", UserID: 7,
+		Status: models.CopilotRunRunning, Goal: "Find a denarius", ExecutionID: "cce_search_config",
+	}
+	for _, prompt := range []string{"", "Prioritize fixed-price denarii under $150.", "Prefer dealer provenance."} {
+		if err := service.settingsSvc.SetSetting(SettingCoinSearchPrompt, prompt); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.settingsSvc.SetSetting(SettingDealerSearchSources, "vcoins.com\nma-shops.com"); err != nil {
+			t.Fatal(err)
+		}
+		request, err := service.executionRequest(run, LLMConfig{}, "token", CopilotLimitsProxy{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]json.RawMessage
+		if err := json.Unmarshal(encoded, &wire); err != nil {
+			t.Fatal(err)
+		}
+		var actual string
+		if err := json.Unmarshal(wire["coin_search_prompt"], &actual); err != nil {
+			t.Fatalf("missing search prompt on wire: %v", err)
+		}
+		if prompt == "" {
+			if !strings.Contains(actual, `Add "for sale" or "buy now" to your search queries`) {
+				t.Fatalf("legacy default search instructions missing: %q", actual)
+			}
+		} else if actual != prompt {
+			t.Fatalf("search prompt = %q, want %q", actual, prompt)
+		}
+		if strings.Join(request.DealerSources, ",") != "vcoins.com,ma-shops.com" {
+			t.Fatalf("dealer sources = %v", request.DealerSources)
+		}
+	}
+}
+
 func TestCoinCopilotInitialExecutionIncludesBoundedPublicThreadHistory(t *testing.T) {
 	db, service := newCopilotServiceTest(t)
 	thread := &models.CoinCopilotThread{ID: "cct_public_history", UserID: 7, Title: "History"}

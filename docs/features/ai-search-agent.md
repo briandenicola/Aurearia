@@ -41,6 +41,14 @@ results instead. Those listings are explicitly **partially verified**, with
 unknown availability; they are not presented as confirmed live inventory.
 Malformed model output remains an explicit provider failure, not "no matches."
 
+Legacy search and Coin Copilot use the same **CoinSearchPrompt** setting and
+the same built-in prompt when that setting is empty. Go resolves the prompt
+and sends it with the configured dealer sources on each Copilot execution;
+the market tool applies it to its search model, not to the top-level
+supervisor. Changing the setting does not require a separate Copilot
+configuration. This restores search configuration parity; it does not
+remove dealer HTTP 403 blocks or HTTP 429 rate limits.
+
 ### Team 2: Coin Shows
 - Searches for upcoming coin shows and auction events
 - Verifies event dates are in the future

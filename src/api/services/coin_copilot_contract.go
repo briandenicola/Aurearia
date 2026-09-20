@@ -152,6 +152,7 @@ type CopilotExecuteProxyRequest struct {
 	ToolsBaseURL     string                 `json:"tools_base_url"`
 	ExecutionToken   string                 `json:"execution_token"`
 	AllowedTools     []string               `json:"allowed_tools"`
+	CoinSearchPrompt string                 `json:"coin_search_prompt"`
 	DealerSources    []string               `json:"dealer_search_sources"`
 	AuctionSources   []string               `json:"auction_search_sources"`
 }

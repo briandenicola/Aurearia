@@ -311,6 +311,7 @@ async def run_coin_copilot(
             args,
             llm_config=request.llm,
             source_hosts=set(request.dealer_search_sources),
+            search_prompt=request.coin_search_prompt,
             cancellation_check=cancellation_check,
         )
 

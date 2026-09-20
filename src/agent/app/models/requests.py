@@ -442,6 +442,7 @@ class CopilotExecuteRequest(StrictRequestModel):
     tools_base_url: BoundedURL
     execution_token: Annotated[str, StringConstraints(min_length=1, max_length=8192)]
     allowed_tools: list[str] = Field(min_length=1, max_length=MAX_COPILOT_ALLOWED_TOOLS)
+    coin_search_prompt: BoundedPrompt = ""
     dealer_search_sources: list[ConfiguredSourceHost] = Field(
         default_factory=list, max_length=MAX_SEARCH_SOURCES
     )
