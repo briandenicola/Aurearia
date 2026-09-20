@@ -44,6 +44,43 @@ func NewAuctionLotService(repo *repository.AuctionLotRepository, coinRepo *repos
 	return &AuctionLotService{repo: repo, coinRepo: coinRepo}
 }
 
+type EventLinkFailure struct {
+	LotID uint   `json:"lotId"`
+	Code  string `json:"code"`
+	Error string `json:"error"`
+}
+
+type BulkEventLinkResult struct {
+	Updated  int                `json:"updated"`
+	Failures []EventLinkFailure `json:"failures"`
+}
+
+func (s *AuctionLotService) LinkEvent(id, userID uint, eventID *uint) (*models.AuctionLot, error) {
+	return s.repo.LinkEvent(id, userID, eventID)
+}
+
+// BulkLinkEvent preserves successful per-lot transactions and reports every failure.
+func (s *AuctionLotService) BulkLinkEvent(ids []uint, userID uint, eventID *uint) BulkEventLinkResult {
+	result := BulkEventLinkResult{Failures: []EventLinkFailure{}}
+	seen := make(map[uint]bool)
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if _, err := s.LinkEvent(id, userID, eventID); err != nil {
+			failure := EventLinkFailure{LotID: id, Code: "storage_error", Error: "Failed to link auction lot"}
+			if repository.IsRecordNotFound(err) {
+				failure.Code, failure.Error = "not_found", "Auction lot or calendar event not found"
+			}
+			result.Failures = append(result.Failures, failure)
+		} else {
+			result.Updated++
+		}
+	}
+	return result
+}
+
 // WithMarketSignal enables MarketSignal() by wiring in the Python agent proxy and the
 // settings service used to resolve the configured AI provider. Optional — without it,
 // MarketSignal() always reports MarketSignalUnavailable rather than erroring.
@@ -84,7 +121,10 @@ func (s *AuctionLotService) UpdateStatusWithBids(id, userID uint, newStatus mode
 		txRepo := s.repo.WithTx(tx)
 		lot, err := txRepo.GetByID(id, userID)
 		if err != nil {
-			return ErrAuctionLotNotFound
+			if repository.IsRecordNotFound(err) {
+				return ErrAuctionLotNotFound
+			}
+			return err
 		}
 		updates := map[string]interface{}{
 			"status":        newStatus,

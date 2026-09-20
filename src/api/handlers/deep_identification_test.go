@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -108,6 +109,71 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	router.POST("/api/deep-identification/jobs/:id/apply", handler.ApplyProposal)
 
 	return deepHandlerTestDeps{router: router, db: db, svc: svc, coinRepo: coinRepo, proposalSvc: proposalSvc}
+}
+
+func TestDeepIdentificationHandler_UnknownSourceIsNotDisclosedOrMutated(t *testing.T) {
+	const userID = uint(991)
+	deps := setupDeepIdentificationHandlerTest(t, userID, true)
+	job := models.DeepIdentificationJob{
+		UserID: userID, Source: models.DeepJobSource("future_source"),
+		Status: models.DeepJobStatusCompleted, InputFingerprint: "handler-unknown-source",
+		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"schemaVersion":1,"fields":{"notes":{"proposed":"private"}}}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "terminal-unknown",
+	}
+	if err := deps.db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+	event := models.DeepIdentificationEvent{
+		JobID: job.ID, UserID: userID, Seq: 1, Type: models.DeepEventProgress,
+		PayloadJSON: `{"private":"event"}`,
+	}
+	if err := deps.db.Create(&event).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/deep-identification/jobs", nil)
+	listRec := httptest.NewRecorder()
+	deps.router.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK || bytes.Contains(listRec.Body.Bytes(), []byte("copilot_draft")) ||
+		bytes.Contains(listRec.Body.Bytes(), []byte(`"private"`)) {
+		t.Fatalf("unknown source leaked through list: %d %s", listRec.Code, listRec.Body.String())
+	}
+
+	for _, tc := range []struct {
+		name, method, path, body string
+	}{
+		{"get/status", http.MethodGet, fmt.Sprintf("/api/deep-identification/jobs/%d", job.ID), ""},
+		{"stream", http.MethodGet, fmt.Sprintf("/api/deep-identification/jobs/%d/events", job.ID), ""},
+		{"retry", http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/retry", job.ID), "{}"},
+		{"cancel", http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/cancel", job.ID), ""},
+		{"edit proposal", http.MethodPatch, fmt.Sprintf("/api/deep-identification/jobs/%d/proposal", job.ID), `{"fields":{"notes":{"accepted":true}}}`},
+		{"apply", http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", job.ID), `{"target":"draft"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, bytes.NewBufferString(tc.body))
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			rec := httptest.NewRecorder()
+			deps.router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("%s %s = %d %s, want 404", tc.method, tc.path, rec.Code, rec.Body.String())
+			}
+			if bytes.Contains(rec.Body.Bytes(), []byte("copilot_draft")) ||
+				bytes.Contains(rec.Body.Bytes(), []byte(`"private"`)) {
+				t.Fatalf("unknown source metadata leaked: %s", rec.Body.String())
+			}
+		})
+	}
+
+	var after models.DeepIdentificationJob
+	if err := deps.db.First(&after, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != job.Status || after.ReportJSON != job.ReportJSON || after.ProposalJSON != job.ProposalJSON ||
+		after.AppliedAt != nil || after.CancelRequestedAt != nil {
+		t.Fatalf("unknown-source handler path mutated job: %#v", after)
+	}
 }
 
 // deepTestPNGVariant returns a valid PNG with a unique trailing marker byte
@@ -790,5 +856,42 @@ func TestDeepIdentificationHandler_ApplyProposal_UnknownTargetReturns400(t *test
 	deps.db.Model(&models.Coin{}).Count(&coinCount)
 	if coinCount != 0 {
 		t.Fatal("expected no coin created for a rejected unknown target")
+	}
+}
+
+func TestFeature362ApplyUnsupportedFieldReturnsReReviewConflict(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	coin := models.Coin{UserID: 1, Name: "Manual coin", Denomination: "Manual"}
+	if err := deps.db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	proposal := `{"schemaVersion":1,"fields":{
+		"denomination":{"proposed":"Denarius","accepted":true},
+		"purchasePrice":{"proposed":99,"accepted":true}
+	}}`
+	job := &models.DeepIdentificationJob{
+		UserID: 1, Source: models.DeepJobSourceSavedCoin, CoinID: &coin.ID,
+		Status: models.DeepJobStatusCompleted, ProposalJSON: proposal,
+		InputFingerprint: fmt.Sprintf("fp-handler-rereview-%d", time.Now().UnixNano()),
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+	}
+	if err := deps.db.Create(job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	body := bytes.NewBufferString(`{"target":"coin","fields":["denomination","purchasePrice"]}`)
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/apply", job.ID), body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"code":"re_review_required"`) {
+		t.Fatalf("expected 409 re_review_required, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var after models.Coin
+	if err := deps.db.First(&after, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.Denomination != "Manual" {
+		t.Fatalf("failed apply partially updated coin: %#v", after)
 	}
 }

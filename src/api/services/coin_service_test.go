@@ -112,6 +112,69 @@ func TestCreateCoin_Success(t *testing.T) {
 	}
 }
 
+func TestCreateCoin_RejectsSameOwnerWishlistReferenceURLDuplicate(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinService(db)
+	sourceURL := "https://dealer.example/coin/123"
+
+	first := &models.Coin{
+		Name: "First listing", Category: models.CategoryRoman, Material: models.MaterialSilver,
+		ReferenceURL: sourceURL, IsWishlist: true, UserID: 1,
+	}
+	if err := svc.CreateCoin(first); err != nil {
+		t.Fatal(err)
+	}
+	duplicate := &models.Coin{
+		Name: "Duplicate listing", Category: models.CategoryRoman, Material: models.MaterialSilver,
+		ReferenceURL: sourceURL, IsWishlist: true, UserID: 1,
+	}
+	if err := svc.CreateCoin(duplicate); !errors.Is(err, ErrWishlistReferenceDuplicate) {
+		t.Fatalf("duplicate error=%v, want ErrWishlistReferenceDuplicate", err)
+	}
+
+	for _, allowed := range []*models.Coin{
+		{Name: "Other owner", Category: models.CategoryRoman, ReferenceURL: sourceURL, IsWishlist: true, UserID: 2},
+		{Name: "URL-less wishlist", Category: models.CategoryRoman, IsWishlist: true, UserID: 1},
+		{Name: "Collection coin", Category: models.CategoryRoman, ReferenceURL: sourceURL, UserID: 1},
+	} {
+		if err := svc.CreateCoin(allowed); err != nil {
+			t.Fatalf("ordinary create was changed for %q: %v", allowed.Name, err)
+		}
+	}
+}
+
+func TestCreateCoin_ConcurrentWishlistReferenceURLCreatesAtMostOne(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinService(db)
+	const attempts = 8
+	start := make(chan struct{})
+	errs := make(chan error, attempts)
+
+	for i := 0; i < attempts; i++ {
+		go func(index int) {
+			<-start
+			errs <- svc.CreateCoin(&models.Coin{
+				Name: fmt.Sprintf("Concurrent listing %d", index), Category: models.CategoryRoman,
+				ReferenceURL: "https://dealer.example/coin/concurrent", IsWishlist: true, UserID: 1,
+			})
+		}(i)
+	}
+	close(start)
+	for i := 0; i < attempts; i++ {
+		<-errs
+	}
+
+	var count int64
+	if err := db.Model(&models.Coin{}).
+		Where("user_id = ? AND is_wishlist = ? AND reference_url = ?", 1, true, "https://dealer.example/coin/concurrent").
+		Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("concurrent wishlist creates persisted %d rows, want 1", count)
+	}
+}
+
 func TestDuplicateCoin_CopiesFieldsAssociationsAndExcludesMediaAndCardState(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinService(db)

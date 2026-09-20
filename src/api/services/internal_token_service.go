@@ -2,10 +2,13 @@ package services
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +31,12 @@ var (
 // prevents recovering one from the other. Deriving rather than requiring a
 // new configured value means existing deployments need no action.
 const jobTokenHKDFInfo = "ancient-coins-api:deep-identification-job-token:v1"
+const copilotTokenHKDFInfo = "ancient-coins-api:coin-copilot-execution-token:v1"
+const (
+	coinCopilotExecutionTokenBuffer = 30 * time.Second
+	coinCopilotMaxExecutionTimeout  = 150 * time.Second
+	coinCopilotExecutionTokenMaxTTL = 180 * time.Second
+)
 
 // jobTokenRevocationRetention bounds how long a settled job's revocation
 // record is retained (T081). It only needs to outlive the longest possible
@@ -40,7 +49,11 @@ const jobTokenHKDFInfo = "ancient-coins-api:deep-identification-job-token:v1"
 const jobTokenRevocationRetention = 20 * time.Minute
 
 func deriveJobTokenSecret(userJWTSecret []byte) []byte {
-	reader := hkdf.New(sha256.New, userJWTSecret, nil, []byte(jobTokenHKDFInfo))
+	return deriveInternalTokenSecret(userJWTSecret, jobTokenHKDFInfo)
+}
+
+func deriveInternalTokenSecret(secret []byte, info string) []byte {
+	reader := hkdf.New(sha256.New, secret, nil, []byte(info))
 	derived := make([]byte, sha256.Size)
 	if _, err := reader.Read(derived); err != nil {
 		// hkdf.Read only fails if more bytes are requested than the RFC
@@ -60,23 +73,28 @@ func deriveJobTokenSecret(userJWTSecret []byte) []byte {
 // remain cryptographically independent (T080): a compromised job token
 // can never be leveraged as an oracle against the user JWT secret.
 type InternalTokenService struct {
-	secret    []byte
-	jobSecret []byte
+	secret        []byte
+	jobSecret     []byte
+	copilotSecret []byte
 
-	settledMu sync.Mutex
-	settled   map[uint]time.Time
+	settledMu         sync.Mutex
+	settled           map[uint]time.Time
+	revokedExecutions map[string]time.Time
+	now               func() time.Time
 }
 
 // NewInternalTokenService creates a token service with the given HMAC secret.
 func NewInternalTokenService(secret string) *InternalTokenService {
 	secretBytes := []byte(secret)
 	return &InternalTokenService{
-		secret:    secretBytes,
-		jobSecret: deriveJobTokenSecret(secretBytes),
-		settled:   make(map[uint]time.Time),
+		secret:            secretBytes,
+		jobSecret:         deriveJobTokenSecret(secretBytes),
+		copilotSecret:     deriveInternalTokenSecret(secretBytes, copilotTokenHKDFInfo),
+		settled:           make(map[uint]time.Time),
+		revokedExecutions: make(map[string]time.Time),
+		now:               time.Now,
 	}
 }
-
 
 // Mint creates a new internal token for the given userID with a 30-second TTL.
 // Returns a base64-encoded token string: base64(userID|expiry|hmac).
@@ -268,4 +286,102 @@ func (s *InternalTokenService) Verify(token string) (uint, error) {
 	}
 
 	return userID, nil
+}
+
+type CopilotExecutionClaims struct {
+	Version      int      `json:"version"`
+	UserID       uint     `json:"user_id"`
+	RunID        string   `json:"run_id"`
+	ExecutionID  string   `json:"execution_id"`
+	AllowedTools []string `json:"allowed_tools"`
+	ExpiresAt    int64    `json:"expires_at"`
+	Nonce        string   `json:"nonce"`
+}
+
+func (s *InternalTokenService) MintForCopilotExecution(userID uint, runID, executionID string, allowedTools []string, ttl time.Duration) (string, error) {
+	if userID == 0 || runID == "" || executionID == "" || ttl <= 0 || ttl > coinCopilotExecutionTokenMaxTTL {
+		return "", ErrInvalidInternalToken
+	}
+	tools := append([]string(nil), allowedTools...)
+	sort.Strings(tools)
+	for i, tool := range tools {
+		if !IsCoinCopilotToolAllowed(tool) || (i > 0 && tools[i-1] == tool) {
+			return "", ErrInvalidInternalToken
+		}
+	}
+	nonceBytes := make([]byte, 16)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		return "", err
+	}
+	claims := CopilotExecutionClaims{
+		Version: 1, UserID: userID, RunID: runID, ExecutionID: executionID,
+		AllowedTools: tools, ExpiresAt: s.now().UTC().Add(ttl).Unix(),
+		Nonce: base64.RawURLEncoding.EncodeToString(nonceBytes),
+	}
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(payload)
+	mac := hmac.New(sha256.New, s.copilotSecret)
+	_, _ = mac.Write([]byte(encoded))
+	return encoded + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
+}
+
+func (s *InternalTokenService) VerifyForCopilotExecution(token, requestedTool string) (*CopilotExecutionClaims, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return nil, ErrInvalidInternalToken
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil || base64.RawURLEncoding.EncodeToString(signature) != parts[1] {
+		return nil, ErrInvalidInternalToken
+	}
+	mac := hmac.New(sha256.New, s.copilotSecret)
+	_, _ = mac.Write([]byte(parts[0]))
+	if subtle.ConstantTimeCompare(signature, mac.Sum(nil)) != 1 {
+		return nil, ErrInvalidInternalToken
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || base64.RawURLEncoding.EncodeToString(payload) != parts[0] {
+		return nil, ErrInvalidInternalToken
+	}
+	var claims CopilotExecutionClaims
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&claims); err != nil || claims.Version != 1 || claims.UserID == 0 ||
+		claims.RunID == "" || claims.ExecutionID == "" || claims.Nonce == "" || s.now().UTC().Unix() >= claims.ExpiresAt {
+		return nil, ErrInvalidInternalToken
+	}
+	allowed := false
+	for _, tool := range claims.AllowedTools {
+		if !IsCoinCopilotToolAllowed(tool) {
+			return nil, ErrInvalidInternalToken
+		}
+		if tool == requestedTool {
+			allowed = true
+		}
+	}
+	if !allowed {
+		return nil, ErrInvalidInternalToken
+	}
+	s.settledMu.Lock()
+	_, revoked := s.revokedExecutions[claims.ExecutionID]
+	s.settledMu.Unlock()
+	if revoked {
+		return nil, ErrInvalidInternalToken
+	}
+	return &claims, nil
+}
+
+func (s *InternalTokenService) RevokeCopilotExecution(executionID string) {
+	now := s.now().UTC()
+	s.settledMu.Lock()
+	defer s.settledMu.Unlock()
+	s.revokedExecutions[executionID] = now
+	for id, revokedAt := range s.revokedExecutions {
+		if now.Sub(revokedAt) > coinCopilotExecutionTokenMaxTTL {
+			delete(s.revokedExecutions, id)
+		}
+	}
 }

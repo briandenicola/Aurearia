@@ -1,14 +1,14 @@
 ---
 id: F032
 title: "Show how each watched lot's bid moved since the last digest"
-status: backlog
+status: completed
 priority: P2
 effort: S
 value: 4
 risk: 2
 owner: unassigned
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-09-18
 ---
 
 # F032 — Show how each watched lot's bid moved since the last digest
@@ -142,3 +142,5 @@ heading stranded with no lots.
   pay back the message budget the links cost. Unit-tested (link rendering,
   scheme rejection, escaping, sale grouping across interleaved sales, and the
   reported-lot set the snapshot follows).
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`.

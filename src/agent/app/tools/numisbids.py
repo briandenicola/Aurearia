@@ -11,15 +11,10 @@ import re
 import httpx
 from langchain_core.tools import tool
 
-from app.outbound import safe_get
+from app.teams.specialist_contracts import validate_registered_source_url
+from app.tools.search import _BROWSER_HEADERS, safe_registered_get
 
 logger = logging.getLogger(__name__)
-
-_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
-)
 
 _NUMISBIDS_BASE = "https://www.numisbids.com"
 
@@ -38,6 +33,11 @@ _CATEGORY_MAP = {
     "british": "Modern",
     "united states": "Modern",
 }
+
+
+def validate_numisbids_url(url: str) -> str:
+    """Validate a URL against the fixed NumisBids source boundary."""
+    return validate_registered_source_url("numisbids", url)
 
 
 def _map_category(text: str) -> str:
@@ -70,25 +70,27 @@ async def scrape_numisbids_lot(url: str) -> dict:
         Dictionary with title, description, estimate, currentBid, currency,
         imageUrl, auctionHouse, saleName, saleId, lotNumber, category, and url.
     """
-    logger.debug("[numisbids] Scraping lot page: %s", url)
+    logger.debug("[numisbids] Scraping lot page")
 
     try:
-        resp = await safe_get(
+        url = validate_numisbids_url(url)
+        resp = await safe_registered_get(
             url,
+            validator=validate_numisbids_url,
             field_name="url",
-            headers={"User-Agent": _USER_AGENT},
+            headers=_BROWSER_HEADERS,
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
         )
 
         if resp.status_code != 200:
-            return {"error": f"HTTP {resp.status_code} fetching {url}"}
+            return {"error": "Lot source returned a non-success status."}
 
         html = resp.text
         return _parse_lot_page(html, url)
 
-    except Exception as e:
-        logger.warning("Error scraping NumisBids lot %s: %s", url, e)
-        return {"error": f"Failed to fetch lot page: {e}"}
+    except Exception:
+        logger.warning("NumisBids lot fetch failed")
+        return {"error": "Lot source could not be reached."}
 
 
 def _parse_lot_page(html: str, url: str) -> dict:
@@ -214,27 +216,28 @@ async def search_numisbids(query: str) -> list[dict]:
     Returns:
         List of lot summaries with url, title, estimate, imageUrl.
     """
-    logger.debug("[numisbids] Searching: %s", query)
+    logger.debug("[numisbids] Searching configured source")
 
-    search_url = f"{_NUMISBIDS_BASE}/searchall"
+    search_url = validate_numisbids_url(f"{_NUMISBIDS_BASE}/searchall")
 
     try:
-        resp = await safe_get(
+        resp = await safe_registered_get(
             search_url,
+            validator=validate_numisbids_url,
             field_name="search_url",
             params={"searchall": query},
-            headers={"User-Agent": _USER_AGENT},
+            headers=_BROWSER_HEADERS,
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
         )
 
         if resp.status_code != 200:
-            return [{"error": f"Search returned HTTP {resp.status_code}"}]
+            return [{"error": "Auction search returned a non-success status."}]
 
         return _parse_search_results(resp.text)
 
-    except Exception as e:
-        logger.warning("NumisBids search failed: %s", e)
-        return [{"error": f"Search failed: {e}"}]
+    except Exception:
+        logger.warning("NumisBids search failed")
+        return [{"error": "Auction search could not be reached."}]
 
 
 def _parse_search_results(html: str) -> list[dict]:

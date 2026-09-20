@@ -232,7 +232,69 @@ Similarly, the provider catalog is left at its real production default, but `too
 
 Full rationale: `.squad/decisions/inbox/maximus-seam-test.md`.
 
-## 10. Cross-references
+## 10. Coin Copilot contract and operations testing
+
+Feature 359 uses deterministic seam tests instead of live-model assertions.
+Required coverage spans:
+
+- Go state transitions, owner scoping, idempotent start/resume, cancellation
+  races, stale recovery, retention, bounded payloads, token usage, and exactly
+  one terminal event;
+- execution-credential signature, expiry, revocation, owner/run/execution/tool
+  binding, and rejection of all write/arbitrary tools;
+- Python strict schemas, model capability preflight, malformed calls,
+  prompt-injection-as-data, iteration/tool/time exhaustion, sequential tool
+  execution, payload truncation, and provider-reported token accounting;
+- Vue feature-off/unsupported-model legacy fallback, progress,
+  clarification/resume, cancellation, reconnect/de-duplication, and
+  desktop/PWA rendering;
+- route/OpenAPI and shared Go/Python fixture drift.
+
+The timeout matrix must cover the 120-second default and 150-second maximum.
+Values above 150 are invalid because the execution timeout plus the 30-second
+credential buffer must not exceed the token's absolute 180-second TTL.
+Dollar-cost enforcement is intentionally absent; tests should assert that
+reliable input/output token counts remain observable and that iteration,
+tool-call, wall-clock, sequential-concurrency, and payload limits remain
+enforced.
+
+Use mocked provider responses and fake internal SSE streams; do not contact
+Anthropic, Ollama, or other external services. The manual
+[`Feature 359 quickstart`](../specs/359-coin-copilot-harness/quickstart.md)
+validates multi-tool operation, replay, pause/resume, cancellation, fallback,
+owner isolation, privacy, and retention. Record results in the PR rather than
+this document.
+
+Documentation/API drift verification:
+
+```powershell
+task openapi
+git diff --exit-code -- src\api\docs\docs.go src\api\docs\swagger.json src\api\docs\swagger.yaml docs\openapi.json
+Push-Location src\api
+go test . -run TestRegisteredAPIRoutesAreDocumentedInOpenAPI -count=1
+Pop-Location
+```
+
+Feature-specific automated suites may be run before the full §17 gate:
+
+```powershell
+Push-Location src\api
+go test ./handlers ./repository ./services -run CoinCopilot -count=1
+Pop-Location
+
+Push-Location src\agent
+pytest tests/test_coin_copilot_contract.py tests/test_coin_copilot_capabilities.py tests/test_coin_copilot_security.py tests/test_coin_copilot_harness.py -v
+Pop-Location
+
+Push-Location src\web
+npx vitest run src/composables/__tests__/useCoinCopilot.test.ts src/components/__tests__/CoinSearchChat.test.ts src/components/admin/__tests__/AdminSystemSection.coin-copilot.test.ts
+Pop-Location
+```
+
+These commands document the expected validation path; passing results must not
+be claimed unless the commands were actually executed.
+
+## 11. Cross-references
 
 - Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle X, §17, and §21)
 - System architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)

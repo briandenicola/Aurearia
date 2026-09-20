@@ -18,15 +18,24 @@ func NewSettingsRepository(db *gorm.DB) *SettingsRepository {
 // FindByKey returns a single AppSetting by key.
 func (r *SettingsRepository) FindByKey(key string) (*models.AppSetting, error) {
 	var setting models.AppSetting
-	err := r.db.Where("key = ?", key).First(&setting).Error
-	return &setting, err
+	result := r.db.Where("key = ?", key).Limit(1).Find(&setting)
+	if result.Error != nil {
+		return &setting, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return &setting, gorm.ErrRecordNotFound
+	}
+	return &setting, nil
 }
 
 // Upsert creates or updates a setting by key.
 func (r *SettingsRepository) Upsert(key, value string) error {
 	var setting models.AppSetting
-	result := r.db.Where("key = ?", key).First(&setting)
+	result := r.db.Where("key = ?", key).Limit(1).Find(&setting)
 	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
 		setting = models.AppSetting{Key: key, Value: value}
 		return r.db.Create(&setting).Error
 	}

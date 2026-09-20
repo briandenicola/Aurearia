@@ -1,0 +1,101 @@
+{
+  "checkpoint": {
+    "version": 3,
+    "completed_tools": [
+      {
+        "tool_call_id": "call_specialist_01",
+        "tool_name": "price_trends",
+        "result": {
+          "schema_version": 1,
+          "capability": "price_trends",
+          "outcome": "complete",
+          "items": [
+            {
+              "kind": "sale_observation",
+              "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
+              "canonical_source_id": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
+              "provider": "numisbids",
+              "observed_at": "2026-09-18T12:00:00Z",
+              "confidence": "high",
+              "verification_state": "verified",
+              "title": "Domitian denarius completed sale 1",
+              "description": null,
+              "sale_date": "2026-02-01",
+              "amount": 210,
+              "currency": "USD",
+              "price_basis": "hammer"
+            },
+            {
+              "kind": "sale_observation",
+              "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=2",
+              "canonical_source_id": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=2",
+              "provider": "numisbids",
+              "observed_at": "2026-09-18T12:00:00Z",
+              "confidence": "high",
+              "verification_state": "verified",
+              "title": "Domitian denarius completed sale 2",
+              "description": null,
+              "sale_date": "2026-05-15",
+              "amount": 260,
+              "currency": "USD",
+              "price_basis": "hammer"
+            },
+            {
+              "kind": "sale_observation",
+              "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=3",
+              "canonical_source_id": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=3",
+              "provider": "numisbids",
+              "observed_at": "2026-09-18T12:00:00Z",
+              "confidence": "high",
+              "verification_state": "verified",
+              "title": "Domitian denarius completed sale 3",
+              "description": null,
+              "sale_date": "2026-08-01",
+              "amount": 325,
+              "currency": "USD",
+              "price_basis": "hammer"
+            }
+          ],
+          "trend": {
+            "state": "rising",
+            "sample_size": 3,
+            "date_from": "2026-02-01",
+            "date_to": "2026-08-01",
+            "currency": "USD",
+            "price_basis": "hammer",
+            "low": 210,
+            "median": 260,
+            "high": 325,
+            "confidence": "high",
+            "limitations": [],
+            "supporting_source_ids": [
+              "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
+              "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=2",
+              "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=3"
+            ]
+          },
+          "provider_attempts": [
+            {
+              "provider": "numisbids",
+              "status": "success",
+              "observed_at": "2026-09-18T12:00:00Z",
+              "accepted_items": 3,
+              "warning_code": null
+            }
+          ],
+          "warnings": [],
+          "truncation": {
+            "truncated": false,
+            "omitted_items": 0
+          }
+        },
+        "truncated": false
+      }
+    ]
+  },
+  "attempted_replay": {
+    "tool_call_id": "call_specialist_01",
+    "tool_name": "price_trends"
+  },
+  "expected": "reuse_completed_result_without_provider_call"
+}

@@ -7,37 +7,67 @@
 
 import logging
 import re
+from collections.abc import Callable
 from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from langchain_core.tools import tool
 
 from app.config import settings
-from app.outbound import safe_get, validate_outbound_url
+from app.outbound import safe_get, validate_outbound_url, validate_public_outbound_url
 
 logger = logging.getLogger(__name__)
-
-# Trusted coin dealer domains for search filtering
-TRUSTED_DOMAINS = [
-    "vcoins.com",
-    "forumancientcoins.com",
-    "hjbltd.com",
-    "biddr.com",
-    "catawiki.com",
-    "ma-shops.com",
-    "coinshows.com",
-    "coinshows-usa.com",
-    "money.org",
-    "pngdealers.org",
-    "nyinc.info",
-]
-
 
 def _domain_matches(domain: str, expected_domain: str) -> bool:
     """Return True for exact host matches or subdomains of expected_domain."""
     clean_domain = domain.strip(".").lower()
     clean_expected = expected_domain.strip(".").lower()
     return clean_domain == clean_expected or clean_domain.endswith(f".{clean_expected}")
+
+
+def validate_search_source_url(url: str, allowed_hosts: set[str]) -> str:
+    """Validate a public URL against the request-bound source boundary."""
+    validated = validate_public_outbound_url(url, "search source URL")
+    parsed = urlsplit(validated)
+    if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None:
+        raise ValueError("search source URL must use HTTPS without credentials")
+    host = (parsed.hostname or "").rstrip(".").lower()
+    if not any(_domain_matches(host, allowed) for allowed in allowed_hosts):
+        raise ValueError("search source URL host is not configured")
+    return validated
+
+
+async def safe_registered_get(
+    url: str,
+    *,
+    validator: Callable[[str], str],
+    field_name: str,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
+    timeout: httpx.Timeout | float | int | None = None,
+    max_redirects: int = 5,
+) -> httpx.Response:
+    """GET through a fixed source boundary, revalidating every redirect hop."""
+    current_url = validator(validate_public_outbound_url(url, field_name))
+    next_params = params
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+        for _ in range(max_redirects + 1):
+            response = await client.get(current_url, headers=headers, params=next_params)
+            next_params = None
+            if response.status_code not in {301, 302, 303, 307, 308}:
+                return response
+            location = response.headers.get("location")
+            if not location:
+                return response
+            redirect_url = urljoin(str(response.url), location)
+            current_url = validator(
+                validate_public_outbound_url(redirect_url, f"{field_name} redirect")
+            )
+    raise httpx.TooManyRedirects(
+        f"Exceeded {max_redirects} redirects while fetching {field_name}",
+        request=response.request,
+    )
 
 
 def create_searxng_search(searxng_url: str = ""):
@@ -90,12 +120,20 @@ def create_searxng_search(searxng_url: str = ""):
     return searxng_search
 
 
-# Standard browser user-agent— many dealer sites block bot-like strings
-_USER_AGENT = (
+# Standard browser user-agent — many dealer sites block bot-like strings.
+# A stale version is itself a weak bot signal, so set AGENT_DEALER_USER_AGENT
+# to the browser string you actually use when this default falls behind.
+_DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
+    "Chrome/140.0.0.0 Safari/537.36"
 )
+_USER_AGENT = settings.dealer_user_agent or _DEFAULT_USER_AGENT
+_BROWSER_HEADERS = {
+    "User-Agent": _USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 
 @tool
@@ -107,9 +145,6 @@ async def verify_url(url: str) -> str:
     from urllib.parse import urlparse
 
     parsed = urlparse(url)
-    domain = (parsed.hostname or "").lower().lstrip("www.")
-    is_trusted = any(_domain_matches(domain, d) for d in TRUSTED_DOMAINS)
-
     # Detect search/category page URLs (not individual listings)
     path_lower = parsed.path.lower() + "?" + (parsed.query or "").lower()
     search_indicators = [
@@ -142,7 +177,6 @@ async def verify_url(url: str) -> str:
 
         return (
             f"Status: {status}\n"
-            f"Trusted Dealer Site: {is_trusted}\n"
             f"Search/Category Page (NOT individual listing): {is_search_page}\n"
             f"Sold/Unavailable: {is_sold}\n"
             f"Has Buy/Bid Option: {has_buy}\n"
@@ -151,7 +185,6 @@ async def verify_url(url: str) -> str:
     except Exception as e:
         return (
             f"Error fetching URL: {e}\n"
-            f"Trusted Dealer Site: {is_trusted}\n"
             f"Search/Category Page: {is_search_page}\n"
             f"URL: {url}"
         )
@@ -171,15 +204,49 @@ async def fetch_dealer_page(url: str) -> str:
     Returns:
         Extracted listing data with titles, prices, and URLs found on the page.
     """
+    return await _fetch_dealer_page(url, require_registered_source=False)
+
+
+async def fetch_registered_dealer_page(url: str, allowed_hosts: set[str]) -> str:
+    """Fetch a page through a request-bound configured host policy."""
+    return await _fetch_dealer_page(url, allowed_hosts=allowed_hosts)
+
+
+async def _fetch_dealer_page(
+    url: str,
+    *,
+    require_registered_source: bool = False,
+    allowed_hosts: set[str] | None = None,
+) -> str:
     try:
-        resp = await safe_get(
-            url,
-            field_name="url",
-            headers={"User-Agent": _USER_AGENT},
-            timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
-        )
+        if allowed_hosts is not None:
+            def validator(candidate: str) -> str:
+                return validate_search_source_url(candidate, allowed_hosts)
+
+            url = validator(url)
+            resp = await safe_registered_get(
+                url,
+                validator=validator,
+                field_name="url",
+                headers=_BROWSER_HEADERS,
+                timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
+            )
+        else:
+            resp = await safe_get(
+                url,
+                field_name="url",
+                headers=_BROWSER_HEADERS,
+                timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
+            )
 
         if resp.status_code != 200:
+            if allowed_hosts is not None:
+                logger.warning(
+                    "Dealer source returned non-success status host=%s status_code=%d",
+                    urlsplit(url).hostname or "",
+                    resp.status_code,
+                )
+                raise httpx.TransportError("dealer source returned a non-success status")
             return f"Error: HTTP {resp.status_code} fetching {url}"
 
         html = resp.text
@@ -196,8 +263,50 @@ async def fetch_dealer_page(url: str) -> str:
             return _parse_generic(html, url)
 
     except Exception as e:
-        logger.warning("Error fetching dealer page %s: %s", url, e)
+        logger.warning("Dealer page fetch failed error_type=%s", type(e).__name__)
+        if require_registered_source or allowed_hosts is not None:
+            raise
         return f"Error fetching page: {e}"
+
+
+_NON_PRODUCT_IMAGE_HINTS = ("logo", "icon", "sprite", "banner", "placeholder", "avatar", "pixel", "blank")
+
+
+def _extract_image_urls(html: str, base_url: str, limit: int = 10) -> list[str]:
+    """Return https product-image URLs from a dealer page, best effort.
+
+    Dealer pages rarely expose an image in their markup in a structured way, so
+    the frontend still scrapes as a fallback; this simply passes along what is
+    plainly there.
+    """
+    candidates: list[str] = []
+    for match in re.finditer(r'<(?:img|source)[^>]+(?:src|data-src|srcset)="([^"]+)"', html, re.IGNORECASE):
+        raw = match.group(1).split(",")[0].strip().split(" ")[0]
+        if not raw or raw.startswith("data:"):
+            continue
+        absolute = urljoin(base_url, raw)
+        if not absolute.startswith("https://"):
+            continue
+        lowered = absolute.lower()
+        if any(hint in lowered for hint in _NON_PRODUCT_IMAGE_HINTS):
+            continue
+        if absolute not in candidates:
+            candidates.append(absolute)
+        if len(candidates) >= limit:
+            break
+    for match in re.finditer(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', html, re.IGNORECASE):
+        absolute = urljoin(base_url, match.group(1).strip())
+        if absolute.startswith("https://") and absolute not in candidates:
+            candidates.insert(0, absolute)
+    return candidates[:limit]
+
+
+def _image_section(html: str, base_url: str) -> str:
+    images = _extract_image_urls(html, base_url)
+    if not images:
+        return ""
+    listed = "\n".join(f"  {image}" for image in images)
+    return f"Images found on page:\n{listed}\n\n"
 
 
 def _parse_vcoins(html: str, base_url: str) -> str:
@@ -235,7 +344,9 @@ def _parse_vcoins(html: str, base_url: str) -> str:
         # Fallback: extract any useful text
         return _parse_generic(html, base_url)
 
-    result = f"Found {len(listings)} listings on VCoins:\n\n"
+    result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += _image_section(html, base_url)
+    result += f"Found {len(listings)} listings on VCoins:\n\n"
     for i, item in enumerate(listings[:10], 1):
         result += f"{i}. {item['title']}\n"
         result += f"   Price: {item.get('price', 'See listing')}\n"
@@ -271,7 +382,9 @@ def _parse_mashops(html: str, base_url: str) -> str:
     if not listings:
         return _parse_generic(html, base_url)
 
-    result = f"Found {len(listings)} listings on MA-Shops:\n\n"
+    result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += _image_section(html, base_url)
+    result += f"Found {len(listings)} listings on MA-Shops:\n\n"
     for i, item in enumerate(listings[:10], 1):
         result += f"{i}. {item['title']}\n"
         result += f"   Price: {item.get('price', 'See listing')}\n"
@@ -351,7 +464,9 @@ def _parse_generic(html: str, base_url: str) -> str:
     # Get text-only version for context (first 2000 chars)
     text_only = re.sub(r"\s+", " ", "".join(parser.text_parts)).strip()[:2000]
 
-    result = f"Page title: {page_title}\n"
+    result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += _image_section(html, base_url)
+    result += f"Page title: {page_title}\n"
     result += f"Base URL: {base_url}\n\n"
 
     if links:
@@ -366,3 +481,19 @@ def _parse_generic(html: str, base_url: str) -> str:
     result += f"Page content summary:\n{text_only[:1000]}"
 
     return result
+
+
+def _listing_availability_signal(html: str) -> str:
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip().lower()
+    sold_patterns = (
+        r"\bsold out\b",
+        r"\bno longer available\b",
+        r"\bitem (?:has been|is) sold\b",
+        r">\s*sold\s*<",
+    )
+    if any(re.search(pattern, html, re.IGNORECASE) for pattern in sold_patterns) or "sold out" in text:
+        return "sold"
+    available_patterns = ("add to cart", "add to basket", "buy now", "purchase")
+    if any(pattern in text for pattern in available_patterns):
+        return "available"
+    return "unknown"

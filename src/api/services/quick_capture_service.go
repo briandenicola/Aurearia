@@ -123,6 +123,7 @@ type QuickCaptureService struct {
 	uploadDir    string
 	coinSvc      *CoinService
 	referenceSvc *CoinReferenceService
+	deepRepo     *repository.DeepIdentificationRepository
 }
 
 func NewQuickCaptureService(repo *repository.QuickCaptureRepository, uploadDir string) *QuickCaptureService {
@@ -139,6 +140,11 @@ func (s *QuickCaptureService) WithCoinValidation(coinSvc *CoinService) *QuickCap
 
 func (s *QuickCaptureService) WithReferenceValidation(referenceSvc *CoinReferenceService) *QuickCaptureService {
 	s.referenceSvc = referenceSvc
+	return s
+}
+
+func (s *QuickCaptureService) WithDeepProposalReferences(repo *repository.DeepIdentificationRepository) *QuickCaptureService {
+	s.deepRepo = repo
 	return s
 }
 
@@ -528,6 +534,11 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	// Build coin from draft fields + overrides
 	coin := s.buildCoinFromDraft(draft, input.Overrides)
 	coin.IsWishlist = target == QuickCapturePromotionTargetWishlist
+	stagedReferences, err := s.applyStagedDeepProposal(draftID, userID, coin)
+	if err != nil {
+		return nil, err
+	}
+	applyDeepPromotionOverrides(coin, input.Overrides)
 
 	// Validate minimum coin requirements
 	if fieldErrors := s.validateCoinMinimumForPromotion(coin); len(fieldErrors) > 0 {
@@ -535,7 +546,7 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	}
 
 	// Transactional promotion
-	_, createdCoin, err := s.repo.PromoteDraftTransaction(draftID, userID, coin)
+	_, createdCoin, err := s.repo.PromoteDraftTransaction(draftID, userID, coin, stagedReferences)
 	if err != nil {
 		if errors.Is(err, repository.ErrDraftNotClaimable) {
 			return nil, ErrQuickCaptureDraftConcurrentAction
@@ -549,6 +560,59 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 		AlreadyPromoted: false,
 		Target:          target,
 	}, nil
+}
+
+func (s *QuickCaptureService) applyStagedDeepProposal(draftID, userID uint, coin *models.Coin) ([]models.CoinReference, error) {
+	if s.deepRepo == nil || s.referenceSvc == nil {
+		return nil, nil
+	}
+	documents, err := s.deepRepo.ListAppliedDraftProposalJSON(draftID, userID)
+	if err != nil {
+		return nil, err
+	}
+	var staged []models.CoinReference
+	proposalDecoder := &DeepIdentificationProposalService{coinRefSvc: s.referenceSvc}
+	for _, raw := range documents {
+		doc, err := parseDeepProposalDocument(raw)
+		if err != nil {
+			return nil, err
+		}
+		fieldNames, err := selectDeepAppliedFieldNames(doc, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range fieldNames {
+			switch {
+			case isDeepProposalScalarCoinField(name):
+				if err := setCoinFieldFromProposalValue(
+					coin,
+					deepProposalCoinFieldAllowlist[name],
+					resolveDeepProposalFieldValue(doc.Fields[name]),
+				); err != nil {
+					return nil, err
+				}
+			case isDeepProposalCollectionField(name):
+				refs, err := proposalDecoder.resolveDeepProposalCatalogReferences(doc.Fields[name])
+				if err != nil {
+					return nil, err
+				}
+				staged = append(staged, refs...)
+			}
+		}
+	}
+	return staged, nil
+}
+
+func applyDeepPromotionOverrides(coin *models.Coin, overrides PromoteOverrides) {
+	if overrides.Category != nil {
+		coin.Category = models.Category(strings.TrimSpace(*overrides.Category))
+	}
+	if overrides.Material != nil {
+		coin.Material = models.Material(strings.TrimSpace(*overrides.Material))
+	}
+	if overrides.Era != nil {
+		coin.Era = models.Era(strings.TrimSpace(*overrides.Era))
+	}
 }
 
 func normalizeQuickCapturePromotionTarget(target QuickCapturePromotionTarget) (QuickCapturePromotionTarget, error) {

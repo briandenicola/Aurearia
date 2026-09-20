@@ -9,7 +9,7 @@ regression that this whole feature exists to fix.
 import asyncio
 
 from app.models.hypothesis import CoinHypothesis, HypothesisField
-from app.models.responses import ProviderClaim, ProviderEvidence
+from app.models.responses import DeepFaceAnalysis, ProviderClaim, ProviderEvidence
 from app.teams.deep_identification.synthesis import (
     CORROBORATION_CONFIDENCE_BONUS,
     FALLBACK_NARRATIVE_NO_EVIDENCE,
@@ -50,6 +50,81 @@ def test_provider_empty_with_hypothesis_present_does_not_fall_back():
         )
     )
 
+    assert synthesis.narrative != FALLBACK_NARRATIVE_NO_EVIDENCE
+
+
+def test_narrative_receives_detailed_collector_context_as_unverified_evidence():
+    class CapturingModel:
+        messages = None
+
+        async def ainvoke(self, messages):
+            self.messages = messages
+            return type("Response", (), {"content": "The collector attribution is an unverified lead."})()
+
+    model = CapturingModel()
+    synthesis = asyncio.run(
+        synthesize(
+            model,
+            [_no_match_row("numista")],
+            disagreements=[],
+            unresolved_questions=[],
+            partial_success=False,
+            hypothesis=CoinHypothesis(
+                ruler=HypothesisField(value="Probus", confidence=0.7),
+                legible=True,
+            ),
+            notes=(
+                "Our office is closed from 06 to 30 September 2026. "
+                "Probus (AD 276-282). BI Antoninianus. Tripolis mint. "
+                "R/ CLEMENTIA TEMP. RIC V.2 927."
+            ),
+        )
+    )
+
+    prompt = model.messages[1].content
+    assert "Collector-supplied context (unverified)" in prompt
+    assert "Probus (AD 276-282)" in prompt
+    assert "RIC V.2 927" in prompt
+    assert synthesis.narrative == "The collector attribution is an unverified lead."
+
+
+def test_face_narratives_are_retained_and_reach_final_synthesis():
+    class CapturingModel:
+        messages = None
+
+        async def ainvoke(self, messages):
+            self.messages = messages
+            return type("Response", (), {"content": "The visual evidence supports a Probus attribution."})()
+
+    faces = [
+        DeepFaceAnalysis(
+            role="obverse",
+            status="completed",
+            narrative="Radiate bust with PROBVS AVG legend.",
+        ),
+        DeepFaceAnalysis(
+            role="reverse",
+            status="completed",
+            narrative="CLEMENTIA TEMP reverse with Tripolis mintmark.",
+        ),
+    ]
+    model = CapturingModel()
+
+    synthesis = asyncio.run(
+        synthesize(
+            model,
+            [],
+            disagreements=[],
+            unresolved_questions=[],
+            partial_success=False,
+            face_analyses=faces,
+        )
+    )
+
+    prompt = model.messages[1].content
+    assert "Obverse visual analysis: Radiate bust with PROBVS AVG legend." in prompt
+    assert "Reverse visual analysis: CLEMENTIA TEMP reverse with Tripolis mintmark." in prompt
+    assert synthesis.face_analyses == faces
     assert synthesis.narrative != FALLBACK_NARRATIVE_NO_EVIDENCE
 
 
@@ -96,6 +171,26 @@ def test_image_only_field_carries_image_ref_at_hypothesis_confidence():
     assert proposed["ruler"].confidence == 0.62
     assert [ref.provider for ref in proposed["ruler"].evidence_refs] == ["image"]
     assert proposed["ruler"].evidence_refs[0].claim_index is None
+
+
+def test_structured_face_details_become_reviewable_coin_properties():
+    hypothesis = CoinHypothesis(
+        category=HypothesisField(value="Roman", confidence=0.95),
+        grade=HypothesisField(value="VF", confidence=0.7),
+        rarityRating=HypothesisField(value="Scarce", confidence=0.65),
+        legible=True,
+    )
+
+    proposed = _build_proposed_fields(evidence=[], disagreement_fields=set(), hypothesis=hypothesis)
+
+    assert set(proposed) == {"category", "grade", "rarityRating"}
+    assert proposed["category"].value == "Roman"
+    assert proposed["grade"].value == "VF"
+    assert proposed["rarityRating"].value == "Scarce"
+    assert all(
+        [ref.provider for ref in field.evidence_refs] == ["image"]
+        for field in proposed.values()
+    )
 
 
 def test_corroborated_field_gets_the_flat_bonus_once_no_stacking():

@@ -34,6 +34,36 @@ The agent uses specialized teams for different tasks:
 - Fetches listing pages and extracts coin metadata
 - Returns: name, denomination, ruler, era, material, estimated price, source link
 
+Coin Copilot's market specialist uses structured model output rather than
+relying on a markdown JSON response. If a dealer blocks direct access, or a
+fetched results page yields no listings, it can use source-backed search
+results instead. Those listings are explicitly **partially verified**, with
+unknown availability; they are not presented as confirmed live inventory.
+Malformed model output remains an explicit provider failure, not "no matches."
+
+Legacy search and Coin Copilot use the same **CoinSearchPrompt** setting and
+the same built-in prompt when that setting is empty. Go resolves the prompt
+and sends it with the configured dealer sources on each Copilot execution;
+the market tool applies it to its search model, not to the top-level
+supervisor. Changing the setting does not require a separate Copilot
+configuration. This restores search configuration parity; it does not
+remove dealer HTTP 403 blocks or HTTP 429 rate limits.
+
+Coin Copilot treats a clear request to find coins for sale as a request to search
+the configured dealers immediately, not as a collection-only question or a reason
+to ask permission again. Auction requests use the configured auction sources.
+You do not need to own the requested coin, name an internal tool, or provide a
+budget, denomination, or condition to start a search. Collection reads remain
+owner-scoped, and searches do not authorize purchases or collection changes.
+
+**Chat acceptance check:** In a fresh chat, enter "Find Aurelian coins for sale
+online." without adding tool names or configured-source hints. The first request
+should start dealer search and show its evidence or explicit no-match/unavailable
+outcome, not ask whether to search. Also verify that a plain-language correction
+after an earlier collection-only refusal starts the search without another
+confirmation. Prompt-contract tests cover the supplied instructions and unchanged
+conversation text; they do not prove a live model's tool-selection behavior.
+
 ### Team 2: Coin Shows
 - Searches for upcoming coin shows and auction events
 - Verifies event dates are in the future
@@ -99,6 +129,13 @@ The agent uses specialized teams for different tasks:
 3. The **Coin Agent** drawer opens (or full-screen on mobile)
 
 ### Typing a Description
+
+Use **New Chat** in the drawer header to clear the current conversation and
+start a fresh agent session. If a request is active or paused, confirm its
+cancellation first. If cancellation fails, the existing chat stays open.
+Saved conversations and historical runs are not deleted. New Chat also
+clears the local resume cursor, so reopening the drawer does not restore
+the previous session.
 
 Enter natural language descriptions:
 

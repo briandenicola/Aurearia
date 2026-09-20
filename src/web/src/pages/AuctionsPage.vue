@@ -143,6 +143,10 @@
         />
       </Teleport>
 
+      <div v-if="bulkLinkMessage" class="card mb-4" role="status">
+        <p>{{ bulkLinkMessage }}</p>
+        <p v-for="failure in bulkLinkFailures" :key="failure.lotId">Lot {{ failure.lotId }}: {{ failure.error }}</p>
+      </div>
       <AuctionBulkActionBar
         v-if="selectMode"
         :selected-count="selectedLotIds.size"
@@ -195,6 +199,9 @@ let lotRequestId = 0
 
 const selectMode = ref(false)
 const selectedLotIds = ref(new Set<number>())
+const bulkLinkMessage = ref('')
+const bulkLinkFailures = ref<{ lotId: number; error: string }[]>([])
+const linkingEvent = ref(false)
 const sourceOptions = [
   { value: '', label: 'All' },
   { value: 'numisbids', label: 'Numis' },
@@ -243,13 +250,23 @@ async function fetchCalendarEvents() {
 }
 
 async function handleBulkLinkEvent(eventIdRaw: number | string) {
+  if (linkingEvent.value) return
   const eventId = eventIdRaw === '' ? null : Number(eventIdRaw)
+  linkingEvent.value = true
+  bulkLinkMessage.value = 'Linking selected lots...'
+  bulkLinkFailures.value = []
   try {
-    await bulkLinkAuctionLotEvent([...selectedLotIds.value], eventId)
-    selectedLotIds.value = new Set()
-    selectMode.value = false
-    fetchLots()
-  } catch { /* ignore */ }
+    const { data } = await bulkLinkAuctionLotEvent([...selectedLotIds.value], eventId)
+    bulkLinkFailures.value = data.failures
+    bulkLinkMessage.value = `${data.updated} lots updated. ${data.failures.length} failed.`
+    selectedLotIds.value = new Set(data.failures.map(failure => failure.lotId))
+    selectMode.value = data.failures.length > 0
+    await fetchLots()
+  } catch {
+    bulkLinkMessage.value = 'Unable to link selected lots. Please try again.'
+  } finally {
+    linkingEvent.value = false
+  }
 }
 
 watch([activeStatus, activeSource], () => {

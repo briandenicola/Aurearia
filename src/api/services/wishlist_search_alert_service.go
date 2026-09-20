@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -33,14 +35,13 @@ var (
 	ErrWishlistSearchAlertCandidateState = errors.New("invalid candidate state")
 	ErrWishlistSearchAlertDuplicate      = errors.New("duplicate wishlist item warning requires acknowledgement")
 	ErrWishlistSearchAlertConversion     = errors.New("invalid candidate conversion")
+	ErrWishlistSearchAlertStopped        = errors.New("wishlist alert workers are stopping")
 )
 
 const (
-	AlertResultCapDefault          = 20
-	AlertResultCapMax              = 50
-	wishlistAlertRunQueueSize      = 100
-	wishlistAlertDiscoveryTimeout  = 5 * time.Minute
-	wishlistAlertRunningLockWindow = wishlistAlertDiscoveryTimeout
+	AlertResultCapDefault         = 20
+	AlertResultCapMax             = 50
+	wishlistAlertDiscoveryTimeout = 5 * time.Minute
 )
 
 type WishlistAlertCriteriaInput struct {
@@ -73,11 +74,16 @@ type WishlistSearchAlertService struct {
 	agentProxy *AgentProxy
 	settings   *SettingsService
 	coinSvc    *CoinService
-	queue      chan uint
+	wake       chan struct{}
+	ctx        context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
+	startOnce  sync.Once
 }
 
 func NewWishlistSearchAlertService(repo *repository.WishlistSearchAlertRepository) *WishlistSearchAlertService {
-	return &WishlistSearchAlertService{repo: repo, queue: make(chan uint, wishlistAlertRunQueueSize)}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &WishlistSearchAlertService{repo: repo, wake: make(chan struct{}, 1), ctx: ctx, cancel: cancel, done: make(chan struct{})}
 }
 
 func (s *WishlistSearchAlertService) WithDiscovery(agentProxy *AgentProxy, settings *SettingsService) *WishlistSearchAlertService {
@@ -95,13 +101,38 @@ func (s *WishlistSearchAlertService) StartWorkers(workerCount int) {
 	if workerCount < 1 {
 		workerCount = 1
 	}
-	if ids, err := s.repo.RecoverStaleAlertRuns(wishlistAlertDiscoveryTimeout); err == nil {
-		for _, id := range ids {
-			s.enqueueRunID(id)
-		}
-	}
-	for i := 0; i < workerCount; i++ {
-		go s.worker()
+	s.startOnce.Do(func() {
+		go func() {
+			defer close(s.done)
+			for s.ctx.Err() == nil {
+				if err := s.repo.ReconcileInterruptedRuns(); err == nil {
+					break
+				} else {
+					log.Printf("wishlist-alerts: failed to reconcile interrupted runs: %v", err)
+				}
+				select {
+				case <-s.ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+			}
+			var workers sync.WaitGroup
+			for i := 0; i < workerCount; i++ {
+				workers.Go(s.worker)
+			}
+			workers.Wait()
+		}()
+	})
+}
+
+func (s *WishlistSearchAlertService) StopWorkers(ctx context.Context) error {
+	s.cancel()
+	s.startOnce.Do(func() { close(s.done) })
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -217,6 +248,9 @@ func (s *WishlistSearchAlertService) DeleteAlert(id, userID uint) error {
 }
 
 func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlertInput) (*AlertRunResult, error) {
+	if s.ctx.Err() != nil {
+		return nil, ErrWishlistSearchAlertStopped
+	}
 	alert, err := s.GetAlert(alertID, userID)
 	if err != nil {
 		return nil, err
@@ -238,7 +272,7 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 		CriteriaSnapshot: snapshot,
 		RateLimitStatus:  "ok",
 	}
-	acquired, err := s.repo.CreateManualRunIfAvailable(run, time.Now().Add(-wishlistAlertRunningLockWindow))
+	acquired, err := s.repo.CreateManualRunIfAvailable(run)
 	if err != nil {
 		return nil, err
 	}
@@ -253,6 +287,9 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 // configured cadence, as determined by the scheduler. Unlike RunNow, this is
 // triggered by the scheduler rather than a direct user request.
 func (s *WishlistSearchAlertService) QueueScheduledRun(alert models.WishlistSearchAlert) (*AlertRunResult, error) {
+	if s.ctx.Err() != nil {
+		return nil, ErrWishlistSearchAlertStopped
+	}
 	if !alert.IsActive {
 		return nil, ErrWishlistSearchAlertDisabled
 	}
@@ -269,7 +306,7 @@ func (s *WishlistSearchAlertService) QueueScheduledRun(alert models.WishlistSear
 		CriteriaSnapshot: snapshot,
 		RateLimitStatus:  "ok",
 	}
-	acquired, err := s.repo.CreateManualRunIfAvailable(run, time.Now().Add(-wishlistAlertRunningLockWindow))
+	acquired, err := s.repo.CreateManualRunIfAvailable(run)
 	if err != nil {
 		return nil, err
 	}
@@ -282,15 +319,34 @@ func (s *WishlistSearchAlertService) QueueScheduledRun(alert models.WishlistSear
 
 func (s *WishlistSearchAlertService) enqueueRunID(runID uint) {
 	select {
-	case s.queue <- runID:
+	case s.wake <- struct{}{}:
 	default:
-		go func() { s.queue <- runID }()
 	}
 }
 
 func (s *WishlistSearchAlertService) worker() {
-	for runID := range s.queue {
-		_ = s.ProcessRun(runID)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for s.ctx.Err() == nil {
+		ids, err := s.repo.ListQueuedRunIDs()
+		if err != nil {
+			log.Printf("wishlist-alerts: failed to list queued runs: %v", err)
+		} else {
+			for _, id := range ids {
+				if s.ctx.Err() != nil {
+					return
+				}
+				if err := s.ProcessRun(id); err != nil {
+					log.Printf("wishlist-alerts: run %d failed: %v", id, err)
+				}
+			}
+		}
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-s.wake:
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -326,18 +382,23 @@ func (s *WishlistSearchAlertService) processClaimedRun(run *models.AlertRun) err
 		return failErr
 	}
 	proxyReq := AlertDiscoveryProxyRequest{
-		LLM: llmConfig,
+		LLM:           llmConfig,
+		DealerSources: s.settings.GetSearchSources(SettingDealerSearchSources),
 		Alert: AlertDiscoveryRequestDetail{
 			AlertID:          alert.ID,
 			CriteriaSnapshot: criteria,
 			MaxCandidates:    maxCandidates,
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), wishlistAlertDiscoveryTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, wishlistAlertDiscoveryTimeout)
 	resp, err := s.agentProxy.DiscoverAlertCandidates(ctx, proxyReq)
 	cancel()
 	if err != nil {
 		_, failErr := s.failRun(run, "Discovery service is unavailable.", ErrWishlistSearchAlertAgent)
+		return failErr
+	}
+	if err := s.ctx.Err(); err != nil {
+		_, failErr := s.failRun(run, "Interrupted by server shutdown.", err)
 		return failErr
 	}
 	_, err = s.ingestCandidates(run, alert, resp)
@@ -360,7 +421,9 @@ func (s *WishlistSearchAlertService) failRun(run *models.AlertRun, message strin
 	run.DurationMs = now.Sub(run.StartedAt).Milliseconds()
 	run.ErrorMessage = message
 	run.RateLimitStatus = "failed"
-	_ = s.repo.UpdateRun(run)
+	if err := s.repo.UpdateRun(run); err != nil {
+		return nil, fmt.Errorf("persist failed alert run: %w", err)
+	}
 	return runResult(run, nil), retErr
 }
 
@@ -578,7 +641,11 @@ func (s *WishlistSearchAlertService) ConvertCandidate(alertID, candidateID, user
 	if err := s.coinSvc.prepareCoinForCreate(&coin); err != nil {
 		return nil, err
 	}
-	if err := s.repo.ConvertCandidateToWishlist(candidate, s.coinSvc.PreparedCoinCreator(&coin), action); err != nil {
+	creator := s.coinSvc.PreparedCoinCreator(&coin)
+	if len(warnings) > 0 && input.AcknowledgeDuplicateWarning {
+		creator = s.coinSvc.PreparedCoinCreatorWithAcknowledgedURLDuplicate(&coin)
+	}
+	if err := s.repo.ConvertCandidateToWishlist(candidate, creator, action); err != nil {
 		return nil, err
 	}
 	return &ConvertCandidateResult{Coin: coin, Candidate: *candidate, Warnings: warnings}, nil

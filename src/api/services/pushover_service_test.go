@@ -375,7 +375,7 @@ func TestBuildAuctionLotsBiddingPushoverMessage_BatchesAndEscapes(t *testing.T) 
 }
 
 func TestBuildAuctionLotsOutbidPushoverMessage(t *testing.T) {
-	closesAt := time.Now().Add(50 * time.Hour)
+	closesAt := time.Now().Add(50*time.Hour - time.Second)
 	currentBid := 90.0
 	maxBid := 200.0
 	lots := []models.AuctionLot{{
@@ -433,11 +433,11 @@ func TestBuildAuctionLotsOutbidPushoverMessageEscapesScrapedTitles(t *testing.T)
 }
 
 func TestAuctionLotClosesIn(t *testing.T) {
-	inTwoDays := time.Now().Add(50 * time.Hour)
-	inHours := time.Now().Add(3*time.Hour + 30*time.Minute)
-	inMinutes := time.Now().Add(20 * time.Minute)
+	inTwoDays := time.Now().Add(50*time.Hour - time.Second)
+	inHours := time.Now().Add(3*time.Hour + 30*time.Minute - time.Second)
+	inMinutes := time.Now().Add(20*time.Minute - time.Second)
 	past := time.Now().Add(-time.Hour)
-	saleDate := time.Now().Add(26 * time.Hour)
+	saleDate := time.Now().Add(26*time.Hour - time.Second)
 
 	tests := []struct {
 		name string

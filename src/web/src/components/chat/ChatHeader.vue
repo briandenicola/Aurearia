@@ -6,6 +6,15 @@
     </h1>
     <div class="flex items-center gap-2">
       <button
+        class="btn btn-ghost btn-xs"
+        :disabled="newChatDisabled"
+        title="Start a new chat"
+        @click="$emit('new-chat')"
+      >
+        <Plus :size="16" />
+        New Chat
+      </button>
+      <button
         v-if="hasMessages"
         class="btn btn-ghost btn-xs disabled:cursor-default disabled:opacity-50"
         :disabled="saving"
@@ -26,17 +35,19 @@
 </template>
 
 <script setup lang="ts">
-import { Bot, Save, X } from 'lucide-vue-next'
+import { Bot, Plus, Save, X } from 'lucide-vue-next'
 
 defineProps<{
   hasMessages: boolean
   saving: boolean
   conversationId: number | null
   saveLabel: string
+  newChatDisabled?: boolean
 }>()
 
 defineEmits<{
   save: []
   close: []
+  'new-chat': []
 }>()
 </script>

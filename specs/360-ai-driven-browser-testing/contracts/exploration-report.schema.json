@@ -1,0 +1,574 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aurearia.local/schemas/browser-exploration-report-v1.json",
+  "title": "Aurearia Browser Exploration Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "run",
+    "environment",
+    "provider",
+    "workflowScope",
+    "startedAt",
+    "endedAt",
+    "status",
+    "termination",
+    "limits",
+    "usage",
+    "steps",
+    "routeHistory",
+    "evidence",
+    "findings",
+    "privacyCheck",
+    "publication"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "aurearia.browser-exploration-report/v1"
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "trigger", "sourceRevision"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^aibr_[0-9]{8}T[0-9]{6}Z_[a-f0-9]{12}$"
+        },
+        "trigger": {
+          "enum": ["local", "manual", "nightly"]
+        },
+        "sourceRevision": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{40}$"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "composeProject",
+        "appOrigin",
+        "fixtureSet",
+        "testUserId",
+        "productionDataUsed",
+        "services"
+      ],
+      "properties": {
+        "kind": { "const": "ephemeral-full-stack" },
+        "composeProject": {
+          "type": "string",
+          "pattern": "^ai-browser-[a-z0-9-]+$",
+          "maxLength": 80
+        },
+        "appOrigin": {
+          "type": "string",
+          "pattern": "^http://(127\\.0\\.0\\.1|localhost):[0-9]{1,5}$"
+        },
+        "fixtureSet": {
+          "const": "feature-220-f013-golden-collection"
+        },
+        "testUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "productionDataUsed": { "const": false },
+        "services": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["app", "api", "agent"],
+          "properties": {
+            "app": { "$ref": "#/$defs/service" },
+            "api": { "$ref": "#/$defs/service" },
+            "agent": { "$ref": "#/$defs/service" }
+          }
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "model"],
+      "properties": {
+        "name": { "enum": ["anthropic", "ollama", "fake"] },
+        "model": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "workflowScope": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/workflowId" }
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "endedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "completed",
+        "bounded",
+        "failed",
+        "privacy_failed",
+        "infrastructure_failed"
+      ]
+    },
+    "termination": { "$ref": "#/$defs/termination" },
+    "limits": { "$ref": "#/$defs/limits" },
+    "usage": { "$ref": "#/$defs/usage" },
+    "steps": {
+      "type": "array",
+      "maxItems": 25,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "routeHistory": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/routeVisit" }
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "privacyCheck": { "$ref": "#/$defs/privacyCheck" },
+    "publication": { "$ref": "#/$defs/publication" }
+  },
+  "$defs": {
+    "workflowId": {
+      "enum": [
+        "login-session",
+        "add-coin",
+        "edit-one-field",
+        "storage-location-change-clear",
+        "tags-sets-edit",
+        "image-upload-delete",
+        "collection-search-filter",
+        "mobile-edit"
+      ]
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ready", "imageId"],
+      "properties": {
+        "ready": { "type": "boolean" },
+        "imageId": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "steps",
+        "wallTimeSeconds",
+        "modelCalls",
+        "modelTokens",
+        "browserActions",
+        "issueAttempts"
+      ],
+      "properties": {
+        "steps": { "type": "integer", "minimum": 1, "maximum": 25 },
+        "wallTimeSeconds": { "type": "integer", "minimum": 1, "maximum": 900 },
+        "modelCalls": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "modelTokens": { "type": "integer", "minimum": 1, "maximum": 60000 },
+        "browserActions": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "issueAttempts": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "steps",
+        "modelCalls",
+        "modelInputTokens",
+        "modelOutputTokens",
+        "modelTokens",
+        "browserActions",
+        "issueAttempts",
+        "elapsedMilliseconds"
+      ],
+      "properties": {
+        "steps": { "type": "integer", "minimum": 0, "maximum": 25 },
+        "modelCalls": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "modelInputTokens": { "type": "integer", "minimum": 0, "maximum": 60000 },
+        "modelOutputTokens": { "type": "integer", "minimum": 0, "maximum": 60000 },
+        "modelTokens": { "type": "integer", "minimum": 0, "maximum": 60000 },
+        "browserActions": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "issueAttempts": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "elapsedMilliseconds": { "type": "integer", "minimum": 0, "maximum": 900000 }
+      }
+    },
+    "termination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "reachedLimits", "message", "lastCompletedStepId"],
+      "properties": {
+        "reason": {
+          "enum": [
+            "completed",
+            "step_limit",
+            "wall_time_limit",
+            "model_call_limit",
+            "model_token_limit",
+            "browser_action_limit",
+            "issue_attempt_limit",
+            "provider_unavailable",
+            "provider_usage_invalid",
+            "model_output_invalid",
+            "browser_failure",
+            "stack_failure",
+            "privacy_failure",
+            "cancelled",
+            "internal_error"
+          ]
+        },
+        "reachedLimits": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "steps",
+              "wallTimeSeconds",
+              "modelCalls",
+              "modelTokens",
+              "browserActions",
+              "issueAttempts"
+            ]
+          }
+        },
+        "message": { "type": "string", "maxLength": 1000 },
+        "lastCompletedStepId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^step-[0-9]{3}$" }
+          ]
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "workflowId",
+        "goal",
+        "observationEvidenceIds",
+        "decision",
+        "actionResults",
+        "usage",
+        "startedAt",
+        "endedAt"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^step-[0-9]{3}$" },
+        "index": { "type": "integer", "minimum": 1, "maximum": 25 },
+        "workflowId": { "$ref": "#/$defs/workflowId" },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "observationEvidenceIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^ev_[a-z]+_[0-9]{4}$" }
+        },
+        "decision": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action", "rationale"],
+              "properties": {
+                "action": {
+                  "enum": [
+                    "navigate",
+                    "click",
+                    "fill",
+                    "select",
+                    "upload_fixture",
+                    "set_viewport",
+                    "back",
+                    "wait_for_ui",
+                    "checkpoint",
+                    "finish"
+                  ]
+                },
+                "rationale": { "type": "string", "maxLength": 1000 }
+              }
+            }
+          ]
+        },
+        "actionResults": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "status", "summary"],
+            "properties": {
+              "action": { "type": "string", "maxLength": 40 },
+              "status": { "enum": ["completed", "failed", "refused", "cancelled"] },
+              "summary": { "type": "string", "maxLength": 1000 }
+            }
+          }
+        },
+        "usage": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["inputTokens", "outputTokens"],
+              "properties": {
+                "inputTokens": { "type": "integer", "minimum": 0 },
+                "outputTokens": { "type": "integer", "minimum": 0 }
+              }
+            }
+          ]
+        },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "endedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "routeVisit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capturedAt", "workflowId", "route", "reason"],
+      "properties": {
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "workflowId": { "$ref": "#/$defs/workflowId" },
+        "route": { "type": "string", "pattern": "^/", "maxLength": 200 },
+        "reason": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "capturedAt",
+        "workflowId",
+        "route",
+        "summary",
+        "sha256",
+        "artifactPath",
+        "truncated"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^ev_[a-z]+_[0-9]{4}$" },
+        "kind": { "enum": ["route", "screenshot", "console", "network", "accessibility", "ui"] },
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "workflowId": { "$ref": "#/$defs/workflowId" },
+        "route": { "type": "string", "pattern": "^/", "maxLength": 200 },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "artifactPath": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "pattern": "^evidence/[A-Za-z0-9._/-]+$",
+              "maxLength": 500
+            }
+          ]
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint",
+        "category",
+        "severity",
+        "confidence",
+        "workflowId",
+        "route",
+        "title",
+        "reproductionSteps",
+        "expectedBehavior",
+        "observedBehavior",
+        "evidenceIds",
+        "observedFacts",
+        "modelTriage",
+        "publication"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^finding-[0-9]{3}$" },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "category": { "$ref": "#/$defs/category" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "workflowId": { "$ref": "#/$defs/workflowId" },
+        "route": { "type": "string", "pattern": "^/", "maxLength": 200 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "reproductionSteps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": { "type": "string", "maxLength": 500 }
+        },
+        "expectedBehavior": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "observedBehavior": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "evidenceIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^ev_[a-z]+_[0-9]{4}$" }
+        },
+        "observedFacts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "type": "string", "maxLength": 1000 }
+        },
+        "modelTriage": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "generatedByModel",
+                "summary",
+                "suggestedCategory",
+                "suggestedSeverity",
+                "confidence",
+                "evidenceIds"
+              ],
+              "properties": {
+                "generatedByModel": { "const": true },
+                "summary": { "type": "string", "maxLength": 2000 },
+                "suggestedCategory": { "$ref": "#/$defs/category" },
+                "suggestedSeverity": { "$ref": "#/$defs/severity" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                "evidenceIds": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "type": "string", "pattern": "^ev_[a-z]+_[0-9]{4}$" }
+                }
+              }
+            }
+          ]
+        },
+        "publication": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "issueUrl", "message"],
+          "properties": {
+            "status": {
+              "enum": [
+                "not_requested",
+                "not_actionable",
+                "queued",
+                "duplicate",
+                "created",
+                "failed",
+                "blocked_limit",
+                "blocked_privacy"
+              ]
+            },
+            "issueUrl": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "format": "uri", "maxLength": 500 }
+              ]
+            },
+            "message": { "type": "string", "maxLength": 1000 }
+          }
+        }
+      }
+    },
+    "category": {
+      "enum": [
+        "functional",
+        "console",
+        "network",
+        "accessibility",
+        "visual",
+        "navigation",
+        "performance",
+        "security",
+        "other"
+      ]
+    },
+    "severity": {
+      "enum": ["critical", "high", "medium", "low", "info"]
+    },
+    "privacyCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checkedChannels", "canaryCount", "violations", "checkedAt"],
+      "properties": {
+        "status": { "enum": ["passed", "failed"] },
+        "checkedChannels": {
+          "type": "array",
+          "uniqueItems": true,
+          "allOf": [
+            {
+              "contains": { "const": "prompts" }
+            },
+            {
+              "contains": { "const": "screenshots" }
+            },
+            {
+              "contains": { "const": "report" }
+            },
+            {
+              "contains": { "const": "traces" }
+            },
+            {
+              "contains": { "const": "logs" }
+            },
+            {
+              "contains": { "const": "proposedIssues" }
+            }
+          ],
+          "items": {
+            "enum": ["prompts", "screenshots", "report", "traces", "logs", "proposedIssues"]
+          }
+        },
+        "canaryCount": { "type": "integer", "minimum": 1 },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["channel", "path", "rule"],
+            "properties": {
+              "channel": { "type": "string", "maxLength": 40 },
+              "path": { "type": "string", "maxLength": 500 },
+              "rule": { "type": "string", "maxLength": 200 }
+            }
+          }
+        },
+        "checkedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "attempted", "created", "duplicates", "failed"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "attempted": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "created": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "duplicates": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    }
+  }
+}

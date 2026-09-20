@@ -29,6 +29,7 @@
   - [Team Pipelines](#team-pipelines)
   - [LLM Provider Abstraction](#llm-provider-abstraction)
   - [SSE Streaming](#sse-streaming)
+- [Coin Copilot Durable Harness](#coin-copilot-durable-harness)
 - [Data Flow Diagrams](#data-flow-diagrams)
   - [Standard API Request](#standard-api-request)
   - [Agent Chat (SSE Streaming)](#agent-chat-sse-streaming)
@@ -366,6 +367,8 @@ The agent is a **stateless** FastAPI service. It owns no database. All configura
 | `POST` | `/api/portfolio/review` | SSE stream | Portfolio review and valuation |
 | `POST` | `/api/check-availability` | JSON | Wishlist URL availability check |
 | `POST` | `/api/deep-identify/stream` | SSE stream | Deep-identification image analysis, routing, provider fan-out, and synthesis |
+| `POST` | `/api/copilot/capability` | JSON | Internal provider/model tool-calling preflight |
+| `POST` | `/api/copilot/execute` | SSE stream | Stateless Coin Copilot execution |
 | `GET` | `/logs` | JSON | Log ring buffer |
 | `PUT` | `/log-level` | JSON | Dynamic log level |
 
@@ -468,6 +471,62 @@ Final message extraction priority:
 3. Full accumulated text
 
 JSON suggestion blocks (coin suggestions, show listings) are extracted from final text when present.
+
+---
+
+## Coin Copilot Durable Harness
+
+Feature 359 adds a bounded, read-only harness without changing the legacy chat
+protocol. The existing drawer first calls
+`GET /api/agent/copilot/capability`. Coin Copilot is selected only when the
+default-off `CoinCopilotEnabled` flag is on and the configured model passes a
+fail-closed tool-calling preflight. Anthropic must successfully bind the fixed
+schemas; Ollama `/api/show` must explicitly advertise `tools`. Missing,
+ambiguous, malformed, or timed-out checks select the unchanged
+`POST /api/agent/chat` path.
+
+```text
+Vue drawer
+  ├─ legacy mode ──> POST /api/agent/chat
+  └─ copilot mode ─> Go durable run API/SSE
+                       │
+                       ├─ SQLite threads, runs, checkpoints, events
+                       ├─ worker cancellation, retention, idempotency
+                       └─ POST Python /api/copilot/execute
+                              └─ execution-scoped callbacks to Go reads
+```
+
+Go is the sole owner of durable state, authorization, collection data,
+retention, event sequence allocation, and cancellation races. Python remains
+stateless and DB-free. Each execution or resume receives a new read-only
+credential bound to owner, run, execution, tool allowlist, and expiry. Its TTL
+is the smaller of the remaining execution budget plus 30 seconds or 180
+seconds. The configurable execution timeout is therefore capped at 150 seconds
+(default 120).
+
+Runs enforce 8 reasoning iterations, 12 tool calls, one concurrent tool, the
+wall-clock timeout, one active run per owner, and 32 KiB persisted tool results
+by default. Dollar-cost enforcement is deferred until a trustworthy,
+provider/model-specific pricing source exists. Reliable provider-reported
+input/output token counts remain observable; iteration, tool-call, wall-clock,
+sequential-concurrency, and payload limits remain enforced.
+
+Only sanitized, typed public events are persisted and replayed. Checkpoints
+contain public messages, concise plan state, bounded validated tool facts,
+counters, and pending clarification—not chain-of-thought, scratchpads, hidden
+messages, raw prompts, credentials, provider-native traces, or unrestricted raw
+tool payloads. A browser disconnect does not cancel the run: reconnect uses
+`since` or `Last-Event-ID`, replays persisted events in order, and then follows
+live events. Clarification pauses durably; resume uses the same run, a new
+execution id, a new credential, and an idempotency key. Cancellation is
+cooperative in Python and authoritative in Go.
+
+Operational retention is 7 days after terminal state for public events and 30
+days for checkpoints/bounded tool results. Final answers, usage totals, and
+thread messages remain until owner deletion. To roll back, set
+`CoinCopilotEnabled=false`; reject new starts/resumes, retain read/cancel access
+for existing state, and continue using legacy chat. The janitor and stale-run
+recovery remain active until outstanding state settles.
 
 ---
 
@@ -623,6 +682,11 @@ Auction provider services intentionally have asymmetric capabilities:
 | `DeepIdentificationEvent` | `deep_identification_events` | JobID, sequence, typed public payload |
 | `DeepIdentificationProviderRun` | `deep_identification_provider_runs` | JobID, provider, status, timing and bounded outcome metadata |
 | `DeepIdentificationArtifact` | `deep_identification_artifacts` | JobID, role, ephemeral path and cleanup metadata |
+| `CoinCopilotThread` | `coin_copilot_threads` | UserID, title, last run, timestamps |
+| `CoinCopilotRun` | `coin_copilot_runs` | UserID, thread, state, execution identity, snapshotted limits, token usage, terminal result |
+| `CoinCopilotCheckpoint` | `coin_copilot_checkpoints` | Immutable public continuation state and bounded tool facts |
+| `CoinCopilotEvent` | `coin_copilot_events` | Owner-scoped monotonic replay event |
+| `CoinCopilotResumeRequest` | `coin_copilot_resume_requests` | Hashed idempotency key, request fingerprint, accepted checkpoint/execution |
 
 ### System Models
 
@@ -817,6 +881,12 @@ The admin-only Deep Analysis operations view combines durable aggregate job and
 provider-run status/latency with process-local SSE, cleanup, and janitor
 counters. It never returns notes, query terms, claims, reports, tokens, or
 per-job owner content.
+
+Coin Copilot defaults to disabled. Its settings cover worker count, per-owner
+active-run limit, queue depth, reasoning iterations, tool calls, execution
+timeout (15–150 seconds; default 120), persisted tool-result bytes, event
+retention, checkpoint retention, and resume window. There is no dollar-cost
+setting. Provider-reported input/output token totals remain observable.
 
 ---
 

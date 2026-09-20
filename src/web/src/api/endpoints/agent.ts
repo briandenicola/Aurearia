@@ -5,10 +5,21 @@ import type {
   AgentChatAppContext,
   AgentChatMessage,
   ApplyDeepIdentificationProposalInput,
+  CoinCopilotCapability,
+  CoinCopilotEvidenceKind,
+  CoinCopilotEvent,
+  CoinCopilotRunEnvelope,
+  CoinCopilotRunStatus,
+  CoinCopilotSpecialistCapability,
+  CoinCopilotSpecialistResult,
+  CoinCopilotStreamEnd,
+  CoinCopilotStreamTruncated,
+  CoinCopilotThreadEnvelope,
   CoinSuggestion,
   CollectionChatResponse,
   CreateDeepIdentificationJobInput,
   DeepApplyResult,
+  DeepAnalysisHandoffResult,
   DeepIdentificationCapability,
   DeepJobEnvelope,
   DeepJobListResponse,
@@ -34,6 +45,7 @@ export async function agentChatStream(
   onError: (error: string) => void,
   onStatus?: (status: string) => void,
   appContext?: AgentChatAppContext,
+  signal?: AbortSignal,
 ) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -58,6 +70,7 @@ export async function agentChatStream(
   try {
     const resp = await fetchWithAuthRetry(`${baseURL}/api/agent/chat`, {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -150,7 +163,7 @@ export async function agentChatStream(
       }
     }
   } catch (err: unknown) {
-    onError(err instanceof Error ? err.message : 'Stream failed')
+    if (!signal?.aborted) onError(err instanceof Error ? err.message : 'Stream failed')
   }
 }
 
@@ -210,6 +223,474 @@ export const getAIStatus = () =>
 export const getAgentStatus = () =>
   api.get<{ provider: string; configured: boolean }>('/agent/status')
 
+export const getCoinCopilotCapability = () =>
+  api.get<CoinCopilotCapability>('/agent/copilot/capability')
+
+export const startCoinCopilotRun = (
+  input: { goal: string; threadId?: string; appContext?: AgentChatAppContext },
+  idempotencyKey: string,
+) => api.post<CoinCopilotRunEnvelope>('/agent/copilot/runs', input, {
+  headers: { 'Idempotency-Key': idempotencyKey },
+})
+
+export const getCoinCopilotRun = (runId: string) =>
+  api.get<CoinCopilotRunEnvelope>(`/agent/copilot/runs/${runId}`)
+
+export const getCoinCopilotThread = (threadId: string) =>
+  api.get<CoinCopilotThreadEnvelope>(`/agent/copilot/threads/${threadId}`)
+
+export const deleteCoinCopilotThread = (threadId: string) =>
+  api.delete<void>(`/agent/copilot/threads/${threadId}`)
+
+export const cancelCoinCopilotRun = (runId: string) =>
+  api.post<CoinCopilotRunEnvelope>(`/agent/copilot/runs/${runId}/cancel`)
+
+export const resumeCoinCopilotRun = (
+  runId: string,
+  input: { answer: string; expectedCheckpointVersion: number },
+  idempotencyKey: string,
+) => api.post<CoinCopilotRunEnvelope>(`/agent/copilot/runs/${runId}/resume`, input, {
+  headers: { 'Idempotency-Key': idempotencyKey },
+})
+
+type CoinCopilotStreamHandlers = {
+  onEvent: (event: CoinCopilotEvent) => void | boolean
+  onTruncated?: (event: CoinCopilotStreamTruncated) => void
+  onEnd?: (event: CoinCopilotStreamEnd) => void
+}
+
+type CoinCopilotStreamOptions = {
+  since?: number
+  signal?: AbortSignal
+  seenSeqs?: Set<number>
+}
+
+const COPILOT_EVENT_TYPES = new Set<CoinCopilotEvent['type']>([
+  'run_started',
+  'plan_updated',
+  'tool_started',
+  'tool_completed',
+  'clarification_required',
+  'run_paused',
+  'run_resumed',
+  'run_cancelled',
+  'run_completed',
+  'run_failed',
+])
+
+const COPILOT_RUN_STATUSES = new Set<CoinCopilotRunStatus>([
+  'queued',
+  'running',
+  'paused',
+  'cancel_requested',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+const COPILOT_TERMINAL_STATUSES = new Set<CoinCopilotRunStatus>(['completed', 'failed', 'cancelled'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNonNegativeInteger(value: unknown) {
+  return Number.isSafeInteger(value) && Number(value) >= 0
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return Object.keys(value).every(key => keys.includes(key))
+}
+
+function hasRequiredKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return keys.every(key => Object.hasOwn(value, key))
+}
+
+const SPECIALIST_KINDS: Record<CoinCopilotSpecialistCapability, CoinCopilotEvidenceKind> = {
+  market_search: 'dealer_listing',
+  auction_search: 'auction_lot',
+  price_trends: 'sale_observation',
+  similar_lots: 'similar_lot',
+}
+
+function isSafeSpecialistUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2048) return false
+  try {
+    const url = new URL(value)
+    const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    const unsafeIPv4 = /^(?:0|10|127|169\.254|192\.168)\./.test(host) ||
+      /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      host !== 'localhost' && host !== '::1' && !host.endsWith('.localhost') &&
+      !host.endsWith('.local') && !unsafeIPv4
+  } catch {
+    return false
+  }
+}
+
+const DEEP_HANDOFF_OUTCOMES = new Set([
+    'accepted', 'reused_active', 'reused_result', 'status', 'retry_available',
+    'missing_images', 'target_unavailable', 'not_eligible', 'unavailable', 'cancelled',
+  ])
+  const DEEP_HANDOFF_REASONS = new Set([
+    'missing_obverse', 'missing_reverse', 'missing_both', 'duplicate_faces',
+    'target_changed', 'draft_inactive', 'source_coin_missing', 'deep_disabled',
+    'copilot_disabled', 'attribution_disabled', 'model_unsupported', 'job_at_capacity',
+    'queue_full', 'result_missing', 'result_expired', 'stale', 'cancelled',
+  ])
+  const DEEP_HANDOFF_PROVIDERS = new Set(['numista', 'nomisma', 'ngc', 'ocre', 'rpc'])
+  const DEEP_HANDOFF_COVERAGE = new Set([
+    'pending', 'running', 'contributed', 'no_match', 'failed', 'timed_out',
+    'skipped', 'not_automated', 'unavailable',
+  ])
+
+  function isDeepHandoffTruncation(value: unknown): boolean {
+    if (!isRecord(value) || !hasOnlyKeys(value, [
+      'truncated', 'original_bytes', 'persisted_bytes', 'digest', 'omitted_fields',
+      'omitted_evidence', 'omitted_disagreements', 'omitted_questions',
+    ]) || !hasRequiredKeys(value, [
+      'truncated', 'original_bytes', 'persisted_bytes', 'digest', 'omitted_fields',
+      'omitted_evidence', 'omitted_disagreements', 'omitted_questions',
+    ])) return false
+    const counts = [
+      value.original_bytes, value.persisted_bytes, value.omitted_fields,
+      value.omitted_evidence, value.omitted_disagreements, value.omitted_questions,
+    ]
+    if (typeof value.truncated !== 'boolean' || !counts.every(isNonNegativeInteger) ||
+        Number(value.persisted_bytes) > 32768 ||
+        typeof value.digest !== 'string' || !/^[0-9a-f]{64}$/.test(value.digest)) return false
+    return !value.truncated ||
+      Number(value.omitted_fields) + Number(value.omitted_evidence) +
+        Number(value.omitted_disagreements) + Number(value.omitted_questions) > 0
+  }
+
+  function isDeepHandoffResultBody(value: unknown): boolean {
+    if (!isRecord(value) || !hasOnlyKeys(value, [
+      'state', 'narrative', 'partial_success', 'image_only', 'fields', 'disagreements',
+      'unresolved_questions', 'coverage', 'attributions', 'limitations',
+    ]) || !hasRequiredKeys(value, [
+      'state', 'narrative', 'partial_success', 'image_only', 'fields', 'disagreements',
+      'unresolved_questions', 'coverage', 'attributions', 'limitations',
+    ])) return false
+    if (!['not_ready', 'complete', 'partial', 'no_match', 'failed', 'cancelled', 'stale', 'missing_result'].includes(String(value.state)) ||
+        typeof value.narrative !== 'string' || typeof value.partial_success !== 'boolean' ||
+        typeof value.image_only !== 'boolean' || !Array.isArray(value.fields) ||
+        !Array.isArray(value.disagreements) || !isBoundedStrings(value.unresolved_questions, 1000, 1000) ||
+        !Array.isArray(value.coverage) || !Array.isArray(value.attributions) ||
+        !isBoundedStrings(value.limitations, 1000, 1000)) return false
+
+    const fieldNames = new Set<string>()
+    for (const field of value.fields) {
+      if (!isRecord(field) || !hasOnlyKeys(field, ['name', 'value', 'confidence', 'evidence']) ||
+          !hasRequiredKeys(field, ['name', 'value', 'confidence', 'evidence']) ||
+          typeof field.name !== 'string' || field.name.length === 0 || fieldNames.has(field.name) ||
+          typeof field.value !== 'string' || field.value.length === 0 ||
+          typeof field.confidence !== 'number' || !Number.isFinite(field.confidence) ||
+          field.confidence < 0 || field.confidence > 1 || !Array.isArray(field.evidence)) return false
+      fieldNames.add(field.name)
+      for (const evidence of field.evidence) {
+        if (!isRecord(evidence) || !hasOnlyKeys(evidence, ['provider', 'source', 'url', 'summary']) ||
+            !hasRequiredKeys(evidence, ['provider', 'source', 'url', 'summary']) ||
+            typeof evidence.provider !== 'string' || evidence.provider.length === 0 ||
+            typeof evidence.source !== 'string' || evidence.source.length === 0 ||
+            !isSafeSpecialistUrl(evidence.url) ||
+            typeof evidence.summary !== 'string' || evidence.summary.length === 0) return false
+      }
+    }
+    if (!value.disagreements.every(disagreement =>
+      isRecord(disagreement) && hasOnlyKeys(disagreement, ['field', 'summary']) &&
+      hasRequiredKeys(disagreement, ['field', 'summary']) &&
+      typeof disagreement.field === 'string' && disagreement.field.length > 0 &&
+      typeof disagreement.summary === 'string' && disagreement.summary.length > 0)) return false
+
+    const coverageProviders = new Set<string>()
+    for (const coverage of value.coverage) {
+      if (!isRecord(coverage) || !hasOnlyKeys(coverage, ['provider', 'status']) ||
+          !hasRequiredKeys(coverage, ['provider', 'status']) ||
+          !DEEP_HANDOFF_PROVIDERS.has(String(coverage.provider)) ||
+          !DEEP_HANDOFF_COVERAGE.has(String(coverage.status)) ||
+          coverageProviders.has(String(coverage.provider))) return false
+      coverageProviders.add(String(coverage.provider))
+    }
+    const attributionProviders = new Set<string>()
+    for (const attribution of value.attributions) {
+      if (!isRecord(attribution) || !hasOnlyKeys(attribution, ['provider', 'label']) ||
+          !hasRequiredKeys(attribution, ['provider', 'label']) ||
+          !DEEP_HANDOFF_PROVIDERS.has(String(attribution.provider)) ||
+          typeof attribution.label !== 'string' || attribution.label.length === 0 ||
+          attributionProviders.has(String(attribution.provider))) return false
+      attributionProviders.add(String(attribution.provider))
+    }
+    return true
+  }
+
+export function parseDeepAnalysisHandoffResult(value: unknown): DeepAnalysisHandoffResult | null {
+    if (typeof value === 'string') {
+      try {
+        value = JSON.parse(value)
+      } catch {
+        return null
+      }
+    }
+    if (!isRecord(value) || !DEEP_HANDOFF_OUTCOMES.has(String(value.outcome)) || !Object.hasOwn(value, 'reason')) {
+      return null
+    }
+    if (value.outcome === 'not_eligible' || value.outcome === 'target_unavailable') {
+      return value.reason === null && Object.keys(value).length === 2
+        ? value as unknown as DeepAnalysisHandoffResult
+        : null
+    }
+    if (!hasOnlyKeys(value, [
+      'schema_version', 'operation', 'outcome', 'reason', 'target', 'job', 'input_digest',
+      'review_url', 'fresh_analysis_available', 'result', 'truncation', 'limitations',
+    ]) || !hasRequiredKeys(value, [
+      'schema_version', 'operation', 'outcome', 'reason', 'fresh_analysis_available', 'limitations',
+    ]) || value.schema_version !== 1 ||
+        !['request', 'status', 'rerun'].includes(String(value.operation)) ||
+        (value.reason !== null && !DEEP_HANDOFF_REASONS.has(String(value.reason))) ||
+        typeof value.fresh_analysis_available !== 'boolean' ||
+        !isBoundedStrings(value.limitations, 1000, 1000)) return null
+
+    if (Object.hasOwn(value, 'target')) {
+      const target = value.target
+      if (!isRecord(target) || !hasOnlyKeys(target, ['type', 'id', 'display_label']) ||
+          !hasRequiredKeys(target, ['type', 'id', 'display_label']) ||
+          !['coin', 'draft'].includes(String(target.type)) ||
+          !Number.isSafeInteger(target.id) || Number(target.id) < 1 ||
+          typeof target.display_label !== 'string' || target.display_label.length === 0) return null
+    }
+    if (Object.hasOwn(value, 'job')) {
+      const job = value.job
+      if (!isRecord(job) || !hasOnlyKeys(job, [
+        'id', 'source', 'status', 'reused', 'created_at', 'completed_at',
+      ]) || !hasRequiredKeys(job, [
+        'id', 'source', 'status', 'reused', 'created_at', 'completed_at',
+      ]) || !Number.isSafeInteger(job.id) || Number(job.id) < 1 ||
+          !['intake', 'saved_coin', 'copilot_draft'].includes(String(job.source)) ||
+          !['queued', 'running', 'completed', 'partial', 'failed', 'cancelled'].includes(String(job.status)) ||
+          typeof job.reused !== 'boolean' || typeof job.created_at !== 'string' ||
+          (job.completed_at !== null && typeof job.completed_at !== 'string') ||
+          value.review_url !== `/deep-analysis/${String(job.id)}`) return null
+    } else if (Object.hasOwn(value, 'review_url')) {
+      return null
+    }
+    if (Object.hasOwn(value, 'input_digest') &&
+        (typeof value.input_digest !== 'string' || !/^[0-9a-f]{64}$/.test(value.input_digest))) return null
+    if (Object.hasOwn(value, 'result') && !isDeepHandoffResultBody(value.result)) return null
+    if (Object.hasOwn(value, 'truncation') && !isDeepHandoffTruncation(value.truncation)) return null
+    return value as unknown as DeepAnalysisHandoffResult
+}
+
+function isBoundedStrings(value: unknown, maximum: number, itemMaximum = 500): value is string[] {
+  return Array.isArray(value) && value.length <= maximum &&
+    value.every(item => typeof item === 'string' && item.length <= itemMaximum)
+}
+
+// The agent service owns the specialist schema. The client checks only what it
+// must to render safely: the capability matches the tool, item count is bounded,
+// and every URL it will turn into a link or an image is https.
+function isSpecialistEvidence(value: unknown, expectedKind: CoinCopilotEvidenceKind): boolean {
+  if (!isRecord(value) || value.kind !== expectedKind) return false
+  if (typeof value.title !== 'string' || value.title.length === 0 || value.title.length > 300) return false
+  if (!isSafeSpecialistUrl(value.sourceUrl)) return false
+  if (value.imageUrl !== undefined && value.imageUrl !== null && !isSafeSpecialistUrl(value.imageUrl)) return false
+  if (Array.isArray(value.candidateReferences)) {
+    const safeReferences = value.candidateReferences.every(reference =>
+      isRecord(reference) &&
+      (reference.uri === undefined || reference.uri === null || isSafeSpecialistUrl(reference.uri)))
+    if (!safeReferences) return false
+  }
+  return ['verified', 'partial'].includes(String(value.verificationState))
+}
+
+function isSpecialistResult(value: unknown, toolName: string): value is CoinCopilotSpecialistResult {
+  if (!isRecord(value)) return false
+  const capability = value.capability as CoinCopilotSpecialistCapability
+  if (!(capability in SPECIALIST_KINDS) || capability !== toolName) return false
+  if (!['complete', 'partial', 'no_match', 'unavailable'].includes(String(value.outcome))) return false
+  if (!Array.isArray(value.items) || value.items.length > 10) return false
+  if (!value.items.every(item => isSpecialistEvidence(item, SPECIALIST_KINDS[capability]))) return false
+  if (value.trend !== null && value.trend !== undefined && !isRecord(value.trend)) return false
+  return Array.isArray(value.warnings) && value.warnings.length <= 10
+}
+
+function isCoinCopilotUsage(value: unknown) {
+  if (!isRecord(value)) return false
+  return isNonNegativeInteger(value.iterations) && isNonNegativeInteger(value.toolCalls) &&
+    isNonNegativeInteger(value.inputTokens) && isNonNegativeInteger(value.outputTokens) &&
+    !('estimatedCostMicros' in value)
+}
+
+function isCoinCopilotLimits(value: unknown) {
+  if (!isRecord(value)) return false
+  return isNonNegativeInteger(value.maxIterations) && isNonNegativeInteger(value.maxToolCalls) &&
+    isNonNegativeInteger(value.maxConcurrentTools) && isNonNegativeInteger(value.hardTimeoutSeconds) &&
+    isNonNegativeInteger(value.maxPersistedToolResultBytes) && !('maxEstimatedCostMicros' in value)
+}
+
+function isSafeCopilotEvent(value: unknown, eventType: string, eventId?: string): value is CoinCopilotEvent {
+  if (!isRecord(value) || !COPILOT_EVENT_TYPES.has(eventType as CoinCopilotEvent['type'])) return false
+  if (new TextEncoder().encode(JSON.stringify(value)).length > 65536) return false
+  if (value.type !== eventType || !Number.isSafeInteger(value.seq) || Number(value.seq) < 1) return false
+  if (eventId !== undefined && Number(eventId) !== value.seq) return false
+  if (typeof value.threadId !== 'string' || typeof value.runId !== 'string' ||
+      typeof value.executionId !== 'string' || typeof value.ts !== 'string' || !isRecord(value.payload)) {
+    return false
+  }
+
+  const payload = value.payload
+  switch (eventType) {
+    case 'run_started':
+      return payload.status === 'running' && typeof payload.executionId === 'string' &&
+        isNonNegativeInteger(payload.attempt) && isCoinCopilotLimits(payload.limits)
+    case 'plan_updated':
+      return Array.isArray(payload.plan) && payload.plan.every((item) =>
+        isRecord(item) && typeof item.id === 'string' && typeof item.title === 'string' &&
+        ['pending', 'in_progress', 'completed', 'skipped', 'failed'].includes(String(item.status)))
+    case 'tool_started':
+      return typeof payload.toolCallId === 'string' && typeof payload.toolName === 'string' && typeof payload.stepId === 'string'
+    case 'tool_completed':
+      return typeof payload.toolCallId === 'string' && typeof payload.toolName === 'string' &&
+        typeof payload.stepId === 'string' && ['succeeded', 'failed', 'cancelled', 'rejected'].includes(String(payload.status)) &&
+        Number.isFinite(payload.durationMs) && typeof payload.resultSummary === 'string' && typeof payload.truncated === 'boolean' &&
+        (!Object.hasOwn(payload, 'specialistResult') ||
+          isSpecialistResult(payload.specialistResult, payload.toolName)) &&
+        (!Object.hasOwn(payload, 'deepAnalysisHandoffResult') ||
+          (payload.toolName === 'deep_analysis_handoff' &&
+            parseDeepAnalysisHandoffResult(payload.deepAnalysisHandoffResult) !== null))
+    case 'clarification_required':
+      return typeof payload.question === 'string' && ['text', 'single_choice', 'boolean'].includes(String(payload.inputType)) &&
+        Array.isArray(payload.choices) && payload.choices.every(choice => typeof choice === 'string') &&
+        isNonNegativeInteger(payload.checkpointVersion)
+    case 'run_paused':
+      return payload.reason === 'clarification_required' && isNonNegativeInteger(payload.checkpointVersion) &&
+        typeof payload.resumeDeadline === 'string'
+    case 'run_resumed':
+      return typeof payload.executionId === 'string' && isNonNegativeInteger(payload.attempt) &&
+        isNonNegativeInteger(payload.checkpointVersion)
+    case 'run_cancelled':
+      return payload.reason === 'owner_cancelled'
+    case 'run_completed':
+      return typeof payload.answer === 'string' && isCoinCopilotUsage(payload.usage)
+    case 'run_failed':
+      return typeof payload.code === 'string' && typeof payload.message === 'string' &&
+        typeof payload.retryable === 'boolean' && isCoinCopilotUsage(payload.usage)
+    default:
+      return false
+  }
+}
+
+export function createCoinCopilotSSEParser(
+  handlers: CoinCopilotStreamHandlers,
+  seenSeqs = new Set<number>(),
+) {
+  let buffer = ''
+  let stopped = false
+
+  function handleFrame(frame: string) {
+    if (!frame.trim() || frame.startsWith(':')) return
+    let eventType = 'message'
+    let eventId: string | undefined
+    const dataLines: string[] = []
+    for (const rawLine of frame.split('\n')) {
+      const line = rawLine.replace(/\r$/, '')
+      if (!line || line.startsWith(':')) continue
+      if (line.startsWith('event:')) eventType = line.slice(6).trim()
+      else if (line.startsWith('id:')) eventId = line.slice(3).trim()
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+    }
+    if (dataLines.length === 0) return
+
+    let data: unknown
+    try {
+      data = JSON.parse(dataLines.join('\n'))
+    } catch {
+      return
+    }
+
+    if (eventType === 'stream_truncated') {
+      if (isRecord(data) && typeof data.runId === 'string' &&
+          COPILOT_RUN_STATUSES.has(data.status as CoinCopilotRunStatus) &&
+          Number.isSafeInteger(data.earliestSeq) && Number.isSafeInteger(data.lastSeq)) {
+        handlers.onTruncated?.(data as unknown as CoinCopilotStreamTruncated)
+      }
+      return
+    }
+    if (eventType === 'end') {
+      if (isRecord(data) && typeof data.runId === 'string' &&
+          COPILOT_TERMINAL_STATUSES.has(data.status as CoinCopilotRunStatus)) {
+        stopped = true
+        handlers.onEnd?.(data as unknown as CoinCopilotStreamEnd)
+      }
+      return
+    }
+    if (!isSafeCopilotEvent(data, eventType, eventId) || seenSeqs.has(data.seq)) return
+
+    seenSeqs.add(data.seq)
+    if (handlers.onEvent(data) === false) stopped = true
+  }
+
+  return {
+    push(chunk: string) {
+      if (stopped) return
+      buffer += chunk
+      const frames = buffer.split(/\r?\n\r?\n/)
+      buffer = frames.pop() ?? ''
+      for (const frame of frames) handleFrame(frame)
+    },
+    finish() {
+      if (!stopped && buffer.trim()) handleFrame(buffer)
+      buffer = ''
+    },
+    get stopped() {
+      return stopped
+    },
+  }
+}
+
+async function fetchCopilotStreamWithAuthRetry(url: string, signal?: AbortSignal): Promise<Response> {
+  const headersFor = (token: string | null) => {
+    const headers = new Headers({ Accept: 'text/event-stream' })
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    return headers
+  }
+  const first = await fetch(url, { headers: headersFor(localStorage.getItem('token')), signal })
+  if (first.status !== 401) return first
+  const refreshed = await refreshAccessToken()
+  return fetch(url, { headers: headersFor(refreshed), signal })
+}
+
+export async function streamCoinCopilotRunEvents(
+  runId: string,
+  handlers: CoinCopilotStreamHandlers,
+  options: CoinCopilotStreamOptions = {},
+) {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+  const since = options.since ?? 0
+  const query = since > 0 ? `?since=${encodeURIComponent(String(since))}` : ''
+  const response = await fetchCopilotStreamWithAuthRetry(
+    `${baseURL}/api/agent/copilot/runs/${encodeURIComponent(runId)}/events${query}`,
+    options.signal,
+  )
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(formatAgentServiceError(body, `Unable to open Coin Copilot stream (HTTP ${response.status}).`))
+  }
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('Streaming is not supported in this browser.')
+
+  const parser = createCoinCopilotSSEParser(handlers, options.seenSeqs)
+  const decoder = new TextDecoder()
+  while (!parser.stopped) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parser.push(decoder.decode(value, { stream: true }))
+  }
+  parser.push(decoder.decode())
+  parser.finish()
+  if (parser.stopped) await reader.cancel().catch(() => undefined)
+}
+
 // Deep Agentic Coin Identification (344-deep-agentic-coin-identification).
 export async function createDeepIdentificationJob(input: CreateDeepIdentificationJobInput) {
   const formData = new FormData()
@@ -256,4 +737,3 @@ export const deleteDeepIdentificationJob = (id: number) =>
   api.delete<void>(`/deep-identification/jobs/${id}`)
 
 export default api
-

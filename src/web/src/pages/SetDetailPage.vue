@@ -4,6 +4,10 @@
       Loading set details...
     </div>
 
+    <div v-else-if="loadError" class="card" role="alert">
+      <p>{{ loadError }}</p>
+      <button class="btn btn-secondary" @click="loadSetDetails">Retry</button>
+    </div>
     <div v-else-if="set" class="space-y-6">
       <div class="page-header relative items-start">
         <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
@@ -240,31 +244,7 @@
       <div class="card w-[90%] max-w-[500px] p-8">
         <h2 class="mt-0">Add Coin to Set</h2>
         <form @submit.prevent="addCoin">
-          <div class="form-group">
-            <label for="coinSearch" class="form-label">Search coins</label>
-            <input
-              id="coinSearch"
-              v-model="coinSearch"
-              type="search"
-              class="form-input"
-              placeholder="Search by name, ruler, denomination, or mint"
-            />
-          </div>
-          <div class="form-group">
-            <label for="coinToAdd" class="form-label">Coin</label>
-            <select id="coinToAdd" v-model.number="coinIdToAdd" class="form-select" required>
-              <option :value="null" disabled>Select a coin...</option>
-              <option
-                v-for="coin in filteredAvailableCoins"
-                :key="coin.id"
-                :value="coin.id"
-              >
-                {{ coin.name }}<template v-if="coin.ruler"> - {{ coin.ruler }}</template>
-              </option>
-            </select>
-            <p v-if="availableCoins.length === 0" class="mt-1.5 text-chip text-text-secondary">All loaded coins are already in this set.</p>
-            <p v-else-if="filteredAvailableCoins.length === 0" class="mt-1.5 text-chip text-text-secondary">No matching coins found.</p>
-          </div>
+          <SetCoinPicker v-model="coinIdToAdd" :excluded-ids="coins.map(coin => coin.id)" :allow-wishlist="normalizedSetType === 'goal'" search-id="coinSearch" select-id="coinToAdd" />
           <div class="mt-6 flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="showAddCoinModal = false">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="!coinIdToAdd">Add Coin</button>
@@ -278,31 +258,8 @@
         <h2 class="mt-0">Assign Coin to Slot</h2>
         <p class="section-label mb-3">{{ slotTargetLabel }}</p>
         <form @submit.prevent="assignCoinToSlot">
-          <div class="form-group">
-            <label for="slotCoinSearch" class="form-label">Search coins</label>
-            <input
-              id="slotCoinSearch"
-              v-model="slotCoinSearch"
-              type="search"
-              class="form-input"
-              placeholder="Search by name, ruler, denomination, or mint"
-            />
-          </div>
-          <div class="form-group">
-            <label for="slotCoinToAssign" class="form-label">Coin</label>
-            <select id="slotCoinToAssign" v-model.number="slotCoinIdToAssign" class="form-select" required>
-              <option :value="null" disabled>Select a coin...</option>
-              <option
-                v-for="coin in filteredAssignableCoins"
-                :key="coin.id"
-                :value="coin.id"
-              >
-                {{ coin.name }}<template v-if="coin.ruler"> - {{ coin.ruler }}</template>
-              </option>
-            </select>
-            <p v-if="filteredAssignableCoins.length === 0" class="mt-1.5 text-chip text-text-secondary">No matching coins found.</p>
-            <p v-if="slotAssignmentError" class="mt-1.5 text-chip text-[var(--error-bg)]">{{ slotAssignmentError }}</p>
-          </div>
+          <SetCoinPicker v-model="slotCoinIdToAssign" :selected-coin="coins.find(coin => coin.id === currentSlotCoinId)" :excluded-ids="assignedToOtherSlots" :allow-wishlist="false" search-id="slotCoinSearch" select-id="slotCoinToAssign" />
+          <p v-if="slotAssignmentError" class="mt-2 text-chip text-[var(--error-bg)]" role="alert">{{ slotAssignmentError }}</p>
           <div class="mt-6 flex justify-end gap-2">
             <button type="button" class="btn btn-ghost" :disabled="slotAssignmentSaving" @click="showAssignSlotModal = false">Cancel</button>
             <button v-if="currentSlotCoinId" type="button" class="btn btn-danger" :disabled="slotAssignmentSaving" @click="clearSlotAssignment">Clear Slot</button>
@@ -347,16 +304,14 @@ import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Info, Menu, Pencil, Pin,
 import {
   addCoinToSet,
   deleteSet as deleteSetApi,
-  getCoins,
-  getCoinsInSet,
-  getSet,
-  getSetCompletion,
   reorderSetCoins,
   removeCoinFromSet,
   updateSet as updateSetApi,
 } from '@/api/client'
 import { normalizeCoinSetType } from '@/types'
-import type { CoinSetCompletion, CoinSetDetail, Coin } from '@/types'
+import type { Coin } from '@/types'
+import SetCoinPicker from '@/components/sets/SetCoinPicker.vue'
+import { useSetDetails } from '@/composables/useSetDetails'
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
@@ -382,11 +337,8 @@ const {
   isBusy,
 } = useQuickAccess()
 const { showToast } = useToast()
-const loading = ref(true)
-const set = ref<CoinSetDetail | null>(null)
-const coins = ref<Coin[]>([])
-const allCoins = ref<Coin[]>([])
-const completion = ref<CoinSetCompletion | null>(null)
+const setId = computed(() => Number(route.params.id))
+const { loading, set, coins, completion, error: loadError, load: loadSetDetails, capture } = useSetDetails(setId)
 const drawerIndex = ref(0)
 const coinsPerDrawer = 12
 const traySizeScale = ref(1)
@@ -398,8 +350,6 @@ const showAddCoinModal = ref(false)
 const showAssignSlotModal = ref(false)
 const showEditModal = ref(false)
 const coinIdToAdd = ref<number | null>(null)
-const coinSearch = ref('')
-const slotCoinSearch = ref('')
 const slotCoinIdToAssign = ref<number | null>(null)
 const slotTargetId = ref<number | null>(null)
 const slotTargetLabel = ref('')
@@ -413,17 +363,13 @@ const editForm = ref({
   color: '#6b7280',
 })
 
-const setId = Number(route.params.id)
-
 const canManageMembership = computed(() => {
   if (!set.value) return false
   const normalizedType = normalizeCoinSetType(set.value.setType)
   return normalizedType !== 'smart' && normalizedType !== 'agentic'
 })
-const unifiedSetPinned = isPinned('coin_set', setId)
-const unifiedSetBusy = isBusy('coin_set', setId)
-const setPinned = computed(() => unifiedSetPinned.value)
-const setPinBusy = computed(() => unifiedSetBusy.value)
+const setPinned = computed(() => isPinned('coin_set', setId.value).value)
+const setPinBusy = computed(() => isBusy('coin_set', setId.value).value)
 const pinDisabled = computed(() => setPinBusy.value || (!setPinned.value && pinLimitReached.value))
 const pinButtonLabel = computed(() => {
   if (!set.value) return ''
@@ -495,43 +441,30 @@ const emptySetMessage = computed(() => {
   return 'No coins in this set yet'
 })
 
-const availableCoins = computed(() => {
-  const existingIds = new Set(coins.value.map((coin) => coin.id))
-  return allCoins.value.filter((coin) => !existingIds.has(coin.id))
-})
+const assignedToOtherSlots = computed(() => (completion.value?.targetMatches ?? [])
+  .filter(match => match.target.id !== slotTargetId.value && match.coin != null)
+  .flatMap(match => match.coin ? [match.coin.id] : []))
 
-const assignableCoins = computed(() => {
-  if (normalizedSetType.value !== 'agentic') return availableCoins.value
+watch(setId, () => {
+  showAddCoinModal.value = false
+  showAssignSlotModal.value = false
+  showEditModal.value = false
+  menuOpen.value = false
+  coinIdToAdd.value = null
+  slotCoinIdToAssign.value = null
+  slotTargetId.value = null
+  slotTargetLabel.value = ''
+  currentSlotCoinId.value = null
+  slotAssignmentSaving.value = false
+  slotAssignmentError.value = null
+  savingOrder.value = false
+  orderError.value = null
+  drawerIndex.value = 0
+  resetDragState()
+}, { flush: 'sync' })
 
-  const assignedToOtherSlots = new Set<number>()
-  for (const match of completion.value?.targetMatches ?? []) {
-    if (match.target.id !== slotTargetId.value && match.coin?.id != null) {
-      assignedToOtherSlots.add(match.coin.id)
-    }
-  }
-  return allCoins.value.filter((coin) => !assignedToOtherSlots.has(coin.id))
-})
-
-const filteredAvailableCoins = computed(() => {
-  const term = coinSearch.value.trim().toLowerCase()
-  if (!term) return availableCoins.value
-  return availableCoins.value.filter((coin) => [
-    coin.name,
-    coin.ruler,
-    coin.denomination,
-    coin.mint,
-  ].some((field) => field?.toLowerCase().includes(term)))
-})
-
-const filteredAssignableCoins = computed(() => {
-  const term = slotCoinSearch.value.trim().toLowerCase()
-  if (!term) return assignableCoins.value
-  return assignableCoins.value.filter((coin) => [
-    coin.name,
-    coin.ruler,
-    coin.denomination,
-    coin.mint,
-  ].some((field) => field?.toLowerCase().includes(term)))
+watch(set, value => {
+  editForm.value = { name: value?.name ?? '', description: value?.description ?? '', color: value?.color ?? '' }
 })
 
 watch(totalDrawers, (drawers) => {
@@ -556,44 +489,12 @@ onMounted(async () => {
       traySizeScale.value = Math.min(2.5, Math.max(0.75, parsedScale))
     }
   }
-  await Promise.all([loadSetDetails(), refreshQuickAccess()])
+  await refreshQuickAccess()
 })
-
-async function loadSetDetails() {
-  loading.value = true
-  try {
-    const [setRes, coinsRes, allCoinsRes] = await Promise.all([
-      getSet(setId),
-      getCoinsInSet(setId),
-      getCoins({ wishlist: 'false', sold: 'false', limit: 100, sort: 'name', order: 'asc' }),
-    ])
-    set.value = setRes.data
-    coins.value = coinsRes.data.coins
-    orderError.value = null
-    allCoins.value = allCoinsRes.data.coins
-    const normalizedSetType = normalizeCoinSetType(set.value.setType)
-    if (normalizedSetType === 'goal' || normalizedSetType === 'agentic') {
-      const completionRes = await getSetCompletion(setId)
-      completion.value = completionRes.data
-    } else {
-      completion.value = null
-    }
-    editForm.value = {
-      name: set.value.name,
-      description: set.value.description || '',
-      color: set.value.color,
-    }
-
-  } catch (error) {
-    console.error('Failed to load set:', error)
-  } finally {
-    loading.value = false
-  }
-}
 
 function openSetInfoPage() {
   menuOpen.value = false
-  router.push({ name: 'set-insights', params: { id: setId } })
+  router.push({ name: 'set-insights', params: { id: setId.value } })
 }
 
 function openEditModal() {
@@ -603,23 +504,30 @@ function openEditModal() {
 
 async function togglePin() {
   if (!set.value || pinDisabled.value) return
+  const resource = capture()
   const nextPinned = !setPinned.value
   try {
-    if (nextPinned) await pinQuickAccessItem('coin_set', set.value.id)
-    else await unpinQuickAccessItem('coin_set', set.value.id)
+    if (nextPinned) await pinQuickAccessItem('coin_set', resource.id)
+    else await unpinQuickAccessItem('coin_set', resource.id)
+    if (!resource.isCurrent()) return
     await Promise.all([loadSetDetails(), refreshPinnedSets()])
+    if (!resource.isCurrent()) return
     showToast(nextPinned ? 'Pinned to Quick Access' : 'Unpinned', 'success')
   } catch (error) {
+    if (!resource.isCurrent()) return
     showToast(quickAccessError.value || getErrorMessage(error, 'Failed to update pin'), 'error')
   }
 }
 
 async function updateSet() {
+  const resource = capture()
   try {
-    await updateSetApi(setId, editForm.value)
+    await updateSetApi(resource.id, { ...editForm.value })
+    if (!resource.isCurrent()) return
     showEditModal.value = false
     await Promise.all([loadSetDetails(), refreshQuickAccess(), refreshPinnedSets()])
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to update set:', error)
     alert('Failed to update set')
   }
@@ -628,18 +536,20 @@ async function updateSet() {
 function openAddCoinModal() {
   menuOpen.value = false
   coinIdToAdd.value = null
-  coinSearch.value = ''
   showAddCoinModal.value = true
 }
 
 async function addCoin() {
   if (!coinIdToAdd.value) return
+  const resource = capture()
   try {
-    await addCoinToSet(setId, { coinId: coinIdToAdd.value })
+    await addCoinToSet(resource.id, { coinId: coinIdToAdd.value })
+    if (!resource.isCurrent()) return
     coinIdToAdd.value = null
     showAddCoinModal.value = false
     await loadSetDetails()
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to add coin:', error)
     alert('Failed to add coin')
   }
@@ -650,52 +560,60 @@ function openAssignSlotModal(targetId: number, targetLabel: string, assignedCoin
   slotTargetLabel.value = targetLabel
   currentSlotCoinId.value = assignedCoinId
   slotCoinIdToAssign.value = assignedCoinId
-  slotCoinSearch.value = ''
   slotAssignmentError.value = null
   showAssignSlotModal.value = true
 }
 
 async function assignCoinToSlot() {
   if (!slotCoinIdToAssign.value || !slotTargetId.value) return
+  const resource = capture()
   slotAssignmentSaving.value = true
   slotAssignmentError.value = null
   try {
-    await addCoinToSet(setId, { coinId: slotCoinIdToAssign.value, targetId: slotTargetId.value })
+    await addCoinToSet(resource.id, { coinId: slotCoinIdToAssign.value, targetId: slotTargetId.value })
+    if (!resource.isCurrent()) return
     showAssignSlotModal.value = false
     await loadSetDetails()
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to assign coin to slot:', error)
     slotAssignmentError.value = getErrorMessage(error, 'Unable to assign this coin to the slot.')
   } finally {
-    slotAssignmentSaving.value = false
+    if (resource.isCurrent()) slotAssignmentSaving.value = false
   }
 }
 
 async function clearSlotAssignment() {
   if (!currentSlotCoinId.value) return
+  const resource = capture()
   slotAssignmentSaving.value = true
   slotAssignmentError.value = null
   try {
-    await removeCoinFromSet(setId, currentSlotCoinId.value)
+    await removeCoinFromSet(resource.id, currentSlotCoinId.value)
+    if (!resource.isCurrent()) return
     showAssignSlotModal.value = false
     await loadSetDetails()
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to clear slot assignment:', error)
     slotAssignmentError.value = getErrorMessage(error, 'Unable to clear this slot.')
   } finally {
-    slotAssignmentSaving.value = false
+    if (resource.isCurrent()) slotAssignmentSaving.value = false
   }
 }
 
 async function deleteSet() {
   menuOpen.value = false
   if (!confirm('Are you sure you want to delete this set?')) return
+  const resource = capture()
   try {
-    await deleteSetApi(setId)
-    forgetQuickAccess('coin_set', setId)
+    await deleteSetApi(resource.id)
+    forgetQuickAccess('coin_set', resource.id)
     await refreshPinnedSets()
+    if (!resource.isCurrent()) return
     router.push({ name: 'sets' })
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to delete set:', error)
     alert('Failed to delete set')
   }
@@ -703,10 +621,13 @@ async function deleteSet() {
 
 async function removeCoin(coinId: number) {
   if (!confirm('Remove this coin from the set?')) return
+  const resource = capture()
   try {
-    await removeCoinFromSet(setId, coinId)
+    await removeCoinFromSet(resource.id, coinId)
+    if (!resource.isCurrent()) return
     await loadSetDetails()
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to remove coin:', error)
     alert('Failed to remove coin')
   }
@@ -776,16 +697,18 @@ async function moveCoin(sourceCoinId: number, targetCoinId: number, placement: '
 }
 
 async function persistCoinOrder(previousCoins: Coin[]) {
+  const resource = capture()
   savingOrder.value = true
   orderError.value = null
   try {
-    await reorderSetCoins(setId, { coinIds: coins.value.map((coin) => coin.id) })
+    await reorderSetCoins(resource.id, { coinIds: coins.value.map((coin) => coin.id) })
   } catch (error) {
+    if (!resource.isCurrent()) return
     console.error('Failed to save coin order:', error)
     coins.value = previousCoins
     orderError.value = getErrorMessage(error, 'Unable to save this order. Please try again.')
   } finally {
-    savingOrder.value = false
+    if (resource.isCurrent()) savingOrder.value = false
   }
 }
 

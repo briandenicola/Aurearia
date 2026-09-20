@@ -23,9 +23,27 @@ func NewDeepIdentificationRepository(db *gorm.DB) *DeepIdentificationRepository 
 	return &DeepIdentificationRepository{db: db}
 }
 
-var ErrDeepJobNotTerminal = errors.New("deep identification job is not terminal")
+var (
+	ErrDeepJobNotTerminal            = errors.New("deep identification job is not terminal")
+	ErrDeepJobSourceUnsupported      = errors.New("deep identification job source is unsupported")
+	ErrDeepJobSourceBindingInvalid   = errors.New("deep identification job source binding is invalid")
+	ErrDeepJobSourceBindingImmutable = errors.New("deep identification job source binding is immutable")
+)
 
 var deepJobActiveStatuses = []models.DeepJobStatus{models.DeepJobStatusQueued, models.DeepJobStatusRunning}
+var supportedDeepJobSources = models.SupportedDeepJobSources()
+
+const deepJobSourceBindingSQL = `(
+	(source = 'intake' AND coin_id IS NULL AND source_draft_id IS NULL) OR
+	(source = 'saved_coin' AND coin_id IS NOT NULL AND source_draft_id IS NULL) OR
+	(source = 'copilot_draft' AND coin_id IS NULL AND source_draft_id IS NOT NULL)
+)`
+
+const qualifiedDeepJobSourceBindingSQL = `(
+	(deep_identification_jobs.source = 'intake' AND deep_identification_jobs.coin_id IS NULL AND deep_identification_jobs.source_draft_id IS NULL) OR
+	(deep_identification_jobs.source = 'saved_coin' AND deep_identification_jobs.coin_id IS NOT NULL AND deep_identification_jobs.source_draft_id IS NULL) OR
+	(deep_identification_jobs.source = 'copilot_draft' AND deep_identification_jobs.coin_id IS NULL AND deep_identification_jobs.source_draft_id IS NOT NULL)
+)`
 
 // CreateJob creates a new queued job, or - if an active (queued/running) job
 // already exists for the same (user_id, input_fingerprint) - returns that
@@ -33,11 +51,21 @@ var deepJobActiveStatuses = []models.DeepJobStatus{models.DeepJobStatusQueued, m
 // AIJobRepository.EnqueueOrFindActive). The second return value reports
 // whether an existing job was reused rather than a new one created.
 func (r *DeepIdentificationRepository) CreateJob(job *models.DeepIdentificationJob) (*models.DeepIdentificationJob, bool, error) {
+	if !models.IsSupportedDeepJobSource(job.Source) {
+		return nil, false, ErrDeepJobSourceUnsupported
+	}
+	if !models.IsValidDeepJobSourceBinding(job) {
+		return nil, false, ErrDeepJobSourceBindingInvalid
+	}
+	if err := r.validateSourceOwner(job); err != nil {
+		return nil, false, err
+	}
 	var result models.DeepIdentificationJob
 	var reused bool
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var existing models.DeepIdentificationJob
 		err := tx.Where("user_id = ? AND input_fingerprint = ? AND active_key = ?", job.UserID, job.InputFingerprint, "active").
+			Where("source IN ?", supportedDeepJobSources).
 			Order("created_at ASC").
 			First(&existing).Error
 		if err == nil {
@@ -64,11 +92,150 @@ func (r *DeepIdentificationRepository) CreateJob(job *models.DeepIdentificationJ
 	return &result, reused, nil
 }
 
+func (r *DeepIdentificationRepository) validateSourceOwner(job *models.DeepIdentificationJob) error {
+	var count int64
+	switch job.Source {
+	case models.DeepJobSourceSavedCoin:
+		if err := r.db.Model(&models.Coin{}).
+			Where("id = ? AND user_id = ?", *job.CoinID, job.UserID).
+			Count(&count).Error; err != nil {
+			return err
+		}
+	case models.DeepJobSourceCopilotDraft:
+		if err := r.db.Model(&models.QuickCaptureDraft{}).
+			Where("id = ? AND user_id = ? AND status = ?", *job.SourceDraftID, job.UserID, models.QuickCaptureDraftStatusActive).
+			Count(&count).Error; err != nil {
+			return err
+		}
+	default:
+		return nil
+	}
+	if count != 1 {
+		return ErrDeepJobSourceBindingInvalid
+	}
+	return nil
+}
+
+// FindNewestEligibleRetainedByFingerprint returns only current completed or
+// partial results with retained report content. Active reuse remains governed
+// by FindActiveByFingerprint and its unique database key.
+func (r *DeepIdentificationRepository) FindNewestEligibleRetainedByFingerprint(userID uint, fingerprint string, now time.Time) (*models.DeepIdentificationJob, error) {
+	var job models.DeepIdentificationJob
+	err := r.db.Where(
+		"user_id = ? AND input_fingerprint = ? AND status IN ? AND expires_at > ? AND report_json <> '' AND source IN ?",
+		userID, fingerprint,
+		[]models.DeepJobStatus{models.DeepJobStatusCompleted, models.DeepJobStatusPartial},
+		now, supportedDeepJobSources,
+	).Order("created_at DESC, id DESC").First(&job).Error
+	if err != nil {
+		return nil, err
+	}
+	if !models.IsValidDeepJobSourceBinding(&job) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &job, nil
+}
+
+// UpdateSourceBinding exists only as an explicit fail-closed boundary: source,
+// CoinID, and SourceDraftID are immutable provenance after job creation.
+func (r *DeepIdentificationRepository) UpdateSourceBinding(_ uint, _ uint, _ models.DeepJobSource, _ *uint) error {
+	return ErrDeepJobSourceBindingImmutable
+}
+
+// ApplyBoundDraftProposal updates the exact active copilot_draft source and
+// records its applied linkage in one transaction. ProposalJSON is an optimistic
+// version token: an edit concurrent with apply makes the CAS fail with no
+// destination write.
+func (r *DeepIdentificationRepository) ApplyBoundDraftProposal(
+	jobID, userID, draftID uint,
+	expectedProposalJSON string,
+	expectedDraftUpdatedAt time.Time,
+	fieldUpdates map[string]interface{},
+	stagedReferences []models.CoinReference,
+	appliedAt time.Time,
+) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var job models.DeepIdentificationJob
+		if err := tx.Where(
+			"id = ? AND user_id = ? AND source = ? AND source_draft_id = ? AND applied_at IS NULL AND proposal_json = ? AND status IN ?",
+			jobID, userID, models.DeepJobSourceCopilotDraft, draftID, expectedProposalJSON,
+			[]models.DeepJobStatus{models.DeepJobStatusCompleted, models.DeepJobStatusPartial},
+		).First(&job).Error; err != nil {
+			return err
+		}
+		var draft models.QuickCaptureDraft
+		if err := tx.Where(
+			"id = ? AND user_id = ? AND status = ?",
+			draftID, userID, models.QuickCaptureDraftStatusActive,
+		).First(&draft).Error; err != nil {
+			return err
+		}
+		if !draft.UpdatedAt.Equal(expectedDraftUpdatedAt) {
+			return gorm.ErrRecordNotFound
+		}
+		if draft.UpdatedAt.After(job.CreatedAt) {
+			return gorm.ErrRecordNotFound
+		}
+		for _, ref := range stagedReferences {
+			var registry models.CatalogRegistry
+			if err := tx.Where("LOWER(catalog) = LOWER(?)", strings.TrimSpace(ref.Catalog)).
+				First(&registry).Error; err != nil {
+				return err
+			}
+			if strings.TrimSpace(ref.Number) == "" ||
+				(registry.VolumeRequired && strings.TrimSpace(ref.Volume) == "") {
+				return ErrDeepJobSourceBindingInvalid
+			}
+		}
+		if len(fieldUpdates) > 0 {
+			result := tx.Model(&models.QuickCaptureDraft{}).
+				Where("id = ? AND user_id = ? AND status = ?", draftID, userID, models.QuickCaptureDraftStatusActive).
+				Updates(fieldUpdates)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return gorm.ErrRecordNotFound
+			}
+		}
+		result := tx.Model(&models.DeepIdentificationJob{}).
+			Where("id = ? AND user_id = ? AND applied_at IS NULL AND proposal_json = ?", jobID, userID, expectedProposalJSON).
+			Updates(map[string]interface{}{
+				"applied_draft_id": draftID,
+				"applied_at":       appliedAt,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+}
+
+// ListAppliedDraftProposalJSON returns immutable, accepted proposal documents
+// applied to a draft. Promotion uses these documents to carry staged
+// identification fields and references into the resulting coin.
+func (r *DeepIdentificationRepository) ListAppliedDraftProposalJSON(draftID, userID uint) ([]string, error) {
+	var proposalJSON []string
+	err := r.db.Model(&models.DeepIdentificationJob{}).
+		Where(
+			"user_id = ? AND applied_draft_id = ? AND applied_at IS NOT NULL",
+			userID, draftID,
+		).
+		Order("id ASC").
+		Pluck("proposal_json", &proposalJSON).Error
+	return proposalJSON, err
+}
+
 // FindActiveByFingerprint returns the active (queued/running) job for the
 // given user + fingerprint, if any.
 func (r *DeepIdentificationRepository) FindActiveByFingerprint(userID uint, fingerprint string) (*models.DeepIdentificationJob, error) {
 	var job models.DeepIdentificationJob
 	err := r.db.Where("user_id = ? AND input_fingerprint = ? AND active_key = ?", userID, fingerprint, "active").
+		Where("source IN ?", supportedDeepJobSources).
+		Where(deepJobSourceBindingSQL).
 		Order("created_at ASC").
 		First(&job).Error
 	if err != nil {
@@ -85,16 +252,19 @@ func (r *DeepIdentificationRepository) ClaimNextQueuedJob(workerID string) (*mod
 	var job models.DeepIdentificationJob
 	var claimed bool
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("status = ?", models.DeepJobStatusQueued).
+		result := tx.Where("status = ? AND source IN ?", models.DeepJobStatusQueued, supportedDeepJobSources).
+			Where(deepJobSourceBindingSQL).
 			Order("created_at ASC").
-			First(&job).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil
-			}
-			return err
+			Limit(1).
+			Find(&job)
+		if result.Error != nil {
+			return result.Error
 		}
-		result := tx.Model(&models.DeepIdentificationJob{}).
-			Where("id = ? AND status = ?", job.ID, models.DeepJobStatusQueued).
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		result = tx.Model(&models.DeepIdentificationJob{}).
+			Where("id = ? AND status = ? AND source IN ?", job.ID, models.DeepJobStatusQueued, supportedDeepJobSources).
 			Updates(map[string]interface{}{
 				"status":        models.DeepJobStatusRunning,
 				"worker_id":     workerID,
@@ -125,7 +295,7 @@ func (r *DeepIdentificationRepository) ClaimNextQueuedJob(workerID string) (*mod
 // recovery relies on this being refreshed regularly by the owning worker).
 func (r *DeepIdentificationRepository) Heartbeat(jobID uint) error {
 	return r.db.Model(&models.DeepIdentificationJob{}).
-		Where("id = ? AND status = ?", jobID, models.DeepJobStatusRunning).
+		Where("id = ? AND status = ? AND source IN ?", jobID, models.DeepJobStatusRunning, supportedDeepJobSources).
 		Update("heartbeat_at", time.Now()).Error
 }
 
@@ -133,7 +303,7 @@ func (r *DeepIdentificationRepository) Heartbeat(jobID uint) error {
 // create/get responses remain transparent after the event stream is pruned.
 func (r *DeepIdentificationRepository) RecordRouterSelection(jobID, userID uint, selected []string, rationale string) error {
 	return r.db.Model(&models.DeepIdentificationJob{}).
-		Where("id = ? AND user_id = ?", jobID, userID).
+		Where("id = ? AND user_id = ? AND source IN ?", jobID, userID, supportedDeepJobSources).
 		Updates(map[string]interface{}{
 			"selected_providers": strings.Join(selected, ","),
 			"router_rationale":   rationale,
@@ -146,13 +316,21 @@ func (r *DeepIdentificationRepository) RecordRouterSelection(jobID, userID uint,
 func (r *DeepIdentificationRepository) AppendEvent(jobID, userID uint, eventType models.DeepIdentificationEventType, payloadJSON string) (int64, error) {
 	var seq int64
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.DeepIdentificationJob{}).
-			Where("id = ?", jobID).
-			Update("last_seq", gorm.Expr("last_seq + 1")).Error; err != nil {
-			return err
+		result := tx.Model(&models.DeepIdentificationJob{}).
+			Where("id = ? AND user_id = ?", jobID, userID).
+			Where("status IN ? AND cancel_requested_at IS NULL", deepJobActiveStatuses).
+			Where("source IN ?", supportedDeepJobSources).
+			Update("last_seq", gorm.Expr("last_seq + 1"))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
 		}
 		var job models.DeepIdentificationJob
-		if err := tx.Select("last_seq").First(&job, jobID).Error; err != nil {
+		if err := tx.Select("last_seq").
+			Where("id = ? AND user_id = ? AND source IN ?", jobID, userID, supportedDeepJobSources).
+			First(&job).Error; err != nil {
 			return err
 		}
 		seq = job.LastSeq
@@ -175,7 +353,10 @@ func (r *DeepIdentificationRepository) AppendEvent(jobID, userID uint, eventType
 // order, scoped to the owning user.
 func (r *DeepIdentificationRepository) ListEventsSince(jobID, userID uint, since int64) ([]models.DeepIdentificationEvent, error) {
 	var events []models.DeepIdentificationEvent
-	err := r.db.Where("job_id = ? AND user_id = ? AND seq > ?", jobID, userID, since).
+	err := r.db.Where("job_id = ? AND user_id = ? AND seq > ? AND EXISTS (?)", jobID, userID, since,
+		r.db.Model(&models.DeepIdentificationJob{}).
+			Select("1").
+			Where("deep_identification_jobs.id = deep_identification_events.job_id AND deep_identification_jobs.source IN ?", supportedDeepJobSources)).
 		Order("seq ASC").
 		Find(&events).Error
 	return events, err
@@ -187,7 +368,7 @@ func (r *DeepIdentificationRepository) ListEventsSince(jobID, userID uint, since
 func (r *DeepIdentificationRepository) PruneEventsBefore(cutoff time.Time) error {
 	var jobIDs []uint
 	if err := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("status IN ? AND completed_at IS NOT NULL AND completed_at < ? AND events_pruned_at IS NULL", deepJobTerminalStatuses(), cutoff).
+		Where("status IN ? AND completed_at IS NOT NULL AND completed_at < ? AND events_pruned_at IS NULL AND source IN ?", deepJobTerminalStatuses(), cutoff, supportedDeepJobSources).
 		Pluck("id", &jobIDs).Error; err != nil {
 		return err
 	}
@@ -236,9 +417,12 @@ func (r *DeepIdentificationRepository) SettleTerminal(jobID uint, expectedStatus
 		if newStatus == models.DeepJobStatusCompleted || newStatus == models.DeepJobStatusPartial {
 			updates["expires_at"] = models.DeepIdentificationNoExpirySentinel
 		}
-		result := tx.Model(&models.DeepIdentificationJob{}).
-			Where("id = ? AND status IN ?", jobID, expectedStatuses).
-			Updates(updates)
+		query := tx.Model(&models.DeepIdentificationJob{}).
+			Where("id = ? AND status IN ? AND source IN ?", jobID, expectedStatuses, supportedDeepJobSources)
+		if newStatus != models.DeepJobStatusCancelled {
+			query = query.Where("cancel_requested_at IS NULL")
+		}
+		result := query.Updates(updates)
 		if result.Error != nil {
 			return result.Error
 		}
@@ -279,6 +463,8 @@ func (r *DeepIdentificationRepository) SettleTerminal(jobID uint, expectedStatus
 func (r *DeepIdentificationRepository) UpdateProposalJSON(jobID, userID uint, proposalJSON string) (bool, error) {
 	result := r.db.Model(&models.DeepIdentificationJob{}).
 		Where("id = ? AND user_id = ? AND applied_at IS NULL", jobID, userID).
+		Where("cancel_requested_at IS NULL").
+		Where("source IN ?", supportedDeepJobSources).
 		Update("proposal_json", proposalJSON)
 	if result.Error != nil {
 		return false, result.Error
@@ -291,7 +477,7 @@ func (r *DeepIdentificationRepository) UpdateProposalJSON(jobID, userID uint, pr
 // deleting or changing a previously linked target.
 func (r *DeepIdentificationRepository) ApplyJob(jobID, userID uint, appliedCoinID, appliedDraftID *uint, appliedAt time.Time) (bool, error) {
 	result := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("id = ? AND user_id = ?", jobID, userID).
+		Where("id = ? AND user_id = ? AND source IN ?", jobID, userID, supportedDeepJobSources).
 		Updates(map[string]interface{}{
 			"applied_coin_id":  appliedCoinID,
 			"applied_draft_id": appliedDraftID,
@@ -303,6 +489,36 @@ func (r *DeepIdentificationRepository) ApplyJob(jobID, userID uint, appliedCoinI
 	return result.RowsAffected > 0, nil
 }
 
+// ReplaceDeletedAppliedCoin relinks an intake proposal only when its prior
+// owner-scoped destination was deleted. The caller creates the replacement in
+// the same transaction, so no partial coin or linkage can survive a failure.
+func (r *DeepIdentificationRepository) ReplaceDeletedAppliedCoin(
+	jobID, userID, deletedCoinID, replacementCoinID uint,
+	appliedAt time.Time,
+) (bool, error) {
+	missingPriorCoin := r.db.Model(&models.Coin{}).
+		Select("1").
+		Where("id = ? AND user_id = ?", deletedCoinID, userID)
+	result := r.db.Model(&models.DeepIdentificationJob{}).
+		Where(
+			"id = ? AND user_id = ? AND source = ? AND applied_coin_id = ? AND applied_at IS NOT NULL",
+			jobID, userID, models.DeepJobSourceIntake, deletedCoinID,
+		).
+		Where("status IN ?", []models.DeepJobStatus{
+			models.DeepJobStatusCompleted,
+			models.DeepJobStatusPartial,
+		}).
+		Where("NOT EXISTS (?)", missingPriorCoin).
+		Updates(map[string]interface{}{
+			"applied_coin_id": replacementCoinID,
+			"applied_at":      appliedAt,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 // RecoverStaleJobs flips running jobs whose heartbeat is older than
 // staleAfter to failed:stale_restart, appending exactly one terminal event
 // per job (FR-012). It never leaves a job running forever across a process
@@ -311,7 +527,7 @@ func (r *DeepIdentificationRepository) RecoverStaleJobs(staleAfter time.Duration
 	cutoff := time.Now().Add(-staleAfter)
 	var jobIDs []uint
 	if err := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("status = ? AND (heartbeat_at IS NULL OR heartbeat_at < ?)", models.DeepJobStatusRunning, cutoff).
+		Where("status = ? AND (heartbeat_at IS NULL OR heartbeat_at < ?) AND source IN ?", models.DeepJobStatusRunning, cutoff, supportedDeepJobSources).
 		Pluck("id", &jobIDs).Error; err != nil {
 		return nil, err
 	}
@@ -327,8 +543,11 @@ func (r *DeepIdentificationRepository) RecoverStaleJobs(staleAfter time.Duration
 // identically to a missing job (gorm.ErrRecordNotFound).
 func (r *DeepIdentificationRepository) GetJob(id, userID uint) (*models.DeepIdentificationJob, error) {
 	var job models.DeepIdentificationJob
-	if err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&job).Error; err != nil {
+	if err := r.db.Where("id = ? AND user_id = ? AND source IN ?", id, userID, supportedDeepJobSources).First(&job).Error; err != nil {
 		return nil, err
+	}
+	if !models.IsValidDeepJobSourceBinding(&job) {
+		return nil, gorm.ErrRecordNotFound
 	}
 	return &job, nil
 }
@@ -359,7 +578,8 @@ func (r *DeepIdentificationRepository) ListJobs(userID uint, filters DeepJobList
 			WHERE coins.id = deep_identification_jobs.applied_coin_id
 				AND coins.user_id = deep_identification_jobs.user_id
 		) AS applied_coin_exists`).
-		Where("deep_identification_jobs.user_id = ?", userID)
+		Where("deep_identification_jobs.user_id = ? AND deep_identification_jobs.source IN ?", userID, supportedDeepJobSources).
+		Where(qualifiedDeepJobSourceBindingSQL)
 	if filters.CoinID != nil {
 		q = q.Where("deep_identification_jobs.coin_id = ?", *filters.CoinID)
 	}
@@ -386,7 +606,7 @@ func (r *DeepIdentificationRepository) ListJobs(userID uint, filters DeepJobList
 func (r *DeepIdentificationRepository) DeleteJob(userID, jobID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var job models.DeepIdentificationJob
-		if err := tx.Where("id = ? AND user_id = ?", jobID, userID).First(&job).Error; err != nil {
+		if err := tx.Where("id = ? AND user_id = ? AND source IN ?", jobID, userID, supportedDeepJobSources).First(&job).Error; err != nil {
 			return err
 		}
 		if !models.IsDeepJobTerminal(job.Status) {
@@ -418,7 +638,8 @@ func (r *DeepIdentificationRepository) DeleteJob(userID, jobID uint) error {
 // jobs) observes it first via SettleTerminal.
 func (r *DeepIdentificationRepository) RequestCancel(jobID, userID uint) error {
 	result := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("id = ? AND user_id = ?", jobID, userID).
+		Where("id = ? AND user_id = ? AND source IN ?", jobID, userID, supportedDeepJobSources).
+		Where(deepJobSourceBindingSQL).
 		Update("cancel_requested_at", time.Now())
 	if result.Error != nil {
 		return result.Error
@@ -433,7 +654,12 @@ func (r *DeepIdentificationRepository) RequestCancel(jobID, userID uint) error {
 // already-deleted ones, so callers can distinguish idempotent re-deletes).
 func (r *DeepIdentificationRepository) ListArtifacts(jobID uint) ([]models.DeepIdentificationArtifact, error) {
 	var artifacts []models.DeepIdentificationArtifact
-	err := r.db.Where("job_id = ?", jobID).Order("id ASC").Find(&artifacts).Error
+	err := r.db.Where("job_id = ? AND EXISTS (?)", jobID,
+		r.db.Model(&models.DeepIdentificationJob{}).
+			Select("1").
+			Where("deep_identification_jobs.id = deep_identification_artifacts.job_id AND deep_identification_jobs.source IN ?", supportedDeepJobSources).
+			Where(qualifiedDeepJobSourceBindingSQL)).
+		Order("id ASC").Find(&artifacts).Error
 	return artifacts, err
 }
 
@@ -456,7 +682,7 @@ func (r *DeepIdentificationRepository) MarkArtifactDeleted(id uint, when time.Ti
 // genuinely new job (T045/FR-020).
 func (r *DeepIdentificationRepository) SetRetryLineage(jobID, retryOfJobID uint, retryDepth int) error {
 	return r.db.Model(&models.DeepIdentificationJob{}).
-		Where("id = ?", jobID).
+		Where("id = ? AND source IN ?", jobID, supportedDeepJobSources).
 		Updates(map[string]interface{}{"retry_of_job_id": retryOfJobID, "retry_depth": retryDepth}).Error
 }
 
@@ -465,7 +691,7 @@ func (r *DeepIdentificationRepository) SetRetryLineage(jobID, retryOfJobID uint,
 func (r *DeepIdentificationRepository) CountActiveJobsForUser(userID uint) (int64, error) {
 	var count int64
 	err := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("user_id = ? AND status IN ?", userID, deepJobActiveStatuses).
+		Where("user_id = ? AND status IN ? AND source IN ?", userID, deepJobActiveStatuses, supportedDeepJobSources).
 		Count(&count).Error
 	return count, err
 }
@@ -475,7 +701,7 @@ func (r *DeepIdentificationRepository) CountActiveJobsForUser(userID uint) (int6
 func (r *DeepIdentificationRepository) CountQueuedJobs() (int64, error) {
 	var count int64
 	err := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("status = ?", models.DeepJobStatusQueued).
+		Where("status = ? AND source IN ?", models.DeepJobStatusQueued, supportedDeepJobSources).
 		Count(&count).Error
 	return count, err
 }
@@ -622,7 +848,7 @@ func (r *DeepIdentificationRepository) GetObservabilityMetrics() (*DeepIdentific
 	var jobCounts []statusCount
 	if err := r.db.Model(&models.DeepIdentificationJob{}).
 		Select("status, COUNT(*) AS count").
-		Where("status IN ?", deepJobTerminalStatuses()).
+		Where("status IN ? AND source IN ?", deepJobTerminalStatuses(), supportedDeepJobSources).
 		Group("status").
 		Scan(&jobCounts).Error; err != nil {
 		return nil, err
@@ -643,7 +869,7 @@ func (r *DeepIdentificationRepository) GetObservabilityMetrics() (*DeepIdentific
 	var timings []jobTiming
 	if err := r.db.Model(&models.DeepIdentificationJob{}).
 		Select("started_at, completed_at").
-		Where("status IN ? AND started_at IS NOT NULL AND completed_at IS NOT NULL", deepJobTerminalStatuses()).
+		Where("status IN ? AND started_at IS NOT NULL AND completed_at IS NOT NULL AND source IN ?", deepJobTerminalStatuses(), supportedDeepJobSources).
 		Find(&timings).Error; err != nil {
 		return nil, err
 	}
@@ -662,8 +888,10 @@ func (r *DeepIdentificationRepository) GetObservabilityMetrics() (*DeepIdentific
 	}
 	var providerCounts []providerStatusCount
 	if err := r.db.Model(&models.DeepIdentificationProviderRun{}).
-		Select("provider, status, COUNT(*) AS count").
-		Group("provider, status").
+		Select("deep_identification_provider_runs.provider, deep_identification_provider_runs.status, COUNT(*) AS count").
+		Joins("JOIN deep_identification_jobs ON deep_identification_jobs.id = deep_identification_provider_runs.job_id").
+		Where("deep_identification_jobs.source IN ?", supportedDeepJobSources).
+		Group("deep_identification_provider_runs.provider, deep_identification_provider_runs.status").
 		Scan(&providerCounts).Error; err != nil {
 		return nil, err
 	}
@@ -682,8 +910,9 @@ func (r *DeepIdentificationRepository) GetObservabilityMetrics() (*DeepIdentific
 	}
 	var providerTimings []providerTiming
 	if err := r.db.Model(&models.DeepIdentificationProviderRun{}).
-		Select("provider, latency_ms").
-		Where("completed_at IS NOT NULL AND latency_ms >= 0").
+		Select("deep_identification_provider_runs.provider, deep_identification_provider_runs.latency_ms").
+		Joins("JOIN deep_identification_jobs ON deep_identification_jobs.id = deep_identification_provider_runs.job_id").
+		Where("deep_identification_provider_runs.completed_at IS NOT NULL AND deep_identification_provider_runs.latency_ms >= 0 AND deep_identification_jobs.source IN ?", supportedDeepJobSources).
 		Find(&providerTimings).Error; err != nil {
 		return nil, err
 	}
@@ -731,8 +960,8 @@ func latencyPercentiles(values []int64) models.DeepIdentificationLatencySummary 
 func (r *DeepIdentificationRepository) ListExpiredJobIDs(now time.Time) ([]uint, error) {
 	var jobIDs []uint
 	err := r.db.Model(&models.DeepIdentificationJob{}).
-		Where("status IN ? AND expires_at IS NOT NULL AND expires_at < ?",
-			[]models.DeepJobStatus{models.DeepJobStatusFailed, models.DeepJobStatusCancelled}, now).
+		Where("status IN ? AND expires_at IS NOT NULL AND expires_at < ? AND source IN ?",
+			[]models.DeepJobStatus{models.DeepJobStatusFailed, models.DeepJobStatusCancelled}, now, supportedDeepJobSources).
 		Pluck("id", &jobIDs).Error
 	return jobIDs, err
 }
@@ -747,8 +976,8 @@ func (r *DeepIdentificationRepository) ListJobIDsWithUndeletedHintArtifacts() ([
 	err := r.db.Model(&models.DeepIdentificationArtifact{}).
 		Distinct("deep_identification_artifacts.job_id").
 		Joins("JOIN deep_identification_jobs ON deep_identification_jobs.id = deep_identification_artifacts.job_id").
-		Where("deep_identification_artifacts.role = ? AND deep_identification_artifacts.deleted_at IS NULL AND deep_identification_jobs.status IN ?",
-			models.DeepArtifactRoleHint, deepJobTerminalStatuses()).
+		Where("deep_identification_artifacts.role = ? AND deep_identification_artifacts.deleted_at IS NULL AND deep_identification_jobs.status IN ? AND deep_identification_jobs.source IN ?",
+			models.DeepArtifactRoleHint, deepJobTerminalStatuses(), supportedDeepJobSources).
 		Pluck("deep_identification_artifacts.job_id", &jobIDs).Error
 	return jobIDs, err
 }

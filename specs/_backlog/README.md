@@ -45,6 +45,10 @@ human-readable content. The 15 required fields are:
   are clear enough to estimate.
 - `promoted` — `NNN` assigned, `specs/NNN-slug/` folder created. Add a
   `**Promoted to**: specs/NNN-slug/` line at the top of the body.
+- `completed` — implemented without formal promotion. Every acceptance
+  criterion must be complete and the card history must identify the shipped
+  implementation evidence. Open follow-up ideas do not prevent completion
+  when they are explicitly outside the accepted scope.
 - `dropped` — will not be built. Add a `## History` note explaining why; the
   file stays in place (number is retired, not reused).
 
@@ -72,8 +76,8 @@ To promote:
 ## Triage cadence
 
 - **Lead (Maximus)** reviews all `status: backlog` cards **weekly**.
-- Aim to either advance to `triaged` or `dropped` within two review cycles —
-  perpetually-`backlog` cards rot and lie about themselves.
+- Aim to advance to `triaged`, `promoted`, `completed`, or `dropped` within two
+  review cycles — perpetually-`backlog` cards rot and lie about themselves.
 - Triage notes that change a card's verdict go into `.squad/decisions/inbox/`
   per Constitution §18, not into the card itself.
 
@@ -82,4 +86,7 @@ To promote:
 - **Don't** invent an `NNN` for a card — promotion is the only way to get one.
 - **Don't** edit a `promoted` card's body except to add a `## History` entry;
   the source of truth has moved to `specs/NNN-slug/spec.md`.
+- **Don't** use `completed` as a shortcut around promotion. It records work
+  already shipped outside the normal lifecycle; new scheduled work still
+  promotes before implementation.
 - **Don't** delete a card. Set `status: dropped` and keep the file.

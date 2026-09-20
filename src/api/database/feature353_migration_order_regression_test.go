@@ -353,6 +353,7 @@ func (trueLegacyAvailabilityResult) TableName() string { return "availability_re
 // incident) instead of tests quietly continuing to exercise a stale, hand-picked subset.
 var productionModelConstructors = map[string]func() any{
 	"User":                          func() any { return &models.User{} },
+	"CollectorProfile":              func() any { return &models.CollectorProfile{} },
 	"StorageLocation":               func() any { return &models.StorageLocation{} },
 	"MintLocation":                  func() any { return &models.MintLocation{} },
 	"Coin":                          func() any { return &models.Coin{} },
@@ -423,12 +424,16 @@ var productionModelConstructors = map[string]func() any{
 	"CollectionHealthSnapshotRun":   func() any { return &models.CollectionHealthSnapshotRun{} },
 	"RomanImperialFigure":           func() any { return &models.RomanImperialFigure{} },
 	"RomanImperialFigureHighlight":  func() any { return &models.RomanImperialFigureHighlight{} },
-	"DeepIdentificationJob":         func() any { return &models.DeepIdentificationJob{} },
 	"DeepIdentificationEvent":       func() any { return &models.DeepIdentificationEvent{} },
 	"DeepIdentificationProviderRun": func() any { return &models.DeepIdentificationProviderRun{} },
 	"DeepIdentificationArtifact":    func() any { return &models.DeepIdentificationArtifact{} },
 	"PurchaseReminder":              func() any { return &models.PurchaseReminder{} },
 	"QuickAccessPin":                func() any { return &models.QuickAccessPin{} },
+	"CoinCopilotThread":             func() any { return &models.CoinCopilotThread{} },
+	"CoinCopilotRun":                func() any { return &models.CoinCopilotRun{} },
+	"CoinCopilotCheckpoint":         func() any { return &models.CoinCopilotCheckpoint{} },
+	"CoinCopilotEvent":              func() any { return &models.CoinCopilotEvent{} },
+	"CoinCopilotResumeRequest":      func() any { return &models.CoinCopilotResumeRequest{} },
 }
 
 // readProductionAutoMigrateModelNames parses database.go's REAL, CURRENT source text and

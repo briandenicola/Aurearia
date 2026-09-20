@@ -102,6 +102,15 @@ After saving, you can upload images (obverse, reverse, detail) from the coin det
 
 ### Uploading Images
 
+When adding a coin, saving the record and uploading its images are separate
+steps. If an upload fails after the record is saved, **Retry remaining uploads**
+resumes only unfinished uploads without creating another coin. **Open saved coin**
+lets you finish from the coin detail page instead.
+
+AI intake era suggestions must match a configured era. An unsupported suggestion
+is retained in Notes and the review shows a warning; choose a configured era or
+leave it **Unknown** before confirming.
+
 From the coin detail page, click **Upload Image** and select:
 
 - **Image Type** — `obverse`, `reverse`, `detail`, or `other`

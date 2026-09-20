@@ -24,6 +24,7 @@
 ### 🤖 AI Features
 - [**AI Coin Analysis**](features/ai-analysis.md) — Vision model analysis of obverse/reverse photos
 - [**AI Coin Search Agent**](features/ai-search-agent.md) — Chat agent for dealer discovery
+- [**Coin Copilot**](features/coin-copilot.md) — Default-off, read-only multi-step collection analysis in the existing chat drawer
 - [**AI Grading**](features/ai-grading.md) — Grade estimation from photos
 - [**Price Trends**](features/price-trends.md) — Market trend analysis
 - [**Gap Analysis**](features/gap-analysis.md) — Collection gap suggestions
@@ -174,6 +175,43 @@ To enable the search agent:
 1. Get an API key from [console.anthropic.com](https://console.anthropic.com/)
 2. Configure it in **Admin → AI Configuration → Anthropic API Key**
 3. Optionally select a different model or customize the agent prompt in Admin settings
+
+## Coin Copilot
+
+Coin Copilot is a default-off mode in the existing app-wide chat drawer. When
+enabled and the configured model passes a tool-calling capability preflight, it
+can sequence owner-scoped collection search, coin detail, collection summary,
+top-value, portfolio-review, and structural gap-analysis capabilities in one
+read-only run. It cannot write coins, browse the web, search dealers or
+auctions, execute code, access a filesystem, or call the database directly.
+
+Go owns durable threads, runs, checkpoints, cancellation, idempotency, replay,
+retention, and all collection access. Python remains stateless and receives a
+fresh execution-scoped read credential for each initial execution or resume.
+The browser can reconnect to the persisted SSE stream, cancel an active run,
+and answer a clarification to resume the same run from its latest committed
+checkpoint.
+
+The rollout fails closed: when `CoinCopilotEnabled` is false (the default), the
+provider is unavailable, or model tool-calling support cannot be verified, the
+drawer uses the unchanged legacy `/api/agent/chat` supervisor. Disabling the
+flag is also the rollback: new starts and resumes stop, while existing runs
+remain readable and cancellable.
+
+Default limits are 8 reasoning iterations, 12 tool calls, one tool at a time,
+120 seconds per execution, one active run per owner, and 32 KiB persisted tool
+results. The execution timeout is configurable only through 150 seconds so its
+30-second credential buffer remains within the absolute 180-second token TTL.
+Dollar-cost enforcement is deferred until a trustworthy provider/model pricing
+source exists. Reliable provider-reported input/output token usage remains
+observable, while iteration, tool-call, wall-clock, sequential-concurrency, and
+payload limits remain enforced.
+
+Privacy rules prohibit chain-of-thought, scratchpads, provider-native traces,
+credentials, prompts, raw collection payloads, and raw tool arguments/results
+from public events and operational logs. Events are retained for 7 days after a
+terminal state; checkpoints and bounded tool results for 30 days; final
+thread/run summaries until the owner deletes the thread.
 
 ## Coin Lookup
 

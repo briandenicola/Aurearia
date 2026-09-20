@@ -142,7 +142,8 @@ func isRouteIntentionallyUndocumented(route registeredRoute) bool {
 	if _, ok := intentionallyUndocumentedRoutes[route.Method+" "+route.Path]; ok {
 		return true
 	}
-	return strings.HasPrefix(route.Path, "/api/internal/tools/")
+	return strings.HasPrefix(route.Path, "/api/internal/tools/") ||
+		strings.HasPrefix(route.Path, "/api/internal/copilot/tools/")
 }
 
 func routeToOpenAPIPath(path string) string {
@@ -205,6 +206,7 @@ func TestRegisteredRouteCountIsPlausible(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %s: %v", file, err)
 		}
+
 		perFile[file] = len(parsed)
 		total += len(parsed)
 	}
@@ -215,5 +217,37 @@ func TestRegisteredRouteCountIsPlausible(t *testing.T) {
 	}
 	if perFile["routes_protected.go"] < 50 {
 		t.Fatalf("routes_protected.go yielded only %d routes; it holds the bulk of the API", perFile["routes_protected.go"])
+	}
+}
+
+func TestCoinCopilotInternalRoutesAreReadOnly(t *testing.T) {
+	routes, err := parseRegisteredRoutes("routes_internal.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, route := range routes {
+		if strings.HasPrefix(route.Path, "/api/internal/copilot/tools/") {
+			got = append(got, route.Method+" "+route.Path)
+		}
+	}
+	sort.Strings(got)
+	want := []string{
+		"POST /api/internal/copilot/tools/collection_summary",
+		"POST /api/internal/copilot/tools/deep_analysis_handoff",
+		"POST /api/internal/copilot/tools/get_coin",
+		"POST /api/internal/copilot/tools/search_my_collection",
+		"POST /api/internal/copilot/tools/top_coins_by_value",
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("Coin Copilot internal routes = %v, want only %v", got, want)
+	}
+	for _, route := range got {
+		lower := strings.ToLower(route)
+		for _, forbidden := range []string{"propose", "commit", "write", "http", "shell", "filesystem", "database"} {
+			if strings.Contains(lower, forbidden) {
+				t.Fatalf("forbidden Coin Copilot route registered: %s", route)
+			}
+		}
 	}
 }

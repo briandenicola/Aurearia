@@ -6,10 +6,11 @@
 
 ## Summary
 
-Invert the Deep Analysis information architecture. The vision node stops
-emitting free prose that nothing reads and starts emitting a **typed, per-field
-coin hypothesis** from the *same single LLM call that already runs on every job*.
-That hypothesis becomes the pipeline's primary identification and is consumed by
+Invert the Deep Analysis information architecture. As amended by ADR 0018, the
+vision node reuses the Collection AI Analysis examination stage separately for
+the obverse and reverse, retains both narratives, and derives a **typed,
+per-field coin hypothesis** from that evidence. That hypothesis becomes the
+pipeline's primary identification and is consumed by
 every downstream node: provider queries are built from it deterministically
 (deleting the `"unidentified ancient coin"` placeholder), provider selection
 becomes a deterministic function of quick evidence + hypothesis + catalog +
@@ -24,15 +25,18 @@ citation), refine (add fields the images could not give), or contradict (produce
 a visible unresolved disagreement). `FALLBACK_NARRATIVE_NO_EVIDENCE` becomes
 reachable only when *both* sources are empty.
 
-**Net cost is negative**: the vision call count is unchanged (structured output
-on the existing call), and the LLM router is removed — one fewer LLM call per
-run without an override.
+**The quality tradeoff is explicit**: ADR 0018 replaces the prior single
+combined-image hypothesis call with two collection-grade face examinations
+plus one bounded text-only structuring call. The LLM router remains removed,
+and Quick Lookup remains the lower-latency combined-image workflow.
 
 **Blast radius is deliberately small.** No database migration, no new provider,
-no new public SSE event, no new write surface, no change to the Go
+no new public SSE event, no new write mechanism, no change to the Go
 job/event/SSE/cancel/retry layer (audited production-quality) beyond three
 narrow items: the quick-lookup budget (FR-038), making quick-lookup failure
-observable (FR-029), and a wishlist apply destination (FR-027).
+observable (FR-029), and a wishlist apply destination (FR-027). FR-021a widens
+the existing confirm-gated scalar allowlist only to safe identification
+properties already present on `models.Coin`.
 
 **A second, independent defect is in scope.** After the design analysis,
 `deep_identification_pipeline_runner.go:112` was found to give the quick-lookup
@@ -54,7 +58,12 @@ are enumerated as tasks in `tasks.md` Phases 10–15.
 **Testing**: `pytest tests/ -v` (agent — hypothesis schema, query precedence, deterministic router, evaluator image claims, synthesis fallback boundary, the Maximinus fixture), `go test ./...` (proposal builder with image-only fields, wishlist apply, quick-lookup outcome, backward-compat report fixture), `vue-tsc --build` + existing web tests.
 **Target Platform**: Self-hosted three-service deployment (Go API, Python agent, Vue SPA).
 **Project Type**: Web application — three services (Constitution §II).
-**Performance Goals**: LLM calls per job MUST NOT increase (SC-007); −1 call on runs without a provider override. Existing `bounds` (max_providers, max_concurrency, provider_timeout_s, total_timeout_s, recursion_limit) are unchanged and still binding.
+**Performance Goals (amended by ADR 0018)**: Deep Analysis deliberately trades
+additional bounded LLM calls for collection-grade face examination: one
+obverse vision call, one reverse vision call, and one text-only hypothesis
+structuring call. Quick Lookup remains the fast combined-image path. Existing
+`bounds` (max_providers, max_concurrency, provider_timeout_s, total_timeout_s,
+recursion_limit) are unchanged and still binding.
 **Constraints**: Python stays stateless; query text never LLM-authored; confidence never LLM-adjusted; disagreement detection stays deterministic; additive-only schema; no new write surface; legend text never in logs.
 **Scale/Scope**: ~6 agent files, ~3 Go files, ~2–3 web surfaces, 1 ADR, 1 contract update. Estimated **M**.
 
@@ -105,8 +114,9 @@ Evidence for the call:
   structured hypothesis into a prompt and hoping for a stable subset is strictly
   worse than a rule that can be read, tested, and explained in the
   `router_selected` rationale the owner already sees.
-- Removing it offsets the (small) added cost of structured vision output and
-  satisfies SC-007.
+- Removing it keeps routing deterministic. ADR 0018 supersedes the former
+  no-call-increase requirement so Deep Analysis can preserve role-specific
+  visual evidence.
 
 Trade-off accepted: provider-selection nuance now lives in application code, so
 adding providers later means editing a rule instead of a prompt. With three
@@ -147,8 +157,8 @@ src/agent/app/                                   # Python agent — the bulk of 
 │   └── responses.py             # EDIT  add CoinHypothesis / HypothesisField models;
 │                                #       add optional DeepSynthesis.image_hypothesis (additive)
 ├── teams/deep_identification/
-│   ├── graph.py                 # EDIT  prepare_evidence_node emits the typed hypothesis (same single
-│   │                            #       call, structured output); state threading into router/fanout/
+│   ├── graph.py                 # EDIT  prepare_evidence_node runs role-specific face analysis and
+│   │                            #       emits a typed combined hypothesis; state threading into router/fanout/
 │   │                            #       evaluator/synthesizer; delete IMAGE_ANALYSIS_PROMPT prose path
 │   ├── state.py                 # EDIT  replace write-only `image_analysis: str` with `hypothesis`
 │   ├── hypothesis.py            # NEW   prompt + schema binding + normalization to coin-field vocabulary
@@ -204,10 +214,12 @@ where the defect lives. Go and Vue changes are strictly the two behavioral items
 Each phase leaves the build green and the pipeline runnable. Phases A–C are
 Python-only and independently reviewable.
 
-- **Phase A — The hypothesis (keystone).** `hypothesis.py` (schema, prompt,
-  structured-output binding, normalization to the coin-field vocabulary, typed
-  empty degrade), `responses.py` models, `state.py` swap, `graph.py`
-  `prepare_evidence_node` rewrite. Same single vision call. Tests: schema
+- **Phase A — The hypothesis (keystone; amended by ADR 0018).**
+  `hypothesis.py` (schema, prompt, structured-output binding, normalization to
+  the coin-field vocabulary, typed empty degrade), `responses.py` models,
+  `state.py` swap, `graph.py` `prepare_evidence_node` rewrite. The amended
+  implementation uses two shared role-specific image examinations followed by
+  one text-only structured hypothesis call. Tests: schema
   conformance, failure/timeout/unparseable → empty hypothesis, normalization
   mapping, and an assertion that the hypothesis is present in state after the
   node. **Nothing consumes it yet** — but the write-only defect is not fixed

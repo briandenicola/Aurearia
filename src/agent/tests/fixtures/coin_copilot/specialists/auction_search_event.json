@@ -1,0 +1,40 @@
+{
+  "seq": 14,
+  "threadId": "cct_fixture",
+  "runId": "ccr_fixture",
+  "executionId": "cce_fixture",
+  "type": "tool_completed",
+  "ts": "2026-09-18T12:00:00Z",
+  "payload": {
+    "toolCallId": "call_auction_search",
+    "toolName": "auction_search",
+    "stepId": "step-1",
+    "status": "succeeded",
+    "durationMs": 823,
+    "resultSummary": "auction_search returned normalized evidence.",
+    "truncated": false,
+    "specialistResult": {
+      "capability": "auction_search",
+      "outcome": "complete",
+      "items": [
+        {
+          "kind": "auction_lot",
+          "title": "Domitian AR denarius, Minerva reverse",
+          "sourceUrl": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
+          "observedAt": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verificationState": "verified",
+          "facts": [],
+          "matchedAttributes": [],
+          "materialDifferences": []
+        }
+      ],
+      "trend": null,
+      "warnings": [],
+      "truncation": {
+        "truncated": false,
+        "omitted_items": 0
+      }
+    }
+  }
+}

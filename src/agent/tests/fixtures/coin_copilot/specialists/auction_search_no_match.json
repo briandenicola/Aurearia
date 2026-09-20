@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "capability": "auction_search",
+  "outcome": "no_match",
+  "items": [],
+  "trend": null,
+  "provider_attempts": [
+    {
+      "provider": "numisbids",
+      "status": "no_match",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 0,
+      "warning_code": null
+    }
+  ],
+  "warnings": [],
+  "truncation": {
+    "truncated": false,
+    "omitted_items": 0
+  }
+}

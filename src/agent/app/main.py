@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.logging_config import ring_handler, set_log_level, setup_logging
+from app.routers.internal_exploration import router as internal_exploration_router
 from app.routes import router
 from app.security import InternalServiceAuthMiddleware
 
@@ -39,6 +40,7 @@ app.add_middleware(
 app.add_middleware(InternalServiceAuthMiddleware)
 
 app.include_router(router)
+app.include_router(internal_exploration_router)
 
 
 @app.get("/health")

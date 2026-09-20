@@ -1,6 +1,7 @@
 """LLM provider factory — selects Anthropic or Ollama based on request config."""
 
 import logging
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable
@@ -43,7 +44,7 @@ def get_chat_model(config: LLMConfig) -> BaseChatModel:
         raise ValueError(f"Unknown LLM provider: {config.provider}")
 
 
-def get_structured_model(config: LLMConfig, schema: type) -> Runnable:
+def get_structured_model(config: LLMConfig, schema: type | dict[str, Any]) -> Runnable:
     """Create a chat model bound to a strict-JSON structured-output schema.
 
     Per-request config, no module-level state — same shape as

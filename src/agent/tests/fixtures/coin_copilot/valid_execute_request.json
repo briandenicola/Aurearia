@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "thread_id": "cct_fixture",
+  "run_id": "ccr_fixture",
+  "execution_id": "cce_fixture",
+  "goal": "Compare my Roman coins and identify collection gaps.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Compare my Roman coins and identify collection gaps."
+    }
+  ],
+  "checkpoint": {
+    "version": 0,
+    "plan": [],
+    "completed_tools": [],
+    "pending_clarification": null,
+    "next_action": "continue",
+    "counters": {
+      "iterations": 0,
+      "tool_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    }
+  },
+  "app_context": {
+    "route": "/stats",
+    "activeCoinId": null
+  },
+  "llm": {
+    "provider": "anthropic",
+    "api_key": "fixture-key",
+    "model": "claude-sonnet-5",
+    "ollama_url": "",
+    "searxng_url": ""
+  },
+  "limits": {
+    "max_iterations": 8,
+    "max_tool_calls": 12,
+    "max_concurrent_tools": 3,
+    "hard_timeout_seconds": 120,
+    "max_persisted_tool_result_bytes": 32768
+  },
+  "tools_base_url": "http://test-api:8080",
+  "execution_token": "fixture-execution-token",
+  "allowed_tools": [
+    "search_my_collection",
+    "get_coin",
+    "collection_summary",
+    "top_coins_by_value",
+    "portfolio_review",
+    "gap_analysis"
+  ]
+}

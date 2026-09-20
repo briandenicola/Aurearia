@@ -93,8 +93,21 @@
           :deep-identification-numista-call-budget="settings.DeepIdentificationNumistaCallBudget ?? '4'"
           :deep-identification-o-c-r-e-enabled="settings.DeepIdentificationOCREEnabled ?? 'false'"
           :deep-identification-o-c-r-e-call-budget="settings.DeepIdentificationOCRECallBudget ?? '3'"
+          :coin-copilot-enabled="settings.CoinCopilotEnabled ?? 'false'"
+          :coin-copilot-worker-count="settings.CoinCopilotWorkerCount ?? '1'"
+          :coin-copilot-max-active-per-user="settings.CoinCopilotMaxActivePerUser ?? '1'"
+          :coin-copilot-queue-depth="settings.CoinCopilotQueueDepth ?? '16'"
+          :coin-copilot-max-reasoning-iterations="settings.CoinCopilotMaxReasoningIterations ?? '8'"
+          :coin-copilot-max-tool-calls="settings.CoinCopilotMaxToolCalls ?? '12'"
+          :coin-copilot-hard-timeout-seconds="settings.CoinCopilotHardTimeoutSeconds ?? '120'"
+          :coin-copilot-max-persisted-tool-result-bytes="settings.CoinCopilotMaxPersistedToolResultBytes ?? '32768'"
+          :coin-copilot-event-retention-hours="settings.CoinCopilotEventRetentionHours ?? '168'"
+          :coin-copilot-checkpoint-retention-days="settings.CoinCopilotCheckpointRetentionDays ?? '30'"
+          :coin-copilot-resume-window-hours="settings.CoinCopilotResumeWindowHours ?? '168'"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
           :public-app-url="settings.PublicAppURL ?? ''"
+          :dealer-search-sources="settings.DealerSearchSources ?? ''"
+          :auction-search-sources="settings.AuctionSearchSources ?? ''"
           :usps-api-base-url="settings.USPSAPIBaseURL ?? ''"
           :usps-api-key="settings.USPSAPIKey ?? ''"
           :usps-api-key-header="settings.USPSAPIKeyHeader ?? ''"
@@ -427,9 +440,22 @@ function onSystemSave(payload: {
   deepIdentificationNumistaCallBudget: string
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
+  coinCopilotEnabled: string
+  coinCopilotWorkerCount: string
+  coinCopilotMaxActivePerUser: string
+  coinCopilotQueueDepth: string
+  coinCopilotMaxReasoningIterations: string
+  coinCopilotMaxToolCalls: string
+  coinCopilotHardTimeoutSeconds: string
+  coinCopilotMaxPersistedToolResultBytes: string
+  coinCopilotEventRetentionHours: string
+  coinCopilotCheckpointRetentionDays: string
+  coinCopilotResumeWindowHours: string
   logLevel: string
   pushoverAppToken: string
   publicAppUrl: string
+  dealerSearchSources: string
+  auctionSearchSources: string
   uspsApiBaseUrl: string
   uspsApiKey: string
   uspsApiKeyHeader: string
@@ -462,9 +488,22 @@ function onSystemSave(payload: {
   settings.value.DeepIdentificationNumistaCallBudget = payload.deepIdentificationNumistaCallBudget
   settings.value.DeepIdentificationOCREEnabled = payload.deepIdentificationOCREEnabled
   settings.value.DeepIdentificationOCRECallBudget = payload.deepIdentificationOCRECallBudget
+  settings.value.CoinCopilotEnabled = payload.coinCopilotEnabled
+  settings.value.CoinCopilotWorkerCount = payload.coinCopilotWorkerCount
+  settings.value.CoinCopilotMaxActivePerUser = payload.coinCopilotMaxActivePerUser
+  settings.value.CoinCopilotQueueDepth = payload.coinCopilotQueueDepth
+  settings.value.CoinCopilotMaxReasoningIterations = payload.coinCopilotMaxReasoningIterations
+  settings.value.CoinCopilotMaxToolCalls = payload.coinCopilotMaxToolCalls
+  settings.value.CoinCopilotHardTimeoutSeconds = payload.coinCopilotHardTimeoutSeconds
+  settings.value.CoinCopilotMaxPersistedToolResultBytes = payload.coinCopilotMaxPersistedToolResultBytes
+  settings.value.CoinCopilotEventRetentionHours = payload.coinCopilotEventRetentionHours
+  settings.value.CoinCopilotCheckpointRetentionDays = payload.coinCopilotCheckpointRetentionDays
+  settings.value.CoinCopilotResumeWindowHours = payload.coinCopilotResumeWindowHours
   settings.value.LogLevel = payload.logLevel
   settings.value.PushoverAppToken = payload.pushoverAppToken
   settings.value.PublicAppURL = payload.publicAppUrl
+  settings.value.DealerSearchSources = payload.dealerSearchSources
+  settings.value.AuctionSearchSources = payload.auctionSearchSources
   settings.value.USPSAPIBaseURL = payload.uspsApiBaseUrl
   settings.value.USPSAPIKey = payload.uspsApiKey
   settings.value.USPSAPIKeyHeader = payload.uspsApiKeyHeader

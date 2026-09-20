@@ -1,0 +1,100 @@
+name: Feature 362 Compatibility
+
+on:
+  pull_request:
+    branches: [main, beta]
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FEATURE362_GUARD_COMMIT: 0910bc7b86e6d5a567c62f8b25000c64fca493a2
+
+jobs:
+  browser-acceptance:
+    name: Coin Copilot browser acceptance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Coin Copilot and Deep Analysis workflows
+        run: npx playwright test "coin-copilot-deep-analysis|deep-analysis" --project=chromium
+
+  guard-release:
+    name: Release A guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: src/api/go.mod
+          cache-dependency-path: src/api/go.sum
+
+      - name: Build immutable compatibility guard
+        shell: bash
+        run: |
+          git worktree add --detach .compat/guard "$FEATURE362_GUARD_COMMIT"
+          mkdir -p artifacts/feature362-guard
+          (
+            cd .compat/guard/src/api
+            go build -trimpath -o "$GITHUB_WORKSPACE/artifacts/feature362-guard/aurearia" .
+          )
+          printf '%s\n' "$FEATURE362_GUARD_COMMIT" > artifacts/feature362-guard/aurearia.commit
+
+      - name: Build current feature binary
+        shell: bash
+        run: |
+          (
+            cd src/api
+            go build -trimpath -o "$GITHUB_WORKSPACE/artifacts/feature362-guard/aurearia-feature" .
+          )
+          git rev-parse HEAD > artifacts/feature362-guard/aurearia-feature.commit
+
+      - name: Run guard-only rollback harness
+        shell: pwsh
+        run: |
+          ./scripts/compat/feature362-rollback.ps1 `
+            -GuardBinary ./artifacts/feature362-guard/aurearia `
+            -GuardCommit $env:FEATURE362_GUARD_COMMIT `
+            -GuardSourceRoot ./.compat/guard `
+            -GuardOnly |
+            Tee-Object -FilePath "$env:GITHUB_WORKSPACE/artifacts/feature362-guard/evidence.txt"
+
+      - name: Run full mixed-binary rollback matrix
+        shell: pwsh
+        run: |
+          ./scripts/compat/feature362-rollback.ps1 `
+            -GuardBinary ./artifacts/feature362-guard/aurearia `
+            -GuardCommit $env:FEATURE362_GUARD_COMMIT `
+            -GuardSourceRoot ./.compat/guard `
+            -FeatureBinary ./artifacts/feature362-guard/aurearia-feature |
+            Tee-Object -FilePath "$env:GITHUB_WORKSPACE/artifacts/feature362-guard/full-evidence.txt"
+
+      - name: Upload immutable guard artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: feature362-guard-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/feature362-guard/
+          if-no-files-found: error
+          retention-days: 30

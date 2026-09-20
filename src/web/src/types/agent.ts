@@ -60,6 +60,7 @@ export interface AgentChatMessage {
 export interface AgentChatAppContext {
   route?: string
   activeCoinId?: number
+  activeDraftId?: number
 }
 
 export interface CollectionCoinSummary {
@@ -130,4 +131,405 @@ export interface AgentChatResponse {
   message: string
   suggestions: CoinSuggestion[]
   collection?: CollectionChatResponse
+}
+
+export type CoinCopilotCapabilityReason =
+  | 'disabled'
+  | 'provider_unconfigured'
+  | 'model_tool_calling_unsupported'
+  | 'temporarily_unavailable'
+
+export type CoinCopilotCapability =
+  | {
+      mode: 'copilot'
+      enabled: true
+      modelToolCallingSupported: true
+      reason?: null
+    }
+  | {
+      mode: 'legacy'
+      enabled: boolean
+      modelToolCallingSupported: false
+      reason: CoinCopilotCapabilityReason
+    }
+
+export type CoinCopilotRunStatus =
+  | 'queued'
+  | 'running'
+  | 'paused'
+  | 'cancel_requested'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface CoinCopilotUsage {
+  iterations: number
+  toolCalls: number
+  inputTokens: number
+  outputTokens: number
+}
+
+export type CoinCopilotPlanStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
+
+export interface CoinCopilotPlanItem {
+  id: string
+  title: string
+  status: CoinCopilotPlanStatus
+}
+
+export type CoinCopilotSpecialistCapability =
+  | 'market_search'
+  | 'auction_search'
+  | 'price_trends'
+  | 'similar_lots'
+
+export type CoinCopilotSpecialistOutcome = 'complete' | 'partial' | 'no_match' | 'unavailable'
+export type CoinCopilotEvidenceKind = 'dealer_listing' | 'auction_lot' | 'sale_observation' | 'similar_lot'
+export type CoinCopilotEvidenceConfidence = 'high' | 'medium' | 'low'
+
+export interface CoinCopilotSpecialistEvidence {
+  kind: CoinCopilotEvidenceKind
+  title: string
+  sourceUrl: string
+  observedAt: string
+  confidence: CoinCopilotEvidenceConfidence
+  verificationState: 'verified' | 'partial'
+  description?: string
+  dealerName?: string
+  listedPrice?: number
+  currency?: string
+  availability?: 'available' | 'sold' | 'unknown'
+  ruler?: string
+  denomination?: string
+  era?: string
+  material?: string
+  auctionHouse?: string
+  saleName?: string
+  lotNumber?: string
+  saleDate?: string
+  estimate?: number
+  currentBid?: number
+  lotStatus?: string
+  amount?: number
+  priceBasis?: 'hammer' | 'realized_including_premium'
+  similarityScore?: number
+  imageUrl?: string | null
+  candidateReferences?: CoinCopilotCandidateReference[]
+  matchedAttributes?: string[]
+  materialDifferences?: string[]
+}
+
+export interface CoinCopilotCandidateReference {
+  catalog: string
+  number: string
+  volume?: string | null
+  uri?: string | null
+}
+
+export interface CoinCopilotPriceTrend {
+  state: 'rising' | 'stable' | 'declining' | 'unknown'
+  sampleSize: number
+  dateFrom: string | null
+  dateTo: string | null
+  currency: string | null
+  priceBasis: 'hammer' | 'realized_including_premium' | null
+  low: number | null
+  median: number | null
+  high: number | null
+  confidence: CoinCopilotEvidenceConfidence
+  limitations: string[]
+  supportingSourceIds: string[]
+}
+
+export interface CoinCopilotSpecialistResult {
+  capability: CoinCopilotSpecialistCapability
+  outcome: CoinCopilotSpecialistOutcome
+  items: CoinCopilotSpecialistEvidence[]
+  trend: CoinCopilotPriceTrend | null
+  warnings: string[]
+  truncation: {
+    truncated: boolean
+    omittedItems: number
+  }
+}
+
+export type DeepAnalysisHandoffOutcome =
+    | 'accepted'
+    | 'reused_active'
+    | 'reused_result'
+    | 'status'
+    | 'retry_available'
+    | 'missing_images'
+    | 'target_unavailable'
+    | 'not_eligible'
+    | 'unavailable'
+    | 'cancelled'
+
+  export type DeepAnalysisHandoffReason =
+    | 'missing_obverse'
+    | 'missing_reverse'
+    | 'missing_both'
+    | 'duplicate_faces'
+    | 'target_changed'
+    | 'draft_inactive'
+    | 'source_coin_missing'
+    | 'deep_disabled'
+    | 'copilot_disabled'
+    | 'attribution_disabled'
+    | 'model_unsupported'
+    | 'job_at_capacity'
+    | 'queue_full'
+    | 'result_missing'
+    | 'result_expired'
+    | 'stale'
+    | 'cancelled'
+
+  export interface DeepAnalysisHandoffEvidence {
+    provider: string
+    source: string
+    url: string
+    summary: string
+  }
+
+  export interface DeepAnalysisHandoffField {
+    name: string
+    value: string
+    confidence: number
+    evidence: DeepAnalysisHandoffEvidence[]
+  }
+
+  export interface DeepAnalysisHandoffResultBody {
+    state: 'not_ready' | 'complete' | 'partial' | 'no_match' | 'failed' | 'cancelled' | 'stale' | 'missing_result'
+    narrative: string
+    partial_success: boolean
+    image_only: boolean
+    fields: DeepAnalysisHandoffField[]
+    disagreements: Array<{ field: string, summary: string }>
+    unresolved_questions: string[]
+    coverage: Array<{
+      provider: 'numista' | 'nomisma' | 'ngc' | 'ocre' | 'rpc'
+      status: 'pending' | 'running' | 'contributed' | 'no_match' | 'failed' | 'timed_out' | 'skipped' | 'not_automated' | 'unavailable'
+    }>
+    attributions: Array<{
+      provider: 'numista' | 'nomisma' | 'ngc' | 'ocre' | 'rpc'
+      label: string
+    }>
+    limitations: string[]
+  }
+
+  export interface DeepAnalysisHandoffTruncation {
+    truncated: boolean
+    original_bytes: number
+    persisted_bytes: number
+    digest: string
+    omitted_fields: number
+    omitted_evidence: number
+    omitted_disagreements: number
+    omitted_questions: number
+  }
+
+  interface DeepAnalysisHandoffPrivacyResult {
+    outcome: 'not_eligible' | 'target_unavailable'
+    reason: null
+  }
+
+  interface DeepAnalysisHandoffTypedResult {
+    schema_version: 1
+    operation: 'request' | 'status' | 'rerun'
+    outcome: Exclude<DeepAnalysisHandoffOutcome, 'not_eligible' | 'target_unavailable'>
+    reason: DeepAnalysisHandoffReason | null
+    target?: {
+      type: 'coin' | 'draft'
+      id: number
+      display_label: string
+    }
+    job?: {
+      id: number
+      source: 'intake' | 'saved_coin' | 'copilot_draft'
+      status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'
+      reused: boolean
+      created_at: string
+      completed_at: string | null
+    }
+    input_digest?: string
+    review_url?: string
+    fresh_analysis_available: boolean
+    result?: DeepAnalysisHandoffResultBody
+    truncation?: DeepAnalysisHandoffTruncation
+    limitations: string[]
+  }
+
+  /** `outcome` is deliberately the only top-level union discriminant. */
+  export type DeepAnalysisHandoffResult =
+    | DeepAnalysisHandoffPrivacyResult
+    | DeepAnalysisHandoffTypedResult
+
+export type CoinCopilotClarificationInputType = 'text' | 'single_choice' | 'boolean'
+
+export interface CoinCopilotClarification {
+  question: string
+  inputType: CoinCopilotClarificationInputType
+  choices: string[]
+  checkpointVersion: number
+}
+
+export interface CoinCopilotCheckpointSummary {
+  version: number
+  plan: CoinCopilotPlanItem[]
+  pendingClarification: CoinCopilotClarification | null
+}
+
+export interface CoinCopilotRun {
+  id: string
+  threadId: string
+  status: CoinCopilotRunStatus
+  goal: string
+  checkpointVersion: number
+  lastSeq: number
+  attempt: number
+  finalAnswer: string | null
+  failureCode: string | null
+  failureMessage: string | null
+  resumeDeadline: string | null
+  usage: CoinCopilotUsage
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CoinCopilotRunEnvelope {
+  run: CoinCopilotRun
+  reused: boolean
+}
+
+export interface CoinCopilotThreadMessage {
+  role: 'user' | 'assistant'
+  content: string
+  runId: string | null
+  createdAt: string
+}
+
+export interface CoinCopilotThread {
+  id: string
+  title: string
+  messages: CoinCopilotThreadMessage[]
+  runs: CoinCopilotRun[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CoinCopilotThreadEnvelope {
+  thread: CoinCopilotThread
+}
+
+export interface CoinCopilotRunLimits {
+  maxIterations: number
+  maxToolCalls: number
+  maxConcurrentTools: number
+  hardTimeoutSeconds: number
+  maxPersistedToolResultBytes: number
+}
+
+interface CoinCopilotEventBase<TType extends string, TPayload> {
+  seq: number
+  threadId: string
+  runId: string
+  executionId: string
+  type: TType
+  ts: string
+  payload: TPayload
+}
+
+export type CoinCopilotRunStartedEvent = CoinCopilotEventBase<'run_started', {
+  status: 'running'
+  executionId: string
+  attempt: number
+  limits: CoinCopilotRunLimits
+}>
+
+export type CoinCopilotPlanUpdatedEvent = CoinCopilotEventBase<'plan_updated', {
+  plan: CoinCopilotPlanItem[]
+}>
+
+export type CoinCopilotToolStartedEvent = CoinCopilotEventBase<'tool_started', {
+  toolCallId: string
+  toolName: string
+  stepId: string
+}>
+
+export type CoinCopilotToolCompletedEvent = CoinCopilotEventBase<'tool_completed', {
+  toolCallId: string
+  toolName: string
+  stepId: string
+  status: 'succeeded' | 'failed' | 'cancelled' | 'rejected'
+  durationMs: number
+  resultSummary: string
+  truncated: boolean
+  specialistResult?: CoinCopilotSpecialistResult
+  deepAnalysisHandoffResult?: DeepAnalysisHandoffResult
+}>
+
+export type CoinCopilotClarificationRequiredEvent = CoinCopilotEventBase<'clarification_required', CoinCopilotClarification>
+
+export type CoinCopilotRunPausedEvent = CoinCopilotEventBase<'run_paused', {
+  reason: 'clarification_required'
+  checkpointVersion: number
+  resumeDeadline: string
+}>
+
+export type CoinCopilotRunResumedEvent = CoinCopilotEventBase<'run_resumed', {
+  executionId: string
+  attempt: number
+  checkpointVersion: number
+}>
+
+export type CoinCopilotRunCancelledEvent = CoinCopilotEventBase<'run_cancelled', {
+  reason: 'owner_cancelled'
+}>
+
+export type CoinCopilotRunCompletedEvent = CoinCopilotEventBase<'run_completed', {
+  answer: string
+  usage: CoinCopilotUsage
+}>
+
+export type CoinCopilotFailureCode =
+  | 'agent_unavailable'
+  | 'execution_lost'
+  | 'invalid_agent_frame'
+  | 'invalid_tool_call'
+  | 'iteration_limit_exceeded'
+  | 'tool_limit_exceeded'
+  | 'time_limit_exceeded'
+  | 'model_tool_calling_unsupported'
+  | 'resume_window_expired'
+  | 'internal'
+
+export type CoinCopilotRunFailedEvent = CoinCopilotEventBase<'run_failed', {
+  code: CoinCopilotFailureCode
+  message: string
+  retryable: boolean
+  usage: CoinCopilotUsage
+}>
+
+export type CoinCopilotEvent =
+  | CoinCopilotRunStartedEvent
+  | CoinCopilotPlanUpdatedEvent
+  | CoinCopilotToolStartedEvent
+  | CoinCopilotToolCompletedEvent
+  | CoinCopilotClarificationRequiredEvent
+  | CoinCopilotRunPausedEvent
+  | CoinCopilotRunResumedEvent
+  | CoinCopilotRunCancelledEvent
+  | CoinCopilotRunCompletedEvent
+  | CoinCopilotRunFailedEvent
+
+export interface CoinCopilotStreamTruncated {
+  runId: string
+  status: CoinCopilotRunStatus
+  earliestSeq: number
+  lastSeq: number
+}
+
+export interface CoinCopilotStreamEnd {
+  runId: string
+  status: CoinCopilotRunStatus
 }

@@ -1,14 +1,14 @@
 ---
 title: Dealer / Source Database
 id: F010
-status: promoted
+status: triaged
 priority: P3
 effort: M
 value: 3
 risk: 2
 owner: unassigned
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -62,3 +62,8 @@ Replace the free-text dealer/source field on coin records with a normalized, sea
 
 - PRD §8 Q6 (Dealer/source tracking — resolved Yes, 2026-05-28)
 - Constitution Principle X (Architecture Enforcement) — new repo + service must pass tests
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `triaged`; no active
+  `specs/NNN-*` target or normalized dealer/source implementation exists.

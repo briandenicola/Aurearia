@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -28,6 +30,7 @@ var (
 	ErrDeepArtifactMissingCoin   = errors.New("coin not found")
 	ErrDeepArtifactMissingImage  = errors.New("coin image not found")
 	ErrDeepArtifactMissingUpload = errors.New("no file provided")
+	ErrDeepInvalidInput          = errors.New("invalid deep analysis input")
 )
 
 // MaxDeepIdentificationHintArtifacts caps hint/reference images per job
@@ -36,6 +39,10 @@ const MaxDeepIdentificationHintArtifacts = 3
 
 // MaxDeepIdentificationRetryDepth caps the retry lineage depth (FR-020).
 const MaxDeepIdentificationRetryDepth = 3
+
+// deepJobClaimRetryDelay backs off only after a real claim error. Idle workers
+// remain event-driven and perform no periodic database polling.
+const deepJobClaimRetryDelay = 250 * time.Millisecond
 
 // Errors returned by DeepIdentificationService's job-orchestration methods
 // (Phase 4/5). Also generic per Principle V / FR-036.
@@ -51,12 +58,6 @@ var (
 	ErrDeepJobRetryDepth     = errors.New("retry depth limit reached")
 	ErrDeepJobNotTerminal    = errors.New("job is not terminal")
 )
-
-// deepJobPollInterval is the fallback ticker period a worker uses to check
-// for queued work when it hasn't been woken by an explicit signal. Kept
-// short so tests remain fast; production correctness does not depend on
-// its exact value, only that it is bounded.
-const deepJobPollInterval = 25 * time.Millisecond
 
 // DeepPipelineResult is what a pipeline run (Phase 7: the Python LangGraph
 // agent, proxied via agent_proxy.go) reports back to the worker loop.
@@ -144,6 +145,61 @@ type DeepIdentificationService struct {
 	internalTokenSvc *InternalTokenService
 }
 
+type DeepAnalysisSnapshotFace struct {
+	RowID       uint   `json:"row_id"`
+	Version     string `json:"version"`
+	ContentHash string `json:"content_sha256"`
+}
+
+type DeepAnalysisTargetSnapshotV2 struct {
+	SchemaVersion                   int                      `json:"schema_version"`
+	OwnerID                         uint                     `json:"owner_id"`
+	TargetKind                      string                   `json:"target_kind"`
+	TargetID                        uint                     `json:"target_id"`
+	TargetState                     string                   `json:"target_state"`
+	TargetVersion                   string                   `json:"target_version"`
+	Obverse                         DeepAnalysisSnapshotFace `json:"obverse"`
+	Reverse                         DeepAnalysisSnapshotFace `json:"reverse"`
+	BoundedContextSHA256            string                   `json:"bounded_context_sha256"`
+	BoundedContextVersion           string                   `json:"bounded_context_version"`
+	EffectiveProviders              []string                 `json:"effective_providers"`
+	ProviderConfigurationGeneration string                   `json:"provider_configuration_generation"`
+}
+
+func ComputeDeepAnalysisTargetSnapshot(snapshot DeepAnalysisTargetSnapshotV2) (string, error) {
+	if snapshot.SchemaVersion != 2 || snapshot.OwnerID == 0 || snapshot.TargetID == 0 ||
+		(snapshot.TargetKind != "coin" && snapshot.TargetKind != "draft") ||
+		snapshot.TargetState == "" || snapshot.TargetVersion == "" ||
+		snapshot.Obverse.RowID == 0 || snapshot.Reverse.RowID == 0 ||
+		snapshot.Obverse.RowID == snapshot.Reverse.RowID ||
+		snapshot.Obverse.Version == "" || snapshot.Reverse.Version == "" ||
+		snapshot.Obverse.ContentHash == "" || snapshot.Reverse.ContentHash == "" ||
+		snapshot.BoundedContextSHA256 == "" || snapshot.BoundedContextVersion == "" ||
+		snapshot.ProviderConfigurationGeneration == "" {
+		return "", ErrDeepInvalidInput
+	}
+	snapshot.EffectiveProviders = append([]string(nil), snapshot.EffectiveProviders...)
+	sort.Strings(snapshot.EffectiveProviders)
+	canonical, err := json.Marshal(snapshot)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func deepAnalysisBoundedContext(value string) (string, string) {
+	const maxContextBytes = 5000
+	value = strings.TrimSpace(value)
+	for len([]byte(value)) > maxContextBytes {
+		_, size := utf8.DecodeLastRuneInString(value)
+		value = value[:len(value)-size]
+	}
+	sum := sha256.Sum256([]byte(value))
+	digest := hex.EncodeToString(sum[:])
+	return digest, digest
+}
+
 // NewDeepIdentificationService constructs the service, following the
 // repo -> service -> handler DI pattern used elsewhere (main.go:246-249).
 func NewDeepIdentificationService(repo *repository.DeepIdentificationRepository, imageRepo *repository.ImageRepository, imageSvc *ImageService, settingsSvc *SettingsService, logger *Logger, uploadDir string) *DeepIdentificationService {
@@ -212,14 +268,20 @@ func (s *DeepIdentificationService) pipelineRunner() DeepPipelineRunner {
 	return s.runner
 }
 
-// notifyWorkers wakes a single idle worker (if any) without blocking. A
-// missed signal is harmless: the poll-interval ticker fallback in the
-// worker loop will pick the job up shortly after.
+// notifyWorkers wakes a single idle worker without blocking. The buffered
+// signal is retained when all workers are busy, and each successful claim
+// hands off another wake so the configured pool can fill without polling.
 func (s *DeepIdentificationService) notifyWorkers() {
 	select {
 	case s.wake <- struct{}{}:
 	default:
 	}
+}
+
+// NotifyHandoffCommitted publishes work only after the handoff transaction has
+// durably committed the job and both required face artifacts.
+func (s *DeepIdentificationService) NotifyHandoffCommitted(_ uint) {
+	s.notifyWorkers()
 }
 
 // ValidateAndSaveArtifact delegates to the artifact-management seam
@@ -661,17 +723,17 @@ func (s *DeepIdentificationService) StartWorkers(ctx context.Context) {
 		workerID := fmt.Sprintf("worker-%d", i)
 		go s.workerLoop(ctx, workerID)
 	}
+	if settings.Enabled {
+		s.notifyWorkers()
+	}
 }
 
 func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID string) {
-	ticker := time.NewTicker(deepJobPollInterval)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-s.wake:
-		case <-ticker.C:
 		}
 		for {
 			s.intakeMu.RLock()
@@ -683,8 +745,8 @@ func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID str
 				// any error (including SQLITE_BUSY from a competing writer)
 				// the whole transaction rolls back and the job is left
 				// exactly as it was - still status=queued. Nothing is lost:
-				// this worker (or another) retries it on the next wake/tick
-				// (deepJobPollInterval, 25ms) without janitor involvement.
+				// a retained or subsequent wake lets this worker (or another)
+				// retry without janitor involvement.
 				// With busy_timeout now set (database.Connect), SQLite waits
 				// out a competing writer instead of failing immediately, so
 				// this branch should be rare; treat it as a transient,
@@ -692,11 +754,18 @@ func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID str
 				if s.logger != nil {
 					s.logger.Warn("deep-identification", "worker %s failed to claim job (will retry): %v", workerID, err)
 				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(deepJobClaimRetryDelay):
+					s.notifyWorkers()
+				}
 				break
 			}
 			if !claimed {
 				break
 			}
+			s.notifyWorkers()
 			s.runJob(ctx, job)
 			if ctx.Err() != nil {
 				return
@@ -777,6 +846,27 @@ func (s *DeepIdentificationService) runJob(parent context.Context, job *models.D
 	}
 
 	won, err := s.repo.SettleTerminal(job.ID, []models.DeepJobStatus{models.DeepJobStatusRunning}, newStatus, reportJSON, proposalJSON, failureCode, failureMessage)
+	if err == nil && !won && newStatus != models.DeepJobStatusCancelled {
+		fresh, getErr := s.repo.GetJob(job.ID, job.UserID)
+		if getErr == nil &&
+			fresh.Status == models.DeepJobStatusRunning &&
+			fresh.CancelRequestedAt != nil {
+			won, err = s.repo.SettleTerminal(
+				job.ID,
+				[]models.DeepJobStatus{models.DeepJobStatusRunning},
+				models.DeepJobStatusCancelled,
+				"",
+				"",
+				"",
+				"",
+			)
+			if won {
+				newStatus = models.DeepJobStatusCancelled
+			}
+		} else if getErr != nil {
+			err = getErr
+		}
+	}
 	if err != nil {
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to settle job %d: %v", job.ID, err)

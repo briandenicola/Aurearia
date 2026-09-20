@@ -857,6 +857,13 @@ func handleCoinMutationError(c *gin.Context, err error) bool {
 	case errors.Is(err, services.ErrStorageSlotOccupied):
 		c.JSON(http.StatusConflict, gin.H{"error": "Storage slot is occupied", "message": "Storage slot is occupied", "code": "slot_occupied"})
 		return true
+	case errors.Is(err, services.ErrWishlistReferenceDuplicate):
+		c.JSON(http.StatusConflict, gin.H{
+			"error":   "A wishlist coin already uses this source URL",
+			"message": "A wishlist coin already uses this source URL",
+			"code":    "wishlist_duplicate",
+		})
+		return true
 	case isUniqueConstraintError(err):
 		respondError(c, http.StatusBadRequest, services.ErrReferenceDuplicate.Error(), err)
 		return true

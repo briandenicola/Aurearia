@@ -2,11 +2,13 @@
   <div class="fixed inset-0 z-[1400] flex h-dvh justify-end bg-black/50" @click.self="$emit('close')">
     <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_rgba(0,0,0,0.3)] sm:w-[480px]">
       <ChatHeader
-        :has-messages="messages.length > 0"
+        :has-messages="messages.length > 0 && !copilotBusy"
         :saving="saving"
         :conversation-id="conversationId"
         :save-label="saveLabel"
+        :new-chat-disabled="newChatDisabled || noteSaving"
         @save="handleSave"
+        @new-chat="handleNewChat"
         @close="$emit('close')"
       />
 
@@ -110,6 +112,38 @@
           </div>
         </template>
 
+        <CopilotRunProgress
+          v-if="copilotRun"
+          :run="copilotRun"
+          :plan="copilotPlan"
+          :tools="copilotTools"
+          :can-cancel="copilotCanCancel"
+          :cancelling="copilotCancelling"
+          :truncated="copilotTruncated"
+          :adding-idx="addingIdx"
+          :added-set="addedSet"
+          @cancel="cancelCopilotRun"
+          @add-to-wishlist="addCopilotDealerToWishlist"
+        />
+
+        <CopilotClarificationCard
+          v-if="copilotRun && copilotClarification && copilotCanResume"
+          :clarification="copilotClarification"
+          :submitting="copilotResuming"
+          :cancelling="copilotCancelling"
+          :error="copilotError"
+          @resume="resumeCopilotRun"
+          @cancel="cancelCopilotRun"
+        />
+
+        <p
+          v-else-if="copilotRun && copilotError"
+          class="w-full rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]"
+          role="alert"
+        >
+          {{ copilotError }}
+        </p>
+
         <div v-if="loading && !messages[messages.length - 1]?.streaming" class="max-w-[85%] self-start rounded-md border border-border-subtle bg-card px-[0.85rem] py-[0.65rem] text-text-primary">
           <div class="flex items-center gap-1.5 italic text-text-muted">
             <span class="h-1.5 w-1.5 rounded-full bg-gold animate-pulse"></span>
@@ -121,7 +155,7 @@
 
       <ChatInputBar
         v-model="input"
-        :loading="loading"
+        :loading="loading || copilotRun?.status === 'paused'"
         :provider-configured="providerConfigured"
         ref="inputBarEl"
         @send="sendMessage"
@@ -169,8 +203,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
-import type { CoinSuggestion, CoinShow } from '@/types'
+import { computed, onMounted, ref, watch } from 'vue'
+import type {
+  CoinCopilotSpecialistCapability,
+  CoinCopilotSpecialistEvidence,
+  CoinSuggestion,
+  CoinShow,
+} from '@/types'
 import { AlertTriangle } from 'lucide-vue-next'
 import { useCoinSearchChat } from '@/composables/useCoinSearchChat'
 import { createNote, getApiErrorMessage } from '@/api/client'
@@ -181,6 +220,12 @@ import ChatInputBar from '@/components/chat/ChatInputBar.vue'
 import CoinShowResultsGrid from '@/components/chat/CoinShowResultsGrid.vue'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 import CategoryEraConfirmModal from '@/components/chat/CategoryEraConfirmModal.vue'
+import CopilotRunProgress from '@/components/chat/CopilotRunProgress.vue'
+import CopilotClarificationCard from '@/components/chat/CopilotClarificationCard.vue'
+import {
+  copilotDealerListingToSuggestion,
+  isEligibleCopilotDealerListing,
+} from '@/utils/copilotWishlist'
 
 const props = defineProps<{
   loadConversation?: { id: number; title: string; messages: string } | null
@@ -196,6 +241,10 @@ const messagesEl = ref<HTMLElement>()
 const inputBarEl = ref<InstanceType<typeof ChatInputBar>>()
 const sentInitialPrompts = new Set<string>()
 const { showAlert } = useDialog()
+// A finished Coin Copilot conversation is savable like a legacy one; only an
+// in-flight run hides the action.
+const copilotBusy = computed(() =>
+  ['queued', 'running', 'cancel_requested', 'paused'].includes(copilotRun.value?.status ?? ''))
 const noteDraftOpen = ref(false)
 const noteSaving = ref(false)
 const noteDraft = ref({
@@ -214,11 +263,25 @@ const {
   conversationId,
   saving,
   saveLabel,
+  newChat,
+  newChatDisabled,
   providerConfigured,
   categoryEraConfirmRequest,
+  copilotRun,
+  copilotPlan,
+  copilotTools,
+  copilotClarification,
+  copilotCanCancel,
+  copilotCanResume,
+  copilotTruncated,
+  copilotError,
+  copilotCancelling,
+  copilotResuming,
   chooseCategoryEraConfirmation,
   cancelCategoryEraConfirmation,
   sendMessage,
+  cancelCopilotRun,
+  resumeCopilotRun,
   sendExample,
   sendPortfolioAnalysis,
   handleSave,
@@ -235,6 +298,21 @@ const {
   inputBarEl,
   onAdded: () => emit('added'),
 })
+
+async function handleNewChat() {
+  if (noteSaving.value || !await newChat()) return
+  noteDraftOpen.value = false
+  noteDraft.value = { title: '', body: '' }
+}
+
+function addCopilotDealerToWishlist(
+  capability: CoinCopilotSpecialistCapability,
+  item: CoinCopilotSpecialistEvidence,
+  key: string,
+) {
+  if (!isEligibleCopilotDealerListing(capability, item)) return
+  void addToWishlist(copilotDealerListingToSuggestion(item), key)
+}
 
 function sendInitialPrompt(prompt?: string | null) {
   const text = prompt?.trim()

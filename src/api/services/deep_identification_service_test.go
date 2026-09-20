@@ -85,6 +85,136 @@ func seedDeepTestJob(t *testing.T, db *gorm.DB, userID uint) uint {
 	return job.ID
 }
 
+func TestDeepIdentificationService_UnknownSourceCannotRetryOrCancel(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "unknown-source-service", Email: "unknown-source-service@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	job := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSource("future_source"),
+		Status: models.DeepJobStatusCompleted, InputFingerprint: "unknown-source-service",
+		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "terminal-unknown",
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.RetryJob(job.ID, user.ID, nil, nil); !errors.Is(err, ErrDeepJobNotFound) {
+		t.Fatalf("RetryJob error = %v, want ErrDeepJobNotFound", err)
+	}
+	if err := svc.RequestCancel(job.ID, user.ID); !errors.Is(err, ErrDeepJobNotFound) {
+		t.Fatalf("RequestCancel error = %v, want ErrDeepJobNotFound", err)
+	}
+	var after models.DeepIdentificationJob
+	if err := db.First(&after, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if after.ReportJSON != job.ReportJSON || after.ProposalJSON != job.ProposalJSON || after.Status != job.Status {
+		t.Fatalf("unknown-source service path mutated row: %#v", after)
+	}
+}
+
+func TestFeature362AcceptedJobCanBeCancelledAfterDeepAnalysisIsDisabled(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "finish-existing-owner", Email: "finish-existing@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSourceIntake,
+		Status: models.DeepJobStatusQueued, InputFingerprint: "finish-existing-cancel",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+	running := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSourceIntake,
+		Status: models.DeepJobStatusRunning, InputFingerprint: "finish-existing-settle",
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "finish-existing-settle",
+	}
+	if err := db.Create(&running).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.settingsSvc.SetSetting(SettingDeepIdentificationEnabled, "false"); err != nil {
+		t.Fatal(err)
+	}
+
+	settled, err := svc.repo.SettleTerminal(
+		running.ID,
+		[]models.DeepJobStatus{models.DeepJobStatusRunning},
+		models.DeepJobStatusCompleted,
+		`{"narrative":"settled after disable"}`,
+		`{"schemaVersion":1,"fields":{}}`,
+		"",
+		"",
+	)
+	if err != nil || !settled {
+		t.Fatalf("accepted worker settlement was blocked after disable: settled=%v err=%v", settled, err)
+	}
+	completed, err := svc.GetJob(running.ID, user.ID)
+	if err != nil || completed.Status != models.DeepJobStatusCompleted {
+		t.Fatalf("settled job unavailable after disable: job=%#v err=%v", completed, err)
+	}
+	if err := svc.RequestCancel(job.ID, user.ID); err != nil {
+		t.Fatalf("accepted cancellation was blocked after disable: %v", err)
+	}
+	got, err := svc.GetJob(job.ID, user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != models.DeepJobStatusCancelled {
+		t.Fatalf("status=%q want cancelled", got.Status)
+	}
+}
+
+func TestDeepIdentificationService_WorkersDoNotAdoptUnknownSource(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "unknown-source-worker", Email: "unknown-source-worker@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSource("future_source"),
+		Status: models.DeepJobStatusQueued, InputFingerprint: "unknown-source-worker",
+		ReportJSON: `{"private":"report"}`, ProposalJSON: `{"private":"proposal"}`,
+		ExpiresAt: time.Now().Add(time.Hour), ActiveKey: "active",
+	}
+	if err := db.Create(&job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var providerCalls int32
+	svc.SetPipelineRunner(&fakeRunner{run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		atomic.AddInt32(&providerCalls, 1)
+		return &DeepPipelineResult{}, nil
+	}})
+	ctx, cancel := context.WithCancel(context.Background())
+	svc.StartWorkers(ctx)
+	svc.notifyWorkers()
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+
+	var after models.DeepIdentificationJob
+	if err := db.First(&after, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	var eventCount, providerRunCount int64
+	if err := db.Model(&models.DeepIdentificationEvent{}).Where("job_id = ?", job.ID).Count(&eventCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.DeepIdentificationProviderRun{}).Where("job_id = ?", job.ID).Count(&providerRunCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&providerCalls) != 0 || eventCount != 0 || providerRunCount != 0 ||
+		after.Status != job.Status || after.ReportJSON != job.ReportJSON || after.ProposalJSON != job.ProposalJSON {
+		t.Fatalf("unknown-source worker adopted job: calls=%d events=%d providers=%d job=%#v",
+			providerCalls, eventCount, providerRunCount, after)
+	}
+}
+
 func TestDeepIdentificationService_ValidateAndSaveArtifact_HappyPath(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "artifact-owner", Email: "artifact-owner@example.com", PasswordHash: "x"}
@@ -686,6 +816,115 @@ func TestDeepIdentificationService_StartJob_DisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestDeepIdentificationService_DisabledWorkersLeaveQueuedJobsInert(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "disabled-worker-owner", Email: "disabled-worker-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	job := newDeepStartJob(t, user.ID, "disabled worker")
+	if err := db.Create(job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{run: func(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}}
+	svc.SetPipelineRunner(runner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+	time.Sleep(100 * time.Millisecond)
+
+	var reloaded models.DeepIdentificationJob
+	if err := db.First(&reloaded, job.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Status != models.DeepJobStatusQueued {
+		t.Fatalf("disabled worker changed queued job status to %q", reloaded.Status)
+	}
+	if runner.peak() != 0 {
+		t.Fatalf("disabled worker invoked the pipeline %d time(s)", runner.peak())
+	}
+}
+
+func TestDeepIdentificationService_EnabledWorkersClaimWithoutPolling(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "enabled-worker-owner", Email: "enabled-worker-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	enableDeepIdentification(t, svc, map[string]string{
+		SettingDeepIdentificationWorkerCount: "2",
+	})
+	job := newDeepStartJob(t, user.ID, "enabled worker")
+	if err := db.Create(job).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{run: func(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}}
+	svc.SetPipelineRunner(runner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var reloaded models.DeepIdentificationJob
+		if err := db.First(&reloaded, job.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.Status == models.DeepJobStatusCompleted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("enabled worker did not claim startup job; status=%q", reloaded.Status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestDeepIdentificationService_RuntimeEnableWakesWorkers(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "runtime-enable-owner", Email: "runtime-enable-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	runner := &fakeRunner{run: func(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}}
+	svc.SetPipelineRunner(runner)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+	enableDeepIdentification(t, svc, nil)
+
+	job, _, err := svc.StartJob(newDeepStartJob(t, user.ID, "runtime enable"))
+	if err != nil {
+		t.Fatalf("StartJob after runtime enable failed: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var reloaded models.DeepIdentificationJob
+		if err := db.First(&reloaded, job.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.Status == models.DeepJobStatusCompleted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("runtime-enabled worker did not claim job; status=%q", reloaded.Status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestDeepIdentificationService_WorkerPool_BoundsConcurrency(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "pool-owner", Email: "pool-owner@example.com", PasswordHash: "x"}
@@ -737,6 +976,9 @@ func TestDeepIdentificationService_WorkerPool_BoundsConcurrency(t *testing.T) {
 
 	if runner.peak() > 2 {
 		t.Fatalf("expected at most 2 concurrent jobs, saw peak %d", runner.peak())
+	}
+	if runner.peak() < 2 {
+		t.Fatalf("expected the wake handoff to fill both workers, saw peak %d", runner.peak())
 	}
 	var completedCount int64
 	db.Model(&models.DeepIdentificationJob{}).Where("status = ?", models.DeepJobStatusCompleted).Count(&completedCount)

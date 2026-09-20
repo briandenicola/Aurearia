@@ -136,12 +136,12 @@ func (r *WishlistSearchAlertRepository) GetDueAlerts(now time.Time) ([]models.Wi
 	return due, nil
 }
 
-func (r *WishlistSearchAlertRepository) CreateManualRunIfAvailable(run *models.AlertRun, runningSince time.Time) (bool, error) {
+func (r *WishlistSearchAlertRepository) CreateManualRunIfAvailable(run *models.AlertRun) (bool, error) {
 	acquired := false
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&models.AlertRun{}).
-			Where("alert_id = ? AND user_id = ? AND status IN ? AND started_at >= ?", run.AlertID, run.UserID, []models.AlertRunStatus{models.AlertRunStatusQueued, models.AlertRunStatusRunning}, runningSince).
+			Where("alert_id = ? AND user_id = ? AND status IN ?", run.AlertID, run.UserID, []models.AlertRunStatus{models.AlertRunStatusQueued, models.AlertRunStatusRunning}).
 			Count(&count).Error; err != nil {
 			return err
 		}
@@ -188,23 +188,23 @@ func (r *WishlistSearchAlertRepository) UpdateRun(run *models.AlertRun) error {
 	return r.db.Save(run).Error
 }
 
-func (r *WishlistSearchAlertRepository) RecoverStaleAlertRuns(timeout time.Duration) ([]uint, error) {
-	cutoff := time.Now().Add(-timeout)
-	if err := r.db.Model(&models.AlertRun{}).
-		Where("status = ? AND started_at < ?", models.AlertRunStatusRunning, cutoff).
+func (r *WishlistSearchAlertRepository) ReconcileInterruptedRuns() error {
+	return r.db.Model(&models.AlertRun{}).
+		Where("status = ?", models.AlertRunStatusRunning).
 		Updates(map[string]interface{}{
-			"status":            models.AlertRunStatusQueued,
-			"completed_at":      nil,
-			"duration_ms":       0,
-			"error_message":     "",
-			"rate_limit_status": "ok",
-		}).Error; err != nil {
-		return nil, err
-	}
+			"status":            models.AlertRunStatusFailed,
+			"completed_at":      time.Now(),
+			"error_message":     "Interrupted by server restart. Review any saved results before retrying.",
+			"rate_limit_status": "failed",
+		}).Error
+}
+
+func (r *WishlistSearchAlertRepository) ListQueuedRunIDs() ([]uint, error) {
 	var ids []uint
 	err := r.db.Model(&models.AlertRun{}).
 		Where("status = ?", models.AlertRunStatusQueued).
 		Order("created_at ASC").
+		Limit(100).
 		Pluck("id", &ids).Error
 	return ids, err
 }

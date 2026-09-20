@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "capability": "market_search",
+  "outcome": "unavailable",
+  "items": [],
+  "trend": null,
+  "provider_attempts": [
+    {
+      "provider": "cng_dealer_search",
+      "status": "unavailable",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 0,
+      "warning_code": "provider_unavailable"
+    }
+  ],
+  "warnings": [
+    "The configured source was unavailable."
+  ],
+  "truncation": {
+    "truncated": false,
+    "omitted_items": 0
+  }
+}

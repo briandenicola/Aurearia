@@ -24,8 +24,9 @@ type AgentProxy struct {
 const agentMissingInternalCredentialDetail = "Internal service credential is not configured"
 
 type CollectionChatContext struct {
-	Route        string `json:"route,omitempty"`
-	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
+	Route         string `json:"route,omitempty"`
+	ActiveCoinID  *uint  `json:"activeCoinId,omitempty"`
+	ActiveDraftID *uint  `json:"activeDraftId,omitempty"`
 }
 
 func NewAgentProxy(baseURL string, internalServiceToken string, logger *Logger) *AgentProxy {
@@ -217,6 +218,8 @@ type AgentChatProxyRequest struct {
 	AppContext       *CollectionChatContext `json:"app_context,omitempty"`
 	CoinSearchPrompt string                 `json:"coin_search_prompt"`
 	CoinShowsPrompt  string                 `json:"coin_shows_prompt"`
+	DealerSources    []string               `json:"dealer_search_sources"`
+	AuctionSources   []string               `json:"auction_search_sources"`
 	Portfolio        *PortfolioData         `json:"portfolio,omitempty"`
 	InternalToken    string                 `json:"internal_token,omitempty"`
 	ToolsBaseURL     string                 `json:"tools_base_url,omitempty"`
@@ -466,8 +469,9 @@ type AlertDiscoveryRequestDetail struct {
 }
 
 type AlertDiscoveryProxyRequest struct {
-	LLM   LLMConfig                   `json:"llm"`
-	Alert AlertDiscoveryRequestDetail `json:"alert"`
+	LLM           LLMConfig                   `json:"llm"`
+	Alert         AlertDiscoveryRequestDetail `json:"alert"`
+	DealerSources []string                    `json:"dealer_search_sources"`
 }
 
 type AlertDiscoveryProvenanceProxy struct {
@@ -882,6 +886,39 @@ func (p *AgentProxy) WishlistFeaturedSummary(ctx context.Context, req WishlistFe
 		return "", fmt.Errorf("parse wishlist featured summary response: %w", err)
 	}
 	return strings.TrimSpace(result.Summary), nil
+}
+
+func (p *AgentProxy) ExtractWishlistURL(ctx context.Context, request WishlistURLExtractionRequest) (*WishlistURLExtractionResponse, error) {
+	body, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshal wishlist URL extraction request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/api/wishlist-url/extract", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create wishlist URL extraction request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("wishlist URL extraction request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("wishlist URL extraction returned %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
+
+	var result WishlistURLExtractionResponse
+	decoder := json.NewDecoder(io.LimitReader(resp.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode wishlist URL extraction response: %w", err)
+	}
+	return &result, nil
 }
 
 // FetchLogsretrieves log entries from the Python agent's /logs endpoint

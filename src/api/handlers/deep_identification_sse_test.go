@@ -154,12 +154,16 @@ func TestDeepIdentificationHandler_StreamEvents_LiveTailDeliversNewEvents(t *tes
 
 	// Now settle the job terminal and publish again, exactly as runJob does.
 	time.Sleep(150 * time.Millisecond)
-	if err := deps.db.Model(&models.DeepIdentificationJob{}).Where("id = ?", job.ID).
-		Updates(map[string]interface{}{"status": models.DeepJobStatusCompleted, "completed_at": time.Now()}).Error; err != nil {
-		t.Fatalf("settle job completed: %v", err)
-	}
-	if _, err := repo.AppendEvent(job.ID, 1, models.DeepEventTerminal, `{"status":"completed"}`); err != nil {
-		t.Fatalf("append terminal event: %v", err)
+	if won, err := repo.SettleTerminal(
+		job.ID,
+		[]models.DeepJobStatus{models.DeepJobStatusRunning},
+		models.DeepJobStatusCompleted,
+		"",
+		"",
+		"",
+		"",
+	); err != nil || !won {
+		t.Fatalf("settle terminal event: won=%v err=%v", won, err)
 	}
 	deps.svc.Broker().Publish(job.ID)
 
@@ -189,13 +193,21 @@ func TestDeepIdentificationHandler_StreamEvents_LiveTailDeliversNewEvents(t *tes
 // replay the terminal event and close with `event: end` without blocking.
 func TestDeepIdentificationHandler_StreamEvents_TerminalJobRepliesImmediately(t *testing.T) {
 	deps := setupDeepIdentificationHandlerTest(t, 1, true)
-	job := seedDeepJobForSSE(t, deps, 1, models.DeepJobStatusCompleted)
+	job := seedDeepJobForSSE(t, deps, 1, models.DeepJobStatusRunning)
 	repo := repository.NewDeepIdentificationRepository(deps.db)
 	if _, err := repo.AppendEvent(job.ID, 1, models.DeepEventJobAccepted, `{}`); err != nil {
 		t.Fatalf("append event 1: %v", err)
 	}
-	if _, err := repo.AppendEvent(job.ID, 1, models.DeepEventTerminal, `{"status":"completed"}`); err != nil {
-		t.Fatalf("append terminal event: %v", err)
+	if won, err := repo.SettleTerminal(
+		job.ID,
+		[]models.DeepJobStatus{models.DeepJobStatusRunning},
+		models.DeepJobStatusCompleted,
+		"",
+		"",
+		"",
+		"",
+	); err != nil || !won {
+		t.Fatalf("settle terminal event: won=%v err=%v", won, err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, deepEventsRouteFor(job.ID, ""), nil)

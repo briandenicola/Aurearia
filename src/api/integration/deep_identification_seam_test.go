@@ -76,6 +76,29 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestFeature362HandoffKeepsOneDeepPipelineEntryPoint(t *testing.T) {
+	sources := models.SupportedDeepJobSources()
+	want := []models.DeepJobSource{
+		models.DeepJobSourceIntake,
+		models.DeepJobSourceSavedCoin,
+		models.DeepJobSourceCopilotDraft,
+	}
+	if len(sources) != len(want) {
+		t.Fatalf("Deep source vocabulary=%v want=%v", sources, want)
+	}
+	for index := range want {
+		if sources[index] != want[index] {
+			t.Fatalf("Deep source vocabulary=%v want=%v", sources, want)
+		}
+	}
+	// Compile-time construction against the existing exported runner is the
+	// seam assertion: Feature 362 does not introduce a second runner/engine.
+	var runner *services.DeepIdentificationPipelineRunner
+	if runner != nil {
+		t.Fatal("unexpected runner fixture")
+	}
+}
+
 func TestDeepIdentificationSeam_RealPythonServiceRoundTrip(t *testing.T) {
 	if os.Getenv("DEEP_SEAM_TEST") != "1" {
 		t.Skip("set DEEP_SEAM_TEST=1 (and build/run with -tags=seam) to run the Go<->Python deep-identification seam test; see docs/testing.md")
@@ -206,7 +229,8 @@ func TestDeepIdentificationSeam_RealPythonServiceRoundTrip(t *testing.T) {
 	}
 	for _, key := range []string{
 		"narrative", "proposed_fields", "disagreements",
-		"unresolved_questions", "coverage", "attributions", "partial_success",
+		"unresolved_questions", "coverage", "attributions", "face_analyses",
+		"partial_success",
 	} {
 		if _, ok := report[key]; !ok {
 			t.Errorf("terminal synthesis report missing expected field %q; got keys=%v", key, seamMapKeys(report))

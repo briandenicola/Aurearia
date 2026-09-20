@@ -12,11 +12,12 @@ import (
 )
 
 var (
-	ErrCoinInvalidEra      = errors.New("era is not supported")
-	ErrCoinInvalidCategory = errors.New("category is not supported")
-	ErrStorageSlotRequired = errors.New("a tray slot is required")
-	ErrStorageSlotInvalid  = errors.New("storage slot is invalid for this location")
-	ErrStorageSlotOccupied = errors.New("storage slot is occupied")
+	ErrCoinInvalidEra             = errors.New("era is not supported")
+	ErrCoinInvalidCategory        = errors.New("category is not supported")
+	ErrStorageSlotRequired        = errors.New("a tray slot is required")
+	ErrStorageSlotInvalid         = errors.New("storage slot is invalid for this location")
+	ErrStorageSlotOccupied        = errors.New("storage slot is occupied")
+	ErrWishlistReferenceDuplicate = errors.New("a wishlist coin already uses this source URL")
 )
 
 var builtInCoinEras = map[models.Era]struct{}{
@@ -68,12 +69,13 @@ type CoinService struct {
 }
 
 type preparedCoinCreator struct {
-	service *CoinService
-	coin    *models.Coin
+	service                       *CoinService
+	coin                          *models.Coin
+	allowAcknowledgedURLDuplicate bool
 }
 
 func (c preparedCoinCreator) CreateCoinInTransaction(tx *gorm.DB) (uint, error) {
-	if err := c.service.createPreparedCoinInTx(tx, c.coin); err != nil {
+	if err := c.service.createPreparedCoinInTx(tx, c.coin, c.allowAcknowledgedURLDuplicate); err != nil {
 		return 0, err
 	}
 	return c.coin.ID, nil
@@ -134,12 +136,16 @@ func (s *CoinService) PreparedCoinCreator(coin *models.Coin) repository.Transact
 	return preparedCoinCreator{service: s, coin: coin}
 }
 
+func (s *CoinService) PreparedCoinCreatorWithAcknowledgedURLDuplicate(coin *models.Coin) repository.TransactionalCoinCreator {
+	return preparedCoinCreator{service: s, coin: coin, allowAcknowledgedURLDuplicate: true}
+}
+
 // CreateCoin creates a coin and records a value snapshot in a single transaction.
 func (s *CoinService) CreateCoin(coin *models.Coin) error {
 	if err := s.prepareCoinForCreate(coin); err != nil {
 		return err
 	}
-	err := s.createPreparedCoinInTx(nil, coin)
+	err := s.createPreparedCoinInTx(nil, coin, false)
 	if err != nil {
 		return err
 	}
@@ -158,7 +164,7 @@ func (s *CoinService) CreateCoinInTx(tx *gorm.DB, coin *models.Coin) error {
 	if err := s.prepareCoinForCreate(coin); err != nil {
 		return err
 	}
-	return s.createPreparedCoinInTx(tx, coin)
+	return s.createPreparedCoinInTx(tx, coin, false)
 }
 
 func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
@@ -176,12 +182,20 @@ func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateCoinCategory(coin.Category); err != nil {
 		return err
 	}
+	coin.ReferenceURL = strings.TrimSpace(coin.ReferenceURL)
 	return nil
 }
 
-func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin) error {
+func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin, allowAcknowledgedURLDuplicate bool) error {
 	create := func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
+		if coin.IsWishlist && coin.ReferenceURL != "" && !allowAcknowledgedURLDuplicate {
+			if _, err := txRepo.FindWishlistByReferenceURL(coin.UserID, coin.ReferenceURL); err == nil {
+				return ErrWishlistReferenceDuplicate
+			} else if !repository.IsRecordNotFound(err) {
+				return err
+			}
+		}
 		pendingReferences := coin.References
 		coin.References = nil
 		if err := txRepo.Create(coin); err != nil {

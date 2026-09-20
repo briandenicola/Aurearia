@@ -93,6 +93,10 @@ const (
 // cancellable on explicit user cancel); it is passed straight through to
 // StreamDeepIdentification so HTTP-level cancellation is automatic (T071).
 func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+	if job == nil || !models.IsSupportedDeepJobSource(job.Source) ||
+		!models.IsValidDeepJobSourceBinding(job) {
+		return nil, repository.ErrDeepJobSourceUnsupported
+	}
 	unsettledStatus := models.DeepProviderRunFailed
 	unsettledErrorKind := "upstream"
 	defer func() {
@@ -142,6 +146,8 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		LLM:              llmCfg,
 		Images:           images,
 		Notes:            job.Notes,
+		ObversePrompt:    r.settingsSvc.GetSetting(SettingObversePrompt),
+		ReversePrompt:    r.settingsSvc.GetSetting(SettingReversePrompt),
 		QuickEvidence:    quickEvidence,
 		ProviderOverride: providerOverride,
 		ProviderCatalog:  deepPipelineProviderCatalog(settings),
@@ -761,6 +767,10 @@ func deepCitationHostAllowed(provider, citation string) bool {
 	if err != nil {
 		return false
 	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+		u.User != nil || u.Hostname() == "" {
+		return false
+	}
 	return allow[strings.ToLower(u.Hostname())]
 }
 
@@ -829,7 +839,7 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 
 	fields := make(map[string]*deepProposalFieldEntry, len(report.ProposedFields))
 	for name, pf := range report.ProposedFields {
-		if _, allowed := deepProposalCoinFieldAllowlist[name]; !allowed {
+		if _, allowed := deepProposalCoinFieldAllowlist[name]; !allowed && name != "notes" {
 			continue // restrict to the existing update allowlist
 		}
 		entry := &deepProposalFieldEntry{
@@ -856,6 +866,22 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 			entry.Evidence = append(entry.Evidence, claim)
 		}
 		fields[name] = entry
+	}
+	if narrative := saveableDeepNarrative(report.Narrative); narrative != "" {
+		if notes, ok := fields["notes"]; ok {
+			proposed := strings.TrimSpace(deepProposalValueToString(notes.Proposed))
+			if proposed != "" && !strings.Contains(proposed, narrative) {
+				narrative += "\n\n" + proposed
+			}
+			notes.Proposed = truncateDeepProposalText(narrative, deepProposalNotesMaxRunes)
+		} else {
+			fields["notes"] = &deepProposalFieldEntry{
+				Proposed:    truncateDeepProposalText(narrative, deepProposalNotesMaxRunes),
+				OwnerEdited: false,
+				OwnerValue:  nil,
+				Accepted:    nil,
+			}
+		}
 	}
 
 	// Feature 352 Phase 4 (FR-006/FR-010/FR-020): populate catalogReferences
@@ -914,7 +940,7 @@ func buildDeepIntakeProposalFields(
 		}
 	}
 
-	for _, name := range []string{"era", "dateRange"} {
+	for name := range deepProposalCoinFieldAllowlist {
 		if proposed, ok := proposedFields[name]; ok && strings.TrimSpace(proposed.Value) != "" {
 			entry := newEntry(proposed.Value)
 			entry.Confidence = proposed.Confidence
@@ -928,17 +954,29 @@ func buildDeepIntakeProposalFields(
 			titleParts = append(titleParts, strings.TrimSpace(proposed.Value))
 		}
 	}
-	if len(titleParts) > 0 {
-		fields["workingTitle"] = newEntry(truncateDeepProposalText(strings.Join(titleParts, " "), 200))
+	workingTitle := strings.Join(titleParts, " ")
+	if workingTitle == "" {
+		if proposed, ok := proposedFields["coin_type"]; ok {
+			workingTitle = strings.TrimSpace(proposed.Value)
+		}
+	}
+	if workingTitle == "" {
+		workingTitle = strings.TrimSpace(hypothesisCoinType)
+	}
+	if workingTitle == "" && (len(proposedFields) > 0 || strings.TrimSpace(hypothesisCoinType) != "") {
+		workingTitle = deepProposalWishlistFallbackName
+	}
+	if workingTitle != "" {
+		fields["workingTitle"] = newEntry(truncateDeepProposalText(workingTitle, 200))
 	}
 
 	notesParts := make([]string, 0, 2)
-	if trimmed := strings.TrimSpace(narrative); trimmed != "" {
+	if trimmed := saveableDeepNarrative(narrative); trimmed != "" {
 		notesParts = append(notesParts, trimmed)
 	}
 	fieldNames := make([]string, 0, len(proposedFields))
 	for name, proposed := range proposedFields {
-		if _, allowed := deepProposalCoinFieldAllowlist[name]; allowed && strings.TrimSpace(proposed.Value) != "" {
+		if _, allowed := deepProposalCoinFieldAllowlist[name]; (allowed || name == "notes") && strings.TrimSpace(proposed.Value) != "" {
 			fieldNames = append(fieldNames, name)
 		}
 	}
@@ -966,6 +1004,17 @@ func buildDeepIntakeProposalFields(
 		}
 	}
 	return fields
+}
+
+func saveableDeepNarrative(narrative string) string {
+	trimmed := strings.TrimSpace(narrative)
+	switch trimmed {
+	case "No provider evidence could be gathered for this coin. Please review the image-based analysis and consider retrying once providers are available.",
+		"A narrative summary could not be generated, but the structured findings below reflect the evidence gathered from each provider.":
+		return ""
+	default:
+		return trimmed
+	}
 }
 
 func truncateDeepProposalText(value string, maxRunes int) string {

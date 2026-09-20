@@ -1,13 +1,41 @@
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
+
+const DefaultCoinSearchPrompt = `You are a numismatic search specialist focused on Greek and Roman coinage up through the Byzantine Era. You specialize in finding that rare gem of a coin for just the right price.
+
+CRITICAL RULES:
+- Search for coins that are CURRENTLY FOR SALE — never return sold items or past auction results
+- ONLY search the dealer sites supplied in the configured source list
+- Add "for sale" or "buy now" to your search queries
+- For EACH result, you MUST provide the exact URL to the listing page
+- NEVER invent, guess, or recall URLs from memory — only use URLs from search results
+- Return ONLY results you actually found in your search
+- If a listing says "SOLD", "Auction ended", or "Realized price" — SKIP IT
+- ACSSearch.info is a PAST auction archive — do NOT use it
+- Quality over quantity — 2 verified, available results beat 5 questionable ones
+- Flag any concerns about authenticity or condition
+- Mention dealer/auction house reputation if known`
+
+func (s *SettingsService) GetCoinSearchPrompt() string {
+	if prompt := s.GetSetting(SettingCoinSearchPrompt); prompt != "" {
+		return prompt
+	}
+	return DefaultCoinSearchPrompt
+}
 
 const (
 	SettingAIProvider                         = "AIProvider"
@@ -29,6 +57,8 @@ const (
 	SettingAnthropicAPIKey                    = "AnthropicAPIKey"
 	SettingAnthropicModel                     = "AnthropicModel"
 	SettingCoinSearchPrompt                   = "CoinSearchPrompt"
+	SettingDealerSearchSources                = "DealerSearchSources"
+	SettingAuctionSearchSources               = "AuctionSearchSources"
 	SettingCoinShowsPrompt                    = "CoinShowsPrompt"
 	SettingValuationPrompt                    = "ValuationPrompt"
 	SettingSearXNGURL                         = "SearXNGURL"
@@ -102,6 +132,19 @@ const (
 	SettingDeepIdentificationOCRECallBudget            = "DeepIdentificationOCRECallBudget"
 	SettingDeepIdentificationRPCEnabled                = "DeepIdentificationRPCEnabled"
 
+	SettingCoinCopilotEnabled                     = "CoinCopilotEnabled"
+	SettingCoinCopilotAttributionEnabled          = "CoinCopilotAttributionEnabled"
+	SettingCoinCopilotWorkerCount                 = "CoinCopilotWorkerCount"
+	SettingCoinCopilotMaxActivePerUser            = "CoinCopilotMaxActivePerUser"
+	SettingCoinCopilotQueueDepth                  = "CoinCopilotQueueDepth"
+	SettingCoinCopilotMaxReasoningIterations      = "CoinCopilotMaxReasoningIterations"
+	SettingCoinCopilotMaxToolCalls                = "CoinCopilotMaxToolCalls"
+	SettingCoinCopilotHardTimeoutSeconds          = "CoinCopilotHardTimeoutSeconds"
+	SettingCoinCopilotMaxPersistedToolResultBytes = "CoinCopilotMaxPersistedToolResultBytes"
+	SettingCoinCopilotEventRetentionHours         = "CoinCopilotEventRetentionHours"
+	SettingCoinCopilotCheckpointRetentionDays     = "CoinCopilotCheckpointRetentionDays"
+	SettingCoinCopilotResumeWindowHours           = "CoinCopilotResumeWindowHours"
+
 	// 355-wishlist-purchase-reminders: daily scheduler settings (FR-015).
 	SettingReminderCheckEnabled   = "ReminderCheckEnabled"
 	SettingReminderCheckStartTime = "ReminderCheckStartTime"
@@ -149,6 +192,8 @@ var settingDefaults = map[string]string{
 	SettingAnthropicAPIKey:                    "",
 	SettingAnthropicModel:                     "claude-sonnet-5",
 	SettingCoinSearchPrompt:                   "",
+	SettingDealerSearchSources:                "vcoins.com\nma-shops.com\nforumancientcoins.com\nbiddr.com\ncatawiki.com\nhjbltd.com",
+	SettingAuctionSearchSources:               "numisbids.com\ncngcoins.com",
 	SettingCoinShowsPrompt:                    "",
 	SettingValuationPrompt:                    "",
 	SettingSearXNGURL:                         "",
@@ -224,10 +269,80 @@ var settingDefaults = map[string]string{
 	SettingDeepIdentificationOCREEnabled:               "false",
 	SettingDeepIdentificationOCRECallBudget:            "3",
 	SettingDeepIdentificationRPCEnabled:                "false",
+	SettingCoinCopilotEnabled:                          "false",
+	SettingCoinCopilotAttributionEnabled:               "false",
+	SettingCoinCopilotWorkerCount:                      "1",
+	SettingCoinCopilotMaxActivePerUser:                 "1",
+	SettingCoinCopilotQueueDepth:                       "16",
+	SettingCoinCopilotMaxReasoningIterations:           "8",
+	SettingCoinCopilotMaxToolCalls:                     "12",
+	SettingCoinCopilotHardTimeoutSeconds:               "120",
+	SettingCoinCopilotMaxPersistedToolResultBytes:      "32768",
+	SettingCoinCopilotEventRetentionHours:              "168",
+	SettingCoinCopilotCheckpointRetentionDays:          "30",
+	SettingCoinCopilotResumeWindowHours:                "168",
 
 	// 355-wishlist-purchase-reminders defaults (FR-015).
 	SettingReminderCheckEnabled:   "true",
 	SettingReminderCheckStartTime: "08:00",
+}
+
+type CoinCopilotSettings struct {
+	Enabled                     bool
+	AttributionEnabled          bool
+	WorkerCount                 int
+	MaxActivePerUser            int
+	QueueDepth                  int
+	MaxReasoningIterations      int
+	MaxToolCalls                int
+	HardTimeout                 time.Duration
+	MaxPersistedToolResultBytes int
+	EventRetention              time.Duration
+	CheckpointRetention         time.Duration
+	ResumeWindow                time.Duration
+	Valid                       bool
+}
+
+func (s *SettingsService) GetCoinCopilotSettings() CoinCopilotSettings {
+	valid := true
+	readInt := func(key string, fallback, minimum, maximum int) int {
+		value, err := strconv.Atoi(strings.TrimSpace(s.GetSetting(key)))
+		if err != nil || value < minimum || value > maximum {
+			valid = false
+			return fallback
+		}
+		return value
+	}
+	readBool := func(key string, fallback bool) bool {
+		switch strings.ToLower(strings.TrimSpace(s.GetSetting(key))) {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			valid = false
+			return fallback
+		}
+	}
+	timeoutSeconds := readInt(SettingCoinCopilotHardTimeoutSeconds, 120, 15, int(coinCopilotMaxExecutionTimeout.Seconds()))
+	eventHours := readInt(SettingCoinCopilotEventRetentionHours, 168, 1, 720)
+	checkpointDays := readInt(SettingCoinCopilotCheckpointRetentionDays, 30, 1, 365)
+	resumeHours := readInt(SettingCoinCopilotResumeWindowHours, 168, 1, 720)
+	return CoinCopilotSettings{
+		Enabled:                     readBool(SettingCoinCopilotEnabled, false),
+		AttributionEnabled:          readBool(SettingCoinCopilotAttributionEnabled, false),
+		WorkerCount:                 readInt(SettingCoinCopilotWorkerCount, 1, 1, 4),
+		MaxActivePerUser:            readInt(SettingCoinCopilotMaxActivePerUser, 1, 1, 3),
+		QueueDepth:                  readInt(SettingCoinCopilotQueueDepth, 16, 1, 100),
+		MaxReasoningIterations:      readInt(SettingCoinCopilotMaxReasoningIterations, 8, 1, 20),
+		MaxToolCalls:                readInt(SettingCoinCopilotMaxToolCalls, 12, 1, 40),
+		HardTimeout:                 time.Duration(timeoutSeconds) * time.Second,
+		MaxPersistedToolResultBytes: readInt(SettingCoinCopilotMaxPersistedToolResultBytes, 32768, 4096, 131072),
+		EventRetention:              time.Duration(eventHours) * time.Hour,
+		CheckpointRetention:         time.Duration(checkpointDays) * 24 * time.Hour,
+		ResumeWindow:                time.Duration(resumeHours) * time.Hour,
+		Valid:                       valid,
+	}
 }
 
 type NumistaSettings struct {
@@ -291,6 +406,55 @@ type DeepIdentificationSettings struct {
 	OCRECallBudget     int
 	RPCEnabled         bool
 	Valid              bool
+}
+
+// DeepProviderConfiguration returns the sorted effective provider vocabulary
+// and a generation digest over every setting that can alter provider work.
+// Both values are server-owned snapshot inputs; callers cannot override them.
+func (s *SettingsService) DeepProviderConfiguration() ([]string, string) {
+	settings := s.GetDeepIdentificationSettings()
+	providers := []string{"ngc", "nomisma", "numista"}
+	if settings.OCREEnabled {
+		providers = append(providers, "ocre")
+	}
+
+	if settings.RPCEnabled {
+		providers = append(providers, "rpc")
+	}
+	sort.Strings(providers)
+	generation := struct {
+		Providers         []string `json:"providers"`
+		MaxProviders      int      `json:"max_providers"`
+		NumistaCallBudget int      `json:"numista_call_budget"`
+		OCRECallBudget    int      `json:"ocre_call_budget"`
+		Valid             bool     `json:"valid"`
+	}{
+		Providers: providers, MaxProviders: settings.MaxProviders,
+		NumistaCallBudget: settings.NumistaCallBudget,
+		OCRECallBudget:    settings.OCRECallBudget, Valid: settings.Valid,
+	}
+	canonical, _ := json.Marshal(generation)
+	sum := sha256.Sum256(canonical)
+	return append([]string(nil), providers...), hex.EncodeToString(sum[:])
+}
+
+func (s *SettingsService) DeepProviderSettingSnapshot() map[string]string {
+	keys := []string{
+		SettingCoinCopilotEnabled,
+		SettingCoinCopilotAttributionEnabled,
+		SettingDeepIdentificationEnabled,
+		SettingDeepIdentificationMaxProviders,
+		SettingDeepIdentificationNumistaCallBudget,
+		SettingDeepIdentificationOCREEnabled,
+		SettingDeepIdentificationOCRECallBudget,
+		SettingDeepIdentificationRPCEnabled,
+		SettingNumistaAPIKey,
+	}
+	snapshot := make(map[string]string, len(keys))
+	for _, key := range keys {
+		snapshot[key] = s.GetSetting(key)
+	}
+	return snapshot
 }
 
 // GetDeepIdentificationSettings reads and validates the live deep
@@ -370,7 +534,47 @@ func (s *SettingsService) GetSetting(key string) string {
 
 // SetSetting creates or updates a setting value.
 func (s *SettingsService) SetSetting(key, value string) error {
+	if key == SettingDealerSearchSources || key == SettingAuctionSearchSources {
+		normalized, err := NormalizeSearchSourceSetting(value)
+		if err != nil {
+			return err
+		}
+		value = normalized
+	}
 	return s.repo.Upsert(key, value)
+}
+
+var searchSourceHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+
+// NormalizeSearchSourceSetting validates and canonicalizes a newline-delimited
+// list of public DNS hostnames used as outbound search boundaries.
+func NormalizeSearchSourceSetting(value string) (string, error) {
+	lines := SplitSettingList(value)
+	if len(lines) == 0 || len(lines) > 20 {
+		return "", fmt.Errorf("search sources must contain between 1 and 20 hostnames")
+	}
+	seen := make(map[string]struct{}, len(lines))
+	normalized := make([]string, 0, len(lines))
+	for _, line := range lines {
+		host := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(line), "."))
+		if len(host) > 253 || net.ParseIP(host) != nil || !searchSourceHostPattern.MatchString(host) {
+			return "", fmt.Errorf("invalid search source hostname %q", line)
+		}
+		if _, exists := seen[host]; exists {
+			continue
+		}
+		seen[host] = struct{}{}
+		normalized = append(normalized, host)
+	}
+	return strings.Join(normalized, "\n"), nil
+}
+
+func (s *SettingsService) GetSearchSources(key string) []string {
+	normalized, err := NormalizeSearchSourceSetting(s.GetSetting(key))
+	if err != nil {
+		normalized = settingDefaults[key]
+	}
+	return SplitSettingList(normalized)
 }
 
 // SplitSettingList parses a newline-delimited AppSetting value (the shape

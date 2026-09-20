@@ -1,14 +1,14 @@
 ---
 title: Public Per-Coin Share Links
 id: F008
-status: promoted
+status: triaged
 priority: P2
 effort: M
 value: 3
 risk: 2
 owner: unassigned
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -57,3 +57,8 @@ Allow a logged-in collector to generate an unauthenticated, read-only share link
 
 - PRD §8 Q1 (Public link sharing — resolved Yes, 2026-05-28)
 - Existing showcases as prior art for unauthenticated read access
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `triaged`; no active
+  `specs/NNN-*` target or implementation of revocable public coin links exists.

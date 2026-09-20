@@ -1,10 +1,30 @@
 """Response models returned to the Go API proxy."""
 
-from typing import Annotated, Literal
+import ipaddress
+import json
+from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
-from app.models.hypothesis import CoinHypothesis
+from app.models.hypothesis import CoinHypothesis, HypothesisField
+from app.models.requests import (
+    COPILOT_ALLOWED_TOOLS,
+    COPILOT_SPECIALIST_TOOLS,
+    MAX_COPILOT_CLARIFICATION_CHOICES,
+    MAX_COPILOT_CLARIFICATION_LENGTH,
+    MAX_COPILOT_PLAN_ITEMS,
+    ChatMessage,
+    CopilotBoundedToolResult,
+    CopilotClarification,
+    CopilotCompletedTool,
+    CopilotExecutionID,
+    CopilotPlanItem,
+    CopilotRunID,
+    CopilotToolCallID,
+    CopilotUsage,
+)
+from app.teams.specialist_contracts import SpecialistResult
 
 
 class StrictResponseModel(BaseModel):
@@ -13,8 +33,439 @@ class StrictResponseModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class WishlistURLHypothesisField(HypothesisField):
+    evidence: list[Annotated[str, StringConstraints(min_length=1, max_length=500)]] = Field(
+        default_factory=list,
+        max_length=5,
+    )
+
+
+class WishlistURLHypothesis(CoinHypothesis):
+    category: WishlistURLHypothesisField | None = None
+    ruler: WishlistURLHypothesisField | None = None
+    denomination: WishlistURLHypothesisField | None = None
+    material: WishlistURLHypothesisField | None = None
+    mint: WishlistURLHypothesisField | None = None
+    dateRange: WishlistURLHypothesisField | None = None
+    era: WishlistURLHypothesisField | None = None
+    obverseInscription: WishlistURLHypothesisField | None = None
+    reverseInscription: WishlistURLHypothesisField | None = None
+    obverseDescription: WishlistURLHypothesisField | None = None
+    reverseDescription: WishlistURLHypothesisField | None = None
+    diameterMm: WishlistURLHypothesisField | None = None
+    weightGrams: WishlistURLHypothesisField | None = None
+    grade: WishlistURLHypothesisField | None = None
+    rarityRating: WishlistURLHypothesisField | None = None
+    notes: WishlistURLHypothesisField | None = None
+    coin_type: WishlistURLHypothesisField | None = None
+    name: WishlistURLHypothesisField | None = None
+    references: WishlistURLHypothesisField | None = None
+    listingStatus: WishlistURLHypothesisField | None = None
+    listedPrice: WishlistURLHypothesisField | None = None
+    currency: WishlistURLHypothesisField | None = None
+    dealerName: WishlistURLHypothesisField | None = None
+
+
+class WishlistURLExtractionResponse(StrictResponseModel):
+    hypothesis: WishlistURLHypothesis
+    warnings: list[Annotated[str, StringConstraints(min_length=1, max_length=500)]] = Field(
+        default_factory=list,
+        max_length=20,
+    )
+
+
+MAX_DEEP_ANALYSIS_HANDOFF_PUBLIC_EVENT_BYTES = 65_536
+MAX_DEEP_ANALYSIS_HANDOFF_PERSISTED_RESULT_BYTES = 32_768
+
+DeepAnalysisHandoffOutcome = Literal[
+    "accepted",
+    "reused_active",
+    "reused_result",
+    "status",
+    "retry_available",
+    "missing_images",
+    "target_unavailable",
+    "not_eligible",
+    "unavailable",
+    "cancelled",
+]
+DeepAnalysisHandoffReason = Literal[
+    "missing_obverse",
+    "missing_reverse",
+    "missing_both",
+    "duplicate_faces",
+    "target_changed",
+    "draft_inactive",
+    "source_coin_missing",
+    "deep_disabled",
+    "copilot_disabled",
+    "attribution_disabled",
+    "model_unsupported",
+    "job_at_capacity",
+    "queue_full",
+    "result_missing",
+    "result_expired",
+    "stale",
+    "cancelled",
+]
+
+
+class DeepAnalysisHandoffTargetResult(StrictResponseModel):
+    type: Literal["coin", "draft"]
+    id: int = Field(gt=0)
+    display_label: Annotated[str, StringConstraints(min_length=1, max_length=300)]
+
+
+class DeepAnalysisHandoffJob(StrictResponseModel):
+    id: int = Field(gt=0)
+    source: Literal["intake", "saved_coin", "copilot_draft"]
+    status: Literal["queued", "running", "completed", "partial", "failed", "cancelled"]
+    reused: bool
+    created_at: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    completed_at: Annotated[str, StringConstraints(min_length=1, max_length=64)] | None
+
+
+class DeepAnalysisHandoffEvidence(StrictResponseModel):
+    provider: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    source: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    summary: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+
+    @field_validator("url")
+    @classmethod
+    def validate_safe_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("evidence URL must be credential-free HTTPS")
+        host = parsed.hostname.rstrip(".").lower()
+        if host == "localhost" or host.endswith((".localhost", ".local")):
+            raise ValueError("evidence URL host is not public")
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        if address is not None and not address.is_global:
+            raise ValueError("evidence URL host is not public")
+        return value
+
+
+class DeepAnalysisHandoffField(StrictResponseModel):
+    name: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    value: Annotated[str, StringConstraints(min_length=1, max_length=2000)]
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    evidence: list[DeepAnalysisHandoffEvidence] = Field(default_factory=list)
+
+
+class DeepAnalysisHandoffDisagreement(StrictResponseModel):
+    field: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    summary: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+
+
+class DeepAnalysisHandoffCoverage(StrictResponseModel):
+    provider: Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
+    status: Literal[
+        "pending",
+        "running",
+        "contributed",
+        "no_match",
+        "failed",
+        "timed_out",
+        "skipped",
+        "not_automated",
+        "unavailable",
+    ]
+
+
+class DeepAnalysisHandoffAttribution(StrictResponseModel):
+    provider: Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
+    label: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+
+
+class DeepAnalysisHandoffResultBody(StrictResponseModel):
+    state: Literal[
+        "not_ready",
+        "complete",
+        "partial",
+        "no_match",
+        "failed",
+        "cancelled",
+        "stale",
+        "missing_result",
+    ]
+    narrative: Annotated[str, StringConstraints(max_length=12000)]
+    partial_success: bool
+    image_only: bool
+    fields: list[DeepAnalysisHandoffField] = Field(default_factory=list)
+    disagreements: list[DeepAnalysisHandoffDisagreement] = Field(default_factory=list)
+    unresolved_questions: list[Annotated[str, StringConstraints(max_length=1000)]] = Field(default_factory=list)
+    coverage: list[DeepAnalysisHandoffCoverage] = Field(default_factory=list)
+    attributions: list[DeepAnalysisHandoffAttribution] = Field(default_factory=list)
+    limitations: list[Annotated[str, StringConstraints(max_length=1000)]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def reject_duplicate_entries(self) -> "DeepAnalysisHandoffResultBody":
+        for values in (
+            [field.name for field in self.fields],
+            [coverage.provider for coverage in self.coverage],
+            [attribution.provider for attribution in self.attributions],
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError("duplicate handoff result entry")
+        return self
+
+
+class DeepAnalysisHandoffTruncation(StrictResponseModel):
+    truncated: bool
+    original_bytes: int = Field(ge=0)
+    persisted_bytes: int = Field(ge=0, le=MAX_DEEP_ANALYSIS_HANDOFF_PERSISTED_RESULT_BYTES)
+    digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    omitted_fields: int = Field(ge=0)
+    omitted_evidence: int = Field(ge=0)
+    omitted_disagreements: int = Field(ge=0)
+    omitted_questions: int = Field(ge=0)
+
+
+class DeepAnalysisHandoffResult(StrictResponseModel):
+    """Strict result; ``outcome`` is the only top-level discriminant."""
+
+    schema_version: Literal[1] | None = None
+    operation: Literal["request", "status", "rerun"] | None = None
+    outcome: DeepAnalysisHandoffOutcome
+    reason: DeepAnalysisHandoffReason | None
+    target: DeepAnalysisHandoffTargetResult | None = None
+    job: DeepAnalysisHandoffJob | None = None
+    input_digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    review_url: Annotated[str, StringConstraints(pattern=r"^/deep-analysis/[1-9][0-9]*$")] | None = None
+    fresh_analysis_available: bool = False
+    result: DeepAnalysisHandoffResultBody | None = None
+    truncation: DeepAnalysisHandoffTruncation | None = None
+    limitations: list[Annotated[str, StringConstraints(max_length=1000)]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_outcome_shape(self) -> "DeepAnalysisHandoffResult":
+        privacy_outcome = self.outcome in {"not_eligible", "target_unavailable"}
+        if privacy_outcome:
+            if self.reason is not None or any(
+                value is not None
+                for value in (
+                    self.schema_version,
+                    self.operation,
+                    self.target,
+                    self.job,
+                    self.input_digest,
+                    self.review_url,
+                    self.result,
+                    self.truncation,
+                )
+            ) or self.fresh_analysis_available or self.limitations:
+                raise ValueError("privacy-safe outcomes must contain only outcome and null reason")
+            return self
+        if self.schema_version != 1 or self.operation is None:
+            raise ValueError("typed handoff result requires schema_version and operation")
+        if self.job is not None and self.review_url != f"/deep-analysis/{self.job.id}":
+            raise ValueError("review_url must match job id")
+        if self.job is None and self.review_url is not None:
+            raise ValueError("review_url requires job")
+        return self
+
+
+def _validate_deep_analysis_handoff_envelope(payload: bytes, maximum: int) -> object:
+    if not payload:
+        raise ValueError("handoff envelope is empty")
+    try:
+        value = json.loads(payload)
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (UnicodeDecodeError, ValueError, TypeError) as exc:
+        raise ValueError("invalid handoff JSON") from exc
+    if len(canonical) > maximum:
+        raise ValueError("handoff envelope exceeds its byte limit")
+    return value
+
+
+def validate_deep_analysis_handoff_public_event_envelope(payload: bytes) -> object:
+    return _validate_deep_analysis_handoff_envelope(
+        payload,
+        MAX_DEEP_ANALYSIS_HANDOFF_PUBLIC_EVENT_BYTES,
+    )
+
+
+def validate_deep_analysis_handoff_persisted_result_envelope(payload: bytes) -> object:
+    return _validate_deep_analysis_handoff_envelope(
+        payload,
+        MAX_DEEP_ANALYSIS_HANDOFF_PERSISTED_RESULT_BYTES,
+    )
+
+
 MAX_SET_BUILDER_SLOTS_RESPONSE = 300
 MAX_WISHLIST_FEATURED_SUMMARY_LENGTH = 500
+MAX_COPILOT_ANSWER_LENGTH = 100000
+MAX_COPILOT_RESULT_SUMMARY_LENGTH = 300
+
+
+class CopilotCapabilityResponse(StrictResponseModel):
+    supported: bool
+
+
+class CopilotCheckpointState(StrictResponseModel):
+    """Complete durable continuation state emitted to Go."""
+
+    schema_version: Literal[1] = 1
+    messages: list[ChatMessage] = Field(default_factory=list, max_length=50)
+    plan: list[CopilotPlanItem] = Field(default_factory=list, max_length=MAX_COPILOT_PLAN_ITEMS)
+    completed_tools: list[CopilotCompletedTool] = Field(default_factory=list, max_length=40)
+    pending_clarification: CopilotClarification | None = None
+    next_action: Literal["continue", "await_clarification", "finish"] = "continue"
+    counters: CopilotUsage
+
+    @model_validator(mode="after")
+    def reject_private_or_duplicate_state(self) -> "CopilotCheckpointState":
+        seen: set[str] = set()
+        if sum(len(message.content) for message in self.messages) > 100000:
+            raise ValueError("checkpoint messages exceed the total content limit")
+        for tool in self.completed_tools:
+            call_id = tool.tool_call_id
+            if call_id in seen:
+                raise ValueError("completed_tools contains duplicate tool_call_id values")
+            seen.add(call_id)
+        return self
+
+
+class CopilotPlanUpdatedPayload(StrictResponseModel):
+    plan: list[CopilotPlanItem] = Field(max_length=MAX_COPILOT_PLAN_ITEMS)
+
+
+class CopilotToolStartedPayload(StrictResponseModel):
+    tool_call_id: CopilotToolCallID
+    tool_name: str
+    step_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+
+    @model_validator(mode="after")
+    def validate_tool_name(self) -> "CopilotToolStartedPayload":
+        if self.tool_name not in COPILOT_ALLOWED_TOOLS:
+            raise ValueError("tool_name is not in the Coin Copilot allowlist")
+        return self
+
+
+class CopilotToolCompletedPayload(CopilotToolStartedPayload):
+    status: Literal["succeeded", "failed", "cancelled", "rejected"]
+    duration_ms: int = Field(ge=0)
+    result_summary: Annotated[str, StringConstraints(max_length=MAX_COPILOT_RESULT_SUMMARY_LENGTH)]
+    result: SpecialistResult | dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_specialist_result(self) -> "CopilotToolCompletedPayload":
+        if self.tool_name == "deep_analysis_handoff":
+            try:
+                self.result = DeepAnalysisHandoffResult.model_validate(self.result)
+            except ValueError as exc:
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValueError:
+                    raise ValueError("Deep Analysis handoff result is invalid") from exc
+                self.result = fallback.model_dump(mode="json")
+            return self
+        if self.tool_name in COPILOT_SPECIALIST_TOOLS:
+            try:
+                result = SpecialistResult.model_validate(self.result)
+            except ValueError as exc:
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValueError:
+                    raise ValueError("specialist result is invalid") from exc
+                self.result = fallback.model_dump(mode="json")
+                return self
+            if result.capability != self.tool_name:
+                raise ValueError("specialist result capability does not match tool_name")
+            self.result = result
+        elif isinstance(self.result, SpecialistResult):
+            raise ValueError("specialist result requires a specialist tool_name")
+        return self
+
+
+class CopilotClarificationPayload(StrictResponseModel):
+    question: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_CLARIFICATION_LENGTH)]
+    input_type: Literal["text", "single_choice", "boolean"]
+    choices: list[Annotated[str, StringConstraints(min_length=1, max_length=200)]] = Field(
+        default_factory=list,
+        max_length=MAX_COPILOT_CLARIFICATION_CHOICES,
+    )
+
+
+class CopilotCompletedPayload(StrictResponseModel):
+    answer: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_ANSWER_LENGTH)]
+    usage: CopilotUsage
+
+
+class CopilotFailedPayload(StrictResponseModel):
+    code: Literal[
+        "agent_unavailable",
+        "execution_lost",
+        "invalid_agent_frame",
+        "invalid_tool_call",
+        "iteration_limit_exceeded",
+        "tool_limit_exceeded",
+        "time_limit_exceeded",
+        "model_tool_calling_unsupported",
+        "resume_window_expired",
+        "internal",
+    ]
+    message: Annotated[str, StringConstraints(min_length=1, max_length=300)]
+    retryable: bool
+    usage: CopilotUsage
+
+
+CopilotFramePayload = (
+    CopilotPlanUpdatedPayload
+    | CopilotToolStartedPayload
+    | CopilotToolCompletedPayload
+    | CopilotCheckpointState
+    | CopilotClarificationPayload
+    | CopilotCompletedPayload
+    | CopilotFailedPayload
+    | CopilotUsage
+)
+
+
+class CopilotExecutionFrame(StrictResponseModel):
+    """Typed internal SSE frame consumed and persisted by Go."""
+
+    schema_version: Literal[1] = 1
+    run_id: CopilotRunID
+    execution_id: CopilotExecutionID
+    frame_id: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    type: Literal[
+        "plan_updated",
+        "tool_started",
+        "tool_completed",
+        "checkpoint",
+        "clarification_required",
+        "completed",
+        "failed",
+        "usage",
+    ]
+    payload: CopilotFramePayload
+
+    @model_validator(mode="after")
+    def validate_payload_type(self) -> "CopilotExecutionFrame":
+        expected = {
+            "plan_updated": CopilotPlanUpdatedPayload,
+            "tool_started": CopilotToolStartedPayload,
+            "tool_completed": CopilotToolCompletedPayload,
+            "checkpoint": CopilotCheckpointState,
+            "clarification_required": CopilotClarificationPayload,
+            "completed": CopilotCompletedPayload,
+            "failed": CopilotFailedPayload,
+            "usage": CopilotUsage,
+        }[self.type]
+        if not isinstance(self.payload, expected):
+            raise ValueError(f"payload does not match frame type {self.type}")
+        return self
 
 
 class CandidateReference(BaseModel):
@@ -257,9 +708,7 @@ class SetBuilderResponse(StrictResponseModel):
 # Deep Agentic Coin Identification DTOs (344-deep-agentic-coin-identification).
 # Contract anchor: specs/344-deep-agentic-coin-identification/contracts/agent-internal-contract.md §4-5
 ProviderName = Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
-ProviderStatus = Literal[
-    "contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"
-]
+ProviderStatus = Literal["contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"]
 ProviderErrorKind = Literal[
     "timeout", "quota", "unconfigured", "upstream", "invalid_response", "insufficient_query_evidence"
 ]
@@ -340,6 +789,25 @@ class ProviderAttribution(StrictResponseModel):
     identifier: str | None = None
 
 
+class DeepFaceAnalysis(StrictResponseModel):
+    """Retained role-specific visual evidence for owner review."""
+
+    role: Literal["obverse", "reverse"]
+    status: Literal["completed", "unavailable"]
+    narrative: Annotated[str, StringConstraints(max_length=8000)] = ""
+    limitation: Annotated[str, StringConstraints(max_length=500)] = ""
+
+    @model_validator(mode="after")
+    def validate_status_shape(self) -> "DeepFaceAnalysis":
+        if self.status == "completed" and not self.narrative.strip():
+            raise ValueError("completed face analysis requires a narrative")
+        if self.status == "unavailable" and self.narrative:
+            raise ValueError("unavailable face analysis must not include a narrative")
+        if self.status == "unavailable" and not self.limitation.strip():
+            raise ValueError("unavailable face analysis requires a limitation")
+        return self
+
+
 class DeepSynthesis(StrictResponseModel):
     """Typed final synthesis output (§5) — the terminal-success SSE frame
     payload. `proposed_fields` keys are re-validated against the coin-field
@@ -354,12 +822,19 @@ class DeepSynthesis(StrictResponseModel):
     )
     coverage: list[ProviderCoverageEntry] = Field(default_factory=list, max_length=10)
     attributions: list[ProviderAttribution] = Field(default_factory=list, max_length=10)
+    face_analyses: list[DeepFaceAnalysis] = Field(default_factory=list, max_length=2)
     # Additive, optional (contracts/vision-hypothesis.md §4 / spec FR-008):
-    # present when the vision call produced anything, so the raw hypothesis
+    # present when the image-evidence pipeline produced anything, so the raw hypothesis
     # is recoverable from the persisted report even where `proposed_fields`
     # only carries the fields that survived corroboration/disagreement
-    # filtering. Absent in reports persisted before this feature; Go's
-    # report reader unmarshals only `narrative`/`proposed_fields`, so this
-    # key is ignored by existing code (additive-safe).
+    # filtering. Absent in reports persisted before this feature.
     image_hypothesis: CoinHypothesis | None = None
     partial_success: bool = False
+
+    @field_validator("face_analyses")
+    @classmethod
+    def validate_unique_face_roles(cls, faces: list[DeepFaceAnalysis]) -> list[DeepFaceAnalysis]:
+        roles = [face.role for face in faces]
+        if len(roles) != len(set(roles)):
+            raise ValueError("face_analyses contains duplicate roles")
+        return faces

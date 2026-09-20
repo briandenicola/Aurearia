@@ -17,14 +17,15 @@ import (
 
 // AuctionLotHandler handles HTTP requests for auction lot operations.
 type AuctionLotHandler struct {
-	repo        *repository.AuctionLotRepository
-	svc         *services.AuctionLotService
-	userRepo    *repository.UserRepository
-	nbSvc       *services.NumisBidsService
-	cngSvc      *services.CNGAuctionService
-	shipmentSvc *services.ShipmentService
-	logger      *services.Logger
-	credentials *services.CredentialEncryptionService
+	repo          *repository.AuctionLotRepository
+	svc           *services.AuctionLotService
+	userRepo      *repository.UserRepository
+	nbSvc         *services.NumisBidsService
+	cngSvc        *services.CNGAuctionService
+	shipmentSvc   *services.ShipmentService
+	logger        *services.Logger
+	credentials   *services.CredentialEncryptionService
+	watchlistSync *services.AuctionWatchlistSyncService
 }
 
 // NewAuctionLotHandler creates a new AuctionLotHandler.
@@ -33,7 +34,13 @@ func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.A
 	if len(credentialSvc) > 0 && credentialSvc[0] != nil {
 		credentials = credentialSvc[0]
 	}
-	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc, cngSvc: cngSvc, logger: logger, credentials: credentials}
+	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc, cngSvc: cngSvc, logger: logger, credentials: credentials,
+		watchlistSync: services.NewAuctionWatchlistSyncService(repo, userRepo, nbSvc, cngSvc, credentials, logger)}
+}
+
+func (h *AuctionLotHandler) WithWatchlistSync(sync *services.AuctionWatchlistSyncService) *AuctionLotHandler {
+	h.watchlistSync = sync
+	return h
 }
 
 // WithShipmentSupport enables optional shipment creation on conversion flow.
@@ -333,7 +340,11 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 		return
 	}
 
-	updated, _ := h.repo.GetByID(uint(id), userID)
+	updated, err := h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Updated auction lot could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -385,7 +396,11 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	lot, _ := h.repo.GetByID(uint(id), userID)
+	lot, err := h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Updated auction lot could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, lot)
 }
 
@@ -415,24 +430,22 @@ func (h *AuctionLotHandler) LinkEvent(c *gin.Context) {
 		return
 	}
 
-	lot, err := h.repo.GetByID(uint(id), userID)
-	if err != nil {
-		if repository.IsRecordNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get auction lot"})
-		return
-	}
-
 	var req LinkEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	h.repo.UpdateFields(lot, map[string]interface{}{"event_id": req.EventID})
-	updated, _ := h.repo.GetByID(uint(id), userID)
+	updated, err := h.svc.LinkEvent(uint(id), userID, req.EventID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot or calendar event not found"})
+		} else {
+			h.logger.Error("auctions", "Failed to link event for lot %d: %v", id, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to link auction lot"})
+		}
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -449,12 +462,12 @@ type ConvertToCoinRequest struct {
 // BulkLinkEvent associates or disassociates multiple auction lots with a calendar event.
 //
 //	@Summary		Bulk link lots to calendar event
-//	@Description	Sets or clears the calendar event for multiple auction lots at once.
+//	@Description	Partial success: commits each distinct owned lot independently; returns confirmed updated count and per-lot failures.
 //	@Tags			Auctions
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		BulkLinkEventRequest	true	"Lot IDs and event ID"
-//	@Success		200		{object}	map[string]int
+//	@Success		200		{object}	services.BulkEventLinkResult
 //	@Failure		400		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auctions/bulk-link-event [put]
@@ -467,17 +480,11 @@ func (h *AuctionLotHandler) BulkLinkEvent(c *gin.Context) {
 		return
 	}
 
-	updated := 0
-	for _, lotID := range req.LotIDs {
-		lot, err := h.repo.GetByID(lotID, userID)
-		if err != nil {
-			continue
-		}
-		h.repo.UpdateFields(lot, map[string]interface{}{"event_id": req.EventID})
-		updated++
+	result := h.svc.BulkLinkEvent(req.LotIDs, userID, req.EventID)
+	for _, failure := range result.Failures {
+		h.logger.Warn("auctions", "Event link failed for lot %d: %s", failure.LotID, failure.Code)
 	}
-
-	c.JSON(http.StatusOK, gin.H{"updated": updated})
+	c.JSON(http.StatusOK, result)
 }
 
 // ConvertToCoin creates an owned Coin from a won auction lot.
@@ -775,197 +782,27 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 		return
 	}
 
-	if source == models.AuctionSourceCNG {
-		h.syncCNGWatchlist(c, userID, user)
-		return
-	}
-
-	if user.NumisBidsUsername == "" || user.NumisBidsPassword == "" {
-		h.warn("NumisBids sync blocked for user %d: credentials not configured", userID)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "NumisBids credentials not configured. Go to Settings to add them."})
-		return
-	}
-
-	password, shouldMigrate, err := h.decryptStoredCredential(user.ID, "numis_bids_password", user.NumisBidsPassword)
+	lots, err := h.watchlistSync.SyncSource(user, source)
 	if err != nil {
-		h.warn("NumisBids credential decrypt failed for user %d: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read stored NumisBids credentials"})
+		h.warn("%s sync failed for user %d: %v", source, userID, err)
+		provider := "NumisBids"
+		if source == models.AuctionSourceCNG {
+			provider = "CNG"
+		}
+		switch {
+		case errors.Is(err, services.ErrAuctionSyncCredentialsMissing):
+			c.JSON(http.StatusBadRequest, gin.H{"error": provider + " credentials not configured. Go to Settings to add them."})
+		case errors.Is(err, services.ErrAuctionSyncCredentials):
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read stored " + provider + " credentials"})
+		case errors.Is(err, services.ErrAuctionSyncLogin), errors.Is(err, services.ErrCNGAuthenticationRequired), errors.Is(err, services.ErrNumisBidsAuthenticationRequired):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": provider + " login failed. Check your credentials in Settings."})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sync watchlist from " + provider})
+		}
 		return
 	}
-
-	if shouldMigrate {
-		h.migrateStoredCredential(user, "numis_bids_password", password)
-	}
-	h.debug("NumisBids sync logging in for user %d", userID)
-	client, err := h.nbSvc.Login(user.NumisBidsUsername, password)
-	if err != nil {
-		h.warn("NumisBids login failed for user %d: %v", userID, err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "NumisBids login failed. Check your credentials in Settings."})
-		return
-	}
-	h.debug("NumisBids sync login succeeded for user %d", userID)
-
-	rawHTML, err := h.nbSvc.FetchWatchlist(client)
-	if err != nil {
-		if errors.Is(err, services.ErrNumisBidsAuthenticationRequired) {
-			h.warn("NumisBids watchlist returned login page for user %d after login", userID)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "NumisBids login succeeded but watchlist access was not authenticated. Check your credentials in Settings."})
-			return
-		}
-		h.warn("NumisBids watchlist fetch failed for user %d: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch watchlist from NumisBids"})
-		return
-	}
-	diagnostics := h.nbSvc.WatchlistDiagnostics(rawHTML)
-	h.debug("NumisBids watchlist fetched for user %d: bytes=%d candidateLinks=%d hasWatchlistText=%t hasLoginPrompt=%t",
-		userID, diagnostics.HTMLBytes, diagnostics.CandidateLinkCount, diagnostics.HasWatchlistText, diagnostics.HasLoginPrompt)
-
-	parsed := h.nbSvc.ParseWatchlist(rawHTML)
-	h.debug("NumisBids watchlist parsed for user %d: lots=%d", userID, len(parsed))
-	if len(parsed) == 0 {
-		h.warn("NumisBids sync found zero parseable lots for user %d: bytes=%d candidateLinks=%d hasWatchlistText=%t",
-			userID, diagnostics.HTMLBytes, diagnostics.CandidateLinkCount, diagnostics.HasWatchlistText)
-	}
-
-	var synced []models.AuctionLot
-	now := time.Now()
-
-	for _, wl := range parsed {
-		h.debug("NumisBids sync processing lot for user %d: saleID=%s lot=%d url=%s", userID, wl.SaleID, wl.LotNumber, wl.URL)
-		// NumisBids is a reduced-functionality provider: the watchlist page carries
-		// image, title, sale name/date, starting price, and watchlist ID without
-		// any per-lot HTTP requests. No per-lot scrape is performed here.
-		// See services/auction_watchlist_sync_service.go syncNumisBids for rationale.
-
-		// Determine status: mark as passed if sale date is in the past
-		status := models.AuctionStatusWatching
-		saleDate := services.ParseSaleDate(wl.SaleDate)
-		if saleDate != nil && saleDate.Before(now) {
-			status = models.AuctionStatusPassed
-		}
-
-		lot := models.AuctionLot{
-			NumisBidsURL:   wl.URL,
-			Source:         models.AuctionSourceNumisBids,
-			SourceURL:      wl.URL,
-			SourceLotID:    wl.SourceLotID,
-			SourceSaleID:   wl.SourceSaleID,
-			SaleID:         wl.SaleID,
-			LotNumber:      wl.LotNumber,
-			Title:          wl.Title,
-			ImageURL:       wl.ImageURL,
-			Estimate:       wl.Estimate,
-			Currency:       wl.Currency,
-			SaleName:       wl.SaleName,
-			SaleDate:       saleDate,
-			AuctionEndTime: saleDate,
-			Status:         status,
-			UserID:         userID,
-		}
-		if lot.Currency == "" {
-			lot.Currency = "USD"
-		}
-
-		if _, err := h.svc.UpsertSyncedLot(&lot); err != nil {
-			h.warn("Failed to upsert NumisBids lot for user %d url=%s: %v", userID, wl.URL, err)
-			continue
-		}
-
-		if upserted, err := h.repo.GetByURL(wl.URL, userID); err == nil {
-			synced = append(synced, *upserted)
-		} else {
-			h.warn("NumisBids lot upserted but reload failed for user %d url=%s: %v", userID, wl.URL, err)
-		}
-	}
-
-	// Also mark any existing watching lots whose sale date has passed
-	if err := h.svc.MarkPastAuctionsPassed(userID, now); err != nil {
-		h.warn("Failed to mark past NumisBids lots for user %d: %v", userID, err)
-	}
-	h.info("NumisBids sync completed for user %d: parsed=%d synced=%d", userID, len(parsed), len(synced))
-
-	c.JSON(http.StatusOK, gin.H{"synced": len(synced), "lots": synced})
-}
-
-func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *models.User) {
-	if user.CNGUsername == "" || user.CNGPassword == "" {
-		h.warn("CNG sync blocked for user %d: credentials not configured", userID)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "CNG credentials not configured. Go to Settings to add them."})
-		return
-	}
-
-	password, shouldMigrate, err := h.decryptStoredCredential(user.ID, "cng_password", user.CNGPassword)
-	if err != nil {
-		h.warn("CNG credential decrypt failed for user %d: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read stored CNG credentials"})
-		return
-	}
-
-	if shouldMigrate {
-		h.migrateStoredCredential(user, "cng_password", password)
-	}
-	client, err := h.cngSvc.Login(user.CNGUsername, password)
-	if err != nil {
-		h.warn("CNG login failed for user %d: %v", userID, err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "CNG login failed. Check your credentials in Settings."})
-		return
-	}
-
-	parsed, err := h.cngSvc.FetchWatchlistLots(client)
-	if err != nil {
-		if errors.Is(err, services.ErrCNGAuthenticationRequired) {
-			h.warn("CNG watchlist returned login page for user %d after login", userID)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "CNG login succeeded but watched lots were not authenticated. Check your credentials in Settings."})
-			return
-		}
-		h.warn("CNG watchlist fetch failed for user %d: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch watched lots from CNG"})
-		return
-	}
-	h.debug("CNG watchlist parsed for user %d: lots=%d", userID, len(parsed))
-
-	var synced []models.AuctionLot
-	now := time.Now()
-	for _, wl := range parsed {
-		// Scrape the individual lot page with the authenticated client to obtain bid_amount
-		// (the current winning bid). The watched-lots list page does not include bid_amount,
-		// only starting_price, so without this step currentBid always shows the opening price.
-		if details, err := h.cngSvc.ScrapeLotWithClient(client, wl.URL); err == nil {
-			if details.CurrentBid != nil {
-				wl.CurrentBid = details.CurrentBid
-			}
-		} else {
-			h.warn("Could not refresh CNG lot page for user %d url=%s: %v", userID, wl.URL, err)
-		}
-
-		// Presence of an autobid means the user has placed a bid on this lot.
-		status := models.AuctionStatusWatching
-		if wl.MaxBid != nil {
-			status = models.AuctionStatusBidding
-		}
-		auctionEndTime := services.ParseCNGDate(wl.SaleDate)
-		if auctionEndTime != nil && auctionEndTime.Before(now) {
-			status = models.AuctionStatusPassed
-		}
-
-		lot := auctionLotFromWatchlist(models.AuctionSourceCNG, userID, wl, status, auctionEndTime)
-		if _, err := h.svc.UpsertSyncedLot(&lot); err != nil {
-			h.warn("Failed to upsert CNG lot for user %d url=%s: %v", userID, wl.URL, err)
-			continue
-		}
-
-		if upserted, err := h.repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, userID); err == nil {
-			synced = append(synced, *upserted)
-		} else {
-			h.warn("CNG lot upserted but reload failed for user %d url=%s: %v", userID, wl.URL, err)
-		}
-	}
-
-	if err := h.svc.MarkPastAuctionsPassed(userID, now); err != nil {
-		h.warn("Failed to mark past CNG lots for user %d: %v", userID, err)
-	}
-	h.info("CNG sync completed for user %d: parsed=%d synced=%d", userID, len(parsed), len(synced))
-	c.JSON(http.StatusOK, gin.H{"synced": len(synced), "lots": synced})
+	h.info("%s sync completed for user %d: synced=%d", source, userID, len(lots))
+	c.JSON(http.StatusOK, gin.H{"synced": len(lots), "lots": lots})
 }
 
 func auctionLotFromWatchlist(source models.AuctionSource, userID uint, wl services.WatchlistLot, status models.AuctionLotStatus, auctionEndTime *time.Time) models.AuctionLot {

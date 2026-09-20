@@ -46,6 +46,7 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 - **[AI Coin Analysis](ai-analysis.md)** — Vision-model analysis of obverse/reverse photos using Anthropic Claude or Ollama
 - **[Deep Analysis](deep-analysis.md)** — Resumable multi-provider identification with cited evidence and confirm-gated proposals
 - **[Coin Agent](ai-search-agent.md)** — Chat with an AI agent to find coins, answer collection questions, research shows, and save useful answers to Notes
+- **[Coin Copilot](coin-copilot.md)** — Default-off durable, read-only multi-step analysis over owner-scoped collection data
 - **[AI Grading Assistant](ai-grading.md)** — Estimate coin grades from photos with reasoning and confidence scores
 - **[Price Trend Analysis](price-trends.md)** — Analyze historical auction data to identify market trends
 - **[Collection Gap Analysis](gap-analysis.md)** — Get AI-powered suggestions for coins missing from your collection

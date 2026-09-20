@@ -76,7 +76,8 @@ Any set can be pinned to the sidebar for one-tap access:
 - **Sidebar placement** — Pinned sets render as additional entries under **Sets → My Sets** (and **Emperors**, when enabled), ordered oldest-pinned-first, then alphabetically. Long names truncate with the full name available via a tooltip.
 - **Cap** — Up to 5 sets can be pinned at a time, enforced by the server. Attempting to pin a 6th set surfaces an error toast and the pin button disables itself once the cap is reached; unpinning is never capped.
 - **Empty state** — With no pinned sets, the Sets submenu is unchanged from its default two entries.
-- **Session behavior** — Pinned sets refresh when the app loads for an authenticated user and clear on logout so the next signed-in user only sees their own pins.
+- **Shared state** — Sidebar set pins are a read-only projection of Quick Access, not a separate `/sets` cache. Pin/unpin changes appear in both views immediately; legacy server pin fields/endpoints remain supported.
+- **Session behavior** — Pins load on authenticated startup and in-app login, clear immediately on account changes or logout, and reject delayed responses from a prior account.
 
 ## Tray View
 
@@ -97,8 +98,11 @@ Set detail pages use the same tray presentation for member coins. Embedded tray 
 - Scrollable list of member coins
 - Click to view coin details
 - Add membership with a coin picker instead of manual ID entry
+- Search the full eligible collection on the server and page through 50 results at a time; selection remains available when changing pages or searches. Goal sets also allow wishlist coins. Existing members, sold coins, and coins assigned to other Agentic slots are excluded where applicable.
 - Remove membership with compact design-system actions
 - Sort and filter members
+
+Direct navigation between sets resets the previous set's dialogs, selections, and drawer position. Pending requests stay associated with the original set and cannot overwrite the new view. Failed detail or picker loads show a retry action.
 
 ### Smart Rules Tab (Smart Sets)
 - View active rules

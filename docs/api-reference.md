@@ -718,6 +718,195 @@ curl -N -X POST http://localhost:8080/api/agent/chat \
 
 > **Note:** Use `curl -N` (no-buffer) to see streamed events in real time.
 
+#### Coin Copilot (default-off durable read-only API)
+
+Coin Copilot is selected only when the `CoinCopilotEnabled` setting is enabled
+and the configured model passes a fail-closed tool-calling capability preflight.
+Otherwise clients continue using `POST /api/agent/chat`. All endpoints below
+require bearer authentication, derive ownership server-side, and return `404`
+for both unknown and foreign thread/run identifiers.
+
+The feature is read-only. Go owns threads, runs, checkpoints, retention,
+cancellation, and SSE sequence allocation; Python remains stateless and
+database-free. Public payloads do not expose chain-of-thought, provider-native
+traces, credentials, raw tool arguments/results, or dollar-cost estimates.
+Reliable provider-reported input/output token usage is included in run usage.
+
+##### GET /api/agent/copilot/capability
+
+Resolve whether the drawer should use durable Copilot mode or legacy chat.
+
+```json
+{
+  "mode": "copilot",
+  "enabled": true,
+  "modelToolCallingSupported": true,
+  "reason": null
+}
+```
+
+`mode` is `copilot` or `legacy`. Legacy reasons are `disabled`,
+`provider_unconfigured`, `model_tool_calling_unsupported`, or
+`temporarily_unavailable`.
+
+##### POST /api/agent/copilot/runs
+
+Start a durable run. Requires `Idempotency-Key` (1–128 printable ASCII
+characters).
+
+```json
+{
+  "goal": "Compare my Flavian bronzes and identify collection gaps.",
+  "threadId": "cct_optional",
+  "appContext": {
+    "route": "/stats",
+    "activeCoinId": null,
+    "activeDraftId": null
+  }
+}
+```
+
+`activeCoinId` is emitted only on coin-detail routes and `activeDraftId` only
+on the exact active Quick Capture draft route. Both are optional positive safe
+integers and remain non-authoritative hints; they never bypass owner-scoped
+target resolution or clarification.
+
+Returns `202` for a new run or `200` for an identical idempotent replay:
+
+```json
+{
+  "run": {
+    "id": "ccr_example",
+    "threadId": "cct_example",
+    "status": "queued",
+    "goal": "Compare my Flavian bronzes and identify collection gaps.",
+    "checkpointVersion": 0,
+    "lastSeq": 0,
+    "attempt": 0,
+    "finalAnswer": null,
+    "failureCode": null,
+    "failureMessage": null,
+    "resumeDeadline": null,
+    "usage": {
+      "iterations": 0,
+      "toolCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    "createdAt": "2026-09-17T22:00:00Z",
+    "updatedAt": "2026-09-17T22:00:00Z"
+  },
+  "reused": false
+}
+```
+
+Conflicting reuse or active-run/queue capacity returns `409`; unavailable
+feature/model returns `503` and the client should use legacy chat.
+
+##### GET /api/agent/copilot/threads/:threadId
+
+Return the owner-scoped thread, user-visible messages, and run snapshots.
+
+##### DELETE /api/agent/copilot/threads/:threadId
+
+Delete a settled thread and its runs, checkpoints, events, and resume requests.
+Returns `204`. An active run returns `409`; cancel it and wait for settlement
+before retrying.
+
+##### GET /api/agent/copilot/runs/:runId
+
+Return the current durable run snapshot. Run states are `queued`, `running`,
+`paused`, `cancel_requested`, `completed`, `failed`, and `cancelled`.
+
+##### POST /api/agent/copilot/runs/:runId/cancel
+
+Request cancellation. Queued/paused runs can settle immediately; running runs
+transition through `cancel_requested`. Returns `202` while settling, `200` for
+an immediate/idempotent cancelled result, or `409` if natural completion or
+failure already won.
+
+##### POST /api/agent/copilot/runs/:runId/resume
+
+Resume a paused run with a fresh `Idempotency-Key`:
+
+```json
+{
+  "answer": "Owned collection only",
+  "expectedCheckpointVersion": 4
+}
+```
+
+Returns `202`, or `200` for an identical replay. A stale checkpoint, expired
+7-day resume window, non-paused run, or conflicting key returns `409`.
+Disabling the feature blocks starts and resumes but existing runs remain
+readable and cancellable.
+
+##### Deep Analysis handoff events
+
+When all attribution gates are enabled, a `tool_completed` event for
+`deep_analysis_handoff` may include `deepAnalysisHandoffResult`. Its sole
+top-level discriminant is `outcome`:
+
+`accepted`, `reused_active`, `reused_result`, `status`, `retry_available`,
+`missing_images`, `target_unavailable`, `not_eligible`, `unavailable`, or
+`cancelled`.
+
+Unknown, foreign, and unbound identifiers return exactly:
+
+```json
+{"outcome":"not_eligible","reason":null}
+```
+
+Only a previously validated durable owner binding may return
+`target_unavailable`, also without target metadata. Results may contain the
+bounded target/job projection, persisted narrative and fields, disagreements,
+coverage, attributions, limitations, truncation counts, and the exact relative
+review URL `/deep-analysis/{jobId}`. They never contain proposal mutation or
+apply controls. Public events accept at most 64 KiB; persisted callback results
+accept at most 32 KiB and disclose deterministic omission counts.
+
+`CoinCopilotEnabled`, `CoinCopilotAttributionEnabled`, model tool capability,
+and `DeepIdentificationEnabled` are checked before new admission or rerun.
+After durable acceptance, status/events/cancel/review/edit/confirmed apply and
+worker settlement remain available under finish-existing semantics.
+
+##### GET /api/agent/copilot/runs/:runId/events
+
+Replay and follow the authoritative Go-persisted SSE stream. Send
+`?since=<sequence>` or `Last-Event-ID: <sequence>`; `since` takes precedence.
+Go replays every retained event with `seq > cursor` in ascending order before
+following live events. Event `id:` equals `data.seq`; keepalive comments consume
+no sequence.
+
+```text
+id: 14
+event: tool_completed
+data: {"seq":14,"threadId":"cct_example","runId":"ccr_example","executionId":"cce_example","type":"tool_completed","ts":"2026-09-17T22:41:12Z","payload":{"toolCallId":"call_02","toolName":"collection_summary","stepId":"step-2","status":"succeeded","durationMs":38,"resultSummary":"Collection summary returned.","truncated":false}}
+```
+
+Application events are `run_started`, `plan_updated`, `tool_started`,
+`tool_completed`, `clarification_required`, `run_paused`, `run_resumed`,
+`run_cancelled`, `run_completed`, and `run_failed`. Clients must ignore unknown
+event types.
+
+If the requested cursor predates the 7-day retained event window, Go first
+emits an unsequenced `stream_truncated` control event containing `earliestSeq`
+and `lastSeq`, then replays the retained tail. When a run is terminal, Go
+replays remaining events, emits the unsequenced terminal control event below,
+and closes:
+
+```text
+event: end
+data: {"runId":"ccr_example","status":"completed"}
+```
+
+The default run budget is 8 reasoning iterations, 12 tool calls, one tool at a
+time, 120 seconds, and 32 KiB persisted tool results. Timeout configuration is
+limited to 15–150 seconds so the 30-second credential buffer remains within the
+absolute 180-second execution-token TTL. Dollar-cost enforcement is deferred;
+iteration, tool-call, wall-clock, sequential-concurrency, and payload limits
+remain enforced.
+
 #### GET /api/agent/models
 
 List available Anthropic models that can be used with the agent.

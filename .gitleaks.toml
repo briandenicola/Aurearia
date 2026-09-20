@@ -82,9 +82,22 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "Immutable commits containing only verified documentation placeholders"
+description = "Immutable commits containing verified documentation false positives"
 commits = [
   '''1d171e415ba23a0a06b2298d6ccaacbb247518d7''',
   '''56722d276d23dbfd45935acf01ffcdf6fd03f87e''',
-  '''7e01e2c21ff00464d2001ac9f84f971400a33988'''
+  '''7e01e2c21ff00464d2001ac9f84f971400a33988''',
+  '''4789e4759520b7e87d12b1db7413811885a7543b''',
+  '''eb9805c359ed4a06abac6dcbfd9d98303d31f47c'''
+]
+
+[[allowlists]]
+description = "Coin Copilot privacy-policy prose"
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''specs/359-coin-copilot-harness/research\.md'''
+]
+regexes = [
+  '''provider credentials, JWTs/internal tokens'''
 ]

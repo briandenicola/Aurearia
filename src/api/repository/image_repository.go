@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
 )
@@ -147,6 +148,39 @@ func (r *ImageRepository) CoinImagePathInActiveShowcase(slug, filePath string) (
 // DeleteImage removes an image record.
 func (r *ImageRepository) DeleteImage(image *models.CoinImage) error {
 	return r.db.Delete(image).Error
+}
+
+func (r *ImageRepository) DeleteAndQueueCleanup(imageID, coinID, userID uint) (*models.ImageCleanup, error) {
+	var cleanup models.ImageCleanup
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		err := tx.Where("image_id = ? AND coin_id = ? AND user_id = ?", imageID, coinID, userID).First(&cleanup).Error
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		var image models.CoinImage
+		if err := tx.Where("id = ? AND coin_id = ?", imageID, coinID).First(&image).Error; err != nil {
+			return err
+		}
+		cleanup = models.ImageCleanup{ImageID: image.ID, CoinID: coinID, UserID: userID, FilePath: image.FilePath}
+		if err := tx.Create(&cleanup).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&image).Error
+	})
+	return &cleanup, err
+}
+
+func (r *ImageRepository) PendingCleanups(after uint) ([]models.ImageCleanup, error) {
+	var cleanups []models.ImageCleanup
+	err := r.db.Where("image_id > ?", after).Order("image_id").Limit(100).Find(&cleanups).Error
+	return cleanups, err
+}
+
+func (r *ImageRepository) CompleteCleanup(imageID uint) error {
+	return r.db.Where("image_id = ?", imageID).Delete(&models.ImageCleanup{}).Error
 }
 
 // SetPrimaryAndCreate clears the primary flag on existing images and creates

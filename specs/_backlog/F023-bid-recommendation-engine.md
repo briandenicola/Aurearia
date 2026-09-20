@@ -1,14 +1,14 @@
 ---
 id: F023
 title: "Suggest a maximum bid based on prior wins/losses and market data"
-status: backlog
+status: completed
 priority: P2
 effort: L
 value: 3
 risk: 3
 owner: unassigned
 created: 2026-07-19
-updated: 2026-07-19
+updated: 2026-09-18
 ---
 
 # F023 — Suggest a maximum bid based on prior wins/losses and market data
@@ -129,3 +129,6 @@ scoping it CNG-only until NumisBids reaches the same verified state.
   Python team/route tests, Go service/handler tests, and frontend component
   tests. All acceptance criteria now checked off. Status intentionally left
   at `backlog` pending Lead triage, per the same rationale as V1.
+- 2026-09-18: Lead review confirmed the accepted V1/V2 scope is implemented;
+  status advanced to `completed`. Remaining open questions are future
+  enhancements, not incomplete acceptance criteria.

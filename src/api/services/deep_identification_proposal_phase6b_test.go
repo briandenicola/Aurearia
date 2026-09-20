@@ -23,6 +23,64 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestFeature362CopilotDraftStagesReferencesAndPromotionMergesThem(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	seedDeepProposalCatalog(t, db, "RIC", false)
+	seedDeepProposalCatalog(t, db, "Numista", false)
+
+	draft := &models.QuickCaptureDraft{
+		UserID: userID, WorkingTitle: "Bound draft", Era: string(models.EraAncient),
+		Notes: "manual draft note", Status: models.QuickCaptureDraftStatusActive,
+	}
+	jobID := seedFeature362DraftJob(t, db, userID, draft, map[string]any{
+		"catalogReferences": []any{
+			validCatalogRefPayload("RIC", "", "42"),
+			validCatalogRefPayload("ric", "", "42"),
+		},
+	})
+	if err := db.Create(&models.QuickCaptureDraftReference{
+		DraftID: draft.ID, UserID: userID, Catalog: "Numista", Number: "123",
+		URI: "https://en.numista.com/catalogue/pieces123.html",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"catalogReferences": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := svc.Apply(jobID, userID, "draft", []string{"catalogReferences"})
+	if err != nil {
+		t.Fatalf("apply to exact source draft: %v", err)
+	}
+	if result.DraftID == nil || *result.DraftID != draft.ID {
+		t.Fatalf("expected exact SourceDraftID %d, got %#v", draft.ID, result.DraftID)
+	}
+	var beforePromotion int64
+	if err := db.Model(&models.CoinReference{}).Count(&beforePromotion).Error; err != nil {
+		t.Fatal(err)
+	}
+	if beforePromotion != 0 {
+		t.Fatalf("draft references must remain staged before promotion, got %d coin rows", beforePromotion)
+	}
+
+	promoted, err := svc.qcSvc.PromoteDraft(userID, draft.ID, PromoteDraftInput{
+		Confirm: true, Target: QuickCapturePromotionTargetCollection,
+	})
+	if err != nil {
+		t.Fatalf("promote bound draft: %v", err)
+	}
+	refs, err := repository.NewCoinReferenceRepository(db).ListByCoin(promoted.CoinID, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("expected selected Numista plus one case-deduped staged RIC reference, got %+v", refs)
+	}
+}
+
 // --- AC-020/US-6/FR-030: wishlist apply persists accepted structured
 // references and preserves normalized Catalog/Volume/Number ---
 
@@ -401,12 +459,7 @@ func TestDeepProposalApply_WishlistJournalNamesFieldNeverValues(t *testing.T) {
 	}
 }
 
-// --- Draft target behavior is unchanged: catalogReferences is not in
-// deepProposalDraftFieldAllowlist, so requesting it on "draft" is rejected
-// exactly like any other unknown field, and no DraftLifecycleEvent/draft
-// row is affected by catalogReferences content ---
-
-func TestDeepProposalApply_DraftTargetDoesNotApplyCatalogReferences(t *testing.T) {
+func TestDeepProposalApply_DraftStagesCatalogReferencesUntilPromotion(t *testing.T) {
 	svc, _, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)
 	seedDeepProposalCatalog(t, db, "RIC", false)
@@ -423,35 +476,9 @@ func TestDeepProposalApply_DraftTargetDoesNotApplyCatalogReferences(t *testing.T
 		t.Fatalf("update proposal: %v", err)
 	}
 
-	// Explicitly requesting catalogReferences on the draft target is
-	// rejected - it is not a key in deepProposalDraftFieldAllowlist.
-	if _, err := svc.Apply(jobID, userID, "draft", []string{"catalogReferences"}); !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
-		t.Fatalf("expected ErrDeepProposalFieldNotAllowed for catalogReferences on draft target, got %v", err)
-	}
-
-	// The nil-fieldsFilter path (apply every accepted field) also never
-	// silently drops into a catalogReferences write for drafts: since both
-	// "notes" and "catalogReferences" are accepted, this must still fail
-	// the same way, proving there is no draft code path that reaches
-	// AppendForCoin/CoinReferenceService at all.
-	if _, err := svc.Apply(jobID, userID, "draft", nil); !errors.Is(err, ErrDeepProposalFieldNotAllowed) {
-		t.Fatalf("expected ErrDeepProposalFieldNotAllowed for draft apply with catalogReferences accepted, got %v", err)
-	}
-
-	var draftCount int64
-	if err := db.Model(&models.QuickCaptureDraft{}).Count(&draftCount).Error; err != nil {
-		t.Fatal(err)
-	}
-	if draftCount != 0 {
-		t.Fatal("expected no draft row created when the draft apply is rejected for an unsupported field")
-	}
-
-	// With catalogReferences excluded from the fieldsFilter, the draft
-	// target still works normally on its own scalar fields - unchanged
-	// behavior.
-	result, err := svc.Apply(jobID, userID, "draft", []string{"notes"})
+	result, err := svc.Apply(jobID, userID, "draft", nil)
 	if err != nil {
-		t.Fatalf("apply draft with only supported fields: %v", err)
+		t.Fatalf("apply draft: %v", err)
 	}
 	if result.DraftID == nil {
 		t.Fatal("expected a draft id")
@@ -463,56 +490,31 @@ func TestDeepProposalApply_DraftTargetDoesNotApplyCatalogReferences(t *testing.T
 		t.Fatal(err)
 	}
 	if refCount != 0 {
-		t.Fatalf("expected zero coin_references rows to ever exist - draft apply has no coin to attach references to, got %d", refCount)
+		t.Fatalf("references must remain staged until promotion, got %d", refCount)
+	}
+
+	promoted, err := svc.qcSvc.PromoteDraft(userID, *result.DraftID, PromoteDraftInput{
+		Confirm: true,
+		Target:  QuickCapturePromotionTargetCollection,
+		Overrides: PromoteOverrides{
+			Name: stringPointer("Trajan Denarius"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("promote draft: %v", err)
+	}
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", promoted.CoinID).Count(&refCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refCount != 1 {
+		t.Fatalf("expected one staged reference after promotion, got %d", refCount)
 	}
 	_ = refRepo
 }
 
-// --- Phase 3/6 retry/partial-write assessment (task item 8): CreateCoin
-// necessarily precedes AppendForCoin in applyToWishlist (plan.md Phase 6b
-// apply-path row). This documents, rather than blocks, the consequence: a
-// reference-write failure after a successful CreateCoin leaves a created
-// wishlist coin behind, and a client retry of the same job (still
-// unapplied, since AppliedAt was correctly withheld) calls applyToWishlist
-// again and creates a SECOND wishlist coin rather than reusing the first.
-//
-// IMPORTANT (finding worth recording): registry-validation failures
-// (unknown catalog / missing required volume - see
-// TestDeepProposalApply_WishlistValidationFailuresBlockAppliedAtAndJournal)
-// do NOT reach this window at all: resolveDeepProposalCatalogReferences ->
-// decodeDeepProposalCatalogReferences -> NormalizeAndValidateOne runs
-// entirely inside applyToWishlist's field-collection loop, strictly
-// *before* CreateCoin is ever called (confirmed identical in applyToCoin,
-// before UpdateCoinWithFields). Also notable: CoinRepository.Create itself
-// unconditionally does `Preload("References")` immediately after every
-// insert (coin_repository.go), so a *schema*-level fault on the
-// coin_references table (e.g. a dropped table) actually fails CreateCoin
-// itself first - it can never produce the "CreateCoin succeeded, then the
-// reference write silently failed" split. The real remaining window is
-// narrower than the Apply() doc comment's generic phrasing suggests: only
-// a genuine per-statement failure isolated to AppendForCoin's own
-// CreateBatch insert (not a schema/table-level fault) can land here - e.g.
-// a transient write error on that specific statement. Reproduced below
-// with a targeted GORM create-callback that fails only the
-// coin_references INSERT (not the SELECT/Preload CreateCoin also issues
-// against the same table), isolating exactly that window.
-//
-// This is NOT a novel defect introduced by Phase 6b. It is the exact
-// scenario the existing Apply() doc comment already names for the
-// journal-write-failure case ("...letting a client retry re-run
-// applyToWishlist/applyToCoin again, creating a *second* wishlist coin...
-// Do not turn this back into a hard error without first making the whole
-// apply transactional") generalized to any failure between CreateCoin and
-// ApplyJob - which necessarily includes the reference write Phase 6b adds,
-// since it explicitly runs before ApplyJob (plan.md Phase 6b risk R8:
-// "Partial apply between scalar write and reference write ... Medium ...
-// Both writes before ApplyJob; documented ordering; explicit review item").
-// Verdict: documented, accepted, non-blocking. Making applyToWishlist
-// transactional (or de-duplicating retries) is a distinct, larger design
-// change out of scope for a targeted Phase 6b apply-path change, and
-// Principle IV (simplest complete proportional change) argues against
-// bundling it here uninvited.
-func TestDeepProposalApply_WishlistReferenceFailureLeavesCreatedCoinAndRetryDuplicatesIt(t *testing.T) {
+// A failed wishlist reference write rolls back coin creation and leaves the
+// unapplied job safe to retry exactly once.
+func TestDeepProposalApply_WishlistReferenceFailureRollsBackAndRetryCreatesOneCoin(t *testing.T) {
 	svc, repo, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)
 	seedDeepProposalCatalog(t, db, "RIC", false)
@@ -561,8 +563,8 @@ func TestDeepProposalApply_WishlistReferenceFailureLeavesCreatedCoinAndRetryDupl
 	if err := db.Model(&models.Coin{}).Where("user_id = ? AND is_wishlist = ?", userID, true).Count(&wishlistCoinsAfterFailure).Error; err != nil {
 		t.Fatal(err)
 	}
-	if wishlistCoinsAfterFailure != 1 {
-		t.Fatalf("expected the failed attempt to still leave exactly one created wishlist coin behind (CreateCoin precedes AppendForCoin), got %d", wishlistCoinsAfterFailure)
+	if wishlistCoinsAfterFailure != 0 {
+		t.Fatalf("failed apply left %d wishlist coins; want zero", wishlistCoinsAfterFailure)
 	}
 
 	job, err := repo.GetJob(jobID, userID)
@@ -583,7 +585,7 @@ func TestDeepProposalApply_WishlistReferenceFailureLeavesCreatedCoinAndRetryDupl
 	if err := db.Model(&models.Coin{}).Where("user_id = ? AND is_wishlist = ?", userID, true).Count(&wishlistCoinsAfterRetry).Error; err != nil {
 		t.Fatal(err)
 	}
-	if wishlistCoinsAfterRetry != 2 {
-		t.Fatalf("documented R8 partial-write behavior: expected the retry to create a SECOND wishlist coin (not reuse the first), got %d total wishlist coins", wishlistCoinsAfterRetry)
+	if wishlistCoinsAfterRetry != 1 {
+		t.Fatalf("retry created %d wishlist coins; want one", wishlistCoinsAfterRetry)
 	}
 }

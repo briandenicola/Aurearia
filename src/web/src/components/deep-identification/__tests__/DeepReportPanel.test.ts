@@ -172,7 +172,7 @@ describe('DeepReportPanel', () => {
     it('hides the section entirely for a pre-351 report with no image_hypothesis key', () => {
       const wrapper = mount(DeepReportPanel, { props: { report: baseReport() } })
       expect(wrapper.find('details').exists()).toBe(false)
-      expect(wrapper.text()).not.toContain('What the images alone said')
+      expect(wrapper.text()).not.toContain('Structured image hypothesis')
     })
 
     it('renders collapsed by default when image_hypothesis is present', () => {
@@ -190,7 +190,7 @@ describe('DeepReportPanel', () => {
       const details = wrapper.find('details')
       expect(details.exists()).toBe(true)
       expect(details.attributes('open')).toBeUndefined()
-      expect(details.text()).toContain('What the images alone said')
+      expect(details.text()).toContain('Structured image hypothesis')
     })
 
     it('renders each typed hypothesis field with its own confidence, plus observations', () => {
@@ -238,6 +238,42 @@ describe('DeepReportPanel', () => {
       const text = wrapper.text()
       expect(text).toContain('did not find any coin details')
       expect(text).not.toContain('not legible enough')
+    })
+  })
+
+  describe('role-specific face analysis', () => {
+    it('renders retained obverse and reverse narratives', () => {
+      const wrapper = mount(DeepReportPanel, {
+        props: {
+          report: baseReport({
+            face_analyses: [
+              {
+                role: 'obverse',
+                status: 'completed',
+                narrative: 'Radiate bust with PROBVS AVG legend.',
+                limitation: '',
+              },
+              {
+                role: 'reverse',
+                status: 'completed',
+                narrative: 'CLEMENTIA TEMP reverse with Tripolis mintmark.',
+                limitation: '',
+              },
+            ],
+          }),
+        },
+      })
+
+      expect(wrapper.text()).toContain('Face analysis')
+      expect(wrapper.text()).toContain('obverse analysis')
+      expect(wrapper.text()).toContain('PROBVS AVG')
+      expect(wrapper.text()).toContain('reverse analysis')
+      expect(wrapper.text()).toContain('CLEMENTIA TEMP')
+    })
+
+    it('keeps pre-ADR-0018 reports unchanged when face_analyses is absent', () => {
+      const wrapper = mount(DeepReportPanel, { props: { report: baseReport() } })
+      expect(wrapper.text()).not.toContain('Face analysis')
     })
   })
 

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 
@@ -61,6 +61,30 @@ describe('ImageLightbox', () => {
 
     expect(overlay.text()).toContain('Removing background')
     expect(overlay.find('.animate-spin').exists()).toBe(true)
+  })
+
+  it('warns about pending cleanup without repeating a successful replacement', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ blob: async () => new Blob(['image']) })))
+    const alert = vi.fn()
+    vi.stubGlobal('alert', alert)
+    mocks.uploadImage.mockResolvedValue({ data: {} })
+    mocks.deleteImage.mockResolvedValue({ data: { cleanupPending: true } })
+    const wrapper = mountLightbox()
+    try {
+      wrapper.vm.processedImageUrl = 'data:image/jpeg;base64,aW1hZ2U='
+      await wrapper.vm.$nextTick()
+      await wrapper.findAll('button').find(button => button.text() === 'Save')!.trigger('click')
+      await flushPromises()
+      expect(mocks.uploadImage).toHaveBeenCalledTimes(1)
+      expect(mocks.deleteImage).toHaveBeenCalledWith(1, 100)
+      expect(alert).toHaveBeenCalledWith(expect.stringContaining('Old image files are awaiting cleanup'))
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+      expect(wrapper.emitted('close')).toHaveLength(1)
+    } finally {
+      wrapper.vm.processedImageUrl = null
+      wrapper.unmount()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('removes processing class when processing completes', async () => {

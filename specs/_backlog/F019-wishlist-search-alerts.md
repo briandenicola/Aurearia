@@ -1,17 +1,20 @@
 ---
 id: F019
 title: "Add wishlist search alerts for acquisition ideas"
-status: triaged
+status: promoted
 priority: P1
 effort: L
 value: 5
 risk: 4
 owner: Maximus
 created: 2026-06-29
-updated: 2026-06-29
+updated: 2026-09-18
+promoted_to: specs/337-wishlist-search-alerts/
 ---
 
 # F019 — Add wishlist search alerts for acquisition ideas
+
+**Promoted to**: `specs/337-wishlist-search-alerts/`
 
 **GitHub issue**: #357
 
@@ -63,3 +66,5 @@ This complements F002 but must not modify the meaning of availability checks. F0
 ## History
 
 - 2026-06-29: created (status: triaged).
+- 2026-09-18: reconciled the card with its existing active specification at
+  `specs/337-wishlist-search-alerts/`; status corrected to `promoted`.

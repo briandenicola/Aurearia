@@ -54,7 +54,7 @@ question into an explicit, recorded decision rather than an implicit one.
 - [ ] T001 [P] Confirm no new third-party dependency is introduced by this feature — diff `go.mod`, `src/agent/pyproject.toml`, `src/web/package.json`; structured output must use the LangChain surface already vendored (plan.md Technical Context)
 - [ ] T002 [P] [FR-034] Record the rollback statement in the PR template body: no migration, revert-only, pre-351 reports remain readable (`docs/adr/0012-vision-first-deep-identification.md` § Rollback)
 - [x] T003 **[RESOLVED by Brian, 2026-08-16 — mechanism (a) adopted as recommended]** [FR-027] **Decision task — wishlist persistence mechanism.** Brian's stated intent makes wishlist **required scope**, not optional. Two mechanisms were tabled, both routing through existing Go-owned write services (344 FR-033):
-  - **(a) Direct wishlist coin — ✅ ADOPTED.** An `isWishlist` destination intent on the intake apply path; `DeepIdentificationProposalService.Apply` creates a `models.Coin` with `IsWishlist=true` via `CoinService`, using the existing `deepProposalCoinFieldAllowlist` (14 fields). No schema migration; no change to `QuickCaptureDraft`. Files: `src/api/services/deep_identification_proposal.go`, `src/api/handlers/deep_identification.go`.
+  - **(a) Direct wishlist coin — ✅ ADOPTED.** An `isWishlist` destination intent on the intake apply path; `DeepIdentificationProposalService.Apply` creates a `models.Coin` with `IsWishlist=true` via `CoinService`, using the existing `deepProposalCoinFieldAllowlist` (now 17 reviewable scalar fields including notes after FR-021a). No schema migration; no change to `QuickCaptureDraft`. Files: `src/api/services/deep_identification_proposal.go`, `src/api/handlers/deep_identification.go`.
   - **(b) Wishlist-flagged draft — ❌ REJECTED.** Would add a wishlist flag to `models.QuickCaptureDraft` and carry it through `QuickCaptureService` promotion.
   - **Rejection rationale (two independent grounds).** (1) (b) requires a **database migration on a shipped table**, contradicting this feature's no-migration guarantee (FR-033/FR-034) and widening blast radius into Quick Capture — a workflow this feature otherwise does not touch (Principle IV). (2) `deepProposalDraftFieldAllowlist` (`src/api/services/deep_identification_proposal.go:64`) is only 4 fields (`workingTitle`, `era`, `dateRange`, `notes`) against the coin allowlist's 14, so a wishlist *draft* would discard the ruler/denomination/mint/legend this feature exists to produce.
   - **Counter-argument recorded**: (a) skips the draft review step intake normally provides — mitigated because the Deep Analysis proposal editor **is** the review step, and the confirm gate (FR-028) is unchanged.
@@ -130,10 +130,10 @@ full vision LLM call and writes `state["image_analysis"]`; a repository-wide
 grep returns exactly three hits — the declaration (`state.py:38`) and the two
 writes (`graph.py:71,86`). **Zero reads.**
 
-- [x] T023 [B2, FR-001] `HypothesisField`/`CoinHypothesis` already existed (prior batch) in `src/agent/app/models/hypothesis.py` — not `responses.py` as this task literally names, a location decision predating this batch that this batch did not relitigate. Extended additively this batch with `notes`/`coin_type` (data-model.md §3's full 14-field vocabulary was previously only 12 fields)
+- [x] T023 [B2, FR-001] `HypothesisField`/`CoinHypothesis` already existed (prior batch) in `src/agent/app/models/hypothesis.py` — not `responses.py` as this task literally names, a location decision predating this batch that this batch did not relitigate. Extended additively with `notes`/`coin_type`, then category/grade/rarity under FR-021a.
 - [x] T024 [B2, FR-005] Created the vision prompt (`VISION_HYPOTHESIS_PROMPT`), the schema binding via `get_structured_model` (T019), and normalization into the coin-field vocabulary in `src/agent/app/teams/deep_identification/hypothesis.py::build_hypothesis_from_vision`. Snake_case/camelCase key aliasing + allowlist filtering happens in the prose-fallback parser (`_parse_prose_hypothesis`); the structured-parse path is schema-bound so keys are already conformant there. Unknown keys dropped; no new writable field introduced
 - [x] T025 [B2, FR-003] "Omit, never guess" encoded in `VISION_HYPOTHESIS_PROMPT` and in `_normalize_vision_hypothesis`/`_parse_prose_hypothesis` post-validation (era/material canonicalization drops non-conforming values rather than forwarding them)
-- [x] T026 [B2, FR-002, FR-031] Rewrote `prepare_evidence_node` in `src/agent/app/teams/deep_identification/graph.py` to return the typed hypothesis from the same single vision call. `IMAGE_ANALYSIS_PROMPT`'s prose-only path is deleted entirely (constant, prompt text, and the free-prose `image_analysis` write). No second vision call is introduced — confirmed by `fake.calls == 1` assertions on the happy path in `test_deep_identification_hypothesis.py`
+- [x] T026 [B2, FR-002, FR-031] Rewrote `prepare_evidence_node` in `src/agent/app/teams/deep_identification/graph.py` to return the typed hypothesis from the same single vision call. `IMAGE_ANALYSIS_PROMPT`'s prose-only path is deleted entirely (constant, prompt text, and the free-prose `image_analysis` write). This call-count constraint is superseded by ADR 0018 and T116-T121.
 - [x] T027 [B2, FR-006] **DEVIATION, same as T020** — wired in `build_hypothesis_from_vision`: LLM raise, timeout, empty content, and schema-validation failure all degrade (via prose extraction, then the deterministic quick-evidence hypothesis) rather than jumping straight to typed-empty; the job never fails for any of these. See `.squad/decisions/inbox/cassius-vision-hypothesis.md`
 - [x] T028 [B2, FR-007] Replaced the write-only `image_analysis: str` field with `hypothesis: CoinHypothesis` in `src/agent/app/teams/deep_identification/state.py` (already present from the prior batch's seam; the dead `image_analysis` field is now deleted)
 - [x] T029 [B2] Rewrote the `state.py` docstring. It now honestly states that, as of this batch, only the synthesizer reads `hypothesis` — router/query-construction/evaluator wiring is Phase 5-7 scope and not yet done, so the B2 "write-only state field" defect is only partially fixed by this batch
@@ -147,6 +147,20 @@ persisted. **It still has no consumers — the B2 defect is not fixed until
 T057 passes.** Do not release at this checkpoint.
 
 ---
+
+## ADR 0018 corrective amendment
+
+- [x] T116 [FR-002] Extract the side-effect-free Collection AI Analysis image-examination stage for reuse.
+- [x] T117 [FR-002, SC-007] Run one labeled obverse and one labeled reverse examination with collector notes and configured side prompts.
+- [x] T118 [FR-001, FR-003] Derive the typed hypothesis from retained face narratives, Quick Lookup evidence, and notes with deterministic fallback.
+- [x] T119 [FR-030] Persist and render additive face narratives without removing existing review evidence.
+- [x] T120 [FR-031] Keep collection, wishlist, and Quick Capture mutations behind their existing allowlists and review/apply flow.
+- [x] T121 [SC-007] Add cross-service, backward-compatibility, role-isolation, notes-threading, and Probus/Tripolis regression coverage.
+- [x] T124 [FR-021a] Expand structured face-evidence extraction and the
+  confirm-gated coin proposal allowlist to category, grade, and rarity, and
+  prove retained narrative details populate those properties without exposing
+  acquisition, value, ownership, storage, sale, or workflow fields.
+
 
 ## Phase 5: Provider query terms — deleting the placeholder
 
@@ -272,7 +286,7 @@ stated intent ("saved as a draft for either a wishlist item or collection item")
 **Mechanism is settled and verified against the code** — see `spec.md` §Resolved
 Decisions RD-1. Implement (a); do **not** touch `QuickCaptureDraft`.
 
-- [x] T072 [FR-027] Implement the wishlist destination in `src/api/services/deep_identification_proposal.go::Apply`. **Specified behavior (mechanism (a), settled):** add a third destination to the existing closed `switch target` (`deep_identification_proposal.go:263-274`), gated on `job.Source == models.DeepJobSourceIntake` exactly as the `draft` target is. It creates a `models.Coin` with `IsWishlist = true` through `CoinService.CreateCoin`/`CreateCoinInTx`, populated from the accepted fields via the **existing, unwidened** `deepProposalCoinFieldAllowlist` (14 fields). **No schema migration.** Three verified constraints the implementation must respect:
+- [x] T072 [FR-027] Implement the wishlist destination in `src/api/services/deep_identification_proposal.go::Apply`. **Specified behavior (mechanism (a), settled):** add a third destination to the existing closed `switch target` (`deep_identification_proposal.go:263-274`), gated on `job.Source == models.DeepJobSourceIntake` exactly as the `draft` target is. It creates a `models.Coin` with `IsWishlist = true` through `CoinService.CreateCoin`/`CreateCoinInTx`, populated from the accepted fields via the closed `deepProposalCoinFieldAllowlist` (17 reviewable scalar fields including notes after FR-021a). **No schema migration.** Three verified constraints the implementation must respect:
   - `isWishlist` is a **destination intent, never a proposed field** (FR-028). Do not add it to `deepProposalCoinFieldAllowlist`; derive it only from the normalized target, mirroring `services/quick_capture_service.go:530`.
   - `CoinService` deliberately nils `coin.References` for wishlist coins in **both** `prepareCoinForCreate` and `createPreparedCoinInTx`. This is fine and must not be worked around: the `coin_type` field maps to `ReferenceText`, a plain string column (`models/coin.go:76`), which is **not** the `References` relation (`models/coin.go:92`), so catalogue text survives.
   - Reuse the existing `ApplyJob` CAS so the new destination inherits already-applied idempotency.
@@ -507,7 +521,7 @@ survives.
 |---|---|---|---|
 | **OQ-1** confidence upgrade | Flat `min(1.0, max(image, provider) + 0.10)`, once per field, **no stacking** | RD-2 | T004 ✅, T061 |
 | **OQ-2** acceptance default | **Confidence-driven, not source-driven**: accepted at **≥ 0.70**, single named constant | RD-3 | T005 ✅, T090, T120 |
-| **OQ-3** wishlist mechanism | **(a) direct wishlist coin** — no migration, all 14 fields | RD-1 | T003 ✅, T072, T073, T119 |
+| **OQ-3** wishlist mechanism | **(a) direct wishlist coin** — no migration, all 17 reviewable scalar fields | RD-1 | T003 ✅, T072, T073, T119, T124 |
 | **OQ-4** reverse type/legend | **Excluded from queries**; used to **rank already-returned candidates**; new **FR-039** | RD-4 | T006 ✅, T035, T121, T122, T123 |
 | **OQ-5** rollout | **Straight cutover**; `DeepIdentificationEnabled` is the kill switch | RD-5 | T007 ✅ |
 | **OQ-6** hypothesis panel | **Build it** — collapsible, default collapsed | RD-6 | T008 ✅, T091 |

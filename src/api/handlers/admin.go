@@ -279,6 +279,10 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 
 	for _, s := range settings {
 		if err := h.settingsSvc.SetSetting(s.Key, s.Value); err != nil {
+			if s.Key == services.SettingDealerSearchSources || s.Key == services.SettingAuctionSearchSources {
+				respondError(c, http.StatusBadRequest, "Invalid search source setting: "+s.Key, err)
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save setting: " + s.Key})
 			return
 		}

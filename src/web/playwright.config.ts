@@ -25,7 +25,7 @@ export default defineConfig({
   webServer: externalBaseURL
     ? undefined
     : {
-        command: 'npm.cmd run dev -- --host 127.0.0.1 --port 4173',
+        command: 'node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4173',
         url: LOCAL_BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

@@ -24,13 +24,21 @@ from collections.abc import AsyncGenerator
 from app.config import settings
 from app.llm.provider import get_chat_model
 from app.models.hypothesis import CoinHypothesis
-from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdentifyRequest, LLMConfig, QuickEvidence
-from app.models.responses import ProviderEvidence
+from app.models.requests import (
+    CoinData,
+    DeepIdentifyBounds,
+    DeepIdentifyImage,
+    DeepIdentifyRequest,
+    LLMConfig,
+    QuickEvidence,
+)
+from app.models.responses import DeepFaceAnalysis, ProviderEvidence
 from app.streaming import format_sse, sanitize_user_facing_payload
+from app.teams.coin_analysis import analyze_coin_face
 from app.teams.deep_identification.evaluator import evaluate
 from app.teams.deep_identification.hypothesis import (
+    build_hypothesis_from_face_analyses_traced,
     build_hypothesis_from_quick_evidence,
-    build_hypothesis_from_vision_traced,
 )
 from app.teams.deep_identification.providers import ngc as ngc_provider
 from app.teams.deep_identification.providers import nomisma as nomisma_provider
@@ -53,32 +61,76 @@ _AUTOMATED_PROVIDER_NODES = {
 _TRIVIAL_PROVIDER_NODES = {"rpc": rpc_provider.run}
 
 
-async def prepare_evidence_node(state: DeepIdentificationState, llm_config: LLMConfig | None = None) -> dict:
-    """Vision node: obverse+reverse only (FR-004 — hint images never enter
-    the vision-prompt slots, they are context-only for provider queries).
+def _face_coin_context(quick_evidence: QuickEvidence | None, notes: str) -> CoinData:
+    fields = quick_evidence.coin_fields if quick_evidence else {}
+    return CoinData(
+        id=0,
+        name=(quick_evidence.label_text if quick_evidence else "")[:300],
+        ruler=fields.get("ruler", "")[:300],
+        era=fields.get("era", "")[:300],
+        denomination=fields.get("denomination", "")[:300],
+        material=fields.get("material", "")[:300],
+        category=fields.get("category", "")[:300],
+        grade=(quick_evidence.ngc.grade if quick_evidence and quick_evidence.ngc else "")[:64],
+        notes=notes,
+    )
 
-    Builds the typed `hypothesis` output (contracts/vision-hypothesis.md
-    §1) from the SAME single vision LLM call this node has always made —
-    it no longer also produces a separate free-prose `image_analysis`
-    string (that write-only field is deleted, see state.py). When
-    `llm_config` is supplied, `build_hypothesis_from_vision` runs the real
-    structured vision call with its full degrade ladder; when it is not,
-    this falls back to the deterministic `quick_evidence` adapter with no
-    LLM call at all.
-    """
-    from app.teams.coin_analysis import _build_image_contents
 
+async def prepare_evidence_node(
+    state: DeepIdentificationState,
+    llm_config: LLMConfig | None = None,
+    model=None,
+) -> dict:
+    """Build role-specific face evidence and the combined typed hypothesis."""
     quick_evidence = state.get("quick_evidence")
     images: list[DeepIdentifyImage] = state.get("images", [])
-    face_images = [img.data_uri for img in images if img.role in ("obverse", "reverse")]
-    image_contents = _build_image_contents(face_images)
 
-    if llm_config is None:
+    if llm_config is None or model is None:
         hypothesis = build_hypothesis_from_quick_evidence(quick_evidence)
         source = "deterministic_fallback"
+        face_analyses: list[DeepFaceAnalysis] = []
     else:
-        hypothesis, source = await build_hypothesis_from_vision_traced(llm_config, image_contents, quick_evidence)
-    return {"hypothesis": hypothesis, "hypothesis_source": source}
+        images_by_role = {image.role: image.data_uri for image in images if image.role in ("obverse", "reverse")}
+        coin = _face_coin_context(quick_evidence, state.get("notes", ""))
+
+        async def analyze_role(role: str) -> DeepFaceAnalysis:
+            try:
+                narrative = await analyze_coin_face(
+                    model,
+                    coin=coin,
+                    images=[images_by_role[role]],
+                    side=role,
+                    custom_prompt=state.get(f"{role}_prompt", ""),
+                )
+                if narrative:
+                    return DeepFaceAnalysis(role=role, status="completed", narrative=narrative[:8000])
+                return DeepFaceAnalysis(
+                    role=role,
+                    status="unavailable",
+                    limitation=f"{role.capitalize()} analysis returned no usable narrative.",
+                )
+            except Exception:
+                logger.exception("[deep_identification.graph] %s face analysis failed", role)
+                return DeepFaceAnalysis(
+                    role=role,
+                    status="unavailable",
+                    limitation=f"{role.capitalize()} analysis was unavailable.",
+                )
+
+        face_analyses = list(
+            await asyncio.gather(analyze_role("obverse"), analyze_role("reverse"))
+        )
+        hypothesis, source = await build_hypothesis_from_face_analyses_traced(
+            llm_config,
+            face_analyses,
+            quick_evidence,
+            state.get("notes", ""),
+        )
+    return {
+        "face_analyses": face_analyses,
+        "hypothesis": hypothesis,
+        "hypothesis_source": source,
+    }
 
 
 
@@ -291,8 +343,10 @@ async def synthesizer_node(state: DeepIdentificationState, model, partial_succes
         state.get("evidence", []),
         disagreements,
         unresolved_questions,
-        partial_success,
+        partial_success or any(item.status == "unavailable" for item in state.get("face_analyses", [])),
         hypothesis=state.get("hypothesis"),
+        notes=state.get("notes", ""),
+        face_analyses=state.get("face_analyses", []),
     )
     return {"synthesis": synthesis.model_dump()}
 
@@ -334,7 +388,7 @@ def _vision_completed_message(hypothesis: CoinHypothesis, source: str) -> str:
     """FR-040 `vision_completed` progress message: structural facts only
     (populated-field count, a confidence bucket derived from those fields'
     own bounded `[0,1]` scores) plus an honest degradation note when the
-    structured vision call did not produce the result. Brian's core
+    structured hypothesis call did not produce the result. Brian's core
     complaint was a silent nothing — a step that produced nothing must say
     so and why, not just move on to the next phase.
     """
@@ -353,8 +407,8 @@ def _vision_completed_message(hypothesis: CoinHypothesis, source: str) -> str:
     else:
         base = "Vision analysis produced no populated fields."
 
-    if source == "no_images":
-        return f"{base} No obverse/reverse images were available."
+    if source == "no_face_analysis":
+        return f"{base} No usable obverse/reverse face analysis was available."
     if source == "deterministic_fallback":
         return (
             f"{base} The structured vision call did not produce a usable result; "
@@ -415,6 +469,8 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         "job_id": request.job_id,
         "images": request.images,
         "notes": request.notes,
+        "obverse_prompt": request.obverse_prompt,
+        "reverse_prompt": request.reverse_prompt,
         "quick_evidence": request.quick_evidence,
         "catalog": request.provider_catalog,
         "provider_override": request.provider_override,
@@ -434,7 +490,7 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         state["evidence"] = [*state.get("evidence", []), row]
 
     async def pipeline() -> dict:
-        image_result = await prepare_evidence_node(state, request.llm)
+        image_result = await prepare_evidence_node(state, request.llm, model)
         state.update(image_result)
         await queue.put({"type": "progress", "stage": "image_evidence_ready"})
         await queue.put({
@@ -505,7 +561,13 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         pipeline_task.cancel()
         watcher.cancel()
         evidence = state.get("evidence", [])
-        if not evidence:
+        face_analyses = state.get("face_analyses", [])
+        hypothesis = state.get("hypothesis")
+        if (
+            not evidence
+            and not any(item.status == "completed" for item in face_analyses)
+            and (hypothesis is None or hypothesis.is_empty())
+        ):
             yield _emit({
                 "type": "error",
                 "code": "timeout",
@@ -527,7 +589,9 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
                 disagreements,
                 unresolved_questions,
                 partial_success=True,
-                hypothesis=state.get("hypothesis"),
+                hypothesis=hypothesis,
+                notes=state.get("notes", ""),
+                face_analyses=face_analyses,
             )
             yield _emit({"type": "synthesis", "report": synthesis.model_dump()})
         except Exception:

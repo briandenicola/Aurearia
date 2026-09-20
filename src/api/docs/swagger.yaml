@@ -633,6 +633,13 @@ definitions:
     required:
     - cidr
     type: object
+  handlers.ImageCleanupPendingResponse:
+    properties:
+      cleanupPending:
+        type: boolean
+      message:
+        type: string
+    type: object
   handlers.ImageDeletedResponse:
     properties:
       message:
@@ -1749,6 +1756,131 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.collectorProfileRequest:
+    properties:
+      budgetMax:
+        type: number
+      budgetMin:
+        type: number
+      collectingGoals:
+        items:
+          type: string
+        type: array
+      currency:
+        type: string
+      excludedCategories:
+        items:
+          type: string
+        type: array
+      preferredCategories:
+        items:
+          type: string
+        type: array
+      preferredDealers:
+        items:
+          type: string
+        type: array
+      preferredPeriods:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.copilotResumeRequest:
+    properties:
+      answer:
+        type: string
+      expectedCheckpointVersion:
+        type: integer
+    type: object
+  handlers.copilotRunDTO:
+    properties:
+      attempt:
+        type: integer
+      checkpointVersion:
+        type: integer
+      createdAt:
+        type: string
+      failureCode:
+        type: string
+      failureMessage:
+        type: string
+      finalAnswer:
+        type: string
+      goal:
+        type: string
+      id:
+        type: string
+      lastSeq:
+        type: integer
+      resumeDeadline:
+        type: string
+      status:
+        type: string
+      threadId:
+        type: string
+      updatedAt:
+        type: string
+      usage:
+        $ref: '#/definitions/handlers.copilotUsageDTO'
+    type: object
+  handlers.copilotRunEnvelope:
+    properties:
+      reused:
+        type: boolean
+      run:
+        $ref: '#/definitions/handlers.copilotRunDTO'
+    type: object
+  handlers.copilotStartRequest:
+    properties:
+      appContext:
+        additionalProperties: {}
+        type: object
+      goal:
+        type: string
+      threadId:
+        type: string
+    type: object
+  handlers.copilotThreadDTO:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      messages:
+        items:
+          $ref: '#/definitions/handlers.copilotThreadMessageDTO'
+        type: array
+      runs:
+        items:
+          $ref: '#/definitions/handlers.copilotRunDTO'
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  handlers.copilotThreadMessageDTO:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      role:
+        type: string
+      runId:
+        type: string
+    type: object
+  handlers.copilotUsageDTO:
+    properties:
+      inputTokens:
+        type: integer
+      iterations:
+        type: integer
+      outputTokens:
+        type: integer
+      toolCalls:
+        type: integer
+    type: object
   handlers.createOrUpdateReminderRequest:
     properties:
       remindDate:
@@ -2138,6 +2270,11 @@ definitions:
       validationNote:
         type: string
       verificationStatus:
+        type: string
+    type: object
+  handlers.wishlistURLRequest:
+    properties:
+      url:
         type: string
     type: object
   models.AIJob:
@@ -4305,6 +4442,15 @@ definitions:
       value:
         type: number
     type: object
+  services.BulkEventLinkResult:
+    properties:
+      failures:
+        items:
+          $ref: '#/definitions/services.EventLinkFailure'
+        type: array
+      updated:
+        type: integer
+    type: object
   services.CancelCollectionProposalResult:
     properties:
       message:
@@ -4353,6 +4499,17 @@ definitions:
     - ChecklistSeverityHigh
     - ChecklistSeverityMedium
     - ChecklistSeverityLow
+  services.CoinCopilotCapability:
+    properties:
+      enabled:
+        type: boolean
+      mode:
+        type: string
+      modelToolCallingSupported:
+        type: boolean
+      reason:
+        type: string
+    type: object
   services.CoinHealthItem:
     properties:
       coinId:
@@ -4408,6 +4565,8 @@ definitions:
     properties:
       activeCoinId:
         type: integer
+      activeDraftId:
+        type: integer
       route:
         type: string
     type: object
@@ -4425,6 +4584,39 @@ definitions:
         $ref: '#/definitions/services.HealthTrend30D'
       weights:
         $ref: '#/definitions/services.HealthWeights'
+    type: object
+  services.CollectorProfileResponse:
+    properties:
+      budgetMax:
+        type: number
+      budgetMin:
+        type: number
+      collectingGoals:
+        items:
+          type: string
+        type: array
+      currency:
+        type: string
+      excludedCategories:
+        items:
+          type: string
+        type: array
+      isDefault:
+        type: boolean
+      preferredCategories:
+        items:
+          type: string
+        type: array
+      preferredDealers:
+        items:
+          type: string
+        type: array
+      preferredPeriods:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
     type: object
   services.CommitCollectionProposalResult:
     properties:
@@ -4470,6 +4662,15 @@ definitions:
         type: array
       usurpers:
         $ref: '#/definitions/services.CategoryProgress'
+    type: object
+  services.EventLinkFailure:
+    properties:
+      code:
+        type: string
+      error:
+        type: string
+      lotId:
+        type: integer
     type: object
   services.GeocodeCandidate:
     properties:
@@ -4935,6 +5136,91 @@ definitions:
         type: integer
       fromValuationHistory:
         type: integer
+    type: object
+  services.WishlistURLAnalysis:
+    properties:
+      existingCoinId:
+        type: integer
+      hypothesis:
+        $ref: '#/definitions/services.WishlistURLHypothesis'
+      imageUrl:
+        type: string
+      outcome:
+        type: string
+      pageTitle:
+        type: string
+      schemaVersion:
+        type: integer
+      sourceUrl:
+        type: string
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  services.WishlistURLHypothesis:
+    properties:
+      category:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      coin_type:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      currency:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      dateRange:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      dealerName:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      denomination:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      diameterMm:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      era:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      grade:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      legible:
+        type: boolean
+      listedPrice:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      listingStatus:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      material:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      mint:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      name:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      notes:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      observations:
+        type: string
+      obverseDescription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      obverseInscription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      rarityRating:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      references:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      reverseDescription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      reverseInscription:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      ruler:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+      weightGrams:
+        $ref: '#/definitions/services.WishlistURLHypothesisField'
+    type: object
+  services.WishlistURLHypothesisField:
+    properties:
+      confidence:
+        type: number
+      evidence:
+        items:
+          type: string
+        type: array
+      value:
+        type: string
     type: object
 info:
   contact: {}
@@ -7319,6 +7605,254 @@ paths:
       summary: Get conversation
       tags:
       - Agent
+  /agent/copilot/capability:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CoinCopilotCapability'
+      security:
+      - BearerAuth: []
+      summary: Resolve Coin Copilot or legacy mode
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Run request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.copilotStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Start a durable Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}:
+    get:
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Read an owner-scoped Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}/cancel:
+    post:
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel a Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}/events:
+    get:
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Resume after sequence
+        in: query
+        name: since
+        type: integer
+      - description: Resume after sequence
+        in: header
+        name: Last-Event-ID
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Replay and follow Coin Copilot events
+      tags:
+      - Coin Copilot
+  /agent/copilot/runs/{runId}/resume:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: string
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Resume request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.copilotResumeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.copilotRunEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resume a paused Coin Copilot run
+      tags:
+      - Coin Copilot
+  /agent/copilot/threads/{threadId}:
+    delete:
+      parameters:
+      - description: Thread ID
+        in: path
+        name: threadId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a settled Coin Copilot thread
+      tags:
+      - Coin Copilot
+    get:
+      parameters:
+      - description: Thread ID
+        in: path
+        name: threadId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.copilotThreadDTO'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Read an owner-scoped Coin Copilot thread
+      tags:
+      - Coin Copilot
   /agent/models:
     get:
       description: Returns a curated list of Anthropic models suitable for the coin
@@ -7848,8 +8382,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Sets or clears the calendar event for multiple auction lots at
-        once.
+      description: 'Partial success: commits each distinct owned lot independently;
+        returns confirmed updated count and per-lot failures.'
       parameters:
       - description: Lot IDs and event ID
         in: body
@@ -7863,9 +8397,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: integer
-            type: object
+            $ref: '#/definitions/services.BulkEventLinkResult'
         "400":
           description: Bad Request
           schema:
@@ -9516,8 +10048,9 @@ paths:
       - Images
   /coins/{id}/images/{imageId}:
     delete:
-      description: Deletes an image from a coin. Removes the file from disk and the
-        database record.
+      description: Commits metadata deletion before file cleanup. A 202 cleanupPending
+        response can be retried with the same DELETE; startup also retries. Missing
+        files are accepted; fully completed deletions subsequently return 404.
       parameters:
       - description: Coin ID
         in: path
@@ -9536,6 +10069,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handlers.ImageDeletedResponse'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.ImageCleanupPendingResponse'
         "400":
           description: Bad Request
           schema:
@@ -9546,6 +10083,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:
@@ -10796,6 +11337,70 @@ paths:
       summary: Match a category/era candidate against known values
       tags:
       - coins
+  /collector-profile:
+    get:
+      description: Returns the authenticated owner's saved collector profile or neutral
+        defaults.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CollectorProfileResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get collector profile
+      tags:
+      - Collector Profile
+    put:
+      consumes:
+      - application/json
+      description: Validates and atomically replaces the authenticated owner's complete
+        collector profile.
+      parameters:
+      - description: Collector profile
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.collectorProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CollectorProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Replace collector profile
+      tags:
+      - Collector Profile
   /deep-identification/capability:
     get:
       description: Returns the Deep Analysis feature-flag state so the client can
@@ -16928,6 +17533,51 @@ paths:
       summary: Get wishlist search alert run
       tags:
       - Wishlist Search Alerts
+  /wishlist/url-intake/analyze:
+    post:
+      consumes:
+      - application/json
+      description: Retrieves one bounded public HTML page and returns an editable
+        transient coin proposal. No coin is created.
+      parameters:
+      - description: Public listing URL
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.wishlistURLRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.WishlistURLAnalysis'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Analyze wishlist listing URL
+      tags:
+      - Wishlist
 securityDefinitions:
   ApiKeyAuth:
     description: Enter your API key, e.g. "ak_a1b2c3d4..."

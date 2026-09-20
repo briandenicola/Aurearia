@@ -39,6 +39,7 @@ class CoinHypothesis(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    category: HypothesisField | None = None
     ruler: HypothesisField | None = None
     denomination: HypothesisField | None = None
     material: HypothesisField | None = None
@@ -51,6 +52,8 @@ class CoinHypothesis(BaseModel):
     reverseDescription: HypothesisField | None = None
     diameterMm: HypothesisField | None = None
     weightGrams: HypothesisField | None = None
+    grade: HypothesisField | None = None
+    rarityRating: HypothesisField | None = None
     notes: HypothesisField | None = None
     coin_type: HypothesisField | None = None
 
@@ -64,6 +67,7 @@ class CoinHypothesis(BaseModel):
         return {
             name: value
             for name, value in (
+                ("category", self.category),
                 ("ruler", self.ruler),
                 ("denomination", self.denomination),
                 ("material", self.material),
@@ -76,6 +80,8 @@ class CoinHypothesis(BaseModel):
                 ("reverseDescription", self.reverseDescription),
                 ("diameterMm", self.diameterMm),
                 ("weightGrams", self.weightGrams),
+                ("grade", self.grade),
+                ("rarityRating", self.rarityRating),
                 ("notes", self.notes),
                 ("coin_type", self.coin_type),
             )

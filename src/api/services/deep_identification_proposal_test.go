@@ -35,8 +35,11 @@ func newDeepProposalTestDeps(t *testing.T) (*DeepIdentificationProposalService, 
 	coinRepo := repository.NewCoinRepository(db)
 	notifSvc := NewNotificationService(repository.NewNotificationRepository(db), repository.NewSocialRepository(db), repository.NewUserRepository(db), NewPushoverService(NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(10)), NewLogger(10))
 	coinSvc := NewCoinService(coinRepo, notifSvc)
-	quickCaptureSvc := NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()).WithCoinValidation(coinSvc)
 	coinRefSvc := NewCoinReferenceService(repository.NewCoinReferenceRepository(db), repository.NewCatalogRegistryRepository(db))
+	quickCaptureSvc := NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()).
+		WithCoinValidation(coinSvc).
+		WithReferenceValidation(coinRefSvc).
+		WithDeepProposalReferences(repo)
 	proposalSvc := NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc, coinRefSvc)
 	return proposalSvc, repo, db
 }
@@ -80,6 +83,148 @@ func seedDeepProposalJob(t *testing.T, db *gorm.DB, userID uint, source models.D
 func acceptTrue() *bool {
 	v := true
 	return &v
+}
+
+func TestDeepIdentificationProposal_DraftPromotionPreservesAcceptedCoinFields(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	fields := map[string]any{
+		"workingTitle":       "Hadrian Denarius",
+		"category":           "Roman",
+		"denomination":       "Denarius",
+		"ruler":              "Hadrian",
+		"era":                "ancient",
+		"dateRange":          "117-138 CE",
+		"mint":               "Rome",
+		"material":           "Silver",
+		"weightGrams":        3.12,
+		"diameterMm":         18.0,
+		"obverseInscription": "HADRIANVS AVG",
+		"reverseDescription": "Roma seated left",
+		"grade":              "VF",
+		"rarityRating":       "R2",
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceIntake, nil, fields)
+	edits := make(map[string]DeepProposalFieldEdit, len(fields))
+	for name := range fields {
+		edits[name] = DeepProposalFieldEdit{Accepted: acceptTrue()}
+	}
+	if _, err := svc.UpdateProposal(jobID, userID, edits); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := svc.Apply(jobID, userID, "draft", nil)
+	if err != nil {
+		t.Fatalf("apply to draft: %v", err)
+	}
+	if applied.DraftID == nil {
+		t.Fatal("draft id was not returned")
+	}
+
+	promoted, err := svc.qcSvc.PromoteDraft(userID, *applied.DraftID, PromoteDraftInput{
+		Confirm: true,
+		Target:  QuickCapturePromotionTargetCollection,
+	})
+	if err != nil {
+		t.Fatalf("promote draft: %v", err)
+	}
+	var coin models.Coin
+	if err := db.First(&coin, promoted.CoinID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if coin.Name != "Hadrian Denarius" || coin.Category != models.Category("Roman") ||
+		coin.Denomination != "Denarius" || coin.Ruler != "Hadrian" ||
+		coin.Era != models.EraAncient || coin.DateRange != "117-138 CE" ||
+		coin.Mint != "Rome" || coin.Material != models.Material("Silver") ||
+		coin.WeightGrams == nil || *coin.WeightGrams != 3.12 ||
+		coin.DiameterMm == nil || *coin.DiameterMm != 18 ||
+		coin.ObverseInscription != "HADRIANVS AVG" ||
+		coin.ReverseDescription != "Roma seated left" ||
+		coin.Grade != "VF" || coin.RarityRating != "R2" {
+		t.Fatalf("promoted coin lost accepted Deep Analysis fields: %#v", coin)
+	}
+}
+
+func seedFeature362DraftJob(
+	t *testing.T,
+	db *gorm.DB,
+	userID uint,
+	draft *models.QuickCaptureDraft,
+	proposalFields map[string]any,
+) uint {
+	t.Helper()
+	if err := db.Create(draft).Error; err != nil {
+		t.Fatalf("seed source draft: %v", err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceCopilotDraft, nil, proposalFields)
+	if err := db.Model(&models.DeepIdentificationJob{}).
+		Where("id = ?", jobID).
+		Update("source_draft_id", draft.ID).Error; err != nil {
+		t.Fatalf("bind source draft: %v", err)
+	}
+	return jobID
+}
+
+func TestFeature362NotesMergeIsJobKeyedAndIdempotent(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{UserID: userID, Name: "Manual coin", Notes: "manual prefix\nmanual suffix"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"notes": "bounded attribution note",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"notes": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Apply(jobID, userID, "coin", []string{"notes"}); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+	if _, err := svc.Apply(jobID, userID, "coin", []string{"notes"}); err != nil {
+		t.Fatalf("idempotent replay: %v", err)
+	}
+
+	var after models.Coin
+	if err := db.First(&after, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	header := fmt.Sprintf("(job %d)", jobID)
+	if strings.Count(after.Notes, header) != 1 {
+		t.Fatalf("expected exactly one job-keyed notes block, got %q", after.Notes)
+	}
+	if !strings.Contains(after.Notes, "Source: Coin Copilot Deep Analysis") ||
+		!strings.Contains(after.Notes, "bounded attribution note") {
+		t.Fatalf("missing Feature 362 source block: %q", after.Notes)
+	}
+	if !strings.Contains(after.Notes, "manual prefix\nmanual suffix") {
+		t.Fatalf("manual notes were not preserved byte-for-byte: %q", after.Notes)
+	}
+}
+
+func TestFeature362NotesMergeBoundsContentAndAppendsNewJobs(t *testing.T) {
+	now := time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
+	manual := "manual prefix\nmanual suffix"
+	first := mergeDeepProposalNotes(manual, 41, strings.Repeat("é", deepProposalNotesMaxRunes+50), now)
+	second := mergeDeepProposalNotes(first, 42, "second finding", now.Add(24*time.Hour))
+
+	if !strings.HasPrefix(second, manual) {
+		t.Fatalf("manual prefix changed: %q", second)
+	}
+	if strings.Count(second, "Source: Coin Copilot Deep Analysis") != 2 ||
+		strings.Count(second, "(job 41)") != 1 || strings.Count(second, "(job 42)") != 1 {
+		t.Fatalf("expected one block per distinct job, got %q", second)
+	}
+	firstContentStart := strings.Index(second, "Source: Coin Copilot Deep Analysis\n") +
+		len("Source: Coin Copilot Deep Analysis\n")
+	firstContentEnd := strings.Index(second[firstContentStart:], "\n\n## Deep Analysis -")
+	if firstContentStart < 0 || firstContentEnd < 0 {
+		t.Fatalf("could not locate bounded first block: %q", second)
+	}
+	if got := len([]rune(second[firstContentStart : firstContentStart+firstContentEnd])); got != deepProposalNotesMaxRunes {
+		t.Fatalf("bounded note has %d runes, want %d", got, deepProposalNotesMaxRunes)
+	}
 }
 
 // T113: the field allowlist rejects any field not writable via
@@ -644,6 +789,32 @@ func TestDeepIdentificationProposal_SecondApplyIsIdempotent(t *testing.T) {
 	}
 	if _, err := svc.Apply(jobID2, userID, "coin", nil); err != nil {
 		t.Fatalf("apply on fresh report cycle should succeed: %v", err)
+	}
+}
+
+func TestDeepIdentificationProposal_UnknownSourceCannotEditOrApply(t *testing.T) {
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSource("future_source"), nil, map[string]any{
+		"notes": "must remain unchanged",
+	})
+
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"notes": {Accepted: acceptTrue()},
+	}); !errors.Is(err, ErrDeepProposalNotFound) {
+		t.Fatalf("UpdateProposal error = %v, want ErrDeepProposalNotFound", err)
+	}
+	if _, err := svc.Apply(jobID, userID, "draft", nil); !errors.Is(err, ErrDeepProposalNotFound) {
+		t.Fatalf("Apply error = %v, want ErrDeepProposalNotFound", err)
+	}
+
+	var after models.DeepIdentificationJob
+	if err := db.First(&after, jobID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(after.ProposalJSON, "must remain unchanged") || after.AppliedAt != nil ||
+		after.AppliedCoinID != nil || after.AppliedDraftID != nil {
+		t.Fatalf("unknown-source proposal path mutated job: %#v", after)
 	}
 }
 

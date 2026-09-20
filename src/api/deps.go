@@ -49,6 +49,8 @@ type appDeps struct {
 	coinRepo                       *repository.CoinRepository
 	journalRepo                    *repository.JournalRepository
 	noteRepo                       *repository.NoteRepository
+	collectorProfileHandler        *handlers.CollectorProfileHandler
+	wishlistURLHandler             *handlers.WishlistURLHandler
 	socialRepo                     *repository.SocialRepository
 	notifRepo                      *repository.NotificationRepository
 	notifSvc                       *services.NotificationService
@@ -61,14 +63,19 @@ type appDeps struct {
 	valRepo                        *repository.ValuationRepository
 	valSvc                         *services.ValuationService
 	aiJobSvc                       *services.AIJobService
+	setBuilderSvc                  *services.SetBuilderService
 	coinLookupSvc                  *services.CoinLookupService
 	deepIdentificationRepo         *repository.DeepIdentificationRepository
 	deepIdentificationSvc          *services.DeepIdentificationService
+	coinCopilotRepo                *repository.CoinCopilotRepository
+	coinCopilotSvc                 *services.CoinCopilotService
+	deepAnalysisHandoffSvc         *services.DeepAnalysisHandoffService
 	healthSvc                      *services.HealthService
 	healthScheduler                *services.CollectionHealthScheduler
 	shipmentSvc                    *services.ShipmentService
 	wishlistSearchAlertSvc         *services.WishlistSearchAlertService
 	auctionLotRepo                 *repository.AuctionLotRepository
+	auctionWatchlistSyncSvc        *services.AuctionWatchlistSyncService
 	auctionEventRepo               *repository.AuctionEventRepository
 	quickAccessSvc                 *services.QuickAccessService
 	auctionEndingRepo              *repository.AuctionEndingRepository
@@ -169,6 +176,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
 	imageRepo := repository.NewImageRepository(database.DB)
 	imageSvc := services.NewImageService(imageRepo, cfg.UploadDir)
+	if err := imageSvc.RetryPendingCleanup(); err != nil {
+		logger.Error("startup", "Pending image cleanup requires retry: %v", err)
+	}
 	imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)
@@ -271,7 +281,21 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	journalRepo := repository.NewJournalRepository(database.DB)
 	collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
 	noteRepo := repository.NewNoteRepository(database.DB)
+	collectorProfileRepo := repository.NewCollectorProfileRepository(database.DB)
+	collectorProfileSvc := services.NewCollectorProfileService(collectorProfileRepo)
+	collectorProfileHandler := handlers.NewCollectorProfileHandler(collectorProfileSvc)
+	wishlistURLHandler := handlers.NewWishlistURLHandler(services.NewWishlistURLService(coinRepo, agentProxy, settingsSvc))
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo).WithSettingsSupport(settingsSvc)
+	coinCopilotRepo := repository.NewCoinCopilotRepository(database.DB)
+	coinCopilotSvc := services.NewCoinCopilotService(
+		coinCopilotRepo, settingsSvc, agentProxy, internalTokenSvc, logger, cfg.AgentInternalCallbackURL,
+	).WithCollectorProfileService(collectorProfileSvc)
+	quickCaptureRepo := repository.NewQuickCaptureRepository(database.DB)
+	deepAnalysisHandoffSvc := services.NewDeepAnalysisHandoffService(
+		coinCopilotRepo, deepIdentificationRepo, coinRepo, quickCaptureRepo,
+		deepIdentificationSvc, settingsSvc, cfg.UploadDir,
+	)
+	coinCopilotSvc.StartWorkers(backgroundCtx)
 
 	// #218 external tool server: per-key rate limiter shared by the
 	// authenticated /api/v1/tools routes.
@@ -300,6 +324,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		coinRepo:                       coinRepo,
 		journalRepo:                    journalRepo,
 		noteRepo:                       noteRepo,
+		collectorProfileHandler:        collectorProfileHandler,
+		wishlistURLHandler:             wishlistURLHandler,
 		socialRepo:                     socialRepo,
 		notifRepo:                      notifRepo,
 		notifSvc:                       notifSvc,
@@ -315,11 +341,15 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		coinLookupSvc:                  coinLookupSvc,
 		deepIdentificationRepo:         deepIdentificationRepo,
 		deepIdentificationSvc:          deepIdentificationSvc,
+		coinCopilotRepo:                coinCopilotRepo,
+		coinCopilotSvc:                 coinCopilotSvc,
+		deepAnalysisHandoffSvc:         deepAnalysisHandoffSvc,
 		healthSvc:                      healthSvc,
 		healthScheduler:                healthScheduler,
 		shipmentSvc:                    shipmentSvc,
 		wishlistSearchAlertSvc:         wishlistSearchAlertSvc,
 		auctionLotRepo:                 auctionLotRepo,
+		auctionWatchlistSyncSvc:        auctionWatchlistSyncSvc,
 		auctionEventRepo:               auctionEventRepo,
 		quickAccessSvc:                 quickAccessSvc,
 		auctionEndingRepo:              auctionEndingRepo,

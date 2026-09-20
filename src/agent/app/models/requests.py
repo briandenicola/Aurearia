@@ -4,11 +4,17 @@ The Go API enriches each request with settings, user context, and data
 so this service remains stateless with no direct DB access.
 """
 
+import ipaddress
+import json
+import re
+import string
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 
 from app.outbound import validate_outbound_url
+from app.teams.specialist_contracts import SpecialistResult
 
 MAX_MESSAGE_LENGTH = 4000
 MAX_HISTORY_MESSAGE_LENGTH = 20000
@@ -30,6 +36,39 @@ MAX_SET_BUILDER_PROMPT_LENGTH = 500
 MAX_SET_BUILDER_FEEDBACK_LENGTH = 1000
 MAX_SET_BUILDER_MAX_TURNS = 8
 MAX_SET_BUILDER_MAX_SLOTS = 300
+MAX_COPILOT_GOAL_LENGTH = 4000
+MAX_COPILOT_PLAN_ITEMS = 12
+MAX_COPILOT_PLAN_TITLE_LENGTH = 200
+MAX_COPILOT_CLARIFICATION_LENGTH = 500
+MAX_COPILOT_CLARIFICATION_CHOICES = 10
+MAX_COPILOT_ALLOWED_TOOLS = 11
+MAX_DEEP_ANALYSIS_HANDOFF_REQUEST_BYTES = 65_536
+MAX_WISHLIST_URL_PAGE_TEXT_LENGTH = 50_000
+MAX_SEARCH_SOURCES = 20
+
+COPILOT_ALLOWED_TOOLS = frozenset(
+    {
+        "search_my_collection",
+        "get_coin",
+        "collection_summary",
+        "top_coins_by_value",
+        "portfolio_review",
+        "gap_analysis",
+        "market_search",
+        "auction_search",
+        "price_trends",
+        "similar_lots",
+        "deep_analysis_handoff",
+    }
+)
+COPILOT_SPECIALIST_TOOLS = frozenset(
+    {
+        "market_search",
+        "auction_search",
+        "price_trends",
+        "similar_lots",
+    }
+)
 
 # 344-deep-agentic-coin-identification (contracts/agent-internal-contract.md §2)
 MAX_DEEP_IMAGE_DATA_URI_LENGTH = 10 * 1024 * 1024
@@ -42,24 +81,117 @@ DEEP_PROVIDER_NAMES = {"numista", "nomisma", "ngc", "ocre", "rpc"}
 BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
 BoundedHistoryMessage = Annotated[str, StringConstraints(max_length=MAX_HISTORY_MESSAGE_LENGTH)]
 BoundedPrompt = Annotated[str, StringConstraints(max_length=MAX_PROMPT_LENGTH)]
+ConfiguredSourceHost = Annotated[str, StringConstraints(min_length=3, max_length=253)]
+
+_SOURCE_HOST_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
+)
+
+
+def _validate_search_sources(sources: list[str]) -> list[str]:
+    if not sources:
+        raise ValueError("at least one search source is required")
+    normalized: list[str] = []
+    for value in sources:
+        host = value.strip().lower().rstrip(".")
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("search sources must be DNS hostnames")
+        if not _SOURCE_HOST_PATTERN.fullmatch(host):
+            raise ValueError("invalid search source hostname")
+        if host not in normalized:
+            normalized.append(host)
+    return normalized
 BoundedName = Annotated[str, StringConstraints(max_length=MAX_NAME_LENGTH)]
 BoundedNotes = Annotated[str, StringConstraints(max_length=MAX_NOTES_LENGTH)]
 BoundedOptionalURL = Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)]
 BoundedURL = Annotated[str, StringConstraints(min_length=1, max_length=MAX_URL_LENGTH)]
 BoundedImageBase64 = Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64_LENGTH)]
-BoundedSetBuilderPrompt = Annotated[
-    str, StringConstraints(min_length=1, max_length=MAX_SET_BUILDER_PROMPT_LENGTH)
-]
+BoundedSetBuilderPrompt = Annotated[str, StringConstraints(min_length=1, max_length=MAX_SET_BUILDER_PROMPT_LENGTH)]
 BoundedSetBuilderFeedback = Annotated[str, StringConstraints(max_length=MAX_SET_BUILDER_FEEDBACK_LENGTH)]
-BoundedWishlistFeaturedSummary = Annotated[
-    str, StringConstraints(max_length=MAX_WISHLIST_FEATURED_SUMMARY_LENGTH)
-]
+BoundedWishlistFeaturedSummary = Annotated[str, StringConstraints(max_length=MAX_WISHLIST_FEATURED_SUMMARY_LENGTH)]
 
 
 class StrictRequestModel(BaseModel):
     """Base model for Go-to-agent DTOs with drift detection."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class DeepAnalysisHandoffTarget(StrictRequestModel):
+    type: Literal["coin", "draft"]
+    id: int = Field(gt=0)
+
+
+class DeepAnalysisHandoffArguments(StrictRequestModel):
+    """Strict model-visible arguments for the single fixed handoff capability."""
+
+    operation: Literal["request", "status", "rerun"]
+    target: DeepAnalysisHandoffTarget | None = None
+    job_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_operation_fields(self) -> "DeepAnalysisHandoffArguments":
+        if self.operation == "request" and (self.target is None or self.job_id is not None):
+            raise ValueError("request requires target and forbids job_id")
+        if self.operation == "status" and (self.target is not None or self.job_id is None):
+            raise ValueError("status requires job_id and forbids target")
+        if self.operation == "rerun" and (self.target is None or self.job_id is None):
+            raise ValueError("rerun requires target and prior job_id")
+        return self
+
+
+class DeepAnalysisHandoffRequest(DeepAnalysisHandoffArguments):
+    """Go callback request after Python injects durable execution fields."""
+
+    tool_call_id: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    handoff_idempotency_key: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=128),
+    ] | None = None
+    expected_checkpoint_version: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_injected_fields(self) -> "DeepAnalysisHandoffRequest":
+        if self.handoff_idempotency_key is not None and any(
+            character not in string.printable[:-5] for character in self.handoff_idempotency_key
+        ):
+            raise ValueError("handoff_idempotency_key must be printable ASCII")
+        if self.operation == "status" and self.handoff_idempotency_key is not None:
+            raise ValueError("status forbids handoff_idempotency_key")
+        if self.operation != "status" and self.handoff_idempotency_key is None:
+            raise ValueError("request and rerun require handoff_idempotency_key")
+        return self
+
+
+def validate_deep_analysis_handoff_request_envelope(payload: bytes) -> object:
+    """Validate canonical request serialization independently of model fields."""
+
+    if not payload:
+        raise ValueError("handoff request is empty")
+    try:
+        value = json.loads(payload)
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (UnicodeDecodeError, ValueError, TypeError) as exc:
+        raise ValueError("invalid handoff request JSON") from exc
+    if len(canonical) > MAX_DEEP_ANALYSIS_HANDOFF_REQUEST_BYTES:
+        raise ValueError("handoff request exceeds 65,536 bytes")
+    return value
+
+
+CopilotThreadID = Annotated[str, StringConstraints(pattern=r"^cct_[A-Za-z0-9_-]+$")]
+CopilotRunID = Annotated[str, StringConstraints(pattern=r"^ccr_[A-Za-z0-9_-]+$")]
+CopilotExecutionID = Annotated[str, StringConstraints(pattern=r"^cce_[A-Za-z0-9_-]+$")]
+CopilotToolCallID = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 
 
 def _validate_history_total_chars(history: list["ChatMessage"]) -> list["ChatMessage"]:
@@ -92,6 +224,22 @@ class LLMConfig(StrictRequestModel):
         return self
 
 
+class WishlistURLExtractionRequest(StrictRequestModel):
+    """One cleaned public listing page supplied by the trusted Go fetcher."""
+
+    llm: LLMConfig
+    source_url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    page_title: Annotated[str, StringConstraints(max_length=1000)] = ""
+    page_text: Annotated[
+        str,
+        StringConstraints(min_length=1, max_length=MAX_WISHLIST_URL_PAGE_TEXT_LENGTH),
+    ]
+    page_metadata: dict[str, Annotated[str, StringConstraints(max_length=4096)]] = Field(
+        default_factory=dict,
+        max_length=20,
+    )
+
+
 class UserContext(StrictRequestModel):
     """User context for personalizing agent behavior."""
 
@@ -106,11 +254,237 @@ class ChatMessage(StrictRequestModel):
     content: BoundedHistoryMessage
 
 
+class CopilotPlanItem(StrictRequestModel):
+    """Public, resumable plan state. It never contains model reasoning."""
+
+    id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    title: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_PLAN_TITLE_LENGTH)]
+    status: Literal["pending", "in_progress", "completed", "skipped", "failed"]
+
+
+class CopilotUsage(StrictRequestModel):
+    """Cumulative execution counters supplied by and returned to Go."""
+
+    iterations: int = Field(default=0, ge=0)
+    tool_calls: int = Field(default=0, ge=0)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+
+
+class CopilotBoundedToolResult(StrictRequestModel):
+    """Exact Feature 359 fallback emitted when a persisted result exceeds its byte limit."""
+
+    truncated: Literal[True]
+    summary: Literal["Tool result exceeded the persisted-result limit."]
+
+
+class CopilotCompletedTool(StrictRequestModel):
+    """A bounded, sanitized tool fact from the latest Go checkpoint."""
+
+    tool_call_id: CopilotToolCallID
+    tool_name: str
+    result: SpecialistResult | dict[str, Any]
+    truncated: bool = False
+
+    @model_validator(mode="after")
+    def validate_tool_result(self) -> "CopilotCompletedTool":
+        if self.tool_name not in COPILOT_ALLOWED_TOOLS:
+            raise ValueError("tool_name is not in the Coin Copilot allowlist")
+        if self.tool_name == "deep_analysis_handoff":
+            from app.models.responses import DeepAnalysisHandoffResult
+
+            try:
+                self.result = DeepAnalysisHandoffResult.model_validate(self.result)
+            except ValueError as exc:
+                if not self.truncated:
+                    raise ValueError("Deep Analysis handoff result is invalid") from exc
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValidationError:
+                    raise ValueError(
+                        "truncated Deep Analysis handoff results require the bounded fallback envelope"
+                    ) from exc
+                self.result = fallback.model_dump(mode="json")
+            return self
+        if self.tool_name in COPILOT_SPECIALIST_TOOLS:
+            if self.truncated:
+                try:
+                    fallback = CopilotBoundedToolResult.model_validate(self.result)
+                except ValidationError:
+                    raise ValueError("truncated specialist results require the bounded fallback envelope")
+                self.result = fallback.model_dump(mode="json")
+                return self
+            try:
+                result = SpecialistResult.model_validate(self.result)
+            except ValueError as exc:
+                raise ValueError("specialist result is invalid") from exc
+            if result.capability != self.tool_name:
+                raise ValueError("specialist result capability does not match tool_name")
+            self.result = result
+        elif isinstance(self.result, SpecialistResult):
+            raise ValueError("specialist result requires a specialist tool_name")
+        return self
+
+
+class CopilotClarification(StrictRequestModel):
+    """Typed clarification state that can be resumed by Go."""
+
+    question: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_CLARIFICATION_LENGTH)]
+    input_type: Literal["text", "single_choice", "boolean"]
+    choices: list[Annotated[str, StringConstraints(min_length=1, max_length=200)]] = Field(
+        default_factory=list,
+        max_length=MAX_COPILOT_CLARIFICATION_CHOICES,
+    )
+
+    @model_validator(mode="after")
+    def validate_choices(self) -> "CopilotClarification":
+        if self.input_type == "single_choice" and not self.choices:
+            raise ValueError("single_choice clarification requires choices")
+        if self.input_type != "single_choice" and self.choices:
+            raise ValueError("choices are only valid for single_choice clarification")
+        return self
+
+
+class CopilotCheckpoint(StrictRequestModel):
+    """Latest durable continuation state supplied by Go."""
+
+    version: int = Field(ge=0)
+    plan: list[CopilotPlanItem] = Field(default_factory=list, max_length=MAX_COPILOT_PLAN_ITEMS)
+    completed_tools: list[CopilotCompletedTool] = Field(default_factory=list, max_length=40)
+    pending_clarification: CopilotClarification | None = None
+    next_action: Literal["continue", "await_clarification", "finish"] = "continue"
+    counters: CopilotUsage = Field(default_factory=CopilotUsage)
+
+    @field_validator("completed_tools")
+    @classmethod
+    def validate_unique_tool_calls(
+        cls,
+        tools: list[CopilotCompletedTool],
+    ) -> list[CopilotCompletedTool]:
+        ids = [tool.tool_call_id for tool in tools]
+        if len(ids) != len(set(ids)):
+            raise ValueError("completed_tools contains duplicate tool_call_id values")
+        return tools
+
+
+class CopilotLimits(StrictRequestModel):
+    """Snapshotted limits for one stateless execution."""
+
+    max_iterations: int = Field(ge=1, le=20)
+    max_tool_calls: int = Field(ge=1, le=40)
+    max_concurrent_tools: int = Field(ge=1, le=5)
+    hard_timeout_seconds: int = Field(ge=15, le=150)
+    max_persisted_tool_result_bytes: int = Field(ge=4096, le=131072)
+
+
+class CopilotAppContext(StrictRequestModel):
+    """Bounded, non-authoritative UI context."""
+
+    route: Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)] = ""
+    active_coin_id: int | None = Field(default=None, alias="activeCoinId", ge=1)
+    active_draft_id: int | None = Field(default=None, alias="activeDraftId", ge=1)
+
+
+class CopilotCollectorContext(StrictRequestModel):
+    """Bounded, owner-supplied advisory context with no identity or action fields."""
+
+    budget_min: float | None = Field(default=None, ge=0, le=100_000_000)
+    budget_max: float | None = Field(default=None, ge=0, le=100_000_000)
+    currency: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] | None = None
+    preferred_periods: list[
+        Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    ] = Field(default_factory=list, max_length=20)
+    preferred_categories: list[
+        Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    ] = Field(default_factory=list, max_length=20)
+    excluded_categories: list[
+        Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    ] = Field(default_factory=list, max_length=20)
+    preferred_dealers: list[
+        Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    ] = Field(default_factory=list, max_length=20)
+    collecting_goals: list[
+        Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    ] = Field(default_factory=list, max_length=20)
+    captured_at: datetime
+
+    @model_validator(mode="after")
+    def validate_budget_order(self) -> "CopilotCollectorContext":
+        if (
+            self.budget_min is not None
+            and self.budget_max is not None
+            and self.budget_min > self.budget_max
+        ):
+            raise ValueError("budget_min must not exceed budget_max")
+        return self
+
+
+class CopilotCapabilityRequest(StrictRequestModel):
+    """Provider configuration used only to verify fixed Copilot tool binding."""
+
+    llm: LLMConfig
+
+
+class CopilotExecuteRequest(StrictRequestModel):
+    """Complete stateless Go-to-Python Coin Copilot execution request."""
+
+    schema_version: Literal[1]
+    thread_id: CopilotThreadID
+    run_id: CopilotRunID
+    execution_id: CopilotExecutionID
+    goal: Annotated[str, StringConstraints(min_length=1, max_length=MAX_COPILOT_GOAL_LENGTH)]
+    messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_HISTORY_MESSAGES)
+    checkpoint: CopilotCheckpoint
+    app_context: CopilotAppContext | None = None
+    collector_context: CopilotCollectorContext | None = None
+    llm: LLMConfig
+    limits: CopilotLimits
+    tools_base_url: BoundedURL
+    execution_token: Annotated[str, StringConstraints(min_length=1, max_length=8192)]
+    allowed_tools: list[str] = Field(min_length=1, max_length=MAX_COPILOT_ALLOWED_TOOLS)
+    coin_search_prompt: BoundedPrompt = ""
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+    auction_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+
+    @field_validator("messages")
+    @classmethod
+    def validate_messages_total_chars(cls, messages: list[ChatMessage]) -> list[ChatMessage]:
+        return _validate_history_total_chars(messages)
+
+    @field_validator("allowed_tools")
+    @classmethod
+    def validate_allowed_tools(cls, tools: list[str]) -> list[str]:
+        if len(tools) != len(set(tools)):
+            raise ValueError("allowed_tools contains duplicates")
+        if not set(tools).issubset(COPILOT_ALLOWED_TOOLS):
+            raise ValueError("allowed_tools contains an unsupported capability")
+        return tools
+
+    @field_validator("dealer_search_sources", "auction_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
+
+    @model_validator(mode="after")
+    def validate_checkpoint_budgets(self) -> "CopilotExecuteRequest":
+        counters = self.checkpoint.counters
+        if counters.iterations > self.limits.max_iterations:
+            raise ValueError("checkpoint exceeds max_iterations")
+        if counters.tool_calls > self.limits.max_tool_calls:
+            raise ValueError("checkpoint exceeds max_tool_calls")
+        return self
+
+
 class AppContext(StrictRequestModel):
     """Frontend route context proxied by Go for collection-aware chat."""
 
     route: Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)] = ""
     active_coin_id: int | None = Field(default=None, alias="activeCoinId", ge=1)
+    active_draft_id: int | None = Field(default=None, alias="activeDraftId", ge=1)
 
 
 class PortfolioCoin(StrictRequestModel):
@@ -162,6 +536,12 @@ class CoinSearchRequest(StrictRequestModel):
     app_context: AppContext | None = None
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+    auction_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
     portfolio: PortfolioSummary | None = None
     internal_token: str = ""
     tools_base_url: BoundedOptionalURL = ""
@@ -170,6 +550,11 @@ class CoinSearchRequest(StrictRequestModel):
     @classmethod
     def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
         return _validate_history_total_chars(history)
+
+    @field_validator("dealer_search_sources", "auction_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
 
 class CoinShowSearchRequest(StrictRequestModel):
@@ -181,11 +566,22 @@ class CoinShowSearchRequest(StrictRequestModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_MESSAGES)
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+    auction_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
 
     @field_validator("history")
     @classmethod
     def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
         return _validate_history_total_chars(history)
+
+    @field_validator("dealer_search_sources", "auction_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
 
 class CoinData(StrictRequestModel):
@@ -362,6 +758,14 @@ class AlertDiscoveryRequest(StrictRequestModel):
 
     llm: LLMConfig
     alert: AlertDiscoveryDetail
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+
+    @field_validator("dealer_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
 
 
 # Dynamic Set Builder workflow DTOs.
@@ -486,6 +890,8 @@ class DeepIdentifyRequest(StrictRequestModel):
     llm: LLMConfig
     images: list[DeepIdentifyImage] = Field(default_factory=list, max_length=MAX_DEEP_IMAGES)
     notes: BoundedDeepNotes = ""
+    obverse_prompt: BoundedPrompt = ""
+    reverse_prompt: BoundedPrompt = ""
     quick_evidence: QuickEvidence | None = None
     provider_override: list[Literal["numista", "nomisma", "ngc", "ocre", "rpc"]] = Field(
         default_factory=list, max_length=MAX_DEEP_PROVIDER_OVERRIDE_ENTRIES
@@ -507,9 +913,7 @@ class DeepIdentifyRequest(StrictRequestModel):
 
     @field_validator("provider_catalog")
     @classmethod
-    def validate_unique_providers(
-        cls, catalog: list[DeepProviderCatalogEntry]
-    ) -> list[DeepProviderCatalogEntry]:
+    def validate_unique_providers(cls, catalog: list[DeepProviderCatalogEntry]) -> list[DeepProviderCatalogEntry]:
         names = [entry.provider for entry in catalog]
         if len(set(names)) != len(names):
             raise ValueError("provider_catalog contains duplicate providers")

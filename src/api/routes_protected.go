@@ -37,7 +37,8 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, d.logger)
 		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, d.cfg.UploadDir).
 			WithCoinValidation(coinSvc).
-			WithReferenceValidation(coinReferenceSvc)
+			WithReferenceValidation(coinReferenceSvc).
+			WithDeepProposalReferences(d.deepIdentificationRepo)
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, d.logger)
 		coinLookupHandler := handlers.NewCoinLookupHandler(d.coinLookupSvc, d.logger)
 		protected.GET("/coins", coinHandler.List)
@@ -83,6 +84,10 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		protected.GET("/notes/:id", noteHandler.Get)
 		protected.PUT("/notes/:id", noteHandler.Update)
 		protected.DELETE("/notes/:id", noteHandler.Delete)
+
+		protected.GET("/collector-profile", d.collectorProfileHandler.Get)
+		protected.PUT("/collector-profile", d.writeRateLimit, d.collectorProfileHandler.Put)
+		protected.POST("/wishlist/url-intake/analyze", d.writeRateLimit, d.wishlistURLHandler.Analyze)
 
 		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
 		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)
@@ -141,6 +146,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 			WithWorkflow(d.agentProxy, d.settingsSvc, repository.NewAgentRepository(database.DB), d.logger).
 			WithSetRepository(setRepo)
 		setBuilderService.StartWorkers(1)
+		d.setBuilderSvc = setBuilderService
 		setBuilderHandler := handlers.NewSetBuilderHandler(setBuilderService)
 		setSnapshotScheduler := services.NewSetSnapshotScheduler(setService, d.settingsSvc, d.logger)
 		go setSnapshotScheduler.Start()
@@ -242,7 +248,9 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		nbSvc := services.NewNumisBidsService(d.logger)
 		cngSvc := services.NewCNGAuctionService(d.logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
-		auctionLotHandler := handlers.NewAuctionLotHandler(d.auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, d.logger, d.credentialEncryptionSvc).WithShipmentSupport(d.shipmentSvc)
+		auctionLotHandler := handlers.NewAuctionLotHandler(d.auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, d.logger, d.credentialEncryptionSvc).
+			WithShipmentSupport(d.shipmentSvc).
+			WithWatchlistSync(d.auctionWatchlistSyncSvc)
 		protected.GET("/auctions", auctionLotHandler.List)
 		protected.GET("/auctions/counts", auctionLotHandler.Counts)
 		protected.PUT("/auctions/bulk-link-event", auctionLotHandler.BulkLinkEvent)
@@ -285,6 +293,15 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		contentGuard := services.NewContentGuard(d.logger)
 		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, d.journalRepo, d.agentProxy, d.collectionSvc, d.settingsSvc, d.internalTokenSvc, contentGuard, d.logger, d.cfg.AgentInternalCallbackURL)
 		protected.POST("/agent/chat", d.writeRateLimit, agentHandler.ChatStream)
+		coinCopilotHandler := handlers.NewCoinCopilotHandler(d.coinCopilotSvc, d.logger)
+		protected.GET("/agent/copilot/capability", coinCopilotHandler.Capability)
+		protected.POST("/agent/copilot/runs", d.writeRateLimit, coinCopilotHandler.Start)
+		protected.GET("/agent/copilot/threads/:threadId", coinCopilotHandler.GetThread)
+		protected.DELETE("/agent/copilot/threads/:threadId", d.writeRateLimit, coinCopilotHandler.DeleteThread)
+		protected.GET("/agent/copilot/runs/:runId", coinCopilotHandler.GetRun)
+		protected.GET("/agent/copilot/runs/:runId/events", coinCopilotHandler.StreamEvents)
+		protected.POST("/agent/copilot/runs/:runId/cancel", d.writeRateLimit, coinCopilotHandler.Cancel)
+		protected.POST("/agent/copilot/runs/:runId/resume", d.writeRateLimit, coinCopilotHandler.Resume)
 		protected.POST("/agent/collection/proposals/:proposalId/commit", d.writeRateLimit, agentHandler.CommitCollectionProposal)
 		protected.POST("/agent/collection/proposals/:proposalId/cancel", d.writeRateLimit, agentHandler.CancelCollectionProposal)
 		protected.POST("/coins/:id/estimate-value", d.writeRateLimit, aiJobHandler.EstimateValue)

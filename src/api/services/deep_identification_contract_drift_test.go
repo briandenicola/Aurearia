@@ -83,7 +83,7 @@ package services
 //     named, reflectable struct (`deepSynthesisProposedField` and its nested
 //     evidence_refs entry), this file compares it mechanically. Where it does
 //     not (`disagreements`, `unresolved_questions`, `coverage`,
-//     `attributions`, `image_hypothesis`, `partial_success`'s own anonymous
+//     `attributions`, `face_analyses`, `image_hypothesis`, `partial_success`'s own anonymous
 //     struct, and the `narrative`/`proposed_fields` wrapper key names
 //     themselves), this file falls back to pinning the literal, known
 //     top-level property set read from the schema fixture - this is the one
@@ -375,6 +375,7 @@ func TestDeepSynthesisKnownTopLevelFieldsMatchPython(t *testing.T) {
 		"attributions",
 		"coverage",
 		"disagreements",
+		"face_analyses",
 		"image_hypothesis",
 		"narrative",
 		"partial_success",
@@ -396,5 +397,55 @@ func TestDeepSynthesisKnownTopLevelFieldsMatchPython(t *testing.T) {
 		if got[i] != expected[i] {
 			t.Fatalf("DeepSynthesis top-level fields changed: got %v, want %v", got, expected)
 		}
+	}
+
+}
+
+func TestFeature362CitationAndReviewURLsFailClosed(t *testing.T) {
+	for name, test := range map[string]struct {
+		provider string
+		url      string
+	}{
+		"unsafe scheme":          {"numista", "ftp://en.numista.com/catalogue/pieces1.html"},
+		"embedded credentials":   {"numista", "https://" + "user:pass@" + "en.numista.com/catalogue/pieces1.html"},
+		"malformed":              {"numista", "https://[::1"},
+		"unapproved host":        {"numista", "https://evil.example/catalogue/pieces1.html"},
+		"provider host mismatch": {"nomisma", "https://en.numista.com/catalogue/pieces1.html"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if deepCitationHostAllowed(test.provider, test.url) {
+				t.Fatalf("unsafe citation accepted for %s: %q", test.provider, test.url)
+			}
+		})
+	}
+	if !deepCitationHostAllowed("numista", "https://en.numista.com/catalogue/pieces1.html") {
+		t.Fatal("canonical safe citation was rejected")
+	}
+
+	valid := DeepAnalysisHandoffResult{
+		SchemaVersion: 1, Operation: "status", Outcome: "status",
+		Job: &DeepAnalysisHandoffJob{
+			ID: 314, Source: "saved_coin", Status: "running", Reused: true,
+			CreatedAt: "2026-09-18T18:00:00Z",
+		},
+		ReviewURL: "/deep-analysis/314",
+	}
+	if err := ValidateDeepAnalysisHandoffResult(valid); err != nil {
+		t.Fatalf("canonical review URL rejected: %v", err)
+	}
+	for name, reviewURL := range map[string]string{
+		"absolute":          "https://example.test/deep-analysis/314",
+		"protocol relative": "//example.test/deep-analysis/314",
+		"non-positive":      "/deep-analysis/0",
+		"mismatched":        "/deep-analysis/315",
+		"embedded query":    "/deep-analysis/314?next=https://evil.example",
+	} {
+		t.Run("review "+name, func(t *testing.T) {
+			got := valid
+			got.ReviewURL = reviewURL
+			if err := ValidateDeepAnalysisHandoffResult(got); err == nil {
+				t.Fatalf("unsafe review URL accepted: %q", reviewURL)
+			}
+		})
 	}
 }

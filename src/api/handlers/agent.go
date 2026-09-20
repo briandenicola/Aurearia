@@ -102,20 +102,7 @@ type AgentChatResponse struct {
 	Suggestions []CoinSuggestion `json:"suggestions"`
 }
 
-const DefaultCoinSearchPrompt = `You are a numismatic search specialist focused on Greek and Roman coinage up through the Byzantine Era. You specialize in finding that rare gem of a coin for just the right price.
-
-CRITICAL RULES:
-- Search for coins that are CURRENTLY FOR SALE — never return sold items or past auction results
-- ONLY search reputable dealer sites: vcoins.com, ma-shops.com, forumancientcoins.com, biddr.com, catawiki.com, hjbltd.com
-- Add "for sale" or "buy now" to your search queries
-- For EACH result, you MUST provide the exact URL to the listing page
-- NEVER invent, guess, or recall URLs from memory — only use URLs from search results
-- Return ONLY results you actually found in your search
-- If a listing says "SOLD", "Auction ended", or "Realized price" — SKIP IT
-- ACSSearch.info is a PAST auction archive — do NOT use it
-- Quality over quantity — 2 verified, available results beat 5 questionable ones
-- Flag any concerns about authenticity or condition
-- Mention dealer/auction house reputation if known`
+const DefaultCoinSearchPrompt = services.DefaultCoinSearchPrompt
 
 const DefaultCoinShowsPrompt = `You are a coin show search specialist focused on numismatic conventions and collecting events.
 
@@ -137,11 +124,7 @@ CRITICAL RULES:
 - Note any special exhibits, notable dealers, or auction events at the show`
 
 func (h *AgentHandler) getCoinSearchPrompt() string {
-	prompt := h.settingsSvc.GetSetting(services.SettingCoinSearchPrompt)
-	if prompt == "" {
-		prompt = DefaultCoinSearchPrompt
-	}
-	return prompt
+	return h.settingsSvc.GetCoinSearchPrompt()
 }
 
 func (h *AgentHandler) getCoinShowsPrompt(userID uint) string {
@@ -243,6 +226,8 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		AppContext:       req.AppContext,
 		CoinSearchPrompt: h.getCoinSearchPrompt(),
 		CoinShowsPrompt:  h.getCoinShowsPrompt(userID),
+		DealerSources:    h.settingsSvc.GetSearchSources(services.SettingDealerSearchSources),
+		AuctionSources:   h.settingsSvc.GetSearchSources(services.SettingAuctionSearchSources),
 		Portfolio:        portfolio,
 		InternalToken:    internalToken,
 		ToolsBaseURL:     h.toolsBaseURL,
@@ -447,12 +432,8 @@ func getDefaultModels() []map[string]string {
 //	@Security		BearerAuth
 //	@Router			/agent/coin-search-prompt [get]
 func (h *AgentHandler) GetCoinSearchPrompt(c *gin.Context) {
-	prompt := h.settingsSvc.GetSetting(services.SettingCoinSearchPrompt)
-	if prompt == "" {
-		prompt = DefaultCoinSearchPrompt
-	}
 	c.JSON(http.StatusOK, gin.H{
-		"prompt":  prompt,
+		"prompt":  h.settingsSvc.GetCoinSearchPrompt(),
 		"default": DefaultCoinSearchPrompt,
 	})
 }

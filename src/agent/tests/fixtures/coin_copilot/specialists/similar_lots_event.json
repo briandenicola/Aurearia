@@ -1,0 +1,47 @@
+{
+  "seq": 14,
+  "threadId": "cct_fixture",
+  "runId": "ccr_fixture",
+  "executionId": "cce_fixture",
+  "type": "tool_completed",
+  "ts": "2026-09-18T12:00:00Z",
+  "payload": {
+    "toolCallId": "call_similar_lots",
+    "toolName": "similar_lots",
+    "stepId": "step-1",
+    "status": "succeeded",
+    "durationMs": 823,
+    "resultSummary": "similar_lots returned normalized evidence.",
+    "truncated": false,
+    "specialistResult": {
+      "capability": "similar_lots",
+      "outcome": "complete",
+      "items": [
+        {
+          "kind": "similar_lot",
+          "title": "Domitian denarius with Minerva advancing right",
+          "sourceUrl": "https://www.numisbids.com/n.php?p=lot&sid=9000&lot=1",
+          "observedAt": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verificationState": "verified",
+          "facts": [],
+          "matchedAttributes": [
+            "ruler",
+            "denomination",
+            "material",
+            "reverse type"
+          ],
+          "materialDifferences": [
+            "Different officina mark"
+          ]
+        }
+      ],
+      "trend": null,
+      "warnings": [],
+      "truncation": {
+        "truncated": false,
+        "omitted_items": 0
+      }
+    }
+  }
+}

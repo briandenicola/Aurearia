@@ -1,0 +1,79 @@
+{
+  "seq": 14,
+  "threadId": "cct_fixture",
+  "runId": "ccr_fixture",
+  "executionId": "cce_fixture",
+  "type": "tool_completed",
+  "ts": "2026-09-18T12:00:00Z",
+  "payload": {
+    "toolCallId": "call_price_trends",
+    "toolName": "price_trends",
+    "stepId": "step-1",
+    "status": "succeeded",
+    "durationMs": 823,
+    "resultSummary": "price_trends returned normalized evidence.",
+    "truncated": false,
+    "specialistResult": {
+      "capability": "price_trends",
+      "outcome": "complete",
+      "items": [
+        {
+          "kind": "sale_observation",
+          "title": "Domitian denarius completed sale 1",
+          "sourceUrl": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
+          "observedAt": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verificationState": "verified",
+          "facts": [],
+          "matchedAttributes": [],
+          "materialDifferences": []
+        },
+        {
+          "kind": "sale_observation",
+          "title": "Domitian denarius completed sale 2",
+          "sourceUrl": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=2",
+          "observedAt": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verificationState": "verified",
+          "facts": [],
+          "matchedAttributes": [],
+          "materialDifferences": []
+        },
+        {
+          "kind": "sale_observation",
+          "title": "Domitian denarius completed sale 3",
+          "sourceUrl": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=3",
+          "observedAt": "2026-09-18T12:00:00Z",
+          "confidence": "high",
+          "verificationState": "verified",
+          "facts": [],
+          "matchedAttributes": [],
+          "materialDifferences": []
+        }
+      ],
+      "trend": {
+        "state": "rising",
+        "sampleSize": 3,
+        "dateFrom": "2026-02-01",
+        "dateTo": "2026-08-01",
+        "currency": "USD",
+        "priceBasis": "hammer",
+        "low": 210,
+        "median": 260,
+        "high": 325,
+        "confidence": "high",
+        "limitations": [],
+        "supportingSourceIds": [
+          "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
+          "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=2",
+          "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=3"
+        ]
+      },
+      "warnings": [],
+      "truncation": {
+        "truncated": false,
+        "omitted_items": 0
+      }
+    }
+  }
+}

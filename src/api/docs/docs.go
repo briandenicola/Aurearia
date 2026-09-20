@@ -3670,6 +3670,401 @@ const docTemplate = `{
                 }
             }
         },
+        "/agent/copilot/capability": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Resolve Coin Copilot or legacy mode",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CoinCopilotCapability"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/copilot/runs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Start a durable Coin Copilot run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Idempotency key",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Run request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/copilot/runs/{runId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Read an owner-scoped Coin Copilot run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/copilot/runs/{runId}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Cancel a Coin Copilot run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/copilot/runs/{runId}/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Replay and follow Coin Copilot events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Resume after sequence",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Resume after sequence",
+                        "name": "Last-Event-ID",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/copilot/runs/{runId}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Resume a paused Coin Copilot run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Resume request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotResumeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotRunEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/copilot/threads/{threadId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Read an owner-scoped Coin Copilot thread",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Thread ID",
+                        "name": "threadId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.copilotThreadDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Coin Copilot"
+                ],
+                "summary": "Delete a settled Coin Copilot thread",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Thread ID",
+                        "name": "threadId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/agent/models": {
             "get": {
                 "security": [
@@ -4115,7 +4510,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Sets or clears the calendar event for multiple auction lots at once.",
+                "description": "Partial success: commits each distinct owned lot independently; returns confirmed updated count and per-lot failures.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4141,10 +4536,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "integer"
-                            }
+                            "$ref": "#/definitions/services.BulkEventLinkResult"
                         }
                     },
                     "400": {
@@ -7450,7 +7842,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deletes an image from a coin. Removes the file from disk and the database record.",
+                "description": "Commits metadata deletion before file cleanup. A 202 cleanupPending response can be retried with the same DELETE; startup also retries. Missing files are accepted; fully completed deletions subsequently return 404.",
                 "produces": [
                     "application/json"
                 ],
@@ -7481,6 +7873,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.ImageDeletedResponse"
                         }
                     },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ImageCleanupPendingResponse"
+                        }
+                    },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
@@ -7495,6 +7893,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -8969,6 +9373,104 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/collector-profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated owner's saved collector profile or neutral defaults.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Collector Profile"
+                ],
+                "summary": "Get collector profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CollectorProfileResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Validates and atomically replaces the authenticated owner's complete collector profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Collector Profile"
+                ],
+                "summary": "Replace collector profile",
+                "parameters": [
+                    {
+                        "description": "Collector profile",
+                        "name": "profile",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.collectorProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CollectorProfileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -18408,6 +18910,75 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/wishlist/url-intake/analyze": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves one bounded public HTML page and returns an editable transient coin proposal. No coin is created.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist"
+                ],
+                "summary": "Analyze wishlist listing URL",
+                "parameters": [
+                    {
+                        "description": "Public listing URL",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.wishlistURLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.WishlistURLAnalysis"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -19335,6 +19906,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ImageCleanupPendingResponse": {
+            "type": "object",
+            "properties": {
+                "cleanupPending": {
+                    "type": "boolean"
+                },
+                "message": {
                     "type": "string"
                 }
             }
@@ -20967,6 +21549,197 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.collectorProfileRequest": {
+            "type": "object",
+            "properties": {
+                "budgetMax": {
+                    "type": "number"
+                },
+                "budgetMin": {
+                    "type": "number"
+                },
+                "collectingGoals": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "excludedCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredDealers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredPeriods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.copilotResumeRequest": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "expectedCheckpointVersion": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.copilotRunDTO": {
+            "type": "object",
+            "properties": {
+                "attempt": {
+                    "type": "integer"
+                },
+                "checkpointVersion": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "failureCode": {
+                    "type": "string"
+                },
+                "failureMessage": {
+                    "type": "string"
+                },
+                "finalAnswer": {
+                    "type": "string"
+                },
+                "goal": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lastSeq": {
+                    "type": "integer"
+                },
+                "resumeDeadline": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "threadId": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/handlers.copilotUsageDTO"
+                }
+            }
+        },
+        "handlers.copilotRunEnvelope": {
+            "type": "object",
+            "properties": {
+                "reused": {
+                    "type": "boolean"
+                },
+                "run": {
+                    "$ref": "#/definitions/handlers.copilotRunDTO"
+                }
+            }
+        },
+        "handlers.copilotStartRequest": {
+            "type": "object",
+            "properties": {
+                "appContext": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "goal": {
+                    "type": "string"
+                },
+                "threadId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.copilotThreadDTO": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.copilotThreadMessageDTO"
+                    }
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.copilotRunDTO"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.copilotThreadMessageDTO": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.copilotUsageDTO": {
+            "type": "object",
+            "properties": {
+                "inputTokens": {
+                    "type": "integer"
+                },
+                "iterations": {
+                    "type": "integer"
+                },
+                "outputTokens": {
+                    "type": "integer"
+                },
+                "toolCalls": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.createOrUpdateReminderRequest": {
             "type": "object",
             "required": [
@@ -21557,6 +22330,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "verificationStatus": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.wishlistURLRequest": {
+            "type": "object",
+            "properties": {
+                "url": {
                     "type": "string"
                 }
             }
@@ -24644,6 +25425,20 @@ const docTemplate = `{
                 }
             }
         },
+        "services.BulkEventLinkResult": {
+            "type": "object",
+            "properties": {
+                "failures": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.EventLinkFailure"
+                    }
+                },
+                "updated": {
+                    "type": "integer"
+                }
+            }
+        },
         "services.CancelCollectionProposalResult": {
             "type": "object",
             "properties": {
@@ -24711,6 +25506,23 @@ const docTemplate = `{
                 "ChecklistSeverityMedium",
                 "ChecklistSeverityLow"
             ]
+        },
+        "services.CoinCopilotCapability": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "modelToolCallingSupported": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
         },
         "services.CoinHealthItem": {
             "type": "object",
@@ -24796,6 +25608,9 @@ const docTemplate = `{
                 "activeCoinId": {
                     "type": "integer"
                 },
+                "activeDraftId": {
+                    "type": "integer"
+                },
                 "route": {
                     "type": "string"
                 }
@@ -24821,6 +25636,56 @@ const docTemplate = `{
                 },
                 "weights": {
                     "$ref": "#/definitions/services.HealthWeights"
+                }
+            }
+        },
+        "services.CollectorProfileResponse": {
+            "type": "object",
+            "properties": {
+                "budgetMax": {
+                    "type": "number"
+                },
+                "budgetMin": {
+                    "type": "number"
+                },
+                "collectingGoals": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "excludedCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "isDefault": {
+                    "type": "boolean"
+                },
+                "preferredCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredDealers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "preferredPeriods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },
@@ -24890,6 +25755,20 @@ const docTemplate = `{
                 },
                 "usurpers": {
                     "$ref": "#/definitions/services.CategoryProgress"
+                }
+            }
+        },
+        "services.EventLinkFailure": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "lotId": {
+                    "type": "integer"
                 }
             }
         },
@@ -25587,6 +26466,135 @@ const docTemplate = `{
                 },
                 "fromValuationHistory": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.WishlistURLAnalysis": {
+            "type": "object",
+            "properties": {
+                "existingCoinId": {
+                    "type": "integer"
+                },
+                "hypothesis": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesis"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "pageTitle": {
+                    "type": "string"
+                },
+                "schemaVersion": {
+                    "type": "integer"
+                },
+                "sourceUrl": {
+                    "type": "string"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.WishlistURLHypothesis": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "coin_type": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "currency": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "dateRange": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "dealerName": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "denomination": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "diameterMm": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "era": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "grade": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "legible": {
+                    "type": "boolean"
+                },
+                "listedPrice": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "listingStatus": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "material": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "mint": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "name": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "notes": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "observations": {
+                    "type": "string"
+                },
+                "obverseDescription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "obverseInscription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "rarityRating": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "references": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "reverseDescription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "reverseInscription": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "ruler": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                },
+                "weightGrams": {
+                    "$ref": "#/definitions/services.WishlistURLHypothesisField"
+                }
+            }
+        },
+        "services.WishlistURLHypothesisField": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "number"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         }

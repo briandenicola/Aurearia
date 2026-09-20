@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "capability": "auction_search",
+  "outcome": "partial",
+  "items": [
+    {
+      "kind": "auction_lot",
+      "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
+      "canonical_source_id": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
+      "provider": "numisbids",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "confidence": "high",
+      "verification_state": "verified",
+      "title": "Domitian AR denarius, Minerva reverse",
+      "description": null,
+      "auction_house": "Example Numismatic Auction",
+      "sale_name": "Ancient Coins 42",
+      "lot_number": "1",
+      "sale_date": "2026-10-01",
+      "estimate": 250,
+      "current_bid": null,
+      "currency": "USD",
+      "lot_status": "upcoming",
+      "ruler": "Domitian",
+      "denomination": "Denarius",
+      "era": "Roman Imperial",
+      "material": "Silver"
+    }
+  ],
+  "trend": null,
+  "provider_attempts": [
+    {
+      "provider": "numisbids",
+      "status": "success",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 1,
+      "warning_code": null
+    },
+    {
+      "provider": "auction_search_secondary",
+      "status": "timeout",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 0,
+      "warning_code": "provider_timeout"
+    }
+  ],
+  "warnings": [
+    "One configured source timed out; verified results are incomplete."
+  ],
+  "truncation": {
+    "truncated": false,
+    "omitted_items": 0
+  }
+}

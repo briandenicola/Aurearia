@@ -24,6 +24,49 @@ func TestArchitecture(t *testing.T) {
 	t.Run("handlers do not use GORM", TestHandlersDoNotUseGORM)
 	t.Run("handlers do not mention GORM types", TestHandlersDoNotUseGORMTextPatterns)
 	t.Run("package import matrix", TestPackageImportMatrix)
+	t.Run("Coin Copilot exposes no write operation", TestCoinCopilotExposesNoWriteOperation)
+	t.Run("wishlist URL intake is auction independent", TestWishlistURLIntakeIsAuctionIndependent)
+}
+
+func TestWishlistURLIntakeIsAuctionIndependent(t *testing.T) {
+	for _, name := range []string{
+		filepath.Join("services", "wishlist_url_contract.go"),
+		filepath.Join("services", "wishlist_url_service.go"),
+		filepath.Join("handlers", "wishlist_url.go"),
+		filepath.Join("..", "agent", "app", "teams", "wishlist_url_extraction.py"),
+		filepath.Join("..", "web", "src", "components", "wishlist", "WishlistURLIntake.vue"),
+	} {
+		content, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToLower(string(content)), "auction") {
+			t.Errorf("%s couples wishlist URL intake to the auction subsystem", name)
+		}
+	}
+}
+
+func TestCoinCopilotExposesNoWriteOperation(t *testing.T) {
+	forbiddenJSONFields := []string{
+		`json:"apply`, `json:"edit`, `json:"write`,
+		`json:"provider_query`, `json:"database`, `json:"filesystem`,
+		`json:"shell`, `json:"callback_url`,
+	}
+	for _, name := range []string{
+		filepath.Join("services", "coin_copilot_contract.go"),
+		filepath.Join("handlers", "coin_copilot_internal_tools.go"),
+	} {
+		content, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lower := strings.ToLower(string(content))
+		for _, forbidden := range forbiddenJSONFields {
+			if strings.Contains(lower, forbidden) {
+				t.Errorf("%s exposes forbidden Coin Copilot write/escalation field %q", name, forbidden)
+			}
+		}
+	}
 }
 
 // TestNoDirectDatabaseImports ensures that only main.go imports the database

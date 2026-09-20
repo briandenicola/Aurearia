@@ -138,3 +138,21 @@ def _build_collection_summary(portfolio: PortfolioSummary) -> str:
         parts.append("Coins:\n" + "\n".join(coin_list))
 
     return "\n".join(parts)
+
+
+def build_read_only_gap_analysis(summary: dict) -> str:
+    """Describe structural data gaps without acquisition or market guidance."""
+    total = int(summary.get("totalCoins", 0))
+    missing = summary.get("missingFields", {})
+    if not missing:
+        return (
+            f"Collection-only gap analysis: {total} owned coins and no missing "
+            "metadata categories were reported. No acquisition or market advice was produced."
+        )
+    ranked = sorted(missing.items(), key=lambda item: (-int(item[1]), item[0]))
+    details = "; ".join(f"{field}: {count}" for field, count in ranked)
+    return (
+        f"Collection-only gap analysis across {total} owned coins. "
+        f"Structural metadata gaps, highest count first: {details}. "
+        "This mode does not estimate prices, search markets, or recommend purchases."
+    )

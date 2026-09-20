@@ -393,8 +393,13 @@ amends a Feature 344 requirement, the superseded text is quoted verbatim in
   `reverse_type`, `mint`, `date_range`, `era`, and optional inferable
   `diameter_mm` and `weight_grams`, plus a **per-field confidence** in `[0,1]`
   and a short overall observation summary.
-- **FR-002**: The hypothesis MUST be produced by the **single vision LLM call
-  that already runs on every job**. No second vision call may be introduced.
+- **FR-002 (amended by ADR 0018)**: Deep Analysis MUST run the shared
+  Collection AI Analysis image-examination stage separately for the obverse
+  and reverse using the correctly labeled image, configured side prompt, and
+  supplied collector notes. It MUST then derive the typed hypothesis from
+  those two face narratives, Quick Lookup evidence, and collector notes in a
+  bounded text-only structured step. These calls MUST NOT create collection AI
+  jobs or mutate saved coin data. Quick Lookup remains one combined-image call.
 - **FR-003**: A field the images do not support MUST be **omitted or empty** —
   the model MUST NOT be permitted to fill a field by guessing. Confidence values
   MUST reflect legibility, not model verbosity.
@@ -509,6 +514,15 @@ amends a Feature 344 requirement, the superseded text is quoted verbatim in
   confidence for that field with `evidence_refs: [{"provider": "image"}]`.
   *(Amends 344 FR-028; realizes the 344 internal contract §5 shape that nothing
   currently emits.)*
+- **FR-021a**: The structured hypothesis and proposal MUST map every supported
+  detail from retained face narratives, Quick Lookup evidence, collector notes,
+  and provider evidence into the corresponding safe coin property when the
+  evidence supports it. This includes category, ruler, denomination, era, date
+  range, mint, material, weight, diameter, grade, inscriptions, descriptions,
+  rarity, notes, and catalogue coin type. The full narrative remains available
+  for review; structured mapping supplements rather than replaces it.
+  Acquisition, value, ownership, storage, sale, and workflow fields MUST remain
+  outside the Deep Analysis proposal surface.
 - **FR-022**: When a provider claim corroborates a hypothesis field (equal after
   the existing normalization), the proposed field's confidence MUST be raised by
   the rule `min(1.0, max(image_confidence, provider_confidence) + 0.10)` (RD-2),
@@ -628,10 +642,15 @@ amends a Feature 344 requirement, the superseded text is quoted verbatim in
 
 ### Key Entities *(include if feature involves data)*
 
-- **Coin hypothesis (image-derived)**: the typed output of the single vision
-  call — per-field values with per-field confidence, no citation, source
-  identity `image`. Consumed by routing, query building, evaluation, and
-  synthesis; persisted additively inside the report.
+- **Coin hypothesis (image-derived)**: typed evidence derived from the
+  role-specific obverse and reverse analyses, Quick Lookup evidence, and
+  collector notes — per-field values with per-field confidence, no citation,
+  source identity `image`. Consumed by routing, query building, evaluation,
+  and synthesis; persisted additively inside the report.
+- **Face analysis (image-derived)**: the retained, role-labeled obverse or
+  reverse narrative produced by the shared Collection AI Analysis examination
+  stage. It is review evidence, not a provider, and is persisted additively
+  without mutating the coin's saved side-analysis fields.
 - **Claim source**: the generalization of "provider" for evaluation and
   proposal-evidence purposes. Two kinds exist: a validated, citation-backed
   **provider claim**, and an uncited **image claim**. Only provider claims
@@ -668,8 +687,11 @@ amends a Feature 344 requirement, the superseded text is quoted verbatim in
   refs pass the existing citation host allowlist.
 - **SC-006**: Two identical runs produce byte-identical router `selected`,
   `skipped`, and `rationale` values (determinism), verified across ≥2 runs.
-- **SC-007**: LLM calls per job do **not** increase; a run without a provider
-  override makes **one fewer** LLM call than today (router removed).
+- **SC-007 (amended by ADR 0018)**: Deep Analysis performs exactly one
+  collection-grade vision examination for each required face and one bounded
+  text-only hypothesis-structuring call before provider research. Quick Lookup
+  remains the lower-latency combined-image path. Tests MUST prove that each
+  face receives only its labeled image and supplied collector notes.
 - **SC-008**: `FALLBACK_NARRATIVE_NO_EVIDENCE` appears **only** in runs where
   both the hypothesis and provider evidence are empty — asserted by a test that
   fails if a provider-empty/hypothesis-present run emits it.

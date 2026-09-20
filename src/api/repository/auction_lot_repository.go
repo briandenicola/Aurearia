@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,29 @@ func (r *AuctionLotRepository) RunInTransaction(fn func(tx *Transaction) error) 
 
 func (r *AuctionLotRepository) WithTransaction(tx *Transaction) *AuctionLotRepository {
 	return &AuctionLotRepository{db: tx.db}
+}
+
+// LinkEvent commits only after ownership, update and response reload succeed.
+func (r *AuctionLotRepository) LinkEvent(id, userID uint, eventID *uint) (*models.AuctionLot, error) {
+	var updated *models.AuctionLot
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		repo := r.WithTx(tx)
+		lot, err := repo.GetByID(id, userID)
+		if err != nil {
+			return fmt.Errorf("find auction lot: %w", err)
+		}
+		if eventID != nil {
+			if _, err := NewAuctionEventRepository(tx).GetByID(*eventID, userID); err != nil {
+				return fmt.Errorf("find calendar event: %w", err)
+			}
+		}
+		if err := repo.UpdateFields(lot, map[string]interface{}{"event_id": eventID}); err != nil {
+			return fmt.Errorf("link calendar event: %w", err)
+		}
+		updated, err = repo.GetByID(id, userID)
+		return err
+	})
+	return updated, err
 }
 
 // AuctionLotListFilters holds filtering/sorting options for listing auction lots.

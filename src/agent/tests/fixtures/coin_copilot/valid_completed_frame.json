@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "run_id": "ccr_fixture",
+  "execution_id": "cce_fixture",
+  "frame_id": "frm_completed",
+  "type": "completed",
+  "payload": {
+    "answer": "Your collection contains two recorded coins.",
+    "usage": {
+      "iterations": 2,
+      "tool_calls": 1,
+      "input_tokens": 100,
+      "output_tokens": 30
+    }
+  }
+}

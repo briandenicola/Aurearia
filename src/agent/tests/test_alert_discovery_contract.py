@@ -7,8 +7,8 @@ from app.models.requests import MAX_ALERT_CANDIDATES, AlertDiscoveryRequest
 from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance
 from app.teams.coin_search import (
     _candidate_from_suggestion,
+    _configured_alert_fetch_hosts,
     _filter_allowed_fetch_urls,
-    _trusted_alert_fetch_hosts,
     _url_matches_allowed_hosts,
 )
 
@@ -16,6 +16,7 @@ from app.teams.coin_search import (
 def valid_request_payload() -> dict:
     return {
         "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
+        "dealer_search_sources": ["vcoins.com"],
         "alert": {
             "alert_id": 1,
             "max_candidates": 20,
@@ -50,6 +51,18 @@ def test_alert_discovery_request_caps_max_candidates():
 def test_alert_discovery_request_validates_ranges():
     payload = valid_request_payload()
     payload["alert"]["criteria_snapshot"]["price_min"] = 400
+
+    with pytest.raises(ValidationError):
+        AlertDiscoveryRequest(**payload)
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["https://vcoins.com", "localhost", "127.0.0.1", "dealer.example/path"],
+)
+def test_alert_discovery_request_rejects_invalid_configured_sources(source):
+    payload = valid_request_payload()
+    payload["dealer_search_sources"] = [source]
 
     with pytest.raises(ValidationError):
         AlertDiscoveryRequest(**payload)
@@ -91,12 +104,12 @@ def test_alert_discovery_candidate_rejects_missing_provenance():
 
 
 def test_alert_discovery_fetch_allowlist_rejects_untrusted_source_filter():
-    assert _trusted_alert_fetch_hosts(["attacker.example"]) == set()
+    assert _configured_alert_fetch_hosts(["attacker.example"], {"vcoins.com"}) == set()
     assert not _url_matches_allowed_hosts("https://attacker.example/listing", {"vcoins.com"})
 
 
 def test_alert_discovery_fetch_allowlist_accepts_trusted_dealer_subdomain():
-    allowed = _trusted_alert_fetch_hosts(["www.vcoins.com"])
+    allowed = _configured_alert_fetch_hosts(["www.vcoins.com"], {"vcoins.com"})
 
     assert allowed == {"vcoins.com"}
     assert _url_matches_allowed_hosts("https://stores.vcoins.com/item", allowed)

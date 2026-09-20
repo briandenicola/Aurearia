@@ -1,14 +1,14 @@
 ---
 title: Social Following and Activity Feed
 id: F005
-status: promoted
+status: completed
 priority: P2
 effort: L
 value: 3
 risk: 3
 owner: Cassius+Aurelia
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-09-18
 ---
 
 ## Summary
@@ -44,3 +44,8 @@ None — feature shipped.
 ## Notes
 
 Retroactive card created 2026-05-28 for governance traceability under Constitution §0 (Hierarchy) Phase 2. Follower gallery renders coin cards without value/AI; search indexes only public users via `isPublic` flag on User model.
+
+## History
+
+- 2026-09-18: corrected status from `promoted` to `completed`; this shipped
+  before a dedicated SpecKit promotion and has no `specs/NNN-*` target.

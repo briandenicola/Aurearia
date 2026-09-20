@@ -23,6 +23,7 @@ package services
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,6 +32,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+var reminderSchedulerDBCounter atomic.Uint64
 
 func setupReminderSchedulerDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -41,7 +44,7 @@ func setupReminderSchedulerDB(t *testing.T) *gorm.DB {
 	// "no such table: purchase_reminders" failures. Named shared-memory + a
 	// single open connection is the canonical repo fix (see auction_alert_service_test.go,
 	// notification_service_test.go).
-	dsn := fmt.Sprintf("file:remsch_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:remsch_%d?mode=memory&cache=shared", reminderSchedulerDBCounter.Add(1))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)

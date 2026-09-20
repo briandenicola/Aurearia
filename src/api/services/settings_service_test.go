@@ -29,6 +29,44 @@ var numistaSettingTestCases = []numistaSettingTestCase{
 	{"detail timeout", SettingNumistaDetailTimeoutSeconds, 3, 1, 10, func(s NumistaSettings) int64 { return int64(s.DetailTimeout / time.Second) }},
 }
 
+func TestSearchSourceSettingsNormalizeAndDeduplicate(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	if err := svc.SetSetting(SettingDealerSearchSources, " VCoins.com.\nma-shops.com\nvcoins.com "); err != nil {
+		t.Fatal(err)
+	}
+	got := svc.GetSearchSources(SettingDealerSearchSources)
+	if len(got) != 2 || got[0] != "vcoins.com" || got[1] != "ma-shops.com" {
+		t.Fatalf("normalized sources = %#v", got)
+	}
+}
+
+func TestSearchSourceSettingsRejectUnsafeValues(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	for _, value := range []string{
+		"",
+		"https://vcoins.com/path",
+		"localhost",
+		"127.0.0.1",
+		"dealer.example:443",
+	} {
+		if err := svc.SetSetting(SettingDealerSearchSources, value); err == nil {
+			t.Errorf("value %q was accepted", value)
+		}
+	}
+}
+
+func TestSearchSourceDefaultsAreSeparated(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	dealers := svc.GetSearchSources(SettingDealerSearchSources)
+	auctions := svc.GetSearchSources(SettingAuctionSearchSources)
+	if len(dealers) != 6 {
+		t.Fatalf("dealer defaults = %#v", dealers)
+	}
+	if len(auctions) != 2 || auctions[0] != "numisbids.com" || auctions[1] != "cngcoins.com" {
+		t.Fatalf("auction defaults = %#v", auctions)
+	}
+}
+
 func TestNumistaSettingsDefaults(t *testing.T) {
 	svc, _ := newTestSettingsService(t)
 	settings := svc.GetNumistaSettings()
@@ -311,6 +349,54 @@ func TestResolveLLMConfigOllamaIncludesOllamaOnlyURLs(t *testing.T) {
 	}
 	if cfg.APIKey != "" {
 		t.Fatalf("Ollama config included Anthropic API key")
+	}
+}
+
+func TestCoinCopilotSettingsDefaultsAndIndependentFallbacks(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	svc := NewSettingsService(repository.NewSettingsRepository(db))
+	settings := svc.GetCoinCopilotSettings()
+	if settings.Enabled || settings.WorkerCount != 1 || settings.MaxActivePerUser != 1 ||
+		settings.QueueDepth != 16 || settings.MaxReasoningIterations != 8 || settings.MaxToolCalls != 12 ||
+		settings.HardTimeout != 120*time.Second || settings.MaxPersistedToolResultBytes != 32768 ||
+		settings.EventRetention != 168*time.Hour || settings.CheckpointRetention != 30*24*time.Hour ||
+		settings.ResumeWindow != 168*time.Hour || !settings.Valid {
+		t.Fatalf("unexpected defaults: %#v", settings)
+	}
+	if _, exists := svc.GetSettingDefaults()["CoinCopilotMaxEstimatedCostMicros"]; exists {
+		t.Fatal("removed Coin Copilot cost setting is still exposed")
+	}
+	if settings.AttributionEnabled {
+		t.Fatal("Coin Copilot attribution must default off")
+	}
+	if got := svc.GetSettingDefaults()[SettingCoinCopilotAttributionEnabled]; got != "false" {
+		t.Fatalf("Coin Copilot attribution default = %q, want false", got)
+	}
+	_ = svc.SetSetting(SettingCoinCopilotEnabled, "true")
+	_ = svc.SetSetting(SettingCoinCopilotAttributionEnabled, "true")
+	_ = svc.SetSetting(SettingCoinCopilotMaxToolCalls, "999")
+	settings = svc.GetCoinCopilotSettings()
+	if !settings.Enabled || !settings.AttributionEnabled || settings.MaxToolCalls != 12 || settings.Valid {
+		t.Fatalf("invalid value did not independently fall back: %#v", settings)
+	}
+}
+
+func TestCoinCopilotSettingsAcceptMaximumHardTimeout(t *testing.T) {
+	db := setupSettingsTestDB(t)
+	svc := NewSettingsService(repository.NewSettingsRepository(db))
+	if err := svc.SetSetting(SettingCoinCopilotHardTimeoutSeconds, "150"); err != nil {
+		t.Fatal(err)
+	}
+	settings := svc.GetCoinCopilotSettings()
+	if !settings.Valid || settings.HardTimeout != coinCopilotMaxExecutionTimeout {
+		t.Fatalf("maximum hard timeout settings = %#v", settings)
+	}
+	if err := svc.SetSetting(SettingCoinCopilotHardTimeoutSeconds, "151"); err != nil {
+		t.Fatal(err)
+	}
+	settings = svc.GetCoinCopilotSettings()
+	if settings.Valid || settings.HardTimeout != 120*time.Second {
+		t.Fatalf("over-maximum hard timeout settings = %#v", settings)
 	}
 }
 

@@ -2,6 +2,51 @@
 // re-exported from '@/types' so existing imports keep working.
 import type { Coin, CoinMutationPayload } from '@/types/coin'
 
+export interface WishlistURLHypothesisField {
+  value: string
+  confidence: number
+  evidence: string[]
+}
+
+export interface WishlistURLHypothesis {
+  name?: WishlistURLHypothesisField
+  category?: WishlistURLHypothesisField
+  ruler?: WishlistURLHypothesisField
+  denomination?: WishlistURLHypothesisField
+  material?: WishlistURLHypothesisField
+  mint?: WishlistURLHypothesisField
+  dateRange?: WishlistURLHypothesisField
+  era?: WishlistURLHypothesisField
+  obverseInscription?: WishlistURLHypothesisField
+  obverseDescription?: WishlistURLHypothesisField
+  reverseInscription?: WishlistURLHypothesisField
+  reverseDescription?: WishlistURLHypothesisField
+  weightGrams?: WishlistURLHypothesisField
+  diameterMm?: WishlistURLHypothesisField
+  grade?: WishlistURLHypothesisField
+  rarityRating?: WishlistURLHypothesisField
+  coin_type?: WishlistURLHypothesisField
+  references?: WishlistURLHypothesisField
+  notes?: WishlistURLHypothesisField
+  listingStatus?: WishlistURLHypothesisField
+  listedPrice?: WishlistURLHypothesisField
+  currency?: WishlistURLHypothesisField
+  dealerName?: WishlistURLHypothesisField
+  observations: string
+  legible: boolean
+}
+
+export interface WishlistURLAnalysis {
+  schemaVersion: 1
+  outcome: 'duplicate' | 'needs_review' | 'ready'
+  sourceUrl: string
+  existingCoinId?: number
+  pageTitle?: string
+  imageUrl?: string
+  hypothesis?: WishlistURLHypothesis
+  warnings?: string[]
+}
+
 export type WishlistSearchAlertCadence = 'manual' | 'daily' | 'weekly' | 'monthly'
 
 export type AlertRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'partial' | 'rate_limited' | 'cancelled'

@@ -6,44 +6,71 @@ Phase 2: We fetch dealer pages from the URLs found and extract real listings.
 Phase 3: Format the extracted listings into the CoinSuggestion JSON schema.
 """
 
+import asyncio
 import json
 import logging
 import re
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 from urllib.parse import urlparse
 
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
-from app.llm.provider import create_search_agent, get_chat_model, get_search_model
+from app.config import settings
+from app.llm.content import extract_search_text, extract_text_content
+from app.llm.provider import create_search_agent, get_chat_model, get_search_model, get_structured_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import AlertDiscoveryRequest, LLMConfig
 from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
 from app.safety import with_safety
+from app.teams.json_extraction import extract_json_payload
+from app.teams.specialist_contracts import (
+    CancellationCheck,
+    ProviderMalformedError,
+    ProviderRunner,
+    ProviderUnavailableError,
+    SpecialistQuery,
+    SpecialistResult,
+    raise_if_cancelled,
+    run_provider_search,
+)
 from app.tools.numismatic_authority import normalize_candidate_references
-from app.tools.search import fetch_dealer_page
+from app.tools.search import fetch_dealer_page, fetch_registered_dealer_page
 
 logger = logging.getLogger(__name__)
 
-TRUSTED_ALERT_FETCH_HOSTS = {
-    "vcoins.com",
-    "ma-shops.com",
-    "forumancientcoins.com",
-    "biddr.com",
-    "catawiki.com",
-    "hjbltd.com",
+MARKET_LISTINGS_SCHEMA = {
+    "title": "MarketListings",
+    "description": "Source-backed coin listings. Return an empty listings array when there are no matches.",
+    "type": "object",
+    "properties": {
+        "listings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    key: {"type": "string"}
+                    for key in (
+                        "name", "sourceUrl", "sourceName", "description", "category", "era",
+                        "ruler", "material", "denomination", "estPrice", "imageUrl", "availability",
+                    )
+                } | {"candidateReferences": {"type": "array", "items": {"type": "object"}}},
+                "required": ["name", "sourceUrl"],
+            },
+        },
+    },
+    "required": ["listings"],
 }
 
 SEARCH_PROMPT = with_safety("""You are a numismatic search specialist. Search the web to find coins
 currently for sale that match the user's request.
 
-Search on these dealer sites:
-- vcoins.com, ma-shops.com, forumancientcoins.com, biddr.com, catawiki.com, hjbltd.com
-
 Use targeted site-specific queries like:
-- "Domitian denarius for sale site:vcoins.com"
-- "Greek tetradrachm Athens site:ma-shops.com"
+- "Domitian denarius for sale site:<configured-host>"
+- "Greek tetradrachm Athens site:<configured-host>"
 
 Include the user's budget/price range in your searches if mentioned.
 Run at least 3-5 searches across different dealer sites.
@@ -67,7 +94,7 @@ Structure each listing into this exact JSON schema:
     "denomination": "e.g. Denarius, Tetradrachm",
     "estPrice": "Listed price e.g. $150.00",
     "availability": "Available|Sold|Unknown based only on listing text",
-    "imageUrl": "",
+    "imageUrl": "Direct https image URL from the listing data, or empty",
     "sourceUrl": "The exact URL from the listing data — never fabricate",
     "sourceName": "Dealer or site name",
     "candidateReferences": [
@@ -85,7 +112,7 @@ Structure each listing into this exact JSON schema:
 Rules:
 - Use ONLY data from the listing extracts. Do NOT invent fields.
 - sourceUrl MUST be copied exactly from the data. NEVER fabricate URLs.
-- Set imageUrl to "" (the frontend handles images)
+- Set imageUrl only to an https image URL present in the listing data; use "" otherwise
 - Infer category, era, ruler, material, denomination from the listing text
 - Exclude listings that are clearly sold, sold out, unavailable, or no longer available
 - Set availability from explicit listing text only; use "Unknown" when the listing does not say
@@ -101,8 +128,8 @@ NO_RESULTS_PROMPT = (
     "You are an assistant in a coin collecting application. "
     "The user searched for coins to buy but no listings were found. "
     "Generate a brief, helpful response. Suggest broadening search criteria, "
-    "checking back later, or trying specific dealer sites like vcoins.com "
-    "or ma-shops.com. Keep it concise. Do not use emojis. "
+    "checking back later, or trying another configured dealer site. "
+    "Keep it concise. Do not use emojis. "
     "Do not invent coin listings."
 )
 
@@ -114,6 +141,307 @@ class CoinSearchState(TypedDict):
     search_results: str
     fetched_listings: str
     user_message: str
+
+
+async def _search_dealer_pages(
+    llm_config: LLMConfig,
+    user_message: str,
+    combined_search_prompt: str,
+) -> str:
+    messages = [
+        SystemMessage(content=combined_search_prompt),
+        HumanMessage(
+            content=f"Find coins for sale matching: {user_message}\n\n"
+            "Search multiple dealer sites and report all URLs you find."
+        ),
+    ]
+    if llm_config.provider == "ollama":
+        search_agent = create_search_agent(llm_config)
+        result = await search_agent.ainvoke({"messages": messages})
+        last_msg = result["messages"][-1]
+        return extract_text_content(last_msg.content)
+    model = get_search_model(llm_config)
+    response = await ainvoke_with_retry(model, messages)
+    return extract_search_text(response.content)
+
+
+def _fetch_host(url: str) -> str:
+    return (urlparse(url).hostname or "").lower().removeprefix("www.")
+
+
+def _select_fetch_urls(urls: list[str]) -> list[tuple[str, str]]:
+    """Pick the pages to fetch, capped per host and overall, in search order."""
+    selected: list[tuple[str, str]] = []
+    per_host: dict[str, int] = {}
+    for url in urls:
+        host = _fetch_host(url)
+        if per_host.get(host, 0) >= settings.max_dealer_pages_per_host:
+            continue
+        per_host[host] = per_host.get(host, 0) + 1
+        selected.append((host, url))
+        if len(selected) >= settings.max_dealer_pages:
+            break
+    return selected
+
+
+async def _fetch_host_pages(
+    host: str,
+    urls: list[str],
+    fetch_one: Callable[[str], Awaitable[Any]],
+) -> dict[str, Any]:
+    """Fetch one host's pages one at a time, pausing between requests.
+
+    Dealers rate-limit bursts, so a host is never fetched concurrently and is
+    dropped as soon as it refuses a request.
+    """
+    results: dict[str, Any] = {}
+    for index, url in enumerate(urls):
+        if index:
+            await asyncio.sleep(settings.dealer_fetch_delay_seconds)
+        try:
+            results[url] = await fetch_one(url)
+        except Exception as exc:
+            logger.warning(
+                "[coin_search] dealer page fetch failed host=%s error_type=%s",
+                host,
+                type(exc).__name__,
+            )
+            results[url] = exc
+            break
+    return results
+
+
+async def _fetch_dealer_pages(
+    search_results: str,
+    allowed_fetch_hosts: set[str] | None,
+    *,
+    specialist_boundary: bool,
+) -> str:
+    urls = _filter_allowed_fetch_urls(_extract_urls(search_results), allowed_fetch_hosts)
+    if not urls:
+        return ""
+
+    async def fetch_one(url: str) -> Any:
+        if specialist_boundary:
+            return await fetch_registered_dealer_page(url, allowed_fetch_hosts or set())
+        return await fetch_dealer_page.ainvoke({"url": url})
+
+    selected = _select_fetch_urls(urls)
+    by_host: dict[str, list[str]] = {}
+    for host, url in selected:
+        by_host.setdefault(host, []).append(url)
+    host_results = await asyncio.gather(
+        *(_fetch_host_pages(host, host_urls, fetch_one) for host, host_urls in by_host.items())
+    )
+    results: dict[str, Any] = {}
+    for host_result in host_results:
+        results.update(host_result)
+
+    fetched = []
+    failures: list[Exception] = []
+    for _host, url in selected:
+        result = results.get(url)
+        if isinstance(result, Exception):
+            failures.append(result)
+            continue
+        if result is None:
+            continue
+        text = str(result)
+        if not text.startswith("Error"):
+            fetched.append(f"--- Source: {url} ---\n{text}")
+    if not fetched and failures:
+        first_failure = failures[0]
+        if isinstance(first_failure, ValueError):
+            raise first_failure
+        raise httpx.TransportError("dealer provider fetch failed")
+    return "\n\n".join(fetched)
+
+
+async def _format_dealer_candidates(
+    llm_config: LLMConfig,
+    user_message: str,
+    fetched_listings: str,
+    *,
+    strict: bool = False,
+) -> tuple[str, list[dict[str, Any]]]:
+    model = get_structured_model(llm_config, MARKET_LISTINGS_SCHEMA) if strict else get_chat_model(llm_config)
+    messages = [
+        SystemMessage(content=FORMAT_PROMPT + (
+            "\nFor this request use the MarketListings schema: put the array in listings, not a markdown block."
+            if strict else ""
+        )),
+        HumanMessage(
+            content=f"User searched for: {user_message}\n\n"
+            f"Extracted listing data:\n{fetched_listings}"
+        ),
+    ]
+    response = await ainvoke_with_retry(model, messages)
+    if strict:
+        parsed = response.get("parsed")
+        candidates = parsed.get("listings") if isinstance(parsed, dict) else None
+        if (
+            response.get("parsing_error") is not None
+            or not isinstance(candidates, list)
+            or any(not isinstance(item, dict) for item in candidates)
+        ):
+            logger.warning("Market formatter failed structured output validation")
+            raise ProviderMalformedError
+        return json.dumps(candidates), candidates
+    formatted = extract_text_content(response.content)
+    candidates = _extract_json_array(formatted)
+    return formatted, candidates
+
+
+def _apply_observed_availability(
+    candidates: list[dict[str, Any]],
+    fetched_listings: str,
+) -> list[dict[str, Any]]:
+    observed: dict[str, str] = {}
+    for block in fetched_listings.split("--- Source: ")[1:]:
+        source_url, separator, content = block.partition(" ---\n")
+        if not separator:
+            continue
+        match = re.search(r"^Availability signal:\s*(available|sold|unknown)\s*$", content, re.MULTILINE)
+        if match:
+            observed[source_url.strip()] = match.group(1)
+
+    normalized: list[dict[str, Any]] = []
+    for candidate in candidates:
+        item = dict(candidate)
+        source_url = str(
+            item.get("sourceUrl") or item.get("source_url") or item.get("url") or ""
+        ).strip()
+        availability = observed.get(source_url)
+        if availability is not None:
+            # The candidate is the fetched page itself, so the page signal wins.
+            item["availability"] = availability.title()
+        elif not source_url or source_url not in fetched_listings:
+            # Listings found on a search/results page keep the formatter's
+            # availability, but their URL must appear in the fetched data.
+            continue
+        normalized.append(item)
+    return normalized
+
+
+async def _collect_market_candidates(
+    llm_config: LLMConfig,
+    query: str,
+    limit: int,
+    *,
+    search_prompt: str = "",
+    allowed_fetch_hosts: set[str] | None = None,
+    cancellation_check: CancellationCheck | None = None,
+) -> Sequence[Mapping[str, Any]]:
+    source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
+    combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
+    search_results = await _search_dealer_pages(llm_config, query, combined_search)
+    await raise_if_cancelled(cancellation_check)
+    fetch_error: httpx.HTTPError | None = None
+    try:
+        fetched = await _fetch_dealer_pages(
+            search_results,
+            allowed_fetch_hosts,
+            specialist_boundary=True,
+        )
+    except httpx.HTTPError as exc:
+        # Every page fetch failed; dealers commonly rate-limit or bot-challenge
+        # direct requests. Fall back to what the search provider observed.
+        fetch_error = exc
+        fetched = ""
+    await raise_if_cancelled(cancellation_check)
+    if not fetched.strip():
+        candidates = await _search_result_candidates(llm_config, query, search_results, allowed_fetch_hosts)
+        await raise_if_cancelled(cancellation_check)
+        if not candidates and fetch_error is not None:
+            raise fetch_error
+        return candidates[:limit]
+    _, candidates = await _format_dealer_candidates(llm_config, query, fetched, strict=True)
+    candidates = _apply_observed_availability(candidates, fetched)
+    await raise_if_cancelled(cancellation_check)
+    if not candidates:
+        candidates = await _search_result_candidates(llm_config, query, search_results, allowed_fetch_hosts)
+        await raise_if_cancelled(cancellation_check)
+    return candidates[:limit]
+
+
+async def _search_result_candidates(
+    llm_config: LLMConfig,
+    query: str,
+    search_results: str,
+    allowed_fetch_hosts: set[str] | None,
+) -> list[dict[str, Any]]:
+    """Build listings from search-result evidence when dealer pages cannot be fetched.
+
+    The page itself was not read, so every listing is marked partially verified
+    and its availability stays unknown unless the search evidence says sold.
+    """
+    if not _filter_allowed_fetch_urls(_extract_urls(search_results), allowed_fetch_hosts):
+        return []
+    _, candidates = await _format_dealer_candidates(
+        llm_config,
+        query,
+        f"Web search results (listing pages were not fetched):\n{search_results}",
+        strict=True,
+    )
+    listings: list[dict[str, Any]] = []
+    for candidate in candidates:
+        source_url = str(candidate.get("sourceUrl") or candidate.get("source_url") or "").strip()
+        if not source_url or source_url not in search_results:
+            continue
+        if str(candidate.get("availability") or "").strip().lower() != "sold":
+            candidate = {**candidate, "availability": "Unknown"}
+        listings.append({**candidate, "verificationState": "partial", "confidence": "medium"})
+    return listings
+
+
+async def run_market_search(
+    query: SpecialistQuery | Mapping[str, Any],
+    *,
+    llm_config: LLMConfig | None = None,
+    provider_runners: Sequence[ProviderRunner] | None = None,
+    observed_at: datetime | None = None,
+    cancellation_check: CancellationCheck | None = None,
+    source_hosts: set[str] | None = None,
+    search_prompt: str = "",
+) -> SpecialistResult:
+    """Run the canonical dealer workflow and return a strict specialist result."""
+    if provider_runners is None:
+        if llm_config is None:
+            raise ProviderUnavailableError
+
+        async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
+            return await _collect_market_candidates(
+                llm_config,
+                search_query,
+                limit,
+                search_prompt=search_prompt,
+                allowed_fetch_hosts=source_hosts,
+                cancellation_check=cancellation_check,
+            )
+
+        provider_runners = [
+            ProviderRunner(
+                provider="configured_dealer_search",
+                run=canonical_provider,
+                allowed_hosts=frozenset(source_hosts or set()),
+            )
+        ]
+    result = await run_provider_search(
+        capability="market_search",
+        query=query,
+        provider_runners=provider_runners,
+        observed_at=observed_at,
+        cancellation_check=cancellation_check,
+    )
+    if any(item.verification_state == "partial" for item in result.items):
+        return result.model_copy(update={
+            "outcome": "partial",
+            "warnings": [
+                *result.warnings,
+                "Some listings are only partially verified; current availability may be unknown.",
+            ][:10],
+        })
+    return result
 
 
 def create_coin_search_team(
@@ -128,83 +456,40 @@ def create_coin_search_team(
         search_prompt: Additional context from admin settings (prepended)
         allowed_fetch_hosts: Optional host allowlist for fetched listing pages
     """
-    if search_prompt:
-        combined_search = f"{search_prompt}\n\n{SEARCH_PROMPT}"
-    else:
-        combined_search = SEARCH_PROMPT
-
-    use_react_agent = llm_config.provider == "ollama"
-    if use_react_agent:
-        search_agent = create_search_agent(llm_config)
+    source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
+    combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
 
     async def search_node(state: CoinSearchState) -> dict:
         """Phase 1: Search the web for dealer pages."""
         user_msg = state.get("user_message", "")
         logger.debug("[coin_search] search_node start — query: %.100s", user_msg)
 
-        messages = [
-            SystemMessage(content=combined_search),
-            HumanMessage(
-                content=f"Find coins for sale matching: {user_msg}\n\n"
-                "Search multiple dealer sites and report all URLs you find."
-            ),
-        ]
-
-        if use_react_agent:
-            # Ollama: ReAct agent calls SearXNG tool autonomously
-            result = await search_agent.ainvoke({"messages": messages})
-            last_msg = result["messages"][-1]
-            content = last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
-            logger.debug(
-                "[coin_search] ReAct agent returned %d messages, content=%d chars",
-                len(result["messages"]), len(content),
-            )
-        else:
-            # Anthropic: built-in web_search handled server-side
-            model = get_search_model(llm_config)
-            response = await ainvoke_with_retry(model, messages)
-            content = response.content if isinstance(response.content, str) else str(response.content)
-            logger.debug("[coin_search] Anthropic search response=%d chars", len(content))
+        content = await _search_dealer_pages(llm_config, user_msg, combined_search)
+        logger.debug("[coin_search] search response=%d chars", len(content))
 
         return {"search_results": content, "messages": []}
 
     async def fetch_node(state: CoinSearchState) -> dict:
         """Phase 2: Fetch dealer pages and extract real listings."""
-        import asyncio
-
         search_results = state.get("search_results", "")
-        urls = _extract_urls(search_results)
-        urls = _filter_allowed_fetch_urls(urls, allowed_fetch_hosts)
-        logger.debug("[coin_search] fetch_node — found %d URLs to fetch", len(urls))
-
-        if not urls:
-            return {"fetched_listings": "", "messages": []}
-
-        # Fetch up to 5 URLs in parallel
-        tasks = [fetch_dealer_page.ainvoke({"url": u}) for u in urls[:5]]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        fetched = []
-        for url, result in zip(urls[:5], results):
-            if isinstance(result, Exception):
-                logger.warning("Failed to fetch %s: %s", url, result)
-                continue
-            text = str(result)
-            if not text.startswith("Error"):
-                fetched.append(f"--- Source: {url} ---\n{text}")
-
-        return {"fetched_listings": "\n\n".join(fetched), "messages": []}
+        fetched = await _fetch_dealer_pages(
+            search_results,
+            allowed_fetch_hosts,
+            specialist_boundary=False,
+        )
+        logger.debug("[coin_search] fetch_node — fetched=%d chars", len(fetched))
+        return {"fetched_listings": fetched, "messages": []}
 
     async def format_node(state: CoinSearchState) -> dict:
         """Phase 3: Format extracted listings into CoinSuggestion JSON."""
         fetched = state.get("fetched_listings", "")
         user_msg = state.get("user_message", "")
         search_results = state.get("search_results", "")
-        model = get_chat_model(llm_config)
         logger.debug("[coin_search] format_node — fetched_listings=%d chars", len(fetched))
 
         if not fetched.strip():
             # No listings found — generate a helpful response via LLM (streams)
+            model = get_chat_model(llm_config)
             messages = [
                 SystemMessage(content=NO_RESULTS_PROMPT),
                 HumanMessage(
@@ -214,19 +499,13 @@ def create_coin_search_team(
                 ),
             ]
             response = await ainvoke_with_retry(model, messages)
-            content = response.content if isinstance(response.content, str) else str(response.content)
+            content = extract_text_content(response.content)
             return {"messages": [AIMessage(content=content)]}
 
         # Format real listings via LLM (this call streams to user)
-        messages = [
-            SystemMessage(content=FORMAT_PROMPT),
-            HumanMessage(
-                content=f"User searched for: {user_msg}\n\n"
-                f"Extracted listing data:\n{fetched}"
-            ),
-        ]
-        response = await ainvoke_with_retry(model, messages)
-        formatted = response.content if isinstance(response.content, str) else str(response.content)
+        _, candidates = await _format_dealer_candidates(llm_config, user_msg, fetched)
+        candidates = _apply_observed_availability(candidates, fetched)
+        formatted = f"```json\n{json.dumps(candidates, ensure_ascii=False, indent=2)}\n```"
         formatted = _enrich_references_with_authority_links(formatted)
 
         summary = (
@@ -289,7 +568,10 @@ def _enrich_references_with_authority_links(text: str) -> str:
 async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDiscoveryResponse:
     """Run stateless wishlist alert discovery using the existing coin search pipeline."""
     query = _alert_criteria_query(request.alert.criteria_snapshot)
-    allowed_fetch_hosts = _trusted_alert_fetch_hosts(request.alert.criteria_snapshot.source_filters)
+    allowed_fetch_hosts = _configured_alert_fetch_hosts(
+        request.alert.criteria_snapshot.source_filters,
+        set(request.dealer_search_sources),
+    )
     graph = create_coin_search_team(request.llm, allowed_fetch_hosts=allowed_fetch_hosts)
     try:
         result = await graph.ainvoke({
@@ -352,15 +634,29 @@ def _source_filter_hosts(source_filters: list[str]) -> set[str]:
     return hosts
 
 
-def _trusted_alert_fetch_hosts(source_filters: list[str]) -> set[str]:
+def _configured_alert_fetch_hosts(
+    source_filters: list[str],
+    configured_hosts: set[str],
+) -> set[str]:
     requested = _source_filter_hosts(source_filters)
     if not requested:
-        return set(TRUSTED_ALERT_FETCH_HOSTS)
+        return configured_hosts
     return {
-        trusted
-        for trusted in TRUSTED_ALERT_FETCH_HOSTS
-        if any(requested_host == trusted or requested_host.endswith(f".{trusted}") for requested_host in requested)
+        configured
+        for configured in configured_hosts
+        if any(
+            requested_host == configured or requested_host.endswith(f".{configured}")
+            for requested_host in requested
+        )
     }
+
+
+def _configured_source_prompt(source_hosts: set[str]) -> str:
+    sources = ", ".join(sorted(source_hosts))
+    return (
+        "Search only these administrator-configured dealer hosts: "
+        f"{sources}. Ignore results from every other host."
+    )
 
 
 def _url_matches_allowed_hosts(url: str, allowed_hosts: set[str]) -> bool:
@@ -396,6 +692,17 @@ def _extract_json_array(text: str) -> list[dict]:
     if not isinstance(parsed, list):
         return []
     return [item for item in parsed if isinstance(item, dict)]
+
+
+def _extract_json_array_strict(text: str) -> list[dict[str, Any]]:
+    payload = extract_json_payload(text)
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise ProviderMalformedError from exc
+    if not isinstance(parsed, list) or any(not isinstance(item, dict) for item in parsed):
+        raise ProviderMalformedError
+    return parsed
 
 
 def _candidate_from_suggestion(item: dict) -> AlertDiscoveryCandidate | None:

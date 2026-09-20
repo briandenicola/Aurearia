@@ -1,11 +1,13 @@
 """API routes for the agent service."""
 
+import json
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.config import settings
+from app.llm.capabilities import CopilotCapabilityError, bind_coin_copilot_model
 from app.models.requests import (
     MAX_SET_BUILDER_MAX_SLOTS,
     AlertDiscoveryRequest,
@@ -14,23 +16,28 @@ from app.models.requests import (
     BidMarketSignalRequest,
     CoinSearchRequest,
     CoinShowSearchRequest,
+    CopilotCapabilityRequest,
+    CopilotExecuteRequest,
     DeepIdentifyRequest,
     GradeRequest,
     IntakeDraftRequest,
     PortfolioReviewRequest,
     SetBuilderRequest,
     WishlistFeaturedSummaryRequest,
+    WishlistURLExtractionRequest,
 )
 from app.models.responses import (
     AgentResponse,
     AlertDiscoveryResponse,
     AvailabilityCheckResponse,
     AvailabilityVerdict,
+    CopilotCapabilityResponse,
     GradeResponse,
     IntakeDraftResponse,
     MarketSignalResponse,
     SetBuilderResponse,
     WishlistFeaturedSummaryResponse,
+    WishlistURLExtractionResponse,
 )
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
@@ -45,12 +52,15 @@ from app.teams.bid_market_signal import (
     parse_market_signal,
 )
 from app.teams.coin_analysis import create_coin_analysis_team
+from app.teams.coin_copilot import run_coin_copilot
 from app.teams.coin_grading import create_coin_grading_team
 from app.teams.coin_intake import generate_intake_draft
 from app.teams.coin_search import discover_alert_candidates
 from app.teams.deep_identification.graph import run_deep_identification_stream
 from app.teams.set_builder import run_set_builder_workflow
 from app.teams.wishlist_featured_summary import generate_wishlist_featured_summary
+from app.teams.wishlist_url_extraction import extract_wishlist_url
+from app.tools.copilot_collection_tools import build_copilot_tool_definitions
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +68,58 @@ _RECURSION_CONFIG = {"recursion_limit": settings.max_supervisor_iterations}
 
 router = APIRouter(prefix="/api")
 
+@router.post("/wishlist-url/extract", response_model=WishlistURLExtractionResponse)
+async def wishlist_url_extract(
+    request: WishlistURLExtractionRequest,
+) -> WishlistURLExtractionResponse:
+    """Extract a transient proposal from one Go-fetched, cleaned listing page."""
+    try:
+        return await extract_wishlist_url(request)
+    except Exception as exc:
+        logger.exception("Wishlist URL extraction failed")
+        raise HTTPException(status_code=502, detail="Listing extraction failed") from exc
+
+
 # Wishlist search alert discovery route anchor:
 # specs/337-wishlist-search-alerts/contracts/agent-discovery-contract.md
+
+
+@router.post("/copilot/capability", response_model=CopilotCapabilityResponse)
+async def coin_copilot_capability(request: CopilotCapabilityRequest):
+    """Verify that the configured provider can bind the fixed authorized tools."""
+    try:
+        await bind_coin_copilot_model(
+            request.llm,
+            build_copilot_tool_definitions(),
+        )
+    except CopilotCapabilityError:
+        return CopilotCapabilityResponse(supported=False)
+    return CopilotCapabilityResponse(supported=True)
+
+
+@router.post("/copilot/execute")
+async def execute_coin_copilot(request: CopilotExecuteRequest, http_request: Request):
+    """Execute one stateless, bounded Coin Copilot attempt as typed SSE."""
+    logger.info(
+        "POST /copilot/execute run=%s execution=%s provider=%s model=%s",
+        request.run_id,
+        request.execution_id,
+        request.llm.provider,
+        request.llm.model,
+    )
+
+    async def disconnected() -> bool:
+        return await http_request.is_disconnected()
+
+    async def event_stream():
+        async for frame in run_coin_copilot(
+            request,
+            cancellation_check=disconnected,
+        ):
+            payload = frame.model_dump(mode="json")
+            yield f"event: {frame.type}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/search/alerts", response_model=AlertDiscoveryResponse)
@@ -82,7 +142,7 @@ def _build_messages(message: str, history: list | None = None, system_prompt: st
     messages = []
     if system_prompt:
         messages.append(SystemMessage(content=system_prompt))
-    for msg in (history or []):
+    for msg in history or []:
         if msg.role == "user":
             messages.append(HumanMessage(content=msg.content))
         elif msg.role == "assistant":
@@ -96,7 +156,9 @@ async def search_coins(request: CoinSearchRequest):
     """Search for coins using multi-agent pipeline with verification. Streams SSE."""
     logger.info(
         "POST /search/coins — provider=%s, model=%s, message=%.80s",
-        request.llm.provider, request.llm.model, request.message,
+        request.llm.provider,
+        request.llm.model,
+        request.message,
     )
     messages = _build_messages(request.message, request.history)
     graph = create_supervisor(
@@ -104,6 +166,8 @@ async def search_coins(request: CoinSearchRequest):
         user_message=request.message,
         coin_search_prompt=request.coin_search_prompt,
         coin_shows_prompt=request.coin_shows_prompt,
+        dealer_search_sources=request.dealer_search_sources,
+        auction_search_sources=request.auction_search_sources,
         user_context=request.user,
         portfolio=request.portfolio,
         app_context=request.app_context,
@@ -123,7 +187,9 @@ async def search_shows(request: CoinShowSearchRequest):
     """Search for upcoming coin shows with date verification. Streams SSE."""
     logger.info(
         "POST /search/shows — provider=%s, model=%s, message=%.80s",
-        request.llm.provider, request.llm.model, request.message,
+        request.llm.provider,
+        request.llm.model,
+        request.message,
     )
     messages = _build_messages(request.message, request.history)
     graph = create_supervisor(
@@ -131,6 +197,8 @@ async def search_shows(request: CoinShowSearchRequest):
         user_message=request.message,
         coin_search_prompt=request.coin_search_prompt,
         coin_shows_prompt=request.coin_shows_prompt,
+        dealer_search_sources=request.dealer_search_sources,
+        auction_search_sources=request.auction_search_sources,
         user_context=request.user,
     )
 
@@ -146,8 +214,10 @@ async def analyze_coin(request: AnalyzeRequest):
     """Analyze coin images using vision model. Returns structured response."""
     logger.info(
         "POST /analyze — provider=%s, model=%s, images=%d, side=%s, format_output=%s",
-        request.llm.provider, request.llm.model,
-        len(request.images or []), request.side or "general",
+        request.llm.provider,
+        request.llm.model,
+        len(request.images or []),
+        request.side or "general",
         request.format_output,
     )
     graph = create_coin_analysis_team(
@@ -163,11 +233,13 @@ async def analyze_coin(request: AnalyzeRequest):
     # the nodes use state.get(key, closure_default). Passing empty values
     # here would override the closure defaults.
     try:
-        result = await graph.ainvoke({
-            "messages": [],
-            "raw_analysis": "",
-            "formatted_analysis": "",
-        })
+        result = await graph.ainvoke(
+            {
+                "messages": [],
+                "raw_analysis": "",
+                "formatted_analysis": "",
+            }
+        )
     except Exception:
         logger.exception("Coin analysis graph execution failed")
         return AgentResponse(
@@ -199,11 +271,13 @@ async def grade_coin(request: GradeRequest):
         images=request.images,
     )
     try:
-        result = await graph.ainvoke({
-            "messages": [],
-            "raw_assessment": "",
-            "formatted_assessment": "",
-        })
+        result = await graph.ainvoke(
+            {
+                "messages": [],
+                "raw_assessment": "",
+                "formatted_assessment": "",
+            }
+        )
     except Exception as exc:
         logger.exception("Coin grading graph execution failed")
         raise HTTPException(status_code=502, detail="Coin grading failed") from exc
@@ -240,7 +314,8 @@ async def review_portfolio(request: PortfolioReviewRequest):
     """Review portfolio with live valuation. Streams SSE."""
     logger.info(
         "POST /portfolio/review — provider=%s, model=%s, message=%.80s",
-        request.llm.provider, request.llm.model,
+        request.llm.provider,
+        request.llm.model,
         request.message or "Analyze my portfolio",
     )
     prompt = request.valuation_prompt or "You are a numismatic portfolio analyst."
@@ -264,7 +339,9 @@ async def check_availability(request: AvailabilityCheckRequest):
     """Check listing availability for multiple coin URLs. Returns structured verdicts."""
     logger.info(
         "POST /check-availability — provider=%s, model=%s, items=%d",
-        request.llm.provider, request.llm.model, len(request.items),
+        request.llm.provider,
+        request.llm.model,
+        len(request.items),
     )
 
     if not request.items:
@@ -274,12 +351,14 @@ async def check_availability(request: AvailabilityCheckRequest):
     items_data = [{"url": item.url, "coin_name": item.coin_name} for item in request.items]
 
     try:
-        result = await graph.ainvoke({
-            "messages": [],
-            "items": items_data,
-            "raw_checks": "",
-            "verdicts": "",
-        })
+        result = await graph.ainvoke(
+            {
+                "messages": [],
+                "items": items_data,
+                "raw_checks": "",
+                "verdicts": "",
+            }
+        )
     except Exception:
         logger.exception("Availability check graph execution failed")
         return AvailabilityCheckResponse(
@@ -327,7 +406,9 @@ async def bid_market_signal(request: BidMarketSignalRequest):
     """
     logger.info(
         "POST /bid-market-signal — provider=%s, model=%s, coin_id=%s",
-        request.llm.provider, request.llm.model, request.coin.id,
+        request.llm.provider,
+        request.llm.model,
+        request.coin.id,
     )
 
     graph = create_bid_market_signal_team(request.llm, coin=request.coin)

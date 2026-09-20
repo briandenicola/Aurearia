@@ -227,6 +227,8 @@ def create_supervisor(
     analysis_node=None,
     tools_base_url: str = "",
     internal_token: str = "",
+    dealer_search_sources: list[str] | None = None,
+    auction_search_sources: list[str] | None = None,
 ):
     """Build the top-level supervisor graph.
 
@@ -268,7 +270,11 @@ def create_supervisor(
             return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 1 as a callable node
-    coin_search_graph = create_coin_search_team(llm_config, search_prompt=coin_search_prompt)
+    coin_search_graph = create_coin_search_team(
+        llm_config,
+        search_prompt=coin_search_prompt,
+        allowed_fetch_hosts=set(dealer_search_sources or []),
+    )
 
     async def coin_search_node(state: MessagesState) -> dict:
         """Delegate to Team 1 coin search pipeline."""
@@ -328,7 +334,10 @@ def create_supervisor(
             return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 5 as a callable node
-    auction_search_graph = create_auction_search_team(llm_config)
+    auction_search_graph = create_auction_search_team(
+        llm_config,
+        source_hosts=set(auction_search_sources or []),
+    )
 
     async def auction_search_node(state: MessagesState) -> dict:
         """Delegate to Team 5 auction search pipeline."""

@@ -96,6 +96,16 @@ func (r *AIJobRepository) ClaimQueued(jobID uint) (*models.AIJob, bool, error) {
 	return &job, claimed, err
 }
 
+func (r *AIJobRepository) CompleteAnalysis(job *models.AIJob, column, analysis, result string) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		repo := NewAIJobRepository(tx)
+		if err := repo.UpdateCoinAnalysis(job.CoinID, job.UserID, column, analysis); err != nil {
+			return err
+		}
+		return repo.Complete(job.ID, result)
+	})
+}
+
 func (r *AIJobRepository) Complete(jobID uint, result string) error {
 	now := time.Now()
 	return r.db.Model(&models.AIJob{}).
@@ -133,21 +143,23 @@ func (r *AIJobRepository) CreateJournalEntry(entry *models.CoinJournal) error {
 	return r.db.Create(entry).Error
 }
 
-func (r *AIJobRepository) RecoverStaleJobs(timeout time.Duration) ([]uint, error) {
-	cutoff := time.Now().Add(-timeout)
-	if err := r.db.Model(&models.AIJob{}).
-		Where("status = ? AND started_at < ?", models.AIJobStatusRunning, cutoff).
+// ReconcileInterruptedJobs runs before this process starts any workers.
+func (r *AIJobRepository) ReconcileInterruptedJobs() error {
+	return r.db.Model(&models.AIJob{}).
+		Where("status = ?", models.AIJobStatusRunning).
 		Updates(map[string]interface{}{
-			"status":        models.AIJobStatusQueued,
-			"started_at":    nil,
-			"error_message": "",
-		}).Error; err != nil {
-		return nil, err
-	}
+			"status":        models.AIJobStatusFailed,
+			"completed_at":  time.Now(),
+			"error_message": "Interrupted by server restart. Review any saved results before retrying.",
+		}).Error
+}
+
+func (r *AIJobRepository) ListQueuedIDs() ([]uint, error) {
 	var ids []uint
 	err := r.db.Model(&models.AIJob{}).
 		Where("status = ?", models.AIJobStatusQueued).
 		Order("created_at ASC").
+		Limit(100).
 		Pluck("id", &ids).Error
 	return ids, err
 }

@@ -38,8 +38,12 @@ describe('CoinLookupCaptureWizard', () => {
 
     expect(wrapper.text()).toContain('Step 1 of 3')
     expect(wrapper.text()).toContain('Add the obverse')
-    expect(wrapper.find('ol').exists()).toBe(false)
+    expect(wrapper.get('ol[aria-label="Identification progress"]').text()).toContain('Obverse')
+    expect(wrapper.get('ol[aria-label="Identification progress"]').text()).toContain('Reverse')
+    expect(wrapper.get('ol[aria-label="Identification progress"]').text()).toContain('Notes')
+    expect(wrapper.get('.capture-workspace').exists()).toBe(true)
     expect(wrapper.find('[aria-label="Add reverse image"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[aria-label="Add reverse image"]').text()).toContain('Next: Reverse')
     expect(wrapper.text()).not.toContain('Analyze Photos')
   })
 
@@ -73,6 +77,24 @@ describe('CoinLookupCaptureWizard', () => {
     await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
     expect(wrapper.find('.camera-stub').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Remove reverse image"]').exists()).toBe(true)
+  })
+
+  it('keeps the camera and previews inside the shared desktop workspace', async () => {
+    const wrapper = mountWizard()
+
+    expect(wrapper.find('.camera-stub').classes()).toContain('w-full')
+    expect(wrapper.get('.capture-workspace').find('.capture-guidance').exists()).toBe(true)
+    expect(wrapper.get('.capture-workspace').find('.capture-stage').exists()).toBe(true)
+
+    await wrapper.setProps({ obverse: image('obverse.jpg') })
+    expect(wrapper.find('img[alt="Obverse coin image"]').element.parentElement?.classList).toContain('capture-preview')
+    expect(wrapper.get('img[alt="Obverse thumbnail"]').exists()).toBe(true)
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    expect(wrapper.find('.camera-stub').classes()).toContain('w-full')
+
+    await wrapper.setProps({ reverse: image('reverse.jpg') })
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    expect(wrapper.find('.camera-stub').classes()).toContain('w-full')
   })
 
   it('uses the shared wizard for Deep Analysis and guides users to a missing reverse', async () => {

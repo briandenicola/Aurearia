@@ -54,12 +54,17 @@ async function handleSubmit() {
   // image ones can fail on their own — telling the user the whole edit was
   // lost when only the upload failed sends them back to redo work that saved.
   let coinSaved = false
+  let cleanupPending = false
   try {
     await updateCoin(form.id!, form)
     coinSaved = true
 
     const formComp = coinFormRef.value
     const coinId = form.id!
+    async function removeImage(imageId: number) {
+      const response = await deleteImage(coinId, imageId)
+      cleanupPending ||= response.data.cleanupPending === true
+    }
 
     // Replace a side by uploading the new image FIRST, then deleting the one
     // it supersedes. Deleting first means a failed upload leaves the coin with
@@ -76,20 +81,20 @@ async function handleSubmit() {
       await uploadImage(coinId, file, imageType, isPrimary)
       const superseded = removedId ?? form.images?.find((i) => i.imageType === imageType)?.id
       if (superseded) {
-        await deleteImage(coinId, superseded)
+        await removeImage(superseded)
       }
     }
 
     if (formComp?.obverseFile) {
       await replaceSide('obverse', formComp.obverseFile, true, formComp.removedObverseId)
     } else if (formComp?.removedObverseId) {
-      await deleteImage(coinId, formComp.removedObverseId)
+      await removeImage(formComp.removedObverseId)
     }
 
     if (formComp?.reverseFile) {
       await replaceSide('reverse', formComp.reverseFile, false, formComp.removedReverseId)
     } else if (formComp?.removedReverseId) {
-      await deleteImage(coinId, formComp.removedReverseId)
+      await removeImage(formComp.removedReverseId)
     }
 
     // Extract text from store card if uploaded
@@ -110,6 +115,9 @@ async function handleSubmit() {
     }
 
     await refreshQuickAccess()
+    if (cleanupPending) {
+      await showAlert('Your changes were saved. Old image files are awaiting cleanup; the API will retry on startup. Do not upload the replacement again.', { title: 'Image cleanup pending' })
+    }
     router.back()
   } catch (error: unknown) {
     const code = (error as { response?: { data?: { code?: string } } })?.response?.data?.code

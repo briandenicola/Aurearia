@@ -1,7 +1,7 @@
 ---
 id: F0NN
 title: "Short imperative title"
-status: backlog          # backlog | triaged | promoted | dropped
+status: backlog          # backlog | triaged | promoted | completed | dropped
 priority: P2             # P0 (now) | P1 (next) | P2 (soon) | P3 (someday)
 effort: M                # XS | S | M | L | XL
 value: 3                 # 1 (low) – 5 (high) user/business value

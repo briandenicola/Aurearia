@@ -33,7 +33,34 @@ The app container contains:
 
 Data is stored in a **SQLite database** (via GORM, WAL mode enabled) and coin images are stored directly on the filesystem.
 
+Required default-data backfills fail startup with the affected step name instead of serving readiness after a failed write. They retain their existing order and are safe to rerun; previously completed independent steps may remain applied.
+
+Image deletion commits metadata plus a durable cleanup record before removing files. Pending original/thumbnail/medium cleanup is retried on API startup or by repeating the same image DELETE. Cleanup failures are logged and remain recorded, but do not block unrelated startup. See [recoverable image deletion](image-cleanup-design.md) for the response contract and recovery boundaries.
+
 Both production images run as a non-root runtime user with UID/GID `10001:10001`. The app image owns `/app`, `/app/data`, and `/app/uploads`; the agent image owns `/app` and has no persistent writable volume by default.
+
+### Background jobs during restart
+
+Run only one API process against a database. Before starting AI-job, Set Builder,
+and wishlist-search-alert workers, the process marks previous `running` jobs as
+failed with an interruption message, regardless of age. It resumes `queued` work
+from the database using bounded workers, a coalesced wake signal, and a periodic
+queue scan. Recovery errors are logged and retried before any job is claimed.
+This startup-only reconciliation never reclaims work from the current worker pool.
+
+Interrupted jobs are not automatically replayed: analysis may have saved coin
+fields, Set Builder may have saved proposals/slots, and discovery may have saved
+candidate/provenance records. Review existing results before requesting a new run.
+Completed jobs and their notifications are not replayed. AI analysis and job
+completion commit atomically; automatic inference retries happen only before
+result persistence, and external inference is not guaranteed exactly once.
+
+Shutdown drains HTTP requests, stops scheduling, then cancels and waits for these
+three worker pools within the existing eight-second overall budget. New
+submissions are rejected once a pool is stopping. Unclaimed rows remain queued;
+any still-running rows after forced exit reconcile on the next startup.
+Availability and Coin of the Day still have separate legacy queue lifecycles;
+this policy does not claim to cover those workers or Deep Identification (#709).
 
 ---
 

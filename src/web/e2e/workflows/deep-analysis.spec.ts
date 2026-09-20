@@ -16,7 +16,7 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   await page.goto('/lookup')
   await expect(page.getByRole('heading', { name: 'Identify Coin' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'obverse.png',
     mimeType: 'image/png',
@@ -24,7 +24,7 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   })
   await page.getByRole('button', { name: 'Deep Analysis' }).click()
   await expect(page.getByText('Add a reverse image before starting Deep Analysis.')).toBeVisible()
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'reverse.png',
     mimeType: 'image/png',
@@ -68,14 +68,14 @@ test('T108: observes streamed progress and can cancel a running Deep Analysis jo
   await installWorkflowApiMocks(page)
 
   await page.goto('/lookup')
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'obverse.png',
     mimeType: 'image/png',
     buffer: tinyPng,
   })
   await page.getByRole('button', { name: 'Add reverse image' }).click()
-  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'reverse.png',
     mimeType: 'image/png',
@@ -190,4 +190,78 @@ test('T124: a completed terminal job for a saved coin applies proposal edits thr
   // existing coin-update path with an ad-hoc write.
   expect(state.updatePayloads.filter((entry) => entry.id === coinId)).toHaveLength(0)
   await expect(page.getByText(/Applied to coin on/)).toBeVisible()
+})
+
+test('wishlist review selects scalar, notes, and references without bypassing manual fields', async ({ page }) => {
+  const state = await installWorkflowApiMocks(page)
+  const coin = state.coins[0]!
+  coin.isWishlist = true
+  coin.notes = 'Manual wishlist note'
+  coin.purchasePrice = 275
+  coin.storageLocationId = null
+  const manualSnapshot = {
+    notes: coin.notes,
+    purchasePrice: coin.purchasePrice,
+    storageLocationId: coin.storageLocationId,
+    isWishlist: coin.isWishlist,
+  }
+  const jobId = 6003
+  state.deepIdentificationJobs.push({
+    id: jobId,
+    notes: '',
+    providers: '',
+    status: 'completed',
+    source: 'saved_coin',
+    report: {
+      schemaVersion: 1,
+      narrative: 'A bounded wishlist proposal with additive notes and references.',
+      coverage: [{ provider: 'nomisma', status: 'contributed' }],
+      partialSuccess: false,
+      generatedAt: '2030-01-01T00:00:00Z',
+    },
+    proposal: {
+      mint: { proposed: 'Rome', ownerEdited: false, ownerValue: null, accepted: null },
+      notes: { proposed: 'Catalog attribution note', ownerEdited: false, ownerValue: null, accepted: null },
+      catalogReferences: {
+        proposed: [{ scheme: 'RIC', identifier: 'II 42', uri: 'https://numismatics.org/ocre/id/ric.2.tr.42' }],
+        ownerEdited: false,
+        ownerValue: null,
+        accepted: null,
+      },
+      denomination: { proposed: 'Denarius', ownerEdited: false, ownerValue: null, accepted: null },
+    },
+  })
+
+  let applyBody: { target?: string; fields?: string[] } | null = null
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith(`/deep-identification/jobs/${jobId}/apply`)) {
+      applyBody = JSON.parse(request.postData() ?? '{}') as { target?: string; fields?: string[] }
+    }
+  })
+
+  await page.goto(`/deep-analysis/${jobId}`)
+  for (const field of ['Mint', 'Notes', 'Catalog References']) {
+    await page.getByRole('group', { name: new RegExp(`${field} decision`, 'i') })
+      .getByRole('button', { name: 'Accept' })
+      .click()
+  }
+  await page.getByRole('group', { name: /Denomination decision/ })
+    .getByRole('button', { name: 'Reject' })
+    .click()
+  await page.getByRole('button', { name: 'Apply to Coin' }).click()
+
+  expect(applyBody).toEqual({ target: 'coin' })
+  expect(state.deepIdentificationProposalUpdates).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: jobId, fields: { mint: { accepted: true } } }),
+    expect.objectContaining({ id: jobId, fields: { notes: { accepted: true } } }),
+    expect.objectContaining({ id: jobId, fields: { catalogReferences: { accepted: true } } }),
+    expect.objectContaining({ id: jobId, fields: { denomination: { accepted: false } } }),
+  ]))
+  expect({
+    notes: coin.notes,
+    purchasePrice: coin.purchasePrice,
+    storageLocationId: coin.storageLocationId,
+    isWishlist: coin.isWishlist,
+  }).toEqual(manualSnapshot)
+  expect(state.updatePayloads.filter(entry => entry.id === coin.id)).toHaveLength(0)
 })

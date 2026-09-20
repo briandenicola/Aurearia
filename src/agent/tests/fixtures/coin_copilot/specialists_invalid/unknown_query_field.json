@@ -1,0 +1,6 @@
+{
+  "fixture_type": "query",
+  "query": "Domitian denarius Minerva",
+  "limit": 5,
+  "provider": "arbitrary"
+}

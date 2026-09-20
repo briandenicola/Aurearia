@@ -1,14 +1,14 @@
 ---
 id: F031
 title: "Notify on lots the background auction sync starts tracking"
-status: backlog
+status: completed
 priority: P2
 effort: S
 value: 4
 risk: 2
 owner: unassigned
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-09-18
 ---
 
 # F031 — Notify on lots the background auction sync starts tracking
@@ -115,3 +115,5 @@ notification configuration.
   moves watching → bidding; last open question resolved and unit-tested
   (repository transition reporting, end-to-end sync across the transition,
   no repeat on later syncs).
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`.

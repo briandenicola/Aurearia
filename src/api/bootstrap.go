@@ -71,6 +71,10 @@ func corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	}
 }
 
+type workerStopper interface {
+	StopWorkers(context.Context) error
+}
+
 type serverRuntime struct {
 	router             *gin.Engine
 	config             *config.Config
@@ -84,6 +88,7 @@ type serverRuntime struct {
 	// cancelBackground stops context-aware background work (currently the
 	// deep-identification workers and janitor) during shutdown.
 	cancelBackground context.CancelFunc
+	workers          []workerStopper
 }
 
 // shutdownGracePeriod bounds how long we wait for in-flight HTTP requests to
@@ -170,9 +175,23 @@ func shutdownRuntime(runtime serverRuntime, srv *http.Server) {
 		runtime.cancelBackground()
 	}
 
-	// Queue-backed worker pools (AI jobs, wishlist alerts, availability,
-	// coin-of-day) have no stop hook yet; jobs left mid-flight are picked up
-	// by each service's stale-job recovery on the next start.
+	stopped := make(chan error, len(runtime.workers))
+	for _, worker := range runtime.workers {
+		go func() { stopped <- worker.StopWorkers(ctx) }()
+	}
+	for range runtime.workers {
+		select {
+		case err := <-stopped:
+			if err != nil {
+				runtime.logger.Warn("shutdown", "Worker shutdown incomplete: %v", err)
+			}
+		case <-ctx.Done():
+			runtime.logger.Warn("shutdown", "Worker shutdown deadline reached; persisted work will reconcile on restart")
+			return
+		}
+	}
+
+	// Availability and coin-of-day queue lifecycles are separate follow-up work.
 	runtime.logger.Info("shutdown", "Shutdown complete")
 	log.Println("Shutdown complete")
 }

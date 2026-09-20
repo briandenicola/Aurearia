@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "capability": "price_trends",
+  "outcome": "no_match",
+  "items": [],
+  "trend": {
+    "state": "unknown",
+    "sample_size": 0,
+    "date_from": null,
+    "date_to": null,
+    "currency": null,
+    "price_basis": null,
+    "low": null,
+    "median": null,
+    "high": null,
+    "confidence": "low",
+    "limitations": [
+      "No completed sales were verified."
+    ],
+    "supporting_source_ids": []
+  },
+  "provider_attempts": [
+    {
+      "provider": "numisbids",
+      "status": "no_match",
+      "observed_at": "2026-09-18T12:00:00Z",
+      "accepted_items": 0,
+      "warning_code": null
+    }
+  ],
+  "warnings": [],
+  "truncation": {
+    "truncated": false,
+    "omitted_items": 0
+  }
+}

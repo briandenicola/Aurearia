@@ -1,14 +1,14 @@
 ---
 id: F027
 title: "Wire auction price alerts, bid reminders, and ending alerts into the in-app inbox"
-status: backlog
+status: completed
 priority: P1
 effort: M
 value: 4
 risk: 2
 owner: unassigned
 created: 2026-07-19
-updated: 2026-07-19
+updated: 2026-09-18
 ---
 
 # F027 — Wire auction price alerts, bid reminders, and ending alerts into the in-app inbox
@@ -111,3 +111,5 @@ synchronous, reliable in-app `Notification` record.
   constructor updates); all acceptance criteria and the open question
   resolved. Status left at `backlog` pending Lead triage per
   `_backlog/README.md` — implementation does not self-advance status.
+- 2026-09-18: Lead review verified the implementation evidence and completed
+  acceptance criteria; status advanced to `completed`.

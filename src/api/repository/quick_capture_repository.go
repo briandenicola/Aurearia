@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -262,7 +263,12 @@ func (r *QuickCaptureRepository) UpdateDraftTransaction(
 func (r *QuickCaptureRepository) PromoteDraftTransaction(
 	draftID, userID uint,
 	coin *models.Coin,
+	stagedReferenceSets ...[]models.CoinReference,
 ) (draft *models.QuickCaptureDraft, createdCoin *models.Coin, err error) {
+	var stagedReferences []models.CoinReference
+	if len(stagedReferenceSets) > 0 {
+		stagedReferences = stagedReferenceSets[0]
+	}
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		// CAS: claim exactly one active row
 		result := tx.Model(&models.QuickCaptureDraft{}).
@@ -296,6 +302,36 @@ func (r *QuickCaptureRepository) PromoteDraftTransaction(
 				URI:     d.SelectedNumistaReference.URI,
 			}
 			if err2 := tx.Create(&ref).Error; err2 != nil {
+				return err2
+			}
+		}
+		seenReferences := map[string]struct{}{}
+		if d.SelectedNumistaReference != nil {
+			seenReferences[quickCaptureReferenceKey(
+				d.SelectedNumistaReference.Catalog, "", d.SelectedNumistaReference.Number,
+			)] = struct{}{}
+		}
+		for _, staged := range stagedReferences {
+			var registry models.CatalogRegistry
+			if err2 := tx.Where("LOWER(catalog) = LOWER(?)", strings.TrimSpace(staged.Catalog)).
+				First(&registry).Error; err2 != nil {
+				return err2
+			}
+			staged.Catalog = registry.Catalog
+			staged.Volume = strings.TrimSpace(staged.Volume)
+			staged.Number = strings.TrimSpace(staged.Number)
+			staged.URI = strings.TrimSpace(staged.URI)
+			if staged.Number == "" || (registry.VolumeRequired && staged.Volume == "") {
+				return errors.New("staged catalog reference is no longer valid")
+			}
+			key := quickCaptureReferenceKey(staged.Catalog, staged.Volume, staged.Number)
+			if _, duplicate := seenReferences[key]; duplicate {
+				continue
+			}
+			seenReferences[key] = struct{}{}
+			staged.ID = 0
+			staged.CoinID = coin.ID
+			if err2 := tx.Create(&staged).Error; err2 != nil {
 				return err2
 			}
 		}
@@ -345,6 +381,12 @@ func (r *QuickCaptureRepository) PromoteDraftTransaction(
 		return tx.Create(&promotedEvent).Error
 	})
 	return
+}
+
+func quickCaptureReferenceKey(catalog, volume, number string) string {
+	return strings.ToUpper(strings.TrimSpace(catalog)) + "|" +
+		strings.ToUpper(strings.TrimSpace(volume)) + "|" +
+		strings.ToUpper(strings.TrimSpace(number))
 }
 
 func recordValueSnapshotInTx(tx *gorm.DB, userID uint) error {

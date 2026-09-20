@@ -19,7 +19,11 @@ import type {
   WishlistSearchAlert,
   WishlistSearchAlertInput,
   WishlistSearchAlertListResponse,
+  WishlistURLAnalysis,
 } from '@/types'
+
+export const analyzeWishlistURL = (url: string, signal?: AbortSignal) =>
+  api.post<WishlistURLAnalysis>('/wishlist/url-intake/analyze', { url }, { signal })
 
 // Wishlist Search Alerts (acquisition discovery; separate from availability checking)
 export const listWishlistSearchAlerts = (params?: { active?: boolean; page?: number; limit?: number }) =>

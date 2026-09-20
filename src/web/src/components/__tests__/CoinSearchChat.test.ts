@@ -5,6 +5,7 @@ import CoinSearchChat from '../CoinSearchChat.vue'
 
 const mockCreateNote = vi.fn()
 const mockShowAlert = vi.fn()
+const mockNewChat = vi.fn().mockResolvedValue(true)
 
 vi.mock('@/api/client', () => ({
   createNote: (note: { title: string; body: string }) => mockCreateNote(note),
@@ -30,11 +31,26 @@ vi.mock('@/composables/useCoinSearchChat', () => ({
     conversationId: ref(null),
     saving: ref(false),
     saveLabel: ref('Save'),
+    newChat: mockNewChat,
+    newChatDisabled: ref(false),
     providerConfigured: ref(true),
     categoryEraConfirmRequest: ref(null),
+    copilotActive: ref(false),
+    copilotRun: ref(null),
+    copilotPlan: ref([]),
+    copilotTools: ref([]),
+    copilotClarification: ref(null),
+    copilotCanCancel: ref(false),
+    copilotCanResume: ref(false),
+    copilotTruncated: ref(false),
+    copilotError: ref(''),
+    copilotCancelling: ref(false),
+    copilotResuming: ref(false),
     chooseCategoryEraConfirmation: vi.fn(),
     cancelCategoryEraConfirmation: vi.fn(),
     sendMessage: vi.fn(),
+    cancelCopilotRun: vi.fn(),
+    resumeCopilotRun: vi.fn(),
     sendExample: vi.fn(),
     sendPortfolioAnalysis: vi.fn(),
     handleSave: vi.fn(),
@@ -49,6 +65,17 @@ vi.mock('@/composables/useCoinSearchChat', () => ({
 }))
 
 describe('CoinSearchChat note saving', () => {
+  it('starts a new chat from the header and clears an open note draft', async () => {
+    const wrapper = mount(CoinSearchChat)
+    await wrapper.findAll('button').find(button => button.text() === 'Save to Notes')!.trigger('click')
+    expect(wrapper.text()).toContain('Review Note')
+    await wrapper.findAll('button').find(button => button.text() === 'New Chat')!.trigger('click')
+    await flushPromises()
+    expect(mockNewChat).toHaveBeenCalledOnce()
+    expect(wrapper.text()).not.toContain('Review Note')
+    wrapper.unmount()
+  })
+
   it('lets the user explicitly save an assistant answer to Notes', async () => {
     mockCreateNote.mockResolvedValue({ data: { id: 7 } })
     mockShowAlert.mockResolvedValue(true)

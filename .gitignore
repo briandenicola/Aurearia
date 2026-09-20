@@ -30,6 +30,16 @@ src/web/dist/
 src/web/test-results/
 src/web/playwright-report/
 
+# AI browser exploration (Feature 360)
+.tmp/ai-browser/
+.artifacts/ai-browser/
+src/web/.tmp/ai-browser/
+src/web/.artifacts/ai-browser/
+**/ai-browser/run-config*.json
+**/ai-browser/prompts/
+**/ai-browser/evidence/
+**/ai-browser/credentials/
+
 # Beta screenshot tour output (npm run screenshots:beta) — review/select
 # before publishing; never auto-committed as docs assets.
 src/web/artifacts/

@@ -392,3 +392,12 @@ When a CSP violation names a directive, check whether *sibling* directives that 
 - SQLite `BEFORE DELETE ... RAISE(ABORT)` triggers are effective regression fixtures for proving target mutations roll back when pin cleanup fails.
 - GORM uses separate Query and Row callbacks; bounded hydration query-count tests must observe both to count `Find` and `Scan` operations accurately.
 - Windows clock resolution can return identical timestamps for immediate unpin/re-pin operations; timing assertions need a small delay while identity assertions should also verify the new pin row ID.
+
+## 2026-09-18 — Feature 361 Foundational Python Specialist Contracts (T002/T003/T004/T006/T008)
+
+- Added 24 canonical fixtures covering four specialist inputs, all four capabilities across complete/partial/no_match/unavailable outcomes, and four additive public SSE projections.
+- Added 13 adversarial fixtures covering unknown fields, invalid enums, missing provenance, unsafe/credential-bearing/private URLs, duplicate/conflicting identities, size bounds, prompt/hidden-reasoning fields, and completed-call replay.
+- Added strict Pydantic models for specialist queries, provider attempts, provenance, four discriminated evidence kinds, price trends, truncation, and aggregate result invariants.
+- Contract-first red proof: `python -m pytest tests\test_coin_copilot_contract.py -q` failed during collection with `ModuleNotFoundError: No module named 'app.teams.specialist_contracts'`.
+- Final targeted validation: pytest `54 passed`; Ruff lint `All checks passed!`; Ruff format check `2 files already formatted`; all 37 JSON fixtures parsed.
+- Kept scope contract-only: no runtime team, dispatch, Go, Vue, spec/task, dependency, or network changes; no commit.

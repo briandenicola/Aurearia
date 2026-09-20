@@ -9,6 +9,35 @@ import (
 	"testing"
 )
 
+func TestAgentProxyExtractWishlistURLUsesInternalCredentialAndStrictContract(t *testing.T) {
+	const token = "test-internal-service-token"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/wishlist-url/extract" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("X-Internal-Service-Token"); got != token {
+			t.Fatalf("expected internal token header %q, got %q", token, got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"hypothesis":{"name":{"value":"Hadrian","confidence":0.9,"evidence":["Hadrian"]},"coin_type":null,"observations":"","legible":true},"warnings":[]}`))
+	}))
+	defer server.Close()
+
+	proxy := NewAgentProxy(server.URL, token, NewLogger(10))
+	result, err := proxy.ExtractWishlistURL(context.Background(), WishlistURLExtractionRequest{
+		LLM:       LLMConfig{Provider: "anthropic", APIKey: "secret", Model: "test"},
+		SourceURL: "https://dealer.example/lot/1",
+		PageTitle: "Hadrian",
+		PageText:  "Hadrian",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Hypothesis.Name == nil || result.Hypothesis.Name.Value != "Hadrian" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
 func TestAgentProxyFetchLogsSendsInternalCredential(t *testing.T) {
 	const token = "test-internal-service-token"
 

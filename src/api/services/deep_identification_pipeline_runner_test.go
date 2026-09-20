@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +33,16 @@ func sseFrame(t *testing.T, frameType string, extra map[string]any) string {
 		t.Fatalf("marshal test frame: %v", err)
 	}
 	return "data: " + string(raw) + "\n\n"
+}
+
+func TestDeepIdentificationPipelineRunner_RejectsUnknownSourceBeforeWork(t *testing.T) {
+	runner := &DeepIdentificationPipelineRunner{}
+	job := &models.DeepIdentificationJob{ID: 42, UserID: 7, Source: models.DeepJobSource("future_source")}
+
+	result, err := runner.Run(context.Background(), job)
+	if result != nil || !errors.Is(err, repository.ErrDeepJobSourceUnsupported) {
+		t.Fatalf("Run = %#v, %v; want nil, ErrDeepJobSourceUnsupported", result, err)
+	}
 }
 
 func TestStreamDeepIdentificationTranslatesFrameTypes(t *testing.T) {
@@ -288,6 +299,42 @@ func TestBuildDeepProposalDocumentJSONCreatesReportOnlyIntakeProposal(t *testing
 	}
 }
 
+func TestBuildDeepProposalDocumentJSONCarriesNarrativeToSavedCoinNotes(t *testing.T) {
+	coinID := uint(42)
+	out := buildDeepProposalDocumentJSON(
+		json.RawMessage(`{"narrative":"The images and catalogue evidence support a Probus antoninianus from Tripolis.","proposed_fields":{}}`),
+		&coinID,
+		nil,
+		nil,
+		nil,
+	)
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("expected valid proposal JSON, got %v", err)
+	}
+	notes := doc.Fields["notes"]
+	if notes == nil || notes.Proposed != "The images and catalogue evidence support a Probus antoninianus from Tripolis." {
+		t.Fatalf("expected narrative to remain reviewable as additive notes, got %#v", notes)
+	}
+}
+
+func TestBuildDeepProposalDocumentJSONDoesNotProposeFailureNarrativeAsNotes(t *testing.T) {
+	fallback := "No provider evidence could be gathered for this coin. Please review the image-based analysis and consider retrying once providers are available."
+	coinID := uint(42)
+	for _, targetCoinID := range []*uint{nil, &coinID} {
+		out := buildDeepProposalDocumentJSON(
+			json.RawMessage(fmt.Sprintf(`{"narrative":%q,"proposed_fields":{}}`, fallback)),
+			targetCoinID,
+			nil,
+			nil,
+			nil,
+		)
+		if out != "" {
+			t.Fatalf("failure narrative must not become a proposal, got %s", out)
+		}
+	}
+}
+
 // TestDeepIdentificationBackwardCompatibility_PreAndPostImageHypothesisFixtures
 // is the T071 backward-compatibility regression: Brian has existing
 // deep-identification jobs already persisted from before this feature
@@ -446,9 +493,9 @@ func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing
 	if notes == nil || !strings.Contains(notes.Proposed.(string), "mint: Rome") {
 		t.Fatalf("expected structured findings in draft notes, got %#v", notes)
 	}
-	for name := range doc.Fields {
-		if _, allowed := deepProposalDraftFieldAllowlist[name]; !allowed {
-			t.Fatalf("intake proposal contains non-draft field %q", name)
+	for _, name := range []string{"ruler", "denomination", "mint"} {
+		if doc.Fields[name] == nil {
+			t.Fatalf("intake proposal did not preserve typed field %q", name)
 		}
 	}
 }
@@ -599,6 +646,7 @@ func TestDeepPipelineRemainingBudgetAfterQuickLookupMeetsMinimumForDefaults(t *t
 		QuickLookupTimeout: 90 * time.Second,
 		MaxProviders:       4,
 	}
+
 	bounds := deepPipelineBounds(settings)
 
 	// Simulate the ctx deadline as it stands immediately after quick lookup
@@ -623,5 +671,35 @@ func TestDeepPipelineRemainingBudgetAfterQuickLookupMeetsMinimumForDefaults(t *t
 	const preChangeBaseline = 265
 	if adjusted.TotalTimeoutS < preChangeBaseline {
 		t.Fatalf("post-quick-lookup TotalTimeoutS = %d regresses below the pre-change ~265s baseline (SC-013)", adjusted.TotalTimeoutS)
+	}
+}
+
+func TestBuildDeepIntakeProposalPreservesCoinFieldsAndAlwaysProvidesTitle(t *testing.T) {
+	proposed := map[string]deepSynthesisProposedField{
+		"ruler":        {Value: "Hadrian", Confidence: 0.92},
+		"denomination": {Value: "Denarius", Confidence: 0.88},
+		"material":     {Value: "Silver", Confidence: 0.9},
+		"mint":         {Value: "Rome", Confidence: 0.8},
+	}
+	fields := buildDeepIntakeProposalFields("", proposed, nil, nil, "", nil)
+	if fields["workingTitle"] == nil || fields["workingTitle"].Proposed != "Hadrian Denarius" {
+		t.Fatalf("working title not derived from accepted identification: %#v", fields["workingTitle"])
+	}
+	for _, name := range []string{"ruler", "denomination", "material", "mint"} {
+		if fields[name] == nil || fields[name].Proposed != proposed[name].Value {
+			t.Fatalf("%s was not retained as a typed proposal field", name)
+		}
+	}
+
+	fallback := buildDeepIntakeProposalFields(
+		"",
+		map[string]deepSynthesisProposedField{"material": {Value: "Silver", Confidence: 0.8}},
+		nil,
+		nil,
+		"",
+		nil,
+	)
+	if fallback["workingTitle"] == nil || fallback["workingTitle"].Proposed != deepProposalWishlistFallbackName {
+		t.Fatalf("honest title fallback missing: %#v", fallback["workingTitle"])
 	}
 }

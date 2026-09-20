@@ -115,22 +115,24 @@ func (r *SetBuilderRepository) FailRun(runID, userID uint, failedAt time.Time, m
 	return nil
 }
 
-// RecoverStaleRuns resets stuck running runs to queued and returns all queued run IDs.
-func (r *SetBuilderRepository) RecoverStaleRuns(timeout time.Duration) ([]uint, error) {
-	cutoff := time.Now().Add(-timeout)
-	if err := r.db.Model(&models.SetBuilderRun{}).
-		Where("status = ? AND started_at < ?", models.SetBuilderRunStatusRunning, cutoff).
+func (r *SetBuilderRepository) ReconcileInterruptedRuns() error {
+	return r.db.Model(&models.SetBuilderRun{}).
+		Where("status = ?", models.SetBuilderRunStatusRunning).
 		Updates(map[string]interface{}{
-			"status":     models.SetBuilderRunStatusQueued,
-			"started_at": nil,
-			"updated_at": time.Now(),
-		}).Error; err != nil {
-		return nil, err
-	}
+			"status":             models.SetBuilderRunStatusFailed,
+			"completed_at":       time.Now(),
+			"updated_at":         time.Now(),
+			"error_message":      "Interrupted by server restart. Review any saved results before retrying.",
+			"termination_reason": "server_restart",
+		}).Error
+}
+
+func (r *SetBuilderRepository) ListQueuedRunIDs() ([]uint, error) {
 	var ids []uint
 	err := r.db.Model(&models.SetBuilderRun{}).
 		Where("status = ?", models.SetBuilderRunStatusQueued).
 		Order("created_at ASC").
+		Limit(100).
 		Pluck("id", &ids).Error
 	return ids, err
 }

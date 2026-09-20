@@ -377,6 +377,32 @@ func TestCoinHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestCoinHandler_Create_ReturnsConflictForDuplicateWishlistReferenceURL(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "wishlist-duplicate")
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":         "Dealer denarius",
+		"category":     "Roman",
+		"material":     "Silver",
+		"referenceUrl": "https://dealer.example/coin/123",
+		"isWishlist":   true,
+	})
+
+	for attempt, wantStatus := range []int{http.StatusCreated, http.StatusConflict} {
+		req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", authHeader(1))
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != wantStatus {
+			t.Fatalf("attempt %d status=%d, want %d: %s", attempt+1, recorder.Code, wantStatus, recorder.Body.String())
+		}
+		if wantStatus == http.StatusConflict && !strings.Contains(recorder.Body.String(), `"code":"wishlist_duplicate"`) {
+			t.Fatalf("duplicate response=%s", recorder.Body.String())
+		}
+	}
+}
+
 func TestCoinHandler_Create_RejectsOverlongCategory(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "creator")

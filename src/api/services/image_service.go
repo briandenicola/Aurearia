@@ -29,16 +29,17 @@ func variantSuffix(size string) string {
 }
 
 var (
-	ErrCoinNotFound      = errors.New("coin not found")
-	ErrImageNotFound     = errors.New("image not found")
-	ErrInvalidBase64     = errors.New("invalid base64 image data")
-	ErrInvalidImageType  = errors.New("invalid image type")
-	ErrInvalidFileExt    = errors.New("invalid file extension")
-	ErrImageTooLarge     = errors.New("image exceeds 20MB limit")
-	ErrDirectoryCreation = errors.New("failed to create upload directory")
-	ErrFileSave          = errors.New("failed to save image")
-	ErrImageRecord       = errors.New("failed to save image record")
-	ErrMediaNotFound     = errors.New("media not found")
+	ErrCoinNotFound        = errors.New("coin not found")
+	ErrImageNotFound       = errors.New("image not found")
+	ErrInvalidBase64       = errors.New("invalid base64 image data")
+	ErrInvalidImageType    = errors.New("invalid image type")
+	ErrInvalidFileExt      = errors.New("invalid file extension")
+	ErrImageTooLarge       = errors.New("image exceeds 20MB limit")
+	ErrDirectoryCreation   = errors.New("failed to create upload directory")
+	ErrFileSave            = errors.New("failed to save image")
+	ErrImageRecord         = errors.New("failed to save image record")
+	ErrMediaNotFound       = errors.New("media not found")
+	ErrImageCleanupPending = errors.New("image metadata deleted; file cleanup pending")
 )
 
 const MaxImageUploadBytes = 20 * 1024 * 1024
@@ -191,29 +192,80 @@ func ValidateImageData(fileData []byte) error {
 	}
 }
 
-// DeleteImage removes an image file from disk and its DB record.
-// Returns the deleted file path.
+// DeleteImage commits metadata deletion and durable cleanup intent before touching files.
 func (s *ImageService) DeleteImage(coinID, imageID, userID uint) (string, error) {
 	if _, err := s.repo.FindCoinByOwner(coinID, userID); err != nil {
-		return "", ErrCoinNotFound
+		if repository.IsRecordNotFound(err) {
+			return "", ErrCoinNotFound
+		}
+		return "", fmt.Errorf("find image owner: %w", err)
 	}
 
-	image, err := s.repo.FindImage(imageID, coinID)
+	cleanup, err := s.repo.DeleteAndQueueCleanup(imageID, coinID, userID)
 	if err != nil {
-		return "", ErrImageNotFound
+		if repository.IsRecordNotFound(err) {
+			return "", ErrImageNotFound
+		}
+		return "", fmt.Errorf("delete image metadata: %w", err)
 	}
+	if err := s.finishImageCleanup(*cleanup); err != nil {
+		return cleanup.FilePath, fmt.Errorf("%w: %w", ErrImageCleanupPending, err)
+	}
+	return cleanup.FilePath, nil
+}
 
-	fullPath := filepath.Join(s.uploadDir, image.FilePath)
-	os.Remove(fullPath)
+// RetryPendingCleanup is called once at startup. Failed entries remain durable.
+func (s *ImageService) RetryPendingCleanup() error {
+	var after uint
+	var failures []error
+	for {
+		pending, err := s.repo.PendingCleanups(after)
+		if err != nil {
+			return errors.Join(append(failures, fmt.Errorf("load pending image cleanup: %w", err))...)
+		}
+		if len(pending) == 0 {
+			return errors.Join(failures...)
+		}
+		for _, cleanup := range pending {
+			after = cleanup.ImageID
+			if err := s.finishImageCleanup(cleanup); err != nil {
+				failures = append(failures, fmt.Errorf("cleanup image %d: %w", cleanup.ImageID, err))
+			}
+		}
+	}
+}
 
-	// Remove variant files (best-effort; ignore errors for non-existent variants).
-	ext := filepath.Ext(fullPath)
-	baseNoExt := strings.TrimSuffix(fullPath, ext)
-	os.Remove(baseNoExt + "_thumb.jpg")
-	os.Remove(baseNoExt + "_medium.jpg")
-
-	s.repo.DeleteImage(image)
-	return image.FilePath, nil
+func (s *ImageService) finishImageCleanup(cleanup models.ImageCleanup) error {
+	rel, err := normalizeUploadPath(cleanup.FilePath)
+	if err != nil || !filepath.IsLocal(filepath.FromSlash(rel)) || rel != cleanup.FilePath {
+		return fmt.Errorf("invalid stored image path")
+	}
+	root, err := os.OpenRoot(s.uploadDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return s.repo.CompleteCleanup(cleanup.ImageID)
+	}
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	base := strings.TrimSuffix(rel, filepath.Ext(rel))
+	for _, name := range []string{rel, base + "_thumb.jpg", base + "_medium.jpg"} {
+		name = filepath.FromSlash(name)
+		info, err := root.Lstat(name)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return fmt.Errorf("image cleanup target is a directory")
+		}
+		if err := root.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return s.repo.CompleteCleanup(cleanup.ImageID)
 }
 
 // ResolveAuthorizedMediaPath returns the on-disk path for a DB-backed upload

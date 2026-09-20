@@ -11284,3 +11284,926 @@ They go to Brian separately.
 
 **Principles:** §17 Quality Gate (CI green required after each rebase), Principle V (security dependency currency).
 
+---
+
+### 2026-09-17T21:56:03-05:00: Feature 359 — Coin Copilot MVP Design
+
+**By:** Maximus (Lead / Architect)
+**Requested by:** GitHub Copilot CLI
+**Status:** ACCEPTED — corrected canonical MVP scope and bounded execution controls
+
+**Decision**: Feature 359 wraps only owner-scoped collection reads, portfolio
+review, and read-only gap analysis in a bounded multi-step harness. Go owns
+durable threads, runs, checkpoints, idempotency, cancellation, retention, and
+replayable SSE. Python remains stateless/DB-free and receives a fresh
+run-and-execution-scoped read-only credential on every execution or resume.
+
+**Rollout**: The existing app-wide chat drawer selects the harness only when
+`CoinCopilotEnabled` is on (default off) and the configured model has verified
+tool-calling capability; otherwise the legacy supervisor remains the fallback.
+
+**Defaults**: 8 reasoning iterations, 12 tool calls, sequential tools, 120
+seconds per execution (configurable only up to 150 seconds), 32 KiB persisted
+result per tool call, and one active run per owner. Dollar-cost enforcement is
+deferred until the project has a trustworthy, current provider/model pricing
+source. Reliable provider-reported input/output token usage remains observable;
+iteration, tool-call, wall-clock, sequential-concurrency, and payload limits
+remain enforced. The 150-second maximum leaves the required 30-second
+credential buffer within the execution token's absolute 180-second TTL. Events
+retain 7 days, checkpoints/tool results 30 days, and final thread/run summaries
+until owner deletion.
+
+**Deferred**: market/dealer search, auction search, price trends, similar lots,
+writes/approvals, deep-identification handoff, and long-term user memory.
+**Governance**: ADR 0016 records the material multi-service decision. No
+constitution amendment is needed because this design directly implements
+Principle II rather than changing it.
+
+---
+
+### Deep Analysis Must Reuse Collection-Grade Face Analysis
+
+**Date:** 2026-09-19
+**Owner:** Brian
+
+- Quick Lookup remains a fast, single combined-image vision pass.
+- When an NGC certification number is visible, Quick Lookup should prioritize
+  that number for lookup.
+- Deep Analysis must reuse the supplied images and collector notes through the
+  existing Collection AI Analysis behavior for dedicated obverse and reverse
+  examination.
+- Deep Analysis then combines those face-level observations with Numista,
+  Nomisma, OCRE, and other configured provider evidence.
+- The final Deep Analysis review must retain the evidence trail, provider
+  coverage, disagreements, unresolved questions, confidence, and explanatory
+  narrative alongside proposed fields. Reusing the Collection AI Analysis
+  pipeline must not collapse the result into only obverse/reverse prose or only
+  field values.
+- A combined structured vision call that drops explicit obverse/reverse role
+  labels is not sufficient as the primary Deep Analysis examination.
+- Collector notes remain untrusted evidence rather than instructions or
+  automatically confirmed facts.
+
+**User clarification:** "Quick Lookup is fine to send both coins images in one
+go. The idea is quick while you see a coin. if there is a [NGC] number then use
+that for lookup, but deep analysis should do just that dig deeper. We should
+reuse the images and supplied notes through the Collection AI Analysis pipeline
++ Numista/Nomisma/OCRE and other configured providers."
+
+**Follow-up clarification:** "I still want the evidence and narrative for
+review. That doesn't get lost."
+
+---
+
+### Aurelia — Background Removal: Second CSP Gap Found (blocker, not a decision)
+
+**Date:** 2026-08-24
+**Requested by:** Brian DeNicola
+**Owner for next action:** Cassius (`src/api/middleware/csp.go`), ratification: Brian
+
+## What this is
+Not a team decision — a diagnosed blocker for Cassius to act on (or decline). Filed to inbox per
+protocol so it survives the session even though I made no code change.
+
+## Finding
+After `706435fe` (script-src `blob:` fix) shipped, Remove Background in `ImageLightbox.vue` still
+fails end-to-end in production. Root cause is a **second, independent** CSP gap, not a regression of
+the blob: fix: `@imgly/background-removal@1.7.0` (latest published version) bundles `ndarray@1.0.19`
+verbatim. `ndarray`'s `compileConstructor()` builds typed-array view classes via `new Function(code)`
+unconditionally — no feature detection, no eval-free fallback — and this runs on the first tensor
+operation of every background-removal call (image decode, resize, HWC→BCHW, etc.), each distinct
+dtype+dimension pair triggering another `new Function()`.
+
+`script-src`'s existing `'wasm-unsafe-eval'` only authorizes WebAssembly compilation. It does not
+cover `new Function()`/`eval()` for JavaScript strings — that is `'unsafe-eval'`, a different, broader
+CSP token, currently and deliberately absent (see csp.go's own comment). No CSP hash/nonce mechanism
+covers dynamic-string eval, only inline `<script>`/event handlers — so there is no narrow way to scope
+this allowance to just this one library call.
+
+## Reproduction (evidence, not a guess)
+Local harness: a throwaway page importing `removeCoinBackground` directly, served via `vite dev` with
+a temporary plugin replicating `appCSP` verbatim as a response header (dev server sets no CSP itself).
+- Without the CSP header: succeeds. imgly's own code detects `crossOriginIsolated === false`, warns,
+  and falls back to single-threaded WASM — ruling out the `SharedArrayBuffer`/threading angle as the
+  cause.
+- With the header: reproduces production exactly —
+  `EvalError: Evaluating a string as JavaScript violates the following Content Security Policy
+  directive because 'unsafe-eval' is not an allowed source of script: script-src 'self'
+  'wasm-unsafe-eval' blob:` — stack through `compileConstructor → wrappedNDArrayCtor → imageDecode →
+  imageSourceToImageData → removeBackground`.
+
+This also explains the "empty logged value" in the production report: `JSON.stringify(evalError)` is
+`{}` because `Error.message`/`.stack` are non-enumerable. The error object itself was never empty —
+only a JSON serialization of it would be. Nothing in this app's own code is silently swallowing it.
+
+All repro artifacts (temp html/JS, the vite.config.ts CSP-header plugin, downloaded
+`public/imgly-background-removal/` assets) were deleted/reverted before I finished. No product code
+was changed.
+
+## Why I stopped instead of committing
+- 1.7.0 is the latest `@imgly/background-removal` release (checked npm) — no upstream fix exists to
+  pull in.
+- Patching the vendored/minified bundle (e.g. via patch-package) to strip out `ndarray`'s eval-based
+  codegen is exactly the kind of library-replacement/generalized-infra move Principle IV and my
+  directive told me to avoid unless proven necessary, and it would be fragile against any future
+  version bump of a third-party dist we don't control.
+- The only real fix is adding `'unsafe-eval'` to `script-src` in `src/api/middleware/csp.go`. That is
+  a substantive, page-wide security-policy relaxation (re-enables arbitrary string-to-JS execution
+  everywhere, not scoped to this one library), not a frontend change, and not mine to make unilaterally.
+
+## Exact requirement for Cassius
+Add `'unsafe-eval'` to the `script-src` directive in `appCSP` (`src/api/middleware/csp.go`), alongside
+the existing `'self' 'wasm-unsafe-eval' blob:`. Given this is a materially broader CSP relaxation than
+the `blob:` addition in `706435fe` (that one only permitted fetching scripts from same-origin-created
+blob URLs; this one permits arbitrary dynamic JS execution), it is plausibly ADR territory (§22) rather
+than a same-day patch — Cassius's and Brian's call. Regression coverage for whichever directive lands
+belongs in `src/api/middleware/csp_test.go`, mirroring `TestContentSecurityPolicyAllowsBackgroundRemovalBlobScriptImport`.
+
+## Status
+Unresolved. Feature (Remove Background in the coin detail/lightbox) remains broken in production until
+this CSP change ships. No lockout, no frontend follow-up pending from Aurelia unless the header change
+lands and needs a frontend-side smoke test.
+
+**Merged from:** `.squad/decisions/inbox/aurelia-background-removal-second-csp-gap.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 359 Coin Copilot UI Decisions
+
+**Date:** 2026-09-17
+**Owner:** Aurelia (Frontend)
+
+- Coin Copilot remains inside the single existing app-wide Agent drawer. The sidebar action, PWA floating action button, custom `open-agent-chat` event, and drawer component are unchanged; there is no route or user-facing mode switch.
+- Capability resolution is fail-closed. Disabled, unconfigured, unsupported, unavailable, and explicit pre-accept `503` states use the existing legacy chat stream without Copilot UI.
+- Accepted Copilot runs suppress the legacy saved-conversation button so durable Copilot threads are not copied into `AgentConversation.Messages`; legacy conversations remain loadable and saveable.
+- Only non-sensitive run identifiers and the last processed sequence are stored in `sessionStorage`. Reopening reconnects with `since`; paused runs replay retained events from the beginning to reconstruct the clarification card because the public run snapshot does not include the clarification payload.
+- Progress is a compact in-drawer Beta panel with concise plan/tool statuses. Clarification, cancel, and resume controls use existing chip/button/form patterns and 44px minimum touch targets.
+
+**Merged from:** `.squad/decisions/inbox/aurelia-coin-copilot-ui.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 Frontend Implementation Notes
+
+**Date:** 2026-09-10
+**Owner:** Aurelia
+
+- The Quick Access client is a module-level composable because App navigation, the list page, and detail surfaces require immediate shared updates. `clear()` invalidates pending responses with a generation token; no browser persistence or polling is used.
+- PUT responses preserve backend ordering semantics: `201` prepends, while `200` replaces the matching item in place. DELETE removes only after success.
+- Existing pinned Sets remain a compatibility projection. Set detail writes through `/quick-access/coin_set/:id`, then refreshes both set detail and `usePinnedSets`.
+- Lifecycle reconciliation uses full refresh for eligibility-preserving transitions and local removal after successful terminal/delete mutations.
+- Calendar deep-link close uses query-local `router.replace`, preserving unrelated query parameters and allowing browser Back to close the drawer without reopening it.
+- No `src/api/` file was modified.
+- Frontend quality gate passed: type-check, lint, production build, 91/91 targeted Vitest tests, and 1351/1351 full Vitest tests plus 8/8 asset-download tests.
+
+**Merged from:** `.squad/decisions/inbox/aurelia-quick-access-frontend.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Brutus re-review: `3a0d7b04` (Maximus Strict Lockout revision) — CLEAR/APPROVE
+
+**Supersedes**: `.squad/decisions/inbox/brutus-background-removal-worker-review.md` (round-1 BLOCK on
+`fbbe8503` + `6cdce47d`).
+
+**Assignment**: Re-review as the original blocking reviewer, per Strict Lockout, after Maximus (named
+revision owner) independently revised the blocked artifact. Aurelia/Cassius did not contribute to this
+revision. Required re-verification of both original findings, including an independent (non-mocked)
+reproduction of the ORT-pthread CSP conclusion under the real Go server + real production build.
+
+**Commit reviewed**: `3a0d7b04`.
+**Files changed**: `src/web/src/utils/backgroundRemoval.ts`,
+`src/web/src/utils/__tests__/backgroundRemoval.test.ts`. No backend/CSP files touched.
+
+## Finding 1 — worker crash/recreation — CONFIRMED FIXED
+
+The fix adds:
+- `PendingRequest.worker` — records which `Worker` instance each in-flight request was posted to.
+- `invalidateWorker(instance)` — nulls the module-level singleton **only if** `worker === instance`
+  (identity-guarded against stale/late events from an already-replaced worker), then calls
+  `instance.terminate()`.
+- `rejectPendingForWorker(instance, error)` — rejects only the pending requests whose `.worker`
+  matches that instance, leaving requests on a newer worker untouched.
+
+Both `error` and `messageerror` listeners, and `terminateBackgroundRemovalWorker()`, now route through
+these. This is exactly the fix required in the round-1 BLOCK.
+
+**Verification:**
+- Code review confirms the diff matches the required shape exactly.
+- Maximus's 3 new tests (crash-then-fresh-worker recovery for `error` and `messageerror`;
+  stale-old-worker-event-after-replacement) + full existing suite: **15/15 pass**.
+- My own adversarial re-verification probe (temporary, deleted after use, never committed):
+  - Both concurrent pending requests on a crashing worker are rejected while a third request issued
+    immediately after correctly recovers on the fresh worker.
+  - Repeated consecutive crash→recover→crash→recover cycles all resolve correctly each time.
+  - A post-crash request does not resolve prematurely — it only settles once the fresh worker
+    actually responds (rules out a race where a stale event could resolve it early).
+  - All 3 passed.
+
+**Conclusion: fully resolved.** No hang, leak, or race identified.
+
+## Finding 2 — ORT pthread orphan-chunk CSP safety — CONFIRMED (static proof + real reproduction)
+
+Traced the exact minified emscripten pthread bootstrap in `ort(.webgpu)?.bundle.min-*.mjs`:
+```
+new Worker(import.meta.url.startsWith('file:') ? new URL('/assets/ort.bundle.min-*.mjs', ...) : new URL(import.meta.url), {type:'module', ...})
+```
+The `file:` branch is unreachable for any script served over http(s) — it only matters for
+Node/Electron `file://` contexts. Over real deployment, the nested pthread worker always re-resolves
+to `import.meta.url` (itself), which for the worker-context copy of this code is always already
+inside `/assets/workers/`. The orphan `dist/assets/ort*.mjs` chunk is dead code over the network. Even
+if it were ever requested directly, it is served with strict `appCSP` (verified) and contains no
+`new Function` itself.
+
+**Independent real (non-mocked) reproduction** (not merely re-trusting the claim):
+- Built the actual Go API binary and a fresh production frontend bundle.
+- Ran the real `SecurityHeaders → ContentSecurityPolicy → static` middleware chain
+  (`GIN_MODE=debug` only to bypass an unrelated `JWT_SECRET` fatal-on-missing-env check; no
+  middleware logic altered or bypassed). Confirmed live via `/health`.
+- Verified real HTTP response headers: `/` and `/imgly-background-removal/resources.json` → strict
+  `appCSP` + `COOP: same-origin` + `COEP: credentialless`; `/assets/workers/*.js` → `workerScriptCSP`
+  with `unsafe-eval`; the orphan `.mjs` chunk fetched directly → `appCSP` (never worker CSP).
+- Drove a real Playwright/Chromium page (served under the real strict `appCSP` — an inline `<script>`
+  was correctly blocked by the real CSP, confirming this was not a permissive stub) that constructed
+  the actual production `new Worker('/assets/workers/backgroundRemovalWorker-<hash>.js', {type:
+  'module'})` and posted a real canvas-generated PNG `Blob` through the real message protocol.
+
+**Result:** `crossOriginIsolated === true`; the real worker produced a real non-empty PNG
+(`resultSize=6583`, `type=image/png`); **zero** `securitypolicyviolation` events fired; the orphan
+`ort*.mjs` chunk was never requested (absent from all captured network requests); every worker/model
+request stayed under `/assets/workers/` or `/imgly-background-removal/`.
+
+**Conclusion: fully resolved.** Confirmed by both deterministic code-level proof and a live,
+real-browser, real-server, real-build reproduction.
+
+## Validation run (final revision state)
+
+- `go build ./...`, `go vet ./...`, `go test ./...` (from `src/api`) — 11/11 packages pass (no
+  backend files changed this round; re-run to confirm zero regression).
+- `vue-tsc --build --force` — clean.
+- `npx vitest run` (full suite) — 161 files / 1274 tests pass (up from 1271 pre-revision: +3 new
+  tests, zero regressions).
+- All scratch reproduction artifacts (temp server directory + running process, Playwright harness
+  files, adversarial probe test files) deleted after use.
+
+## Verdict: CLEAR / APPROVE
+
+Both findings from the original BLOCK are independently confirmed resolved. No implementation files
+were modified by me this round — review-only, per Strict Lockout. No commit was made: the existing
+tests plus Maximus's own new tests already cover the required regression scope, and my adversarial
+probes were deleted after serving their verification purpose.
+
+## Remaining manual verification (documented, not automated)
+
+- A full real-model, non-64×64-test-image run through the actual `@imgly/background-removal` model
+  weights (multi-threaded WASM path with `hardwareConcurrency > 1` actually engaging several
+  `em-pthread` worker instances, as opposed to this reproduction's single-threaded/small-image path)
+  has not been observed as multiple distinct concurrent worker network requests in my run. This does
+  not weaken the conclusion — the code-level proof (`file:` vs `import.meta.url` ternary) is
+  deterministic regardless of whether multi-threading actually engages at runtime — but a
+  once-per-release manual smoke check with a real coin photo in a real browser (confirming no console
+  errors/CSP violations end-to-end) remains a reasonable manual gate before each production deploy,
+  since headless Playwright environments can differ from real end-user browser/OS combinations in
+  `hardwareConcurrency`-driven code paths.
+
+**Merged from:** `.squad/decisions/inbox/brutus-background-removal-worker-reverify.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Brutus — Independent Reviewer Gate: Background-Removal Module-Worker CSP Isolation
+
+**Date:** 2026-08-24
+**Scope reviewed:** `fbbe8503` (Aurelia — module worker isolation), `6cdce47d` (Cassius — exact
+`/assets/workers/` CSP boundary), prior context `706435fe` + `9d8272dd` (Aurelia's diagnosis) +
+Maximus's design authorization referenced in both commit messages ("Per Maximus's design decision,
+isolate the eval-needing code in a dedicated same-origin ES-module Worker").
+**Verdict:** **BLOCK**
+
+## What I independently verified as correct
+
+1. **No unrelated production changes.** `fbbe8503` touches only
+   `src/web/src/{utils/backgroundRemoval.ts,workers/*,vite.config.ts}` + its own history/tests.
+   `6cdce47d` touches only `src/api/{main_static_test.go,middleware/csp*.go}` + its own
+   history/tests. No incidental drive-by edits anywhere else.
+2. **No app-wide `unsafe-eval`.** `appCSP` in `src/api/middleware/csp.go` is byte-identical to
+   before except for the pre-existing `blob:` addition from `706435fe`; `'unsafe-eval'` appears
+   nowhere in it. Confirmed by direct inspection and by `TestContentSecurityPolicyIsSetOnAppRoutes`
+   / `TestContentSecurityPolicyUnsafeEvalStaysScopedToWorkerNamespace`, both passing.
+3. **No path-prefix escape.** `backgroundRemovalWorkerPathPrefix = "/assets/workers/"` (trailing
+   slash included) correctly rejects `/assets/workers-evil/...` and `/assets/workersuffix/...` —
+   verified by reading `strings.HasPrefix` semantics and by the existing negative test, which I
+   re-ran and confirms pass.
+4. **The security boundary is real, not cosmetic.** `workerScriptCSP` omits every document-oriented
+   directive (`style-src`, `img-src`, `font-src`, `base-uri`, `form-action`, `frame-ancestors`,
+   `manifest-src`) so `default-src 'none'` is the true fallback; a module Worker has no DOM/window
+   and cannot reach `localStorage`/the SPA's JWT even with `'unsafe-eval'` granted. `appCSP` is
+   independently untouched. Middleware order in `bootstrap.go`
+   (`SecurityHeaders → ContentSecurityPolicy → ... → configureStaticRoutes`) matches what
+   `main_static_test.go` exercises end-to-end through the real static handler.
+5. **The existing Go contract test already satisfies task requirement #4** (automated proof of
+   emitted worker asset discovery + Go static serving + distinct CSP headers, without mocking CSP):
+   `TestBackgroundRemovalWorkerAssetIsReachableWithWorkerCSP` in `src/api/main_static_test.go` wires
+   the real `ContentSecurityPolicy()` middleware ahead of the real `configureStaticRoutes`, writes an
+   arbitrary (non-hash-dependent) file under `wwwroot/assets/workers/`, and asserts its response
+   carries `'unsafe-eval'` while a sibling file directly under `wwwroot/assets/` does not. No new Go
+   test was needed from me; I re-ran it (`go test ./... ` from `src/api`, all packages green,
+   `go vet` clean, `go build` clean).
+6. **Frontend worker-client test coverage is strong for the documented cases**: success, library
+   error, worker `error` event (asserted "without hanging" — see finding below on why that framing is
+   incomplete), `messageerror`, out-of-order concurrent-request correlation, singleton reuse, and
+   explicit `terminateBackgroundRemovalWorker()` cleanup + fresh-worker-on-next-call. All 12 targeted
+   tests pass; full suite (161 files / 1271 tests), `vue-tsc --build --force`, and `npm run build`
+   are all green with the worker chunks landing under `dist/assets/workers/` as designed.
+
+## Finding 1 (BLOCKING) — crashed/corrupted worker is never recreated; every request after one crash hangs forever with no user-visible error
+
+`src/web/src/utils/backgroundRemoval.ts`: the page-level singleton `worker` variable is set to
+`null` in exactly one place — `terminateBackgroundRemovalWorker()`, which **no production code path
+calls** (only test `afterEach`). The `error` and `messageerror` event handlers both call
+`rejectAllPending(...)` but never null out `worker` or call `createWorker()` again. `getWorker()`
+therefore returns the same broken instance on every subsequent call.
+
+I proved this is a real hang, not a theoretical one, with a throwaway Vitest probe (run once, not
+committed — deleted after verification, per "do not add QA test files when the implementation is not
+otherwise correct"):
+
+```
+first = removeCoinBackground(blobA)
+worker.emitError('script failed to load')   // simulates a worker crash
+await expect(first).rejects...              // rejects correctly
+
+second = removeCoinBackground(blobB)        // issued after the crash
+// FakeWorker.instances.length === 1         <- proves the dead worker was reused, not recreated
+// after 50ms, `second` has neither resolved nor rejected  <- proves it hangs forever
+```//&#8203;Result: PASSED (i.e., the bug reproduces exactly as described).
+
+**User-facing impact is worse than a silent internal hang.** `ImageLightbox.vue::handleRemoveBackground()`
+does `processing.value = true; ... await removeCoinBackground(srcBlob); ... finally { processing.value
+= false }` with no timeout anywhere in the call chain. Once a single worker `error` or `messageerror`
+event has ever fired in a session (a script-load hiccup, a stale/corrupt Service-Worker-cached worker
+chunk, a transient network blip fetching the ~24MB WASM binary, etc. — all plausible in a PWA that
+precaches 149 entries via `sw.js`), **every subsequent "Remove Background" click in that browser tab
+spins forever** with no error, no console message beyond the original crash, and no recovery short of
+a full page reload. This directly contradicts the existing test's own name — "...without hanging" —
+which is true only for the *first* crash's in-flight requests, not for anything issued afterward.
+
+This is exactly the "worker crash/recreation" class of defect item 3 of my brief asked me to hunt for,
+and it is a genuine functional/reliability defect, not a style nit.
+
+### Exact fix required (for Maximus to assign / own; I am not the implementation owner)
+
+In `createWorker()`'s `error` and `messageerror` listeners (`src/web/src/utils/backgroundRemoval.ts`),
+after `rejectAllPending(...)`, also do `if (worker === instance) worker = null` so the next
+`getWorker()` call constructs a fresh worker instead of reusing the dead one. (Guard on identity, not
+a bare `worker = null`, in case a newer worker was already installed by the time the event fires.)
+Add regression coverage proving: (a) a fresh `Worker` is constructed on the next call after an `error`
+event, and (b) same for `messageerror`, and (c) that the recreated worker actually completes a
+subsequent request (not just that a second `Worker` instance exists).
+
+## Finding 2 (non-blocking, but the "confined to `/assets/workers/`" claim needs re-verification, not just re-assertion)
+
+The commit message and Aurelia's history entry both assert: *"npm run build output confirms all
+eval/onnxruntime-web code is confined to assets/workers/... grepping every other emitted chunk for
+imgly/onnxruntime/removeBackground turns up nothing."* I ran `npm run build` myself and this is not
+quite accurate: two **unreferenced-by-any-static-import** onnxruntime-web chunks are also emitted
+directly under `dist/assets/` (outside the `/assets/workers/` prefix) —
+`ort.bundle.min-<hash>.mjs` and `ort.webgpu.bundle.min-<hash>.mjs`. Neither contains `new Function`
+(confirmed by direct inspection), so neither needs `'unsafe-eval'` — but tracing the string
+`ort.bundle.min-<hash>.mjs` inside the *worker-scoped* `ort.bundle.min-<hash>.js` shows it is not
+dead: onnxruntime-web's emscripten pthread bootstrap does
+`new Worker(new URL('/assets/ort.bundle.min-<hash>.mjs', ...), {type:'module', workerData:'em-pthread'})`
+to spin up threaded-WASM helper workers. Whether that path is actually taken in production depends on
+`self.crossOriginIsolated`, which in turn depends on COOP/COEP — and this app's `SecurityHeaders()`
+middleware (`src/api/middleware/security.go`) sets `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: credentialless` **globally, on every response**, which is sufficient to
+make `crossOriginIsolated` true. Aurelia's own two Playwright spikes (per her history entry) only
+replicated the CSP header, not COOP/COEP, so this code path was never exercised by either spike or by
+the Vitest suite (which fakes `Worker` entirely and can't model nested real workers).
+
+Net effect right now: **probably harmless in practice** (the nested chunk doesn't need eval, and it's
+served with `appCSP`, which already grants `'self'`/`'wasm-unsafe-eval'`/`worker-src 'self'`, so it
+should load and run). But the documented verification method ("grep for onnxruntime, find nothing
+outside assets/workers/") is not what actually happened, and the boundary is narrower than believed —
+it works today by coincidence of what this specific onnxruntime-web version's pthread shim needs, not
+by an enforced invariant. A future onnxruntime-web bump that adds any eval-requiring code to that
+pthread chunk would silently reproduce the exact original `EvalError`, on a path outside this
+review's test coverage and outside `/assets/workers/`.
+
+**Recommendation for Maximus (not blocking, but should be resolved before signing off the design as
+final/ADR-worthy):** either (a) confirm via a real browser network trace with COOP/COEP as deployed
+that this nested worker does or does not actually spawn for the `device: 'cpu'` config in use, and
+document the finding, or (b) broaden the Vite worker-output rule so any chunk reachable from
+`@imgly/background-removal`'s dependency graph — not just the ones statically imported from
+`backgroundRemovalWorker.ts` — lands under `assets/workers/`, closing the gap definitively rather than
+relying on this version's chunk happening not to need eval.
+
+## What I did not change
+
+I made no edits to any implementation file (`backgroundRemoval.ts`, `backgroundRemovalWorker.ts`,
+`csp.go`, `vite.config.ts`, etc.) per Strict Lockout / my charter boundary. I did not commit the
+throwaway probe test that reproduced Finding 1 — it was deleted after verification, per instruction
+not to add QA-owned test files while the implementation is not otherwise correct. No commit was made
+this round.
+
+## Validation run (all green, for the record)
+
+- `go build ./...`, `go vet ./...`, `go test ./...` from `src/api` — 11 packages, all pass, no
+  collateral regressions.
+- `npx vitest run src/utils/__tests__/backgroundRemoval.test.ts src/components/__tests__/ImageLightbox.test.ts` — 12/12 pass.
+- `npx vitest run` (full suite) — 161 files / 1271 tests, all pass.
+- `npx vue-tsc --build --force` — clean, no errors (Docker-equivalent strict type check).
+- `npm run build` — clean; worker chunks verified landing under `dist/assets/workers/`.
+
+## Lockout / next steps
+
+Under §18.2, this BLOCK attaches to Aurelia's and Cassius's artifacts for the scope of Finding 1.
+**Revision owner: Maximus**, per this batch's directive not to hand rejected artifacts back to
+Aurelia/Cassius directly. Exact fix is scoped above (one guard clause in two event listeners, plus
+regression coverage proving recreation-after-crash). Finding 2 does not block but should be resolved
+or explicitly accepted-as-risk before this goes to `main`/ADR. No merge, no deploy — consistent with
+the outstanding ADR/on-device gate already noted elsewhere in this batch.
+
+**Merged from:** `.squad/decisions/inbox/brutus-background-removal-worker-review.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 Quick Access Frontend — QA Review
+
+**Reviewer:** Brutus
+**Date:** 2026-09-10
+**Verdict:** REJECT
+**Scope:** Frontend tasks T061-T094; backend commit `4d3b6a06` treated as frozen.
+
+## Blocking defects
+
+1. **Duplicate bootstrap GET / response race (FR-045, D15).**
+   `QuickAccessPage.vue:161-163` refreshes whenever its module-level list is
+   empty. On a direct authenticated `/quick-access` load, the child mounted hook
+   runs before `App.vue:570-576`, so both invoke `refreshQuickAccess()`. The
+   composable does not deduplicate same-generation refreshes; a slower older
+   response may overwrite the newer result.
+
+2. **Failed numeric deep links retain another target's details (FR-051-FR-053).**
+   `CalendarPage.vue:541-556` and `AuctionsPage.vue:304-312` only replace the
+   selected target after a successful fetch. Their route watchers do not clear
+   the old selection before fetching. Changing from a valid target to a
+   missing/foreign positive ID leaves the prior drawer/modal visible, contrary
+   to the safe-parent/no-detail-leak contract.
+
+3. **Terminal auction eligibility is stale in the open modal (FR-048, FR-050).**
+   `AuctionLotDetailModal.vue:419` derives eligibility from
+   `props.lot.status`. `changeStatus()` removes the pin at lines 735-740 but does
+   not update that prop. `AuctionsPage.handleLotUpdated()` reloads the list but
+   does not replace `selectedLot`. The terminal lot therefore still displays an
+   unpressed Pin control that can only fail against the backend.
+
+4. **Pinned Set metadata does not reconcile (D19 / lifecycle freshness).**
+   `SetDetailPage.vue:613-617` reloads only set detail after rename/edit even
+   though `refreshQuickAccess` is available. The Quick Access card remains stale
+   until a later global refresh. In addition, `QuickAccessPage.vue:109-113` uses
+   a generic set icon and never consumes the DTO's `coinSet.icon` or
+   `coinSet.color`, leaving requested set icon/color presentation unverified and
+   absent.
+
+5. **Pending/error accessibility is incomplete (FR-049).**
+   All four pin surfaces disable while busy but expose no `aria-busy` state.
+   Auction pin failures render through `statusMessage`
+   (`AuctionLotDetailModal.vue:246`) without `role="alert"` or `aria-live`.
+
+## Verification
+
+| Gate | Result |
+|---|---|
+| ESLint `--max-warnings 0` | PASS |
+| `vue-tsc --build` | PASS |
+| Focused Feature 357 suite | 10 files / 93 tests PASS |
+| T064-T067 repeated cleanly | 2 files / 11 tests PASS, twice |
+| Full Vitest | 168 files / 1353 tests PASS |
+| Asset lock/download tests | 8 PASS |
+| Design/UI pattern checks | 2 files / 19 tests PASS |
+| Production build + PWA generation | PASS |
+| Diff hygiene | PASS |
+| Frontend-only scope | PASS; no `src/api/` paths changed |
+
+QA added only endpoint and singleton lifecycle tests, then marked T064, T068,
+T093, and T094 complete.
+
+## Revision ownership
+
+Per Strict Lockout, original author **Aurelia is locked out** of the next
+revision of the rejected frontend artifacts. Assign the revision to **Livia or
+another independent Vue/PWA specialist**. Brutus must explicitly clear these
+blocks before release.
+
+**Merged from:** `.squad/decisions/inbox/brutus-quick-access-frontend-review.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 Quick Access Frontend — QA Re-review
+
+**Reviewer:** Brutus
+**Date:** 2026-09-10
+**Revision owner:** Livia
+**Verdict:** REJECT
+**Scope:** Current frontend/spec/task diff; backend commit `4d3b6a06` remained frozen.
+
+## Artifact review
+
+- Read the prior rejection, Livia revision note, Constitution, decisions ledger,
+  Brutus charter, Feature 357 spec/plan/tasks, CI workflow, package scripts, and
+  the complete current frontend diff.
+- No `src/api/` file is changed. `git diff --check` passes.
+- T061-T094 remain checked and T095-T096 remain open. T084/T087 are not
+  substantively complete because the calendar invalid-query race below remains.
+
+## Previous blocker disposition
+
+1. **Duplicate direct-route GET/race — RESOLVED.**
+   `QuickAccessPage` no longer owns an on-mount fetch, App owns bootstrap, and
+   `useQuickAccess.refresh()` deduplicates same-generation calls. The direct
+   `/quick-access` test observes one GET; generation tests cover late
+   pre-logout/account-switch responses.
+
+2. **Stale private calendar/auction detail — NOT RESOLVED.**
+   Auction route changes invalidate every request. Calendar only increments
+   `eventRequestId` inside `openEvent()` for valid positive IDs
+   (`CalendarPage.vue:532-548`). Its invalid-query watcher branch
+   (`CalendarPage.vue:608-615`) clears the drawer but does not increment the
+   request generation. Reproduction: start a delayed valid event request, change
+   the query to an invalid/missing value, then resolve the old request. Its
+   request ID still matches, so the old private event and linked lots reopen
+   under the invalid query. The added test covers a completed valid request
+   followed by a failing numeric request, not this valid-to-invalid in-flight
+   race.
+
+3. **Terminal auction eligibility/reconciliation — RESOLVED.**
+   Confirmed status is held locally, terminal success removes the item and
+   immediately hides the pin control, while watching/bidding refreshes the DTO.
+   Behavioral tests cover the terminal transition.
+
+4. **Set edit metadata plus icon/color rendering — IMPLEMENTATION RESOLVED;
+   REGRESSION COVERAGE INCOMPLETE.**
+   Set edits refresh detail, Quick Access, and pinned Sets. Color rendering is
+   asserted. The icon assertion only checks that some SVG exists, so it would
+   also pass the rejected generic `Layers3` implementation. It does not prove
+   that DTO icon `Crown` is rendered or that invalid values use the fallback.
+
+5. **Busy/error accessibility — RESOLVED.**
+   Coin, set, auction, and manual-calendar controls expose disabled busy state,
+   pending accessible names, and `aria-busy`; auction errors are assertively
+   announced. Other pin failures continue through the global polite live-region
+   toast.
+
+## Independent verification
+
+| Gate | Result |
+|---|---|
+| ESLint `--max-warnings 0` | PASS |
+| Strict `vue-tsc --build` | PASS |
+| Focused Feature 357 tests | PASS — 10 files / 102 tests |
+| Full `npm run test` | PASS |
+| Full Vitest | PASS — 168 files / 1362 tests |
+| Design token/UI pattern checks | PASS — 2 files / 19 tests |
+| Asset contract/download checks | PASS — 8 tests |
+| Production build + PWA generation | PASS |
+| Diff hygiene | PASS |
+| Frontend-only product scope | PASS — no `src/api/` changes |
+
+Vitest still emits existing Vue warnings, but the zero-warning ESLint gate is
+clean.
+
+## Required revision
+
+Invalidate `eventRequestId` for every non-valid/removed calendar event query and
+add a delayed valid-request → invalid-query regression test proving that the old
+event and linked lots cannot reappear. Strengthen the set card test to
+distinguish the requested DTO icon from `Layers3` and verify invalid-icon/color
+fallback behavior.
+
+Per Constitution §18.2 Strict Lockout, **Livia is locked out** of the next
+revision. Assign a third independent Vue/PWA revision owner who is not Aurelia,
+Livia, or Brutus; Brutus must explicitly clear this rejection before release.
+
+**Merged from:** `.squad/decisions/inbox/brutus-quick-access-rereview.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 359 Python harness seam
+
+- Coin Copilot binds only the `allowed_tools` supplied for the current execution, even though the compiled MVP allowlist contains six capabilities.
+- The four Go callbacks remain the only HTTP tool surface. `portfolio_review` and `gap_analysis` are Python-local, collection-only capabilities and require a previously validated `collection_summary` fact; they do not create additional callback routes or reuse legacy market/acquisition prompts.
+- Python sanitizes and bounds tool data before it is added to model context or emitted in an internal frame. Go remains authoritative and revalidates/sanitizes every frame before persistence.
+- Cancellation is intentionally silent at the Python stream boundary: Python stops emitting as soon as disconnect/cancellation is observed, while Go owns the durable `cancel_requested` to `cancelled` transition.
+
+**Merged from:** `.squad/decisions/inbox/cassius-coin-copilot-python.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 — Quick Access transaction boundary
+
+**Decision:** Keep GORM transaction ownership in the repository layer while allowing services to orchestrate atomic cross-repository lifecycle updates through the narrow `repository.Transaction` wrapper.
+
+**Rationale:** Quick Access cleanup must commit or roll back with coin, set, auction-lot, and calendar-event mutations (spec FR-030). Passing raw `*gorm.DB` into new services violates the repository architecture guard. The wrapper exposes no query surface; repositories unwrap it through `WithTransaction`, preserving Handler → Service → Repository → Database boundaries.
+
+**Compatibility:** `QuickAccessPin` is authoritative. `CoinSet.PinnedAt` remains a transactionally synchronized read-model mirror, including legacy `PUT /sets/:id` behavior and its five-set cap.
+
+**Validation:** Feature 357 migration/repository/service/handler tests run with unique SQLite DSNs and rollback triggers; architecture and OpenAPI route-drift gates pass.
+
+**Merged from:** `.squad/decisions/inbox/cassius-quick-access-implementation.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Background-Removal Asset Integrity
+
+**Date:** 2026-08-31
+**Status:** Accepted
+**ADR:** `docs/adr/0015-lock-background-removal-build-assets.md`
+
+The production build no longer trusts IMG.LY's live `resources.json`.
+`@imgly/background-removal` remains pinned to 1.7.0, while a committed lockfile
+defines the exact required CPU / `isnet_quint8` resources and SHA-256 chunk
+identities. The downloader rejects package-version drift, unexpected
+resources, unsafe paths, origin changes, redirects, oversized responses, size
+mismatches, and digest mismatches before publishing a complete staged asset
+directory.
+
+This closes threat-model finding SC-3 without committing generated model
+binaries or changing the runtime worker isolation established by ADR 0014.
+Future dependency upgrades must update and review the package version and
+asset lockfile together.
+
+**Merged from:** `.squad/decisions/inbox/copilot-background-removal-asset-integrity.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 358 implementation closure
+
+No implementation-time deviation from `specs/358-structured-storage-trays/research.md`
+was required. The physical view reuses `TraySurface` and `MuseumTrayWell` while
+keeping Museum Tray's responsive drawer semantics separate. SQLite's named
+partial unique index remains the authoritative concurrent slot-claim guard;
+service occupancy reads provide only user-friendly pre-validation.
+
+**Merged from:** `.squad/decisions/inbox/feature358-structured-storage-trays.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 Frontend Rejection Revision
+
+**Date:** 2026-09-10
+**Owner:** Livia
+**Scope:** Independent frontend-only revision after Brutus REJECT
+
+## Decisions
+
+- App remains the authoritative authenticated Quick Access bootstrap owner. The page no longer auto-fetches on mount, and the singleton deduplicates concurrent same-generation refreshes while preserving explicit retry/refresh and generation invalidation.
+- Auction/calendar query transitions clear selected private detail before every fetch and ignore superseded responses, so invalid, missing, foreign, or raced targets cannot leave stale detail visible.
+- Auction modal eligibility follows locally confirmed lifecycle status immediately; terminal transitions hide the pin control and remove the shared Quick Access item before emitting the parent update.
+- Successful visible Set edits refresh set detail, Quick Access, and the legacy pinned-set projection. Quick Access cards render validated set color and a whitelist-resolved Lucide icon with a safe fallback.
+- Pin controls expose disabled `aria-busy` pending states and pending accessible names. Quick Access loading uses polite status semantics; auction mutation failures use visible alert semantics. Existing accessible toast handling remains the single error announcement for coin, set, and calendar pin failures.
+
+## Verification
+
+- Focused Feature 357 revision suite: 8 files / 92 tests passed.
+- Full Vitest: 168 files / 1362 tests passed.
+- ESLint `--max-warnings 0`: passed.
+- `vue-tsc --build`: passed.
+- Asset contract tests: 8 passed.
+- Design token/UI pattern checks: 2 files / 19 tests passed.
+- Production build and PWA generation: passed.
+- `git diff --check`: passed; no `src/api/` changes.
+
+Constitution: Principles III, IV, V, VI, IX; §17 and §21.
+
+**Merged from:** `.squad/decisions/inbox/livia-quick-access-revision.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Before-Work Design Review — Unified Quick Access Pins
+
+**Date:** 2026-09-10
+**Reviewer:** Maximus (Lead / Architect)
+**Feature:** `specs/357-unified-quick-access-pins/`
+**Status:** APPROVED TO IMPLEMENT — BACKEND ONLY
+**Constitution:** Principles I, III, IV, V, VIII, IX; §17; §21
+
+## Verdict
+
+The backend design is approved with the contracts in spec §4 (FR-001-FR-036) and plan D1-D12. Frontend work is explicitly deferred; no `src/web/` file may change in this phase.
+
+## Contract Decisions
+
+1. `quick_access_pins` is the single authoritative polymorphic store with target types `coin`, `coin_set`, `auction_lot`, and `calendar_event`.
+2. `PUT /quick-access/:type/:id` is idempotent and preserves original pin time; new returns 201, existing 200. DELETE is idempotent 204. GET is newest first.
+3. DTOs are purpose-built and discriminated by `type`; full GORM models are never serialized.
+4. Coins remain pinned through wishlist purchase and derive `owned|wishlist` during hydration. Sold or deleted coins lose the pin.
+5. Auction lots remain pinned across `watching<->bidding`; `won|lost|passed` or deletion removes the pin. Sync and cleanup must share the per-lot transaction.
+6. Only manual calendar events are pinnable. Add `AuctionEvent.Origin=manual|auction`; legacy linked events conservatively backfill to `auction`.
+7. Coin Sets retain the five-set cap. Other target types do not count toward it.
+8. `QuickAccessPin` is authoritative after migration. Existing `CoinSet.PinnedAt` remains a transactionally synchronized compatibility mirror so the current sidebar contract continues to work.
+9. Migration backfills legacy set pins with original timestamps, reconciles the mirror, preserves legacy >5 drift, and is idempotent/fail-fast.
+10. Missing, foreign, and ineligible pin attempts return one generic 404. Internal errors remain server-side.
+
+## Required Architecture Corrections in the Implementation
+
+- Add a `CalendarService`; do not bolt Quick Access cleanup into `CalendarHandler`.
+- Route auction status/delete cleanup through `AuctionLotService`; do not add handler-level repository writes.
+- Refactor provider-sync upsert so terminal status and pin cleanup are atomic.
+- Keep lifecycle business logic in services and database access in repositories.
+
+## Principal Risks
+
+- **R1:** Two physical Coin Set representations can drift. Mitigation: unified authority, atomic mirror, convergent migration, dual-endpoint tests.
+- **R2:** Polymorphic rows cannot have target foreign keys. Mitigation: exact lifecycle cleanup tests and owner-safe hydration.
+- **R3:** Existing event provenance is unknowable. Mitigation: conservative linked=`auction` inference, documented as a migration limitation.
+- **R4:** Provider sync can bypass manual service paths. Mitigation: transaction-aware sync refactor.
+- **R5:** Concurrent sixth-set pins can race. Mitigation: count+insert inside one SQLite transaction and concurrency coverage.
+- **R6:** DTO/model leakage. Mitigation: explicit projections and response-contract tests.
+
+## Numbering Decision
+
+`356` is already retired by the landed Feature 356 valuation-history work, despite having no active folder. `specs/README.md` forbids number reuse. The next valid directory is therefore:
+
+`specs/357-unified-quick-access-pins/`
+
+## Approval Boundary
+
+Approved for Cassius/Brutus backend execution after this design phase. Maximus must re-review implementation against FR-001-FR-036 before merge. This record does not approve frontend implementation.
+
+**Merged from:** `.squad/decisions/inbox/maximus-quick-access-design.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 Frontend Final QC Audit
+
+**Audited by:** Maximus (Lead / Architect)
+**Date:** 2026-09-10T10:05:18.566-05:00
+**Changeset:** Current uncommitted worktree on `feat/quick-access-pins`
+**Backend dependency:** `4d3b6a06`
+**Verdict:** **REJECT**
+
+## Scope Summary
+
+Reviewed all 37 changed or untracked artifacts: 30 files under `src/web/` and
+seven feature/team documents. There are no changes under the repository-root
+`src/api/`; the three paths containing `src/api` in a loose status search are
+frontend paths under `src/web/src/api/`. No dependency manifest, lockfile,
+workflow, Dockerfile, migration, or generated API document changed.
+
+Read the Constitution, Feature 357 spec/plan/tasks, all Feature 357 inbox notes,
+Maximus charter/history, the local post-major-work and Vue Router skills, CI and
+PR gates, the complete changed source/test/documentation diff, backend commit
+`4d3b6a06`, and `docs/openapi.json`.
+
+## Artifact Checklist
+
+- [x] Diff read: all 37 changed/untracked files
+- [x] Spec, plan, tasks, and Feature 357 decision notes read
+- [x] Frozen backend DTO and OpenAPI contract checked
+- [x] CI workflow and PR DoD reviewed
+- [x] Constitution Principles II/III/IV/V/VI/IX and §§0/17/18/21 checked
+- [x] All eight post-major-work audit domains traversed
+- [x] Targeted `vue-tsc --build` passed
+- [x] Feature-focused Vitest run passed: 10 files / 102 tests
+- [x] `git diff --check` passed
+- [x] Secret-pattern scan found no credentials
+- [x] Confirmed no Go/backend changes
+
+## Blockers
+
+| ID | Domain | Artifact : Line | Finding | Required Remediation |
+|---|---|---|---|---|
+| B1 | Governance / strict lockout | `.squad/decisions/inbox/brutus-quick-access-frontend-review.md`; `specs/357-unified-quick-access-pins/tasks.md:280` | Brutus's latest recorded verdict is **REJECT** and explicitly requires Brutus to clear the block after independent revision. Livia recorded a revision, but no Brutus clearance exists. T093 is nevertheless checked. Constitution §18.2 forbids Maximus from bypassing that rejection. | After the revision below, Brutus must independently re-review and write an explicit CLEAR/APPROVE. T093 must not be treated as complete until then. |
+| B2 | Lifecycle correctness | `src/web/src/pages/EditCoinPage.vue:58-93`; `src/web/src/types/quick-access.ts:6-10` | Edit Coin refreshes Quick Access immediately after `updateCoin`, before primary-image upload/deletion. The Quick Access DTO includes `primaryImageUrl`, so replacing or removing the obverse image leaves the shared card showing the old image after a successful save. This contradicts D19's post-success reconciliation intent and the complete-workflow requirement in Principle IV/§21. | Move or repeat reconciliation after all successful image mutations. Preserve the existing partial-save error semantics, and add mounted regression coverage for primary-image replace and removal. |
+| B3 | Required regression coverage | `specs/357-unified-quick-access-pins/tasks.md:223-240,259-273`; `src/web/src/pages/__tests__/QuickAccessPage.test.ts:92-108`; `src/web/src/__tests__/AppNavigation.test.ts:379-435`; `src/web/src/pages/__tests__/CalendarPage.quickAccess.test.ts:94-186` | Several checked tasks are not proven by the tests named in the tasks: T069 never activates Retry and has no 375px/responsive assertion; T075 has no mounted follower-detail exclusion assertion; T078 has no calendar pin/unpin failure-retention case; T090 has no mounted App test with a delayed pre-switch/pre-logout response. T088 changed `CollectionPage`, `WishlistPage`, `EditCoinPage`, `FeaturedCoinModal`, and `CoinDetailSectionPageShell`, but their corresponding tests contain no Quick Access assertions. This fails FR-054 and §21's exact-path/blast-radius regression gate. | Add mounted tests for each stated path, including delayed App identity transition, calendar failure retention, Retry behavior, and all changed lifecycle sibling surfaces. Reconcile the task checkboxes honestly. |
+| B4 | PWA accessibility | `src/web/src/components/auction/AuctionLotDetailModal.vue:8-18`; `src/web/src/pages/CalendarPage.vue:131-142` | The new auction pin button is a 16px icon with only `0.35rem` padding (roughly 27px), and the calendar pin button is `h-10 w-10` (40px). Both are below the audit's 44×44px mobile touch-target requirement, despite T093 claiming 375px/PWA verification. | Reuse `AppIconButton` or apply the established 44px control dimensions, then add narrow-viewport assertions for all four pin surfaces. |
+
+## Follow-Ups
+
+| ID | Domain | Artifact : Line | Finding | Suggested Remediation |
+|---|---|---|---|---|
+| F1 | Async navigation race | `src/web/src/pages/AuctionsPage.vue:288-313` | `openLotFromRoute` uses `lotRequestId`, but ordinary `openLot(lot)` does not invalidate a pending deep-link request. A slow route fetch can overwrite a lot the user selected from the visible list. | Increment `lotRequestId` in `openLot` and add a delayed-response regression. |
+| F2 | Semantic accessibility | `src/web/src/pages/QuickAccessPage.vue:35-42` | Cards are keyboard-operable `article` elements but do not expose link/button semantics to assistive technology. | Prefer a real `RouterLink` for navigation or add an appropriate role and accessible destination text. |
+| F3 | Documentation currency | `.squad/identity/now.md:11-35` | The current-status document still says frontend implementation is pending and assigns implementation to Aurelia, despite the completed implementation, Brutus rejection, and Livia revision. | Update the handoff state after strict-lockout clearance. |
+
+## Requirement and Task Reconciliation
+
+| Tasks | Result | Evidence |
+|---|---|---|
+| T061 | PASS | Baseline recorded in Aurelia history/inbox. |
+| T062-T064 | PASS | Exact target union, dedicated shared-Axios endpoint, and endpoint method/path tests exist. |
+| T065 | PARTIAL | Ordering, retained error, mutations, and membership are tested; the required composable empty-response case is not explicit. |
+| T066-T068 | PASS | Generation invalidation and repeated focused tests are recorded. |
+| T069 | FAIL | Retry activation and 375px/responsive behavior are not tested. |
+| T070 | PARTIAL | Route, sidebar navigation/close, PWA placement, and Sets preservation are mounted; active styling is not asserted. |
+| T071-T074 | PASS | Canonical destinations, route/nav, one App bootstrap, deduplication, and account-ID watcher are implemented. |
+| T075 | PARTIAL | Eligible/sold, busy, toggle, and failure cases exist; follower exclusion and active styling are not directly mounted/asserted. |
+| T076-T077 | PASS | Unified Set flow and auction control/lifecycle behavior have mounted coverage. |
+| T078 | FAIL | Calendar success, origin exclusion, and busy state are covered; failed pin/unpin state retention is absent. |
+| T079-T087 | PASS with B4/F1 qualifications | All four controls and both query deep links exist; auction/calendar touch targets and the auction selection race remain. |
+| T088 | FAIL | Source changes cover the sibling paths, but exact mounted regression coverage is absent for five changed sibling components/pages; Edit Coin also has the B2 ordering defect. |
+| T089 | PASS | Logout clears Quick Access before auth logout/navigation. |
+| T090 | FAIL | Logout and account switch are mounted, but delayed response invalidation is only a composable unit test, not the required mounted App/auth test. |
+| T091-T092 | PASS by recorded evidence | Aurelia/Livia recorded targeted/full tests, lint, type-check, build, and PWA generation. Current targeted validation also passes 102 tests. |
+| T093 | FAIL / LOCKED | Brutus's recorded result is REJECT; no explicit clearance follows Livia's revision. |
+| T094 | PASS | No repository-root `src/api/` or Go file changed; backend task states remain unchanged. |
+| T095 | COMPLETE WITH REJECT | This audit is the architecture review. |
+| T096 | FAIL | Task checkboxes are not reconciled to actual evidence, and no PR description is available containing the required backend/spec/Constitution citations. |
+
+## Contract, Security, and Architecture Conclusions
+
+- REST paths and methods match backend commit `4d3b6a06` and
+  `docs/openapi.json`: GET list, bodyless PUT, and DELETE under
+  `/api/quick-access`.
+- The frontend uses only the shared authenticated Axios client and does not call
+  the Python service or an external service.
+- No Quick Access state is persisted in browser storage. Generation checks
+  prevent late refresh/pin/unpin responses from repopulating cleared state.
+- Backend ownership, eligibility, timestamps, caps, and cleanup remain
+  authoritative; no Go or OpenAPI changes were made.
+- No new dependency, configuration, migration, deployment, or supply-chain
+  surface was introduced.
+- No secret or credential material was found in the changeset.
+
+## Positive Observations
+
+- The four-variant discriminated union enforces one matching payload.
+- Same-generation refresh deduplication fixes the original duplicate-bootstrap
+  race.
+- Calendar and auction failed numeric deep links clear prior private detail and
+  ignore superseded responses.
+- Set edits now reconcile both Quick Access and the pinned Sets projection.
+- Terminal auction status immediately removes the pin control through local
+  confirmed status.
+- Pin state changes occur only after successful server writes.
+
+## Revision Assignment
+
+Assign the next revision to **Marcus**, a new independent Vue/PWA specialist;
+do not assign it to Aurelia or Livia. Marcus owns B2-B4 and F1 plus the missing
+mounted tests. Brutus remains the only reviewer who may explicitly clear the
+existing strict-lockout rejection. Return to Maximus only after that clearance.
+
+## Final Verdict
+
+**REJECT.** The implementation is close and the focused tests are green, but
+strict lockout remains uncleared, one changed edit workflow can leave Quick
+Access image metadata stale, mandatory mounted regression evidence is
+incomplete, and two new mobile controls miss the 44px touch-target requirement.
+
+**Merged from:** `.squad/decisions/inbox/maximus-quick-access-final-audit.md` on 2026-09-18T13:54:37Z.
+
+---
+
+### Feature 357 Frontend Authorization and Architecture
+
+**Date:** 2026-09-10
+**Owner:** Maximus
+**Status:** Approved for implementation
+**Authority:** Constitution §0; explicit repository-owner authorization
+
+## Decision
+
+Backend commit `4d3b6a06` remains governed by spec FR-001-FR-036 and plan
+D1-D12. Its backend-only boundary was valid for that completed phase. The
+owner's later explicit authorization opens a Vue/TypeScript-only phase, so the
+active spec, plan, and tasks are updated in authority order. No Go/API contract
+change is authorized.
+
+## Frontend Architecture
+
+1. Add exact discriminated-union types and a dedicated Quick Access endpoint
+   module using the shared Axios client.
+2. Use one module-level `useQuickAccess` composable for App, page, and detail
+   coordination. It has explicit `clear()` plus request-generation invalidation
+   to prevent post-logout/user-switch response leakage. No localStorage or
+   polling.
+3. Add one top-level `/quick-access` destination. Keep existing pinned Sets in
+   the Sets submenu as the compatibility projection.
+4. Put controls only on existing eligible detail surfaces:
+   `CoinDetailHeaderActions`, `SetDetailPage`, `AuctionLotDetailModal`, and the
+   manual-event drawer in `CalendarPage`.
+5. Use canonical links `/coin/:id`, `/sets/:id`, `/auctions?lot=:id`, and
+   `/calendar?event=:id`. Preserve the existing auction query-modal behavior;
+   add equivalent fetch-by-ID calendar query behavior.
+6. Reconcile shared state after successful purchase/status/delete mutations.
+   Failed mutations retain prior state. Logout clears Quick Access and pinned
+   Sets before navigation.
+
+## Guardrails
+
+- `src/api/` is frozen for this phase.
+- Backend eligibility, ownership, timestamps, lifecycle truth, and set cap are
+  never duplicated as client authority.
+- Pin controls use Pin/PinOff, `aria-pressed`, busy protection, active gold
+  styling, design tokens, and PWA-safe compact layouts.
+- Frontend gates: type-check, targeted and full Vitest, lint, production build,
+  exact deep-link/lifecycle/logout regressions.
+
+## Risks
+
+Primary risks are cross-user module-state leakage, stale state after backend
+lifecycle cleanup, calendar deep-link history loops, divergence from the
+legacy pinned Sets projection, and crowded PWA headers. Plan D15-D19 and tasks
+T065-T096 provide the required mitigations and gates.
+
+**Merged from:** `.squad/decisions/inbox/maximus-quick-access-frontend.md` on 2026-09-18T13:54:37Z.
