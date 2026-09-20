@@ -16,11 +16,11 @@ import (
 
 type CoinIntakeHandler struct {
 	service *services.CoinIntakeService
+	logger  *services.Logger
 }
 
 func NewCoinIntakeHandler(service *services.CoinIntakeService, logger *services.Logger) *CoinIntakeHandler {
-	_ = logger
-	return &CoinIntakeHandler{service: service}
+	return &CoinIntakeHandler{service: service, logger: logger}
 }
 
 // CreateDraft generates an AI intake draft from uploaded observation images.
@@ -76,6 +76,7 @@ func (h *CoinIntakeHandler) CreateDraft(c *gin.Context) {
 		CoinCardImage: coinCardImage,
 	})
 	if err != nil {
+		h.logger.Error("coins", "Failed to create intake draft: %v", err)
 		respondError(c, http.StatusInternalServerError, "Failed to create intake draft", err)
 		return
 	}
@@ -118,6 +119,10 @@ func (h *CoinIntakeHandler) CommitDraft(c *gin.Context) {
 		case errors.Is(err, services.ErrIntakeDraftConflict):
 			c.JSON(http.StatusConflict, gin.H{"error": "Draft is no longer confirmable"})
 		default:
+			if handleCoinMutationError(c, err) {
+				return
+			}
+			h.logger.Error("coins", "Failed to commit intake draft %d: %v", req.DraftID, err)
 			respondError(c, http.StatusInternalServerError, "Failed to commit intake draft", err)
 		}
 		return

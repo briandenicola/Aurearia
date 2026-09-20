@@ -5,6 +5,7 @@
         <h1>Add Coin</h1>
       </div>
 
+      <fieldset :disabled="saving || committingDraft || savedCoinId !== null" class="min-w-0 border-0 p-0">
       <div v-if="!isPwa" class="mb-4 flex gap-[0.35rem]">
         <button
           type="button"
@@ -153,6 +154,7 @@
         </div>
 
         <form v-if="draft" class="rounded-md border border-border-subtle bg-card p-4 pb-5" @submit.prevent="confirmDraft">
+          <p v-if="intakeWarning" role="status" class="mb-3 text-sm text-warning">{{ intakeWarning }}</p>
           <div class="mb-3 flex items-center justify-between gap-3">
             <h2 class="font-display text-xl font-medium text-heading">Review Draft</h2>
             <span
@@ -264,6 +266,16 @@
         :loading="saving"
         @submit="handleManualSubmit"
       />
+      </fieldset>
+      <div v-if="savedCoinId && saveCompletionError" role="alert" class="mt-4 grid gap-3 rounded-md border border-border-subtle bg-card p-4">
+        <p>Coin saved. {{ saveCompletionError }}</p>
+        <div class="flex flex-wrap gap-3">
+          <button class="btn btn-primary" :disabled="saving" @click="retrySavedCoin">
+            {{ saving ? 'Uploading...' : 'Retry remaining uploads' }}
+          </button>
+          <RouterLink class="btn btn-secondary" :to="`/coin/${savedCoinId}`">Open saved coin</RouterLink>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -303,6 +315,13 @@ const saving = ref(false)
 const intakeLoading = ref(false)
 const committingDraft = ref(false)
 const intakeError = ref('')
+const intakeWarning = ref('')
+const savedCoinId = ref<number | null>(null)
+const saveCompletionError = ref('')
+type PendingImage = { file: File; face: 'obverse' | 'reverse'; primary: boolean; circleClip: boolean }
+const pendingImages: PendingImage[] = []
+let pendingCard: File | null = null
+let savedNotes = ''
 
 const obverseFile = ref<File | null>(null)
 const reverseFile = ref<File | null>(null)
@@ -422,6 +441,13 @@ function normalizeMaterial(value: string): Material {
 
 function normalizeDraftCoin(coin: CoinMutationPayload): Partial<Coin> {
   const source = toRecord(coin)
+  const suggestedEra = readString(source, 'era').trim()
+  const era = eraOptions.value.find(option => option.toLowerCase() === suggestedEra.toLowerCase()) ?? ''
+  const notes = readString(source, 'notes')
+  const unsupportedEra = suggestedEra && !era
+  intakeWarning.value = unsupportedEra
+    ? `AI suggested era "${suggestedEra}", which is not a configured option. Choose an era or leave it Unknown; the suggestion is preserved in Notes.`
+    : ''
   return {
     name: readString(source, 'name'),
     category: normalizeCategory(readString(source, 'category')),
@@ -429,7 +455,7 @@ function normalizeDraftCoin(coin: CoinMutationPayload): Partial<Coin> {
     denomination: readString(source, 'denomination'),
     ruler: readString(source, 'ruler'),
     mint: readString(source, 'mint'),
-    era: readString(source, 'era'),
+    era,
     weightGrams: readNumber(source, 'weightGrams', 'weight_grams'),
     diameterMm: readNumber(source, 'diameterMm', 'diameter_mm'),
     grade: readString(source, 'grade'),
@@ -446,7 +472,7 @@ function normalizeDraftCoin(coin: CoinMutationPayload): Partial<Coin> {
     vendorInvoice: readString(source, 'vendorInvoice', 'vendor_invoice'),
     storageLocationId: readNumber(source, 'storageLocationId', 'storage_location_id') ?? null,
     storageSlot: readNumber(source, 'storageSlot', 'storage_slot') ?? null,
-    notes: readString(source, 'notes'),
+    notes: unsupportedEra ? [notes, `AI-suggested era: ${suggestedEra}`].filter(Boolean).join('\n\n') : notes,
     referenceUrl: readString(source, 'referenceUrl', 'reference_url'),
     referenceText: readString(source, 'referenceText', 'reference_text') || 'Store Link',
     isWishlist: readBoolean(source, 'isWishlist', 'is_wishlist') ?? wishlistDefault,
@@ -462,7 +488,7 @@ function buildCoinPayload(source: Partial<Coin>): CoinMutationPayload {
     ruler: source.ruler?.trim() || undefined,
     mint: source.mint?.trim() || undefined,
     mintLocationId: source.mintLocationId ?? null,
-    era: source.era || undefined,
+    era: source.era?.trim() ?? '',
     weightGrams: source.weightGrams ?? undefined,
     diameterMm: source.diameterMm ?? undefined,
     grade: source.grade?.trim() || undefined,
@@ -599,7 +625,7 @@ async function generateDraft() {
 }
 
 async function confirmDraft() {
-  if (!draft.value) return
+  if (!draft.value || committingDraft.value || savedCoinId.value !== null) return
   committingDraft.value = true
   try {
     const response = await commitIntakeDraft({
@@ -607,61 +633,84 @@ async function confirmDraft() {
       confirm: true,
       overrides: buildCoinPayload(reviewForm),
     })
-    const coinID = response.data.coinId
+    savedCoinId.value = response.data.coinId
     if (obverseFile.value) {
-      // Pass circleClip=true ONLY if this obverse was camera-captured
-      await uploadImage(coinID, obverseFile.value, 'obverse', true, obverseFromCamera.value)
+      pendingImages.push({ file: obverseFile.value, face: 'obverse', primary: true, circleClip: obverseFromCamera.value })
     }
     if (reverseFile.value) {
-      // Pass circleClip=true ONLY if this reverse was camera-captured
-      await uploadImage(coinID, reverseFile.value, 'reverse', false, reverseFromCamera.value)
+      pendingImages.push({ file: reverseFile.value, face: 'reverse', primary: false, circleClip: reverseFromCamera.value })
     }
-    router.push(`/coin/${coinID}`)
+    await completeSavedCoin()
   } catch (error) {
-    await showAlert(apiErrorMessage(error, 'Failed to save coin from draft.'), { title: 'Error' })
+    if (savedCoinId.value !== null) {
+      saveCompletionError.value = apiErrorMessage(error, 'Image upload failed. Retry the remaining uploads or open the saved coin.')
+    } else {
+      await showAlert(apiErrorMessage(error, 'Failed to save coin from draft.'), { title: 'Error' })
+    }
   } finally {
     committingDraft.value = false
   }
 }
 
 async function handleManualSubmit() {
+  if (saving.value || savedCoinId.value !== null) return
   saving.value = true
   try {
     const coin = await store.addCoin(buildCoinPayload(form))
+    savedCoinId.value = coin.id
     const formComp = coinFormRef.value
 
     if (formComp?.obverseFile) {
-      await uploadImage(coin.id, formComp.obverseFile, 'obverse', true)
+      pendingImages.push({ file: formComp.obverseFile, face: 'obverse', primary: true, circleClip: false })
     }
     if (formComp?.reverseFile) {
-      await uploadImage(coin.id, formComp.reverseFile, 'reverse', false)
+      pendingImages.push({ file: formComp.reverseFile, face: 'reverse', primary: false, circleClip: false })
     }
 
-    if (formComp?.cardFile) {
-      try {
-        const res = await extractText(formComp.cardFile)
-        const extractedText = res.data.text
-        if (extractedText) {
-          const existingNotes = form.notes || ''
-          const updatedNotes = existingNotes
-            ? `${existingNotes}\n\n--- Store Card ---\n${extractedText}`
-            : `--- Store Card ---\n${extractedText}`
-          await updateCoin(coin.id, { notes: updatedNotes })
-        }
-      } catch {
-        console.warn('Card text extraction failed – coin saved without card notes')
-      }
-    }
-
-    router.push(`/coin/${coin.id}`)
+    pendingCard = formComp?.cardFile ?? null
+    savedNotes = form.notes || ''
+    await completeSavedCoin()
   } catch (error: unknown) {
     const code = (error as { response?: { data?: { code?: string } } })?.response?.data?.code
-    if (code === 'slot_occupied') {
+    if (savedCoinId.value !== null) {
+      saveCompletionError.value = apiErrorMessage(error, 'Image or card upload failed. Retry the remaining uploads or open the saved coin.')
+    } else if (code === 'slot_occupied') {
       await coinFormRef.value?.refreshStorageOccupancy()
       await showAlert('That tray slot was just taken. Choose another available slot; your form has been preserved.', { title: 'Slot unavailable' })
     } else {
-      await showAlert('Failed to add coin', { title: 'Error' })
+      await showAlert(apiErrorMessage(error, 'Failed to add coin'), { title: 'Error' })
     }
+  } finally {
+    saving.value = false
+  }
+}
+
+async function completeSavedCoin() {
+  const coinID = savedCoinId.value
+  if (coinID === null) return
+  for (let image = pendingImages[0]; image; image = pendingImages[0]) {
+    await uploadImage(coinID, image.file, image.face, image.primary, image.circleClip)
+    pendingImages.shift()
+  }
+  if (pendingCard) {
+    const res = await extractText(pendingCard)
+    if (res.data.text) {
+      const notes = [savedNotes, `--- Store Card ---\n${res.data.text}`].filter(Boolean).join('\n\n')
+      await updateCoin(coinID, { notes })
+    }
+    pendingCard = null
+  }
+  saveCompletionError.value = ''
+  await router.push(`/coin/${coinID}`)
+}
+
+async function retrySavedCoin() {
+  if (saving.value) return
+  saving.value = true
+  try {
+    await completeSavedCoin()
+  } catch (error) {
+    saveCompletionError.value = apiErrorMessage(error, 'Upload failed. Your coin is already saved; retry the remaining uploads.')
   } finally {
     saving.value = false
   }
