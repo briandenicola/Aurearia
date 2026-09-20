@@ -97,8 +97,11 @@ Set detail pages use the same tray presentation for member coins. Embedded tray 
 - Scrollable list of member coins
 - Click to view coin details
 - Add membership with a coin picker instead of manual ID entry
+- Search the full eligible collection on the server and page through 50 results at a time; selection remains available when changing pages or searches. Goal sets also allow wishlist coins. Existing members, sold coins, and coins assigned to other Agentic slots are excluded where applicable.
 - Remove membership with compact design-system actions
 - Sort and filter members
+
+Direct navigation between sets resets the previous set's dialogs, selections, and drawer position. Pending requests stay associated with the original set and cannot overwrite the new view. Failed detail or picker loads show a retry action.
 
 ### Smart Rules Tab (Smart Sets)
 - View active rules
