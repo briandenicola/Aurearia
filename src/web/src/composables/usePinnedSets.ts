@@ -1,51 +1,24 @@
-// Singleton composable modeled on useNotifications.ts (module-level ref, no
-// Pinia store). Owns the pinned-sets sidebar state: the sidebar reads
-// GET /sets, filters to pinned sets, and sorts them oldest-pinned-first.
-import { computed, ref } from 'vue'
-import { getSets, updateSet } from '@/api/client'
-import type { CoinSetSummary } from '@/types'
+import { computed } from 'vue'
+import { useQuickAccess } from './useQuickAccess'
 
 export const PIN_LIMIT = 5
 
-const pinnedSets = ref<CoinSetSummary[]>([])
-
-function sortPinned(sets: CoinSetSummary[]): CoinSetSummary[] {
-  return [...sets].sort((a, b) => {
-    const aTime = a.pinnedAt ? Date.parse(a.pinnedAt) : 0
-    const bTime = b.pinnedAt ? Date.parse(b.pinnedAt) : 0
-    if (aTime !== bTime) return aTime - bTime
-    return a.name.localeCompare(b.name)
-  })
-}
-
-async function refresh() {
-  try {
-    const res = await getSets()
-    pinnedSets.value = sortPinned(res.data.sets.filter((set) => set.pinned))
-  } catch {
-    // The sidebar must never break navigation — keep the last-known list.
-  }
-}
-
-async function setPinned(id: number, pinned: boolean) {
-  // Rethrows so callers (the set-detail pin button) can surface the
-  // server's cap/ownership error as a toast.
-  await updateSet(id, { pinned })
-  await refresh()
-}
-
-function clear() {
-  pinnedSets.value = []
-}
-
+const quickAccess = useQuickAccess()
+const pinnedSets = computed(() => quickAccess.items.value
+  .filter(item => item.type === 'coin_set')
+  .map(item => ({ id: item.id, pinnedAt: item.pinnedAt, ...item.coinSet }))
+  .sort((a, b) => Date.parse(a.pinnedAt) - Date.parse(b.pinnedAt) || a.name.localeCompare(b.name)))
 const pinLimitReached = computed(() => pinnedSets.value.length >= PIN_LIMIT)
 
+// Compatibility surface; Quick Access owns all state and request invalidation.
 export function usePinnedSets() {
   return {
     pinnedSets,
     pinLimitReached,
-    refresh,
-    setPinned,
-    clear,
+    error: quickAccess.error,
+    refresh: quickAccess.refresh,
+    setPinned: (id: number, pinned: boolean) => pinned
+      ? quickAccess.pin('coin_set', id) : quickAccess.unpin('coin_set', id),
+    clear: quickAccess.clear,
   }
 }

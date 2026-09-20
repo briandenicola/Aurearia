@@ -14,6 +14,7 @@ const appPath = path.resolve(__dirname, '../App.vue')
 const mockIsPwa = vi.hoisted(() => ({ value: false }))
 const mockGetSets = vi.hoisted(() => vi.fn())
 const mockGetQuickAccess = vi.hoisted(() => vi.fn())
+const mockGetUnreadCount = vi.hoisted(() => vi.fn(async () => ({ data: { count: 0 } })))
 
 vi.mock('@/composables/usePwa', () => ({
   usePwa: () => ({ isPwa: mockIsPwa.value }),
@@ -38,7 +39,7 @@ vi.mock('@/api/client', async (importOriginal) => {
     getSets: (...args: unknown[]) => mockGetSets(...args),
     getQuickAccess: (...args: unknown[]) => mockGetQuickAccess(...args),
     getMe: vi.fn(async () => ({ data: { id: 1, emailMissing: false, createdAt: '2020-01-01T00:00:00Z' } })),
-    getUnreadNotificationCount: vi.fn(async () => ({ data: { count: 0 } })),
+    getUnreadNotificationCount: mockGetUnreadCount,
     updateProfile: vi.fn(async () => ({ data: {} })),
   }
 })
@@ -143,7 +144,10 @@ describe('App sidebar pinned sets', () => {
   let wrapper: VueWrapper | null = null
 
   function pinnedSetPayload(sets: Array<Record<string, unknown>>) {
-    return { data: { sets } }
+    return { data: { items: sets.filter(set => set.pinned).map(set => ({
+      type: 'coin_set', id: set.id, pinnedAt: set.pinnedAt,
+      coinSet: { name: set.name, color: set.color, setType: set.setType, icon: '' },
+    })) } }
   }
 
   function buildSet(overrides: Record<string, unknown> = {}) {
@@ -224,7 +228,8 @@ describe('App sidebar pinned sets', () => {
     const { useQuickAccess } = await import('@/composables/useQuickAccess')
     useQuickAccess().clear()
     mockIsPwa.value = false
-    mockGetSets.mockResolvedValue(pinnedSetPayload([]))
+    mockGetSets.mockReset()
+    mockGetUnreadCount.mockReset().mockResolvedValue({ data: { count: 0 } })
     mockGetQuickAccess.mockResolvedValue({ data: { items: [] } })
   })
 
@@ -234,8 +239,70 @@ describe('App sidebar pinned sets', () => {
     document.body.innerHTML = ''
   })
 
+  it('starts polling after in-app login and resets immediately on account changes and logout', async () => {
+    const auth = useAuthStore()
+    const user = auth.user!
+    auth.logout()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      await mountApp('/login')
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
+      await auth.applyAuthResponse({ token: 'fixture-a', refreshToken: 'fixture-refresh', user })
+      await flushPromises()
+      expect(mockGetUnreadCount).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(1)
+      const { useNotifications } = await import('@/composables/useNotifications')
+      useNotifications().unreadCount.value = 99
+      auth.user = { ...user, id: 2 }
+      expect(useNotifications().unreadCount.value).toBe(0)
+      await flushPromises()
+      expect(mockGetUnreadCount).toHaveBeenCalledTimes(2)
+      expect(vi.getTimerCount()).toBe(1)
+      auth.logout()
+      expect(useNotifications().unreadCount.value).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
+      await auth.applyAuthResponse({ token: 'fixture-b', refreshToken: 'fixture-refresh', user: { ...user, id: 2 } })
+      await flushPromises()
+      expect(vi.getTimerCount()).toBe(1)
+      wrapper?.unmount()
+      wrapper = null
+      expect(vi.getTimerCount()).toBe(0)
+      await mountApp()
+      expect(vi.getTimerCount()).toBe(1)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('rejects delayed account A pins and count after rendering account B', async () => {
+    let resolvePins!: (value: ReturnType<typeof pinnedSetPayload>) => void
+    let resolveCount!: (value: { data: { count: number } }) => void
+    mockGetQuickAccess.mockReturnValueOnce(new Promise(done => { resolvePins = done }))
+      .mockResolvedValueOnce(pinnedSetPayload([buildSet({ id: 52, name: 'Account B set' })]))
+    mockGetUnreadCount.mockReturnValueOnce(new Promise(done => { resolveCount = done }))
+      .mockResolvedValueOnce({ data: { count: 2 } })
+    await mountApp()
+    const auth = useAuthStore()
+    auth.user = { ...auth.user!, id: 2 }
+    await flushPromises()
+    resolvePins(pinnedSetPayload([buildSet({ id: 51, name: 'Private account A set' })]))
+    resolveCount({ data: { count: 99 } })
+    await flushPromises()
+    await openSetsSubmenu()
+    expect(setsSubmenuLinks().map(link => link.text())).toEqual(['My Sets', 'Account B set'])
+    expect(wrapper!.get('nav a[aria-label="Notifications"]').text()).toBe('2')
+    expect(wrapper!.text()).not.toContain('Private account A set')
+  })
+
+  it('shows a recoverable notification count failure in the mounted app', async () => {
+    mockGetUnreadCount.mockRejectedValueOnce(new Error('offline'))
+    await mountApp()
+    expect(wrapper!.get('[role="status"]').text()).toContain('Unable to refresh notification count')
+    await wrapper!.get('[role="status"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper!.find('[role="status"]').exists()).toBe(false)
+  })
+
   it('appends pinned sets after the static children and links them to /sets/:id', async () => {
-    mockGetSets.mockResolvedValue(pinnedSetPayload([
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([
       buildSet({ id: 41, name: 'Later Pin', pinnedAt: '2026-02-01T00:00:00Z' }),
       buildSet({ id: 40, name: 'Earlier Pin', pinnedAt: '2026-01-01T00:00:00Z' }),
       buildSet({ id: 99, name: 'Not Pinned', pinned: false, pinnedAt: null }),
@@ -252,7 +319,7 @@ describe('App sidebar pinned sets', () => {
   it('keeps pinned sets after Emperors when the Emperor Tracker is enabled', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 1, username: 'tester', role: 'user', emperorTrackerEnabled: true }))
     setActivePinia(createPinia())
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
 
     await mountApp()
     await openSetsSubmenu()
@@ -263,7 +330,7 @@ describe('App sidebar pinned sets', () => {
   })
 
   it('renders the submenu unchanged when no sets are pinned', async () => {
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 7, pinned: false, pinnedAt: null })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 7, pinned: false, pinnedAt: null })]))
 
     await mountApp()
     await openSetsSubmenu()
@@ -274,8 +341,8 @@ describe('App sidebar pinned sets', () => {
     expect(wrapper!.html()).not.toContain('sets-pinned-')
   })
 
-  it('degrades to the static children when GET /sets fails', async () => {
-    mockGetSets.mockRejectedValue(new Error('network down'))
+  it('degrades to the static children when GET /quick-access fails', async () => {
+    mockGetQuickAccess.mockRejectedValue(new Error('network down'))
 
     await mountApp()
     await openSetsSubmenu()
@@ -285,7 +352,7 @@ describe('App sidebar pinned sets', () => {
 
   it('truncates long pinned labels and exposes the full name via title', async () => {
     const longName = 'Purchase Records For The Twelve Caesars And Later Julio-Claudian Denarii'
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 55, name: longName })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 55, name: longName })]))
 
     await mountApp()
     await openSetsSubmenu()
@@ -303,7 +370,7 @@ describe('App sidebar pinned sets', () => {
 
   it('closes the PWA drawer and navigates when a pinned entry is tapped', async () => {
     mockIsPwa.value = true
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
 
     await mountApp()
     await openSetsSubmenu()
@@ -318,7 +385,7 @@ describe('App sidebar pinned sets', () => {
   })
 
   it('keeps the Sets parent collapsed on load even when sets are pinned', async () => {
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
 
     await mountApp()
     await wrapper!.find('nav button').trigger('click')
@@ -330,7 +397,7 @@ describe('App sidebar pinned sets', () => {
   })
 
   it('drops an unpinned entry from the sidebar without a reload', async () => {
-    mockGetSets.mockResolvedValue(pinnedSetPayload([
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([
       buildSet({ id: 40, name: 'Earlier Pin' }),
       buildSet({ id: 41, name: 'Later Pin', pinnedAt: '2026-02-01T00:00:00Z' }),
     ]))
@@ -340,7 +407,7 @@ describe('App sidebar pinned sets', () => {
     expect(setsSubmenuLinks()).toHaveLength(3)
 
     const { usePinnedSets } = await import('@/composables/usePinnedSets')
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 41, name: 'Later Pin', pinnedAt: '2026-02-01T00:00:00Z' })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 41, name: 'Later Pin', pinnedAt: '2026-02-01T00:00:00Z' })]))
     await usePinnedSets().refresh()
     await flushPromises()
 
@@ -348,7 +415,7 @@ describe('App sidebar pinned sets', () => {
   })
 
   it('clears pinned sets on logout so the next user sees none', async () => {
-    mockGetSets.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
+    mockGetQuickAccess.mockResolvedValue(pinnedSetPayload([buildSet({ id: 40, name: 'Earlier Pin' })]))
 
     await mountApp()
     await openSetsSubmenu()
@@ -382,6 +449,7 @@ describe('App sidebar pinned sets', () => {
 
     expect(router.currentRoute.value.path).toBe('/quick-access')
     expect(mockGetQuickAccess).toHaveBeenCalledTimes(1)
+    expect(mockGetSets).not.toHaveBeenCalled()
   })
 
   it('keeps Quick Access beside Add Coin in PWA and available on non-collection pages', async () => {

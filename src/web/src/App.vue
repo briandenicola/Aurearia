@@ -125,6 +125,10 @@
     </Transition>
 
     <main class="min-h-screen" :class="{ 'pt-[76px]': auth.isAuthenticated }">
+      <div v-if="auth.isAuthenticated && notificationError" class="container mb-4 flex items-center justify-between gap-3" role="status">
+        <span class="text-chip text-text-secondary">{{ notificationError }}</span>
+        <button class="btn btn-secondary btn-sm" @click="refreshNotifications">Retry</button>
+      </div>
       <router-view />
     </main>
 
@@ -231,8 +235,8 @@ const onboardingPromptKey = ref('')
 const editMode = ref(false)
 const navRef = ref<HTMLElement | null>(null)
 let sortableInstance: Sortable | null = null
-const { unreadCount, startPolling, stopPolling } = useNotifications()
-const { pinnedSets, refresh: refreshPinnedSets, clear: clearPinnedSets } = usePinnedSets()
+const { unreadCount, error: notificationError, refresh: refreshNotifications, startPolling, stopPolling } = useNotifications()
+const { pinnedSets } = usePinnedSets()
 const { refresh: refreshQuickAccess, clear: clearQuickAccess } = useQuickAccess()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
@@ -557,26 +561,28 @@ watch(sidebarOpen, (open) => {
   if (!open) editMode.value = false
 })
 
-watch(() => auth.user?.id, (userId, previousUserId) => {
-  if (userId === previousUserId) return
+let accountGeneration = 0
+watch(() => auth.isAuthenticated ? auth.user?.id : undefined, (userId) => {
+  accountGeneration += 1
+  stopPolling()
   clearQuickAccess()
-  clearPinnedSets()
+  showEmailPrompt.value = false
+  showOnboardingPrompt.value = false
   navOrder.value = loadSavedOrder()
-  if (userId && auth.isAuthenticated) {
+  if (userId) {
+    startPolling()
     void refreshQuickAccess()
-    void refreshPinnedSets()
   }
-})
+}, { immediate: true, flush: 'sync' })
 
 onMounted(async () => {
   window.addEventListener('resize', handleAgentFabViewportResize)
   window.addEventListener('open-agent-chat', handleOpenAgentChat)
   if (auth.isAuthenticated) {
-    startPolling()
-    void refreshPinnedSets()
-    void refreshQuickAccess()
+    const currentAccountGeneration = accountGeneration
     try {
       const res = await getMe()
+      if (currentAccountGeneration !== accountGeneration) return
       const data = res.data
       onboardingPromptKey.value = `onboardingPromptSeen:${data.id}`
 
@@ -645,14 +651,13 @@ function openOnboardingGuide() {
 }
 
 function handleLogout() {
-  stopPolling()
-  clearQuickAccess()
-  clearPinnedSets()
   auth.logout()
   router.push('/login')
 }
 
 onUnmounted(() => {
+  accountGeneration += 1
+  clearQuickAccess()
   window.removeEventListener('resize', handleAgentFabViewportResize)
   window.removeEventListener('open-agent-chat', handleOpenAgentChat)
   destroySortable()
