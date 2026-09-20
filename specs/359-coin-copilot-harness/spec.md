@@ -329,3 +329,16 @@ durable Copilot run.
   new persisted event contract rather than changing legacy chat events.
 - This MVP targets personal-scale, single-node deployment and does not require
   distributed locks, an external queue, or a third-party checkpoint store.
+
+## Amendment 2026-09-19: Go validates the envelope, not the payload
+
+FR-011 and FR-021 were implemented as a second, hand-maintained copy of the
+agent service's schema inside Go, including byte-for-byte equality of every
+persisted tool result. That seam rejected valid runs; see the amendment in
+specs/361 for the failure modes.
+
+Go continues to own durable state and to validate the frame envelope: schema
+version, run and execution identity, frame type, size limits, forbidden
+reasoning fields, token redaction, checkpoint structure, tool allowlist and
+duplicate tool-call ids. It no longer re-validates the tool result payload or
+recomputes its bytes or digest.

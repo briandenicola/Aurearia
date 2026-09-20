@@ -86,20 +86,10 @@ type CopilotPlanItem struct {
 }
 
 type CopilotCompletedTool struct {
-	ToolCallID     string          `json:"tool_call_id"`
-	ToolName       string          `json:"tool_name"`
-	ResultDigest   string          `json:"result_digest"`
-	Result         json.RawMessage `json:"result"`
-	OriginalBytes  int             `json:"original_bytes"`
-	PersistedBytes int             `json:"persisted_bytes"`
-	Truncated      bool            `json:"truncated"`
-}
-
-type CopilotBoundedToolResult struct {
-	Truncated     bool   `json:"truncated"`
-	OriginalBytes int    `json:"original_bytes"`
-	Digest        string `json:"digest"`
-	Summary       string `json:"summary"`
+	ToolCallID string          `json:"tool_call_id"`
+	ToolName   string          `json:"tool_name"`
+	Result     json.RawMessage `json:"result"`
+	Truncated  bool            `json:"truncated"`
 }
 
 type CopilotClarification struct {
@@ -118,142 +108,6 @@ type CopilotUsage struct {
 type CopilotSpecialistQuery struct {
 	Query string `json:"query"`
 	Limit int    `json:"limit,omitempty"`
-}
-
-type CopilotFieldProvenance struct {
-	Field             string `json:"field"`
-	SourceURL         string `json:"source_url"`
-	ObservedAt        string `json:"observed_at"`
-	Confidence        string `json:"confidence"`
-	VerificationState string `json:"verification_state"`
-}
-
-type CopilotSpecialistEvidence struct {
-	Kind                string                   `json:"kind"`
-	SourceURL           string                   `json:"source_url"`
-	CanonicalSourceID   string                   `json:"canonical_source_id"`
-	Provider            string                   `json:"provider"`
-	ObservedAt          string                   `json:"observed_at"`
-	Confidence          string                   `json:"confidence"`
-	VerificationState   string                   `json:"verification_state"`
-	Title               string                   `json:"title"`
-	Description         *string                  `json:"description"`
-	DealerName          *string                  `json:"dealer_name,omitempty"`
-	ListedPrice         *float64                 `json:"listed_price,omitempty"`
-	Currency            *string                  `json:"currency,omitempty"`
-	Availability        *string                  `json:"availability,omitempty"`
-	AuctionHouse        *string                  `json:"auction_house,omitempty"`
-	SaleName            *string                  `json:"sale_name,omitempty"`
-	LotNumber           *string                  `json:"lot_number,omitempty"`
-	SaleDate            *string                  `json:"sale_date,omitempty"`
-	Estimate            *float64                 `json:"estimate,omitempty"`
-	CurrentBid          *float64                 `json:"current_bid,omitempty"`
-	LotStatus           *string                  `json:"lot_status,omitempty"`
-	Amount              *float64                 `json:"amount,omitempty"`
-	PriceBasis          *string                  `json:"price_basis,omitempty"`
-	Ruler               *string                  `json:"ruler,omitempty"`
-	Denomination        *string                  `json:"denomination,omitempty"`
-	Era                 *string                  `json:"era,omitempty"`
-	Material            *string                  `json:"material,omitempty"`
-	SimilarityScore     float64                  `json:"similarity_score,omitempty"`
-	MatchedAttributes   []string                 `json:"matched_attributes,omitempty"`
-	MaterialDifferences []string                 `json:"material_differences,omitempty"`
-	Provenance          []CopilotFieldProvenance `json:"provenance"`
-}
-
-type CopilotPriceTrend struct {
-	State               string   `json:"state"`
-	SampleSize          int      `json:"sample_size"`
-	DateFrom            *string  `json:"date_from"`
-	DateTo              *string  `json:"date_to"`
-	Currency            *string  `json:"currency"`
-	PriceBasis          *string  `json:"price_basis"`
-	Low                 *float64 `json:"low"`
-	Median              *float64 `json:"median"`
-	High                *float64 `json:"high"`
-	Confidence          string   `json:"confidence"`
-	Limitations         []string `json:"limitations"`
-	SupportingSourceIDs []string `json:"supporting_source_ids"`
-}
-
-type CopilotProviderAttempt struct {
-	Provider      string  `json:"provider"`
-	Status        string  `json:"status"`
-	ObservedAt    string  `json:"observed_at"`
-	AcceptedItems int     `json:"accepted_items"`
-	WarningCode   *string `json:"warning_code"`
-}
-
-type CopilotSpecialistTruncation struct {
-	Truncated      bool   `json:"truncated"`
-	OriginalBytes  int    `json:"original_bytes"`
-	PersistedBytes int    `json:"persisted_bytes"`
-	Digest         string `json:"digest"`
-	OmittedItems   int    `json:"omitted_items"`
-}
-
-type CopilotSpecialistResult struct {
-	SchemaVersion    int                         `json:"schema_version"`
-	Capability       string                      `json:"capability"`
-	Outcome          string                      `json:"outcome"`
-	Items            []CopilotSpecialistEvidence `json:"items"`
-	Trend            *CopilotPriceTrend          `json:"trend"`
-	ProviderAttempts []CopilotProviderAttempt    `json:"provider_attempts"`
-	Warnings         []string                    `json:"warnings"`
-	Truncation       CopilotSpecialistTruncation `json:"truncation"`
-}
-
-type CopilotSpecialistPublicEvidence struct {
-	Kind                string   `json:"kind"`
-	Title               string   `json:"title"`
-	SourceURL           string   `json:"sourceUrl"`
-	ObservedAt          string   `json:"observedAt"`
-	Confidence          string   `json:"confidence"`
-	VerificationState   string   `json:"verificationState"`
-	Description         *string  `json:"description,omitempty"`
-	DealerName          *string  `json:"dealerName,omitempty"`
-	ListedPrice         *float64 `json:"listedPrice,omitempty"`
-	Currency            *string  `json:"currency,omitempty"`
-	Availability        *string  `json:"availability,omitempty"`
-	Ruler               *string  `json:"ruler,omitempty"`
-	Denomination        *string  `json:"denomination,omitempty"`
-	Era                 *string  `json:"era,omitempty"`
-	Material            *string  `json:"material,omitempty"`
-	Facts               []string `json:"facts"`
-	MatchedAttributes   []string `json:"matchedAttributes"`
-	MaterialDifferences []string `json:"materialDifferences"`
-}
-
-type CopilotSpecialistPublicTrend struct {
-	State               string   `json:"state"`
-	SampleSize          int      `json:"sampleSize"`
-	DateFrom            *string  `json:"dateFrom"`
-	DateTo              *string  `json:"dateTo"`
-	Currency            *string  `json:"currency"`
-	PriceBasis          *string  `json:"priceBasis"`
-	Low                 *float64 `json:"low"`
-	Median              *float64 `json:"median"`
-	High                *float64 `json:"high"`
-	Confidence          string   `json:"confidence"`
-	Limitations         []string `json:"limitations"`
-	SupportingSourceIDs []string `json:"supportingSourceIds"`
-}
-
-type CopilotSpecialistPublicTruncation struct {
-	Truncated      bool   `json:"truncated"`
-	OriginalBytes  int    `json:"originalBytes"`
-	PersistedBytes int    `json:"persistedBytes"`
-	Digest         string `json:"digest"`
-	OmittedItems   int    `json:"omittedItems"`
-}
-
-type CopilotSpecialistPublicResult struct {
-	Capability string                            `json:"capability"`
-	Outcome    string                            `json:"outcome"`
-	Items      []CopilotSpecialistPublicEvidence `json:"items"`
-	Trend      *CopilotSpecialistPublicTrend     `json:"trend"`
-	Warnings   []string                          `json:"warnings"`
-	Truncation CopilotSpecialistPublicTruncation `json:"truncation"`
 }
 
 type CopilotCheckpointState struct {
@@ -332,44 +186,37 @@ func ValidateCopilotFrame(frame CopilotAgentFrame, run *models.CoinCopilotRun) e
 	return nil
 }
 
-func SanitizeCopilotJSON(raw []byte, maxBytes int) ([]byte, int, bool, string, error) {
+func SanitizeCopilotJSON(raw []byte, maxBytes int) ([]byte, bool, error) {
 	if !json.Valid(raw) || forbiddenCopilotField.Match(raw) {
-		return nil, 0, false, "", ErrInvalidCopilotFrame
+		return nil, false, ErrInvalidCopilotFrame
 	}
-	originalBytes := len(raw)
 	var value any
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	if err := decoder.Decode(&value); err != nil {
-		return nil, 0, false, "", ErrInvalidCopilotFrame
+		return nil, false, ErrInvalidCopilotFrame
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return nil, 0, false, "", ErrInvalidCopilotFrame
+		return nil, false, ErrInvalidCopilotFrame
 	}
-	value = sanitizeCopilotValue(value)
-	sanitized, err := marshalCopilotCanonical(value)
+	sanitized, err := marshalCopilotCanonical(sanitizeCopilotValue(value))
 	if err != nil {
-		return nil, 0, false, "", err
+		return nil, false, err
 	}
-	digest := sha256.Sum256(sanitized)
-	digestText := hex.EncodeToString(digest[:])
 	if maxBytes <= 0 || len(sanitized) <= maxBytes {
-		return sanitized, originalBytes, false, digestText, nil
+		return sanitized, false, nil
 	}
-	summary := map[string]any{
-		"truncated":      true,
-		"original_bytes": originalBytes,
-		"digest":         digestText,
-		"summary":        "Tool result exceeded the persisted-result limit.",
-	}
-	bounded, err := marshalCopilotCanonical(summary)
+	bounded, err := marshalCopilotCanonical(map[string]any{
+		"truncated": true,
+		"summary":   "Tool result exceeded the persisted-result limit.",
+	})
 	if err != nil {
-		return nil, 0, false, "", err
+		return nil, false, err
 	}
 	if len(bounded) > maxBytes {
-		return nil, 0, false, "", fmt.Errorf("%w: persisted result limit too small", ErrInvalidCopilotFrame)
+		return nil, false, fmt.Errorf("%w: persisted result limit too small", ErrInvalidCopilotFrame)
 	}
-	return bounded, originalBytes, true, digestText, nil
+	return bounded, true, nil
 }
 
 func marshalCopilotCanonical(value any) ([]byte, error) {
@@ -455,182 +302,53 @@ func validSpecialistURL(value string) bool {
 	return true
 }
 
-func validSpecialistConfidence(value string) bool {
-	return value == "high" || value == "medium" || value == "low"
+// camelizeCopilotKeys converts snake_case keys to camelCase for the browser.
+// It knows nothing about the specialist schema: Python owns that, and new
+// fields reach the UI without a change here.
+func camelizeCopilotKeys(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		converted := make(map[string]any, len(typed))
+		for key, child := range typed {
+			converted[camelizeCopilotKey(key)] = camelizeCopilotKeys(child)
+		}
+		return converted
+	case []any:
+		for i, child := range typed {
+			typed[i] = camelizeCopilotKeys(child)
+		}
+		return typed
+	}
+	return value
 }
 
-func validateBoundedSpecialistStrings(values []string, maximum, itemMaximum int) bool {
-	if len(values) > maximum {
-		return false
-	}
-	for _, value := range values {
-		if utf8.RuneCountInString(value) > itemMaximum {
-			return false
+func camelizeCopilotKey(key string) string {
+	parts := strings.Split(key, "_")
+	for i := 1; i < len(parts); i++ {
+		if parts[i] == "" {
+			continue
 		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 	}
-	return true
+	return strings.Join(parts, "")
 }
 
-func validateCopilotSpecialistEvidence(item CopilotSpecialistEvidence, expectedKind string) bool {
-	if item.Kind != expectedKind || !validSpecialistURL(item.SourceURL) ||
-		!validSpecialistURL(item.CanonicalSourceID) ||
-		len(item.Provider) == 0 || len(item.Provider) > 64 ||
-		!validSpecialistTimestamp(item.ObservedAt) ||
-		!validSpecialistConfidence(item.Confidence) ||
-		(item.VerificationState != "verified" && item.VerificationState != "partial") ||
-		utf8.RuneCountInString(item.Title) < 1 || utf8.RuneCountInString(item.Title) > 300 ||
-		len(item.Provenance) < 1 || len(item.Provenance) > 20 {
-		return false
+// PublicCopilotToolResult returns the tool result as the browser receives it:
+// sanitized, size-bounded, camelCased, without internal bookkeeping.
+func PublicCopilotToolResult(raw json.RawMessage) (map[string]any, error) {
+	var decoded any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return nil, ErrInvalidCopilotFrame
 	}
-	if item.Description != nil && utf8.RuneCountInString(*item.Description) > 500 {
-		return false
+	result, ok := camelizeCopilotKeys(decoded).(map[string]any)
+	if !ok {
+		return nil, ErrInvalidCopilotFrame
 	}
-	seenFields := map[string]bool{}
-	for _, provenance := range item.Provenance {
-		if provenance.Field == "" || seenFields[provenance.Field] ||
-			provenance.SourceURL != item.SourceURL ||
-			!validSpecialistTimestamp(provenance.ObservedAt) ||
-			!validSpecialistConfidence(provenance.Confidence) ||
-			(provenance.VerificationState != "verified" && provenance.VerificationState != "partial") {
-			return false
-		}
-		seenFields[provenance.Field] = true
-	}
-	if !seenFields["title"] {
-		return false
-	}
-	if expectedKind == "similar_lot" {
-		return item.SimilarityScore >= 0 && item.SimilarityScore <= 1 &&
-			len(item.MatchedAttributes) >= 1 &&
-			validateBoundedSpecialistStrings(item.MatchedAttributes, 20, 200) &&
-			validateBoundedSpecialistStrings(item.MaterialDifferences, 20, 200)
-	}
-	return len(item.MatchedAttributes) == 0 && len(item.MaterialDifferences) == 0
-}
-
-func validCopilotSpecialistSource(capability string, item CopilotSpecialistEvidence) bool {
-	switch capability {
-	case "market_search":
-		return item.Provider == "configured_dealer_search" || item.Provider == "cng_dealer_search"
-	case "auction_search":
-		return item.Provider == "configured_auction_search" || item.Provider == "numisbids"
-	case "price_trends":
-		return item.Provider == "numisbids" || item.Provider == "configured_auction_search"
-	case "similar_lots":
-		return item.Provider == "numisbids" || item.Provider == "configured_auction_search"
-	default:
-		return false
-	}
-}
-
-func validateCopilotPriceTrend(trend *CopilotPriceTrend, items []CopilotSpecialistEvidence) bool {
-	if trend == nil || trend.SampleSize < 0 || trend.SampleSize > len(items) ||
-		!validSpecialistConfidence(trend.Confidence) ||
-		!validateBoundedSpecialistStrings(trend.Limitations, 10, 500) ||
-		len(trend.SupportingSourceIDs) > 10 {
-		return false
-	}
-	switch trend.State {
-	case "rising", "stable", "declining":
-		if trend.SampleSize < 3 || trend.DateFrom == nil || trend.DateTo == nil ||
-			trend.Currency == nil || trend.PriceBasis == nil {
-			return false
-		}
-	case "unknown":
-	default:
-		return false
-	}
-	for _, sourceID := range trend.SupportingSourceIDs {
-		if !validSpecialistURL(sourceID) {
-			return false
-		}
-	}
-	return true
-}
-
-func ValidateCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapability string) error {
-	kinds := map[string]string{
-		"market_search":  "dealer_listing",
-		"auction_search": "auction_lot",
-		"price_trends":   "sale_observation",
-		"similar_lots":   "similar_lot",
-	}
-	expectedKind, ok := kinds[result.Capability]
-	if !ok || result.SchemaVersion != 1 || result.Capability != invokedCapability ||
-		len(result.Items) > 10 || len(result.ProviderAttempts) > 10 ||
-		!validateBoundedSpecialistStrings(result.Warnings, 10, 500) {
-		return ErrInvalidCopilotFrame
-	}
-	switch result.Outcome {
-	case "complete":
-		if len(result.Items) == 0 {
-			return ErrInvalidCopilotFrame
-		}
-	case "partial":
-		if len(result.Items) == 0 {
-			return ErrInvalidCopilotFrame
-		}
-	case "no_match", "unavailable":
-		if len(result.Items) != 0 {
-			return ErrInvalidCopilotFrame
-		}
-	default:
-		return ErrInvalidCopilotFrame
-	}
-	hasDegradedAttempt := false
-	for _, attempt := range result.ProviderAttempts {
-		if len(attempt.Provider) == 0 || len(attempt.Provider) > 64 ||
-			!validSpecialistTimestamp(attempt.ObservedAt) ||
-			attempt.AcceptedItems < 0 || attempt.AcceptedItems > 10 {
-			return ErrInvalidCopilotFrame
-		}
-		switch attempt.Status {
-		case "success", "no_match":
-			if attempt.WarningCode != nil {
-				return ErrInvalidCopilotFrame
-			}
-		case "timeout", "failure", "unavailable", "malformed":
-			hasDegradedAttempt = true
-			if attempt.WarningCode == nil || *attempt.WarningCode == "" {
-				return ErrInvalidCopilotFrame
-			}
-		default:
-			return ErrInvalidCopilotFrame
-		}
-	}
-	if (result.Outcome == "partial" || result.Outcome == "unavailable") && !hasDegradedAttempt {
-		return ErrInvalidCopilotFrame
-	}
-	if result.Outcome == "no_match" && hasDegradedAttempt {
-		return ErrInvalidCopilotFrame
-	}
-	for _, item := range result.Items {
-		if !validateCopilotSpecialistEvidence(item, expectedKind) ||
-			!validCopilotSpecialistSource(result.Capability, item) {
-			return ErrInvalidCopilotFrame
-		}
-	}
-	if result.Capability == "price_trends" {
-		if result.Trend == nil {
-			if result.Outcome != "unavailable" {
-				return ErrInvalidCopilotFrame
-			}
-		} else if !validateCopilotPriceTrend(result.Trend, result.Items) {
-			return ErrInvalidCopilotFrame
-		}
-	} else if result.Trend != nil {
-		return ErrInvalidCopilotFrame
-	}
-	truncation := result.Truncation
-	if truncation.OriginalBytes < 0 || truncation.PersistedBytes < 0 ||
-		truncation.PersistedBytes > truncation.OriginalBytes || truncation.OmittedItems < 0 ||
-		len(truncation.Digest) != 64 {
-		return ErrInvalidCopilotFrame
-	}
-	if _, err := hex.DecodeString(truncation.Digest); err != nil {
-		return ErrInvalidCopilotFrame
-	}
-	return nil
+	delete(result, "providerAttempts")
+	delete(result, "schemaVersion")
+	return result, nil
 }
 
 func isCoinCopilotSpecialistTool(toolName string) bool {
@@ -640,154 +358,6 @@ func isCoinCopilotSpecialistTool(toolName string) bool {
 	default:
 		return false
 	}
-}
-
-func DecodeCopilotSpecialistResult(raw json.RawMessage, invokedCapability string) (CopilotSpecialistResult, error) {
-	var result CopilotSpecialistResult
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return result, ErrInvalidCopilotFrame
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return result, ErrInvalidCopilotFrame
-	}
-	if err := ValidateCopilotSpecialistResult(result, invokedCapability); err != nil {
-		return result, err
-	}
-	return result, nil
-}
-
-func DecodeCopilotBoundedToolResult(raw json.RawMessage) (CopilotBoundedToolResult, error) {
-	var result CopilotBoundedToolResult
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return result, ErrInvalidCopilotFrame
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) ||
-		!result.Truncated || result.OriginalBytes < 0 || len(result.Digest) != 64 ||
-		result.Summary != "Tool result exceeded the persisted-result limit." {
-		return result, ErrInvalidCopilotFrame
-	}
-	if _, err := hex.DecodeString(result.Digest); err != nil {
-		return result, ErrInvalidCopilotFrame
-	}
-	return result, nil
-}
-
-func ProjectCopilotSpecialistResult(result CopilotSpecialistResult, invokedCapability string) (CopilotSpecialistPublicResult, error) {
-	if err := ValidateCopilotSpecialistResult(result, invokedCapability); err != nil {
-		return CopilotSpecialistPublicResult{}, err
-	}
-	public := CopilotSpecialistPublicResult{
-		Capability: result.Capability,
-		Outcome:    result.Outcome,
-		Items:      make([]CopilotSpecialistPublicEvidence, 0, len(result.Items)),
-		Warnings:   sanitizeSpecialistStrings(result.Warnings, 500),
-		Truncation: CopilotSpecialistPublicTruncation{
-			Truncated: result.Truncation.Truncated, OriginalBytes: result.Truncation.OriginalBytes,
-			PersistedBytes: result.Truncation.PersistedBytes, Digest: result.Truncation.Digest,
-			OmittedItems: result.Truncation.OmittedItems,
-		},
-	}
-	for _, item := range result.Items {
-		proven := make(map[string]bool, len(item.Provenance))
-		for _, provenance := range item.Provenance {
-			proven[provenance.Field] = true
-		}
-		projected := CopilotSpecialistPublicEvidence{
-			Kind: item.Kind, Title: SanitizeCopilotText(item.Title, 300),
-			SourceURL: item.SourceURL, ObservedAt: item.ObservedAt,
-			Confidence: item.Confidence, VerificationState: item.VerificationState,
-			Facts: []string{}, MatchedAttributes: sanitizeSpecialistStrings(item.MatchedAttributes, 200),
-			MaterialDifferences: sanitizeSpecialistStrings(item.MaterialDifferences, 200),
-		}
-		projectString := func(field string, value *string, max int) *string {
-			if !proven[field] || value == nil {
-				return nil
-			}
-			sanitized := SanitizeCopilotText(*value, max)
-			if sanitized == "" {
-				return nil
-			}
-			return &sanitized
-		}
-		projected.Description = projectString("description", item.Description, 2000)
-		projected.DealerName = projectString("dealer_name", item.DealerName, 300)
-		if proven["listed_price"] && item.ListedPrice != nil {
-			value := *item.ListedPrice
-			projected.ListedPrice = &value
-		}
-		projected.Currency = projectString("currency", item.Currency, 3)
-		projected.Availability = projectString("availability", item.Availability, 50)
-		projected.Ruler = projectString("ruler", item.Ruler, 200)
-		projected.Denomination = projectString("denomination", item.Denomination, 200)
-		projected.Era = projectString("era", item.Era, 100)
-		projected.Material = projectString("material", item.Material, 100)
-		addSpecialistFact := func(field, label, value string) {
-			if proven[field] && value != "" {
-				projected.Facts = append(projected.Facts, label+": "+SanitizeCopilotText(value, 300))
-			}
-		}
-		addSpecialistFact("dealer_name", "Dealer", pointerString(item.DealerName))
-		if proven["listed_price"] && item.ListedPrice != nil {
-			addSpecialistFact("listed_price", "Price", specialistMoney(item.Currency, *item.ListedPrice))
-		}
-		addSpecialistFact("availability", "Availability", pointerString(item.Availability))
-		addSpecialistFact("auction_house", "Auction house", pointerString(item.AuctionHouse))
-		addSpecialistFact("sale_name", "Sale", pointerString(item.SaleName))
-		addSpecialistFact("lot_number", "Lot", pointerString(item.LotNumber))
-		addSpecialistFact("sale_date", "Sale date", pointerString(item.SaleDate))
-		if proven["estimate"] && item.Estimate != nil {
-			addSpecialistFact("estimate", "Estimate", specialistMoney(item.Currency, *item.Estimate))
-		}
-		if proven["current_bid"] && item.CurrentBid != nil {
-			addSpecialistFact("current_bid", "Current bid", specialistMoney(item.Currency, *item.CurrentBid))
-		}
-		addSpecialistFact("lot_status", "Lot status", pointerString(item.LotStatus))
-		addSpecialistFact("ruler", "Ruler", pointerString(item.Ruler))
-		addSpecialistFact("denomination", "Denomination", pointerString(item.Denomination))
-		addSpecialistFact("era", "Era", pointerString(item.Era))
-		addSpecialistFact("material", "Material", pointerString(item.Material))
-		public.Items = append(public.Items, projected)
-	}
-	if result.Trend != nil {
-		public.Trend = &CopilotSpecialistPublicTrend{
-			State: result.Trend.State, SampleSize: result.Trend.SampleSize,
-			DateFrom: result.Trend.DateFrom, DateTo: result.Trend.DateTo,
-			Currency: result.Trend.Currency, PriceBasis: result.Trend.PriceBasis,
-			Low: result.Trend.Low, Median: result.Trend.Median, High: result.Trend.High,
-			Confidence:          result.Trend.Confidence,
-			Limitations:         sanitizeSpecialistStrings(result.Trend.Limitations, 500),
-			SupportingSourceIDs: append([]string(nil), result.Trend.SupportingSourceIDs...),
-		}
-	}
-	return public, nil
-}
-
-func pointerString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
-func specialistMoney(currency *string, amount float64) string {
-	value := fmt.Sprintf("%.2f", amount)
-	value = strings.TrimSuffix(strings.TrimSuffix(value, "0"), ".")
-	if currency == nil || *currency == "" {
-		return value
-	}
-	return *currency + " " + value
-}
-
-func sanitizeSpecialistStrings(values []string, maximum int) []string {
-	sanitized := make([]string, len(values))
-	for i, value := range values {
-		sanitized[i] = SanitizeCopilotText(value, maximum)
-	}
-	return sanitized
 }
 
 func ValidateCopilotCheckpoint(state CopilotCheckpointState, run *models.CoinCopilotRun) error {

@@ -24,93 +24,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "auction_house",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "sale_name",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "lot_number",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "sale_date",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "estimate",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "lot_status",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=8000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     }
   ],
   "trend": null,
@@ -135,9 +49,6 @@
   ],
   "truncation": {
     "truncated": false,
-    "original_bytes": 1024,
-    "persisted_bytes": 1024,
-    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "omitted_items": 0
   }
 }

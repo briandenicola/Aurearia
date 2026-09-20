@@ -436,7 +436,7 @@ describe('Coin Copilot SSE parser', () => {
     })
   })
 
-  it('accepts strict specialist projections and rejects mismatched or extended results', () => {
+  it('accepts specialist projections, rejects a mismatched capability, and tolerates new fields', () => {
     const events: CoinCopilotEvent[] = []
     const parser = createCoinCopilotSSEParser({ onEvent: value => { events.push(value) } })
     const specialistResult = {
@@ -449,7 +449,6 @@ describe('Coin Copilot SSE parser', () => {
         observedAt: '2026-09-18T12:00:00Z',
         confidence: 'high',
         verificationState: 'verified',
-        facts: ['USD 250', 'Available'],
         matchedAttributes: [],
         materialDifferences: [],
       }],
@@ -457,9 +456,6 @@ describe('Coin Copilot SSE parser', () => {
       warnings: [],
       truncation: {
         truncated: false,
-        originalBytes: 500,
-        persistedBytes: 500,
-        digest: 'a'.repeat(64),
         omittedItems: 0,
       },
     }
@@ -484,11 +480,13 @@ describe('Coin Copilot SSE parser', () => {
       })}\n\n`
 
     parser.push(frame(1, specialistResult))
+    // A capability that does not match the tool is still refused.
     parser.push(frame(2, { ...specialistResult, capability: 'auction_search' }))
-    parser.push(frame(3, { ...specialistResult, hiddenReasoning: 'not allowed' }))
+    // A field the agent service adds later must not drop the whole event.
+    parser.push(frame(3, { ...specialistResult, newlyAddedField: 'fine' }))
     parser.finish()
 
-    expect(events).toHaveLength(1)
+    expect(events.map(event => event.seq)).toEqual([1, 3])
     expect(events[0]?.payload).toMatchObject({ specialistResult })
   })
 })

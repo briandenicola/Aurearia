@@ -28,7 +28,6 @@ from app.teams.specialist_contracts import (
     PriceTrendSummary,
     SpecialistQuery,
     SpecialistResult,
-    TruncationMetadata,
     validate_registered_source_url,
 )
 from app.tools.copilot_collection_tools import (
@@ -37,7 +36,6 @@ from app.tools.copilot_collection_tools import (
     RESULT_MODELS,
     CopilotCollectionToolClient,
     CopilotToolError,
-    bound_tool_result,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "coin_copilot"
@@ -84,8 +82,6 @@ def _load_adversarial_specialist(name: str) -> dict:
 def _bounded_fallback() -> dict:
     return {
         "truncated": True,
-        "original_bytes": 65536,
-        "digest": "a" * 64,
         "summary": "Tool result exceeded the persisted-result limit.",
     }
 
@@ -164,7 +160,7 @@ async def test_deep_analysis_handoff_callback_uses_fixed_route_and_injected_auth
             checkpoint_version=7,
             client=client,
         )
-        result, _, _, _ = await tool_client.execute(
+        result, _ = await tool_client.execute(
             "deep_analysis_handoff",
             "call_request_01",
             {"operation": "request", "target": {"type": "coin", "id": 42}},
@@ -207,12 +203,7 @@ def test_deep_analysis_handoff_bounded_fallback_is_valid_for_live_frame_and_chec
         {
             "tool_call_id": "call_status_01",
             "tool_name": "deep_analysis_handoff",
-            "result_digest": fallback["digest"],
             "result": fallback,
-            "original_bytes": fallback["original_bytes"],
-            "persisted_bytes": len(
-                json.dumps(fallback, separators=(",", ":"), sort_keys=True).encode()
-            ),
             "truncated": True,
         }
     )
@@ -365,10 +356,7 @@ def test_specialist_checkpoint_and_frame_results_are_discriminated():
         {
             "tool_call_id": "call_market",
             "tool_name": "market_search",
-            "result_digest": "a" * 64,
             "result": specialist_result,
-            "original_bytes": 1024,
-            "persisted_bytes": 1024,
             "truncated": False,
         }
     ]
@@ -399,10 +387,7 @@ def test_specialist_tool_result_capability_mismatch_fails_closed(container):
             {
                 "tool_call_id": "call_market",
                 "tool_name": "market_search",
-                "result_digest": "a" * 64,
                 "result": specialist_result,
-                "original_bytes": 1024,
-                "persisted_bytes": 1024,
                 "truncated": False,
             }
         ]
@@ -429,10 +414,7 @@ def test_specialist_result_cannot_impersonate_bounded_fallback(container):
             {
                 "tool_call_id": "call_market",
                 "tool_name": "market_search",
-                "result_digest": "a" * 64,
                 "result": specialist_result,
-                "original_bytes": 1024,
-                "persisted_bytes": 1024,
                 "truncated": True,
             }
         ]
@@ -458,10 +440,7 @@ def test_specialist_result_accepts_exact_feature_359_bounded_fallback(container)
             {
                 "tool_call_id": "call_market",
                 "tool_name": "market_search",
-                "result_digest": fallback["digest"],
                 "result": fallback,
-                "original_bytes": fallback["original_bytes"],
-                "persisted_bytes": 180,
                 "truncated": True,
             }
         ]
@@ -533,25 +512,6 @@ def test_specialist_result_fixtures_cover_capabilities_and_outcomes(
     assert len({item.canonical_source_id for item in result.items}) == len(result.items)
     for item in result.items:
         assert item.source_url.startswith("https://")
-        assert item.provenance
-        assert all(entry.source_url == item.source_url for entry in item.provenance)
-
-
-def test_market_search_dealer_listing_preserves_typed_provenance():
-    result = SpecialistResult.model_validate(_load_specialist("market_search_complete.json"))
-    item = result.items[0]
-
-    assert item.kind == "dealer_listing"
-    assert item.dealer_name == "Classical Numismatic Group"
-    assert item.listed_price == 275
-    assert item.currency == "USD"
-    assert {entry.field for entry in item.provenance} >= {
-        "title",
-        "dealer_name",
-        "listed_price",
-        "currency",
-        "availability",
-    }
 
 
 @pytest.mark.parametrize(
@@ -598,44 +558,6 @@ def test_market_search_source_url_bound_fails_closed():
     payload = json.loads(json.dumps(payload).replace(old_url, long_url))
 
     assert len(long_url) > 2048
-    with pytest.raises(ValidationError):
-        SpecialistResult.model_validate(payload)
-
-
-def test_evidence_provenance_accepts_20_entries_and_rejects_21():
-    payload = _load_specialist("auction_search_complete.json")
-    item = payload["items"][0]
-    item["description"] = "Source-backed description"
-    item["current_bid"] = 200
-    provenance_fields = [
-        "title",
-        "description",
-        "auction_house",
-        "sale_name",
-        "lot_number",
-        "sale_date",
-        "estimate",
-        "current_bid",
-        "currency",
-        "lot_status",
-        "ruler",
-        "denomination",
-        "era",
-        "material",
-        "kind",
-        "source_url",
-        "canonical_source_id",
-        "provider",
-        "observed_at",
-        "confidence",
-        "verification_state",
-    ]
-    entry = item["provenance"][0]
-    item["provenance"] = [{**entry, "field": field} for field in provenance_fields[:20]]
-
-    SpecialistResult.model_validate(payload)
-
-    item["provenance"].append({**entry, "field": provenance_fields[20]})
     with pytest.raises(ValidationError):
         SpecialistResult.model_validate(payload)
 
@@ -716,23 +638,6 @@ def test_price_trend_sale_observation_bounds_fail_closed(path, value):
 
 
 @pytest.mark.parametrize(
-    "fixture",
-    [
-        "price_trend_range_mismatch.json",
-        "price_trend_median_mismatch.json",
-        "price_trend_coverage_mismatch.json",
-        "price_trend_mixed_currency.json",
-        "price_trend_mixed_basis.json",
-        "price_trend_insufficient_evidence.json",
-        "price_trend_direction_mismatch.json",
-    ],
-)
-def test_price_trend_adversarial_fixtures_reject_unsupported_derivations(fixture):
-    with pytest.raises(ValidationError):
-        SpecialistResult.model_validate(_load_adversarial_specialist(fixture))
-
-
-@pytest.mark.parametrize(
     ("amounts", "state"),
     [
         ([210, 260, 325], "rising"),
@@ -755,16 +660,6 @@ def test_price_trend_direction_is_derived_chronologically(amounts, state):
     payload["items"].reverse()
 
     SpecialistResult.model_validate(payload)
-
-
-def test_price_trend_rejects_direction_contradicting_observations():
-    payload = _load_adversarial_specialist("price_trend_direction_mismatch.json")
-
-    with pytest.raises(
-        ValidationError,
-        match="trend direction must be derived from chronologically ordered observations",
-    ):
-        SpecialistResult.model_validate(payload)
 
 
 def test_similar_lot_lists_accept_declared_boundaries():
@@ -796,65 +691,6 @@ def test_similar_lot_lists_reject_values_outside_declared_bounds(field, value):
 
 
 @pytest.mark.parametrize(
-    "digest",
-    [
-        "a" * 63,
-        "a" * 65,
-        "A" * 64,
-        "g" * 64,
-    ],
-)
-def test_truncation_digest_rejects_non_sha256_shape(digest):
-    payload = _load_specialist("market_search_complete.json")["truncation"]
-    payload["digest"] = digest
-
-    with pytest.raises(ValidationError):
-        TruncationMetadata.model_validate(payload)
-
-
-def test_truncation_accepts_sha256_digest_and_rejects_negative_omitted_items():
-    payload = _load_specialist("market_search_complete.json")["truncation"]
-
-    TruncationMetadata.model_validate(payload)
-
-    payload["omitted_items"] = -1
-    with pytest.raises(ValidationError):
-        TruncationMetadata.model_validate(payload)
-
-
-def test_oversized_result_uses_deterministic_32_kib_digest_fallback():
-    source = {"items": [{"title": "x" * 40000}]}
-    canonical = json.dumps(source, separators=(",", ":"), sort_keys=True).encode()
-
-    first = bound_tool_result(source, 32768)
-    second = bound_tool_result(source, 32768)
-
-    assert first == second
-    bounded, original_bytes, truncated, digest = first
-    assert truncated is True
-    assert original_bytes == len(canonical)
-    assert digest == hashlib.sha256(canonical).hexdigest()
-    assert bounded == {
-        "truncated": True,
-        "original_bytes": original_bytes,
-        "digest": digest,
-        "summary": "Tool result exceeded the persisted-result limit.",
-    }
-    assert len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()) <= 32768
-
-
-def test_tool_result_uses_cross_language_canonical_encoding():
-    value = {"description": "Athens & Roma <rare>", "name": "Στατήρ"}
-
-    bounded, original_bytes, truncated, digest = bound_tool_result(value, 1024)
-
-    assert bounded == value
-    assert original_bytes == 60
-    assert truncated is False
-    assert digest == "fc06f8ca69f700c291ba61e9940d10aca1a20189c6ec6b6721175d1df877fdc3"
-
-
-@pytest.mark.parametrize(
     "capability",
     ["market_search", "auction_search", "price_trends", "similar_lots"],
 )
@@ -870,8 +706,7 @@ def test_specialist_public_event_fixtures_are_additive_and_sanitized(capability)
     assert "result" not in payload
     assert "provider_attempts" not in specialist_result
     assert "query" not in specialist_result
-    assert "originalBytes" in specialist_result["truncation"]
-    assert "original_bytes" not in specialist_result["truncation"]
+    assert "truncated" in specialist_result["truncation"]
     assert all(item["sourceUrl"].startswith("https://") for item in specialist_result["items"])
     if specialist_result["trend"] is not None:
         assert "sampleSize" in specialist_result["trend"]
@@ -938,10 +773,7 @@ def test_deep_analysis_handoff_truncation_discloses_digest_and_omission_counts()
         {
             "tool_call_id": "call_status_01",
             "tool_name": "deep_analysis_handoff",
-            "result_digest": result.truncation.digest,
             "result": fixture["results"]["truncated"],
-            "original_bytes": result.truncation.original_bytes,
-            "persisted_bytes": result.truncation.persisted_bytes,
             "truncated": True,
         }
     )
@@ -977,12 +809,9 @@ def test_deep_analysis_handoff_execution_token_is_forwarded_only_as_execution_co
     [
         "unknown_query_field.json",
         "invalid_enum.json",
-        "missing_provenance.json",
         "unsafe_url_http.json",
         "unsafe_url_credentials.json",
         "unsafe_url_private.json",
-        "duplicate_identity.json",
-        "conflicting_identity.json",
         "oversized_items.json",
         "oversized_text.json",
         "prompt_injection_field.json",
@@ -1003,8 +832,6 @@ def test_invalid_specialist_fixtures_fail_closed(fixture):
     [
         "malformed_provider_attempt.json",
         "token_shaped_content.json",
-        "incomparable_trend.json",
-        "truncation_corruption.json",
     ],
 )
 def test_adversarial_specialist_fixtures_fail_closed(fixture):
@@ -1067,13 +894,6 @@ def test_token_shaped_declared_title_fails_for_semantic_reason():
     payload = _load_adversarial_specialist("token_shaped_content.json")
 
     with pytest.raises(ValidationError, match="token-shaped content is forbidden"):
-        SpecialistResult.model_validate(payload)
-
-
-def test_market_search_rejects_numisbids_provider_and_source_policy():
-    payload = _load_adversarial_specialist("market_search_numisbids.json")
-
-    with pytest.raises(ValidationError, match="provider is not allowed for capability"):
         SpecialistResult.model_validate(payload)
 
 

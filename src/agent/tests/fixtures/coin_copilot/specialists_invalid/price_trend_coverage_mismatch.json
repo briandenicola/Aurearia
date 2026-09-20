@@ -1,9 +1,0 @@
-{
-  "base_fixture": "price_trends_complete.json",
-  "changes": [
-    {
-      "path": ["trend", "date_from"],
-      "value": "2026-01-01"
-    }
-  ]
-}

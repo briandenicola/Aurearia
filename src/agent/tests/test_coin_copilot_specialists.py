@@ -256,13 +256,11 @@ async def test_market_search_returns_source_backed_success():
     assert item.listed_price == 275
     assert item.currency == "USD"
     assert item.availability == "available"
-    assert {entry.field for entry in item.provenance} >= {
-        "title",
-        "dealer_name",
-        "listed_price",
-        "currency",
-        "availability",
-    }
+    assert (item.dealer_name, item.verification_state, item.confidence) == (
+        "Classical Numismatic Group",
+        "verified",
+        "high",
+    )
 
 
 @pytest.mark.asyncio

@@ -16,44 +16,7 @@
       "sale_date": "2026-08-01",
       "amount": 260,
       "currency": "USD",
-      "price_basis": "hammer",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "sale_date",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "amount",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "price_basis",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=7000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "price_basis": "hammer"
     }
   ],
   "trend": {
@@ -95,9 +58,6 @@
   ],
   "truncation": {
     "truncated": false,
-    "original_bytes": 1024,
-    "persisted_bytes": 1024,
-    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "omitted_items": 0
   }
 }

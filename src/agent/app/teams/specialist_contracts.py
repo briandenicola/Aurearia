@@ -1,10 +1,18 @@
-"""Strict normalized contracts for Coin Copilot specialist market tools."""
+"""Typed specialist results for Coin Copilot market tools.
+
+One schema, validated once, here. Go persists and streams the result as data
+and the browser renders it; neither re-implements this schema. What is enforced
+at this boundary is what actually protects the owner:
+
+- source URLs are https, credential-free and resolve to a configured host
+- provider text is untrusted data, screened for injection and token shapes
+- results are bounded in size and item count
+- outcomes are typed, so a failed source can never look like "no matches"
+"""
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import ipaddress
 import json
 import logging
 import re
@@ -28,6 +36,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+logger = logging.getLogger(__name__)
 
 SpecialistCapability = Literal[
     "market_search",
@@ -60,28 +70,17 @@ BoundedText = Annotated[str, StringConstraints(min_length=1, max_length=300)]
 BoundedWarning = Annotated[str, StringConstraints(min_length=1, max_length=500)]
 BoundedSourceURL = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
 Currency = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
-SHA256Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 JSONDecimal = Annotated[
     Decimal,
     PlainSerializer(lambda value: float(value), return_type=float, when_used="json"),
 ]
 
+MAX_ITEMS = 10
+
 _DEGRADED_PROVIDER_STATUSES = {"timeout", "failure", "unavailable", "malformed"}
 _NON_PUBLIC_HOSTS = {"localhost", "metadata.google.internal"}
 _REGISTERED_SOURCE_HOSTS = {
     "numisbids": frozenset({"numisbids.com"}),
-}
-_CAPABILITY_PROVIDERS = {
-    "market_search": frozenset(
-        {"cng_dealer_search", "configured_dealer_search", "market_search_secondary"}
-    ),
-    "auction_search": frozenset(
-        {"numisbids", "configured_auction_search", "auction_search_secondary"}
-    ),
-    "price_trends": frozenset({"numisbids", "configured_auction_search", "price_trends_secondary"}),
-    "similar_lots": frozenset(
-        {"numisbids", "configured_auction_search", "similar_lots_secondary"}
-    ),
 }
 _TOKEN_RE = re.compile(
     r"(?i)(?:bearer\s+[A-Za-z0-9._~+/\-=]{12,}|"
@@ -103,6 +102,7 @@ _INSTRUCTION_RE = re.compile(
     r"|(?:call|invoke|execute|run|trigger)\s+(?:the\s+)?(?:tool|function|capability)"
     r")\b"
 )
+# Provider text that reaches the model or the owner, screened for injection.
 _UNTRUSTED_EVIDENCE_TEXT_FIELDS = {
     "title",
     "description",
@@ -118,27 +118,6 @@ _UNTRUSTED_EVIDENCE_TEXT_FIELDS = {
     "matched_attributes",
     "material_differences",
 }
-_SOURCE_BACKED_FIELDS = {
-    "title",
-    "description",
-    "dealer_name",
-    "listed_price",
-    "currency",
-    "availability",
-    "ruler",
-    "denomination",
-    "era",
-    "material",
-    "auction_house",
-    "sale_name",
-    "lot_number",
-    "sale_date",
-    "estimate",
-    "current_bid",
-    "lot_status",
-    "amount",
-    "price_basis",
-}
 _SAFE_PROVIDER_WARNINGS = {
     "timeout": "One configured source timed out; available evidence may be incomplete.",
     "failure": "One configured source could not be reached; available evidence may be incomplete.",
@@ -151,9 +130,6 @@ _WARNING_CODES: dict[str, ProviderWarningCode] = {
     "unavailable": "provider_unavailable",
     "malformed": "provider_malformed",
 }
-
-
-logger = logging.getLogger(__name__)
 
 # Failures of an outside service (network, HTTP, model API). Anything else a
 # provider raises is a defect and must propagate instead of being reported to
@@ -179,45 +155,31 @@ class ProviderMalformedError(RuntimeError):
     """A specialist provider returned a response that cannot be normalized."""
 
 
-ProviderCallable = Callable[[str, int], Awaitable[Sequence[Mapping[str, Any]]]]
 CancellationCheck = Callable[[], Awaitable[bool]]
 
 
 async def raise_if_cancelled(check: CancellationCheck | None) -> None:
-    """Stop specialist work as soon as the authoritative run is cancelled."""
-    if check is not None and await check():
+    if check and await check():
         raise asyncio.CancelledError
 
 
 @dataclass(frozen=True)
 class ProviderRunner:
-    """One fixed provider boundary used by a specialist runner."""
+    """One configured source: a callable returning raw candidate mappings."""
 
     provider: str
-    run: ProviderCallable
+    run: Callable[[str, int], Awaitable[Sequence[Mapping[str, Any]]]]
     allowed_hosts: frozenset[str] | None = None
 
 
 class StrictSpecialistModel(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-        allow_inf_nan=False,
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
-    @model_validator(mode="before")
+    @field_validator("*", mode="after")
     @classmethod
-    def reject_token_shaped_content(cls, value: object) -> object:
-        def contains_token(candidate: object) -> bool:
-            if isinstance(candidate, str):
-                return _TOKEN_RE.search(candidate) is not None
-            if isinstance(candidate, list):
-                return any(contains_token(item) for item in candidate)
-            if isinstance(candidate, dict):
-                return any(contains_token(item) for item in candidate.values())
-            return False
-
-        if contains_token(value):
+    def reject_token_shaped_text(cls, value: Any) -> Any:
+        values = value if isinstance(value, list) else [value]
+        if any(isinstance(item, str) and _TOKEN_RE.search(item) for item in values):
             raise ValueError("token-shaped content is forbidden")
         return value
 
@@ -241,6 +203,8 @@ def _validate_source_url(value: str) -> str:
     if normalized_host in _NON_PUBLIC_HOSTS or normalized_host.endswith(".localhost"):
         raise ValueError("source URL host is not public")
     try:
+        import ipaddress
+
         address = ipaddress.ip_address(normalized_host)
     except ValueError:
         return value
@@ -249,28 +213,42 @@ def _validate_source_url(value: str) -> str:
     return value
 
 
-def _validate_registered_source(provider: str, value: str) -> None:
-    allowed_hosts = _REGISTERED_SOURCE_HOSTS.get(provider)
-    if allowed_hosts is None:
+def canonical_source_identity(url: str) -> str:
+    """Return the stable comparison identity without changing the display URL."""
+    validated = _validate_source_url(url)
+    parsed = urlsplit(validated)
+    host = (parsed.hostname or "").rstrip(".").lower()
+    port = parsed.port
+    netloc = host if port in {None, 443} else f"{host}:{port}"
+    return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, ""))
+
+
+def validate_registered_source_url(
+    provider: str,
+    url: str,
+    allowed_hosts: frozenset[str] | None = None,
+) -> str:
+    """Validate a source URL against the provider's fixed source boundary."""
+    validated = _validate_source_url(url)
+    hosts = allowed_hosts if allowed_hosts is not None else _REGISTERED_SOURCE_HOSTS.get(provider)
+    if hosts is None:
         raise ValueError("evidence provider is not registered")
-    host = urlsplit(value).hostname
-    if host is None:
-        raise ValueError("source URL must contain a host")
-    normalized_host = host.rstrip(".").lower()
-    if not any(normalized_host == allowed or normalized_host.endswith(f".{allowed}") for allowed in allowed_hosts):
-        raise ValueError("source URL host is outside the provider's registered source boundary")
+    host = (urlsplit(validated).hostname or "").rstrip(".").lower()
+    if not any(host == allowed or host.endswith(f".{allowed}") for allowed in hosts):
+        raise ValueError("source URL host is not configured")
+    return validated
 
 
 class SpecialistQuery(StrictSpecialistModel):
     query: Annotated[str, StringConstraints(min_length=1, max_length=500)]
-    limit: int = Field(default=5, ge=1, le=10)
+    limit: int = Field(default=5, ge=1, le=MAX_ITEMS)
 
 
 class ProviderAttempt(StrictSpecialistModel):
     provider: BoundedProvider
     status: ProviderStatus
     observed_at: datetime
-    accepted_items: int = Field(ge=0, le=10)
+    accepted_items: int = Field(ge=0, le=MAX_ITEMS)
     warning_code: ProviderWarningCode | None = None
 
     @field_validator("observed_at")
@@ -280,44 +258,24 @@ class ProviderAttempt(StrictSpecialistModel):
 
     @model_validator(mode="after")
     def validate_status_fields(self) -> ProviderAttempt:
-        if self.status == "success":
-            if self.accepted_items == 0:
-                raise ValueError("successful provider attempts require accepted_items")
-            if self.warning_code is not None:
-                raise ValueError("successful provider attempts cannot include warning_code")
-        elif self.status == "no_match":
-            if self.accepted_items != 0 or self.warning_code is not None:
-                raise ValueError("no-match attempts cannot accept items or include warning_code")
-        else:
-            if self.accepted_items != 0 or self.warning_code is None:
-                raise ValueError("degraded provider attempts require a safe warning_code and zero items")
-            expected_warning = {
-                "timeout": "provider_timeout",
-                "failure": "provider_failure",
-                "unavailable": "provider_unavailable",
-                "malformed": "provider_malformed",
-            }[self.status]
-            if self.warning_code != expected_warning:
-                raise ValueError("provider warning_code must match the degraded status")
+        degraded = self.status in _DEGRADED_PROVIDER_STATUSES
+        if degraded and self.warning_code != _WARNING_CODES[self.status]:
+            raise ValueError("degraded provider attempts require a matching warning code")
+        if not degraded and self.warning_code is not None:
+            raise ValueError("healthy provider attempts cannot carry a warning code")
         return self
 
 
-class FieldProvenance(StrictSpecialistModel):
-    field: Annotated[str, StringConstraints(min_length=1, max_length=64)]
-    source_url: BoundedSourceURL
-    observed_at: datetime
-    confidence: Confidence
-    verification_state: VerificationState
+class CandidateReference(StrictSpecialistModel):
+    catalog: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    number: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    volume: Annotated[str, StringConstraints(max_length=64)] | None = None
+    uri: BoundedSourceURL | None = None
 
-    @field_validator("source_url")
+    @field_validator("uri")
     @classmethod
-    def validate_source_url(cls, value: str) -> str:
-        return _validate_source_url(value)
-
-    @field_validator("observed_at")
-    @classmethod
-    def validate_observed_at(cls, value: datetime) -> datetime:
-        return _validate_utc(value)
+    def validate_uri(cls, value: str | None) -> str | None:
+        return None if value is None else _validate_source_url(value)
 
 
 class EvidenceItem(StrictSpecialistModel):
@@ -330,12 +288,13 @@ class EvidenceItem(StrictSpecialistModel):
     verification_state: VerificationState
     title: BoundedTitle
     description: BoundedDescription | None = None
-    provenance: list[FieldProvenance] = Field(min_length=1, max_length=20)
+    image_url: BoundedSourceURL | None = None
+    candidate_references: list[CandidateReference] = Field(default_factory=list, max_length=5)
 
-    @field_validator("source_url", "canonical_source_id")
+    @field_validator("source_url", "canonical_source_id", "image_url")
     @classmethod
-    def validate_source_urls(cls, value: str) -> str:
-        return _validate_source_url(value)
+    def validate_source_urls(cls, value: str | None) -> str | None:
+        return None if value is None else _validate_source_url(value)
 
     @field_validator("observed_at")
     @classmethod
@@ -343,39 +302,12 @@ class EvidenceItem(StrictSpecialistModel):
         return _validate_utc(value)
 
     @model_validator(mode="after")
-    def validate_provenance(self) -> EvidenceItem:
-        model_fields = type(self).model_fields
-        if self.provider not in {
-            "configured_dealer_search",
-            "configured_auction_search",
-            "cng_dealer_search",
-        }:
-            _validate_registered_source(self.provider, self.source_url)
-            _validate_registered_source(self.provider, self.canonical_source_id)
-        for field in _UNTRUSTED_EVIDENCE_TEXT_FIELDS.intersection(model_fields):
+    def reject_instruction_shaped_text(self) -> EvidenceItem:
+        for field in _UNTRUSTED_EVIDENCE_TEXT_FIELDS.intersection(type(self).model_fields):
             value = getattr(self, field)
             values = value if isinstance(value, list) else [value]
             if any(isinstance(text, str) and _INSTRUCTION_RE.search(text) for text in values):
                 raise ValueError(f"instruction-shaped content is forbidden in {field}")
-        fields = [entry.field for entry in self.provenance]
-        if len(fields) != len(set(fields)):
-            raise ValueError("provenance fields must be unique per item")
-        if "title" not in fields:
-            raise ValueError("title requires provenance")
-        for entry in self.provenance:
-            if entry.source_url != self.source_url:
-                raise ValueError("provenance source_url must match the evidence item")
-            if entry.observed_at != self.observed_at:
-                raise ValueError("provenance observed_at must match the evidence item")
-            if entry.field not in model_fields:
-                raise ValueError("provenance field must name a declared evidence field")
-            if getattr(self, entry.field) is None:
-                raise ValueError("provenance cannot reference an absent field")
-        required_provenance = {
-            field for field in _SOURCE_BACKED_FIELDS if field in model_fields and getattr(self, field) is not None
-        }
-        if not required_provenance.issubset(fields):
-            raise ValueError("every populated source-backed field requires provenance")
         return self
 
 
@@ -417,9 +349,9 @@ class SaleObservation(EvidenceItem):
 
 class SimilarLot(EvidenceItem):
     kind: Literal["similar_lot"]
-    similarity_score: JSONDecimal = Field(ge=0, le=1)
+    similarity_score: float = Field(ge=0, le=1)
     matched_attributes: list[BoundedText] = Field(min_length=1, max_length=20)
-    material_differences: list[BoundedText] = Field(max_length=20)
+    material_differences: list[BoundedText] = Field(default_factory=list, max_length=20)
 
 
 SpecialistEvidence = Annotated[
@@ -430,7 +362,7 @@ SpecialistEvidence = Annotated[
 
 class PriceTrendSummary(StrictSpecialistModel):
     state: Literal["rising", "stable", "declining", "unknown"]
-    sample_size: int = Field(ge=0, le=10)
+    sample_size: int = Field(ge=0, le=MAX_ITEMS)
     date_from: date | None = None
     date_to: date | None = None
     currency: Currency | None = None
@@ -440,231 +372,50 @@ class PriceTrendSummary(StrictSpecialistModel):
     high: JSONDecimal | None = Field(default=None, ge=0)
     confidence: Confidence
     limitations: list[BoundedWarning] = Field(default_factory=list, max_length=10)
-    supporting_source_ids: list[BoundedSourceURL] = Field(default_factory=list, max_length=10)
-
-    @field_validator("supporting_source_ids")
-    @classmethod
-    def validate_supporting_source_ids(cls, values: list[str]) -> list[str]:
-        if len(values) != len(set(values)):
-            raise ValueError("supporting_source_ids must be unique")
-        return [_validate_source_url(value) for value in values]
-
-    @model_validator(mode="after")
-    def validate_summary(self) -> PriceTrendSummary:
-        dates = (self.date_from, self.date_to)
-        if (dates[0] is None) != (dates[1] is None):
-            raise ValueError("trend date coverage requires both date_from and date_to")
-        if dates[0] is not None and dates[1] is not None and dates[0] > dates[1]:
-            raise ValueError("date_from cannot be after date_to")
-
-        comparable_fields = (self.currency, self.price_basis, self.low, self.median, self.high)
-        if any(value is None for value in comparable_fields) and any(value is not None for value in comparable_fields):
-            raise ValueError("trend comparable metadata must be wholly present or absent")
-        if self.low is not None and not self.low <= self.median <= self.high:
-            raise ValueError("trend prices must satisfy low <= median <= high")
-        if self.sample_size != len(self.supporting_source_ids):
-            raise ValueError("sample_size must equal supporting source count")
-        if self.sample_size == 0 and any(value is not None for value in dates + comparable_fields):
-            raise ValueError("empty trends cannot contain sample metadata")
-        if self.state != "unknown":
-            if self.sample_size < 3 or self.date_from is None or self.date_to is None:
-                raise ValueError("directional trends require at least three dated samples")
-            if (self.date_to - self.date_from).days < 30:
-                raise ValueError("directional trends require at least 30 days of coverage")
-            if any(value is None for value in comparable_fields):
-                raise ValueError("directional trends require comparable price metadata")
-        return self
+    supporting_source_ids: list[BoundedSourceURL] = Field(default_factory=list, max_length=MAX_ITEMS)
 
 
 class TruncationMetadata(StrictSpecialistModel):
     truncated: bool
-    original_bytes: int = Field(ge=0)
-    persisted_bytes: int = Field(ge=0)
-    digest: SHA256Digest
-    omitted_items: int = Field(ge=0)
-
-    @model_validator(mode="after")
-    def validate_sizes(self) -> TruncationMetadata:
-        if self.persisted_bytes > self.original_bytes:
-            raise ValueError("persisted_bytes cannot exceed original_bytes")
-        if not self.truncated and (self.persisted_bytes != self.original_bytes or self.omitted_items != 0):
-            raise ValueError("untruncated results must preserve all bytes and items")
-        if self.truncated and (self.persisted_bytes == self.original_bytes and self.omitted_items == 0):
-            raise ValueError("truncated results must report an omitted byte or item")
-        return self
+    omitted_items: int = Field(default=0, ge=0)
 
 
 class SpecialistResult(StrictSpecialistModel):
     schema_version: Literal[1] = 1
     capability: SpecialistCapability
     outcome: SpecialistOutcome
-    items: list[SpecialistEvidence] = Field(default_factory=list, max_length=10)
+    items: list[SpecialistEvidence] = Field(default_factory=list, max_length=MAX_ITEMS)
     trend: PriceTrendSummary | None = None
-    provider_attempts: list[ProviderAttempt] = Field(default_factory=list, max_length=10)
+    provider_attempts: list[ProviderAttempt] = Field(default_factory=list, max_length=MAX_ITEMS)
     warnings: list[BoundedWarning] = Field(default_factory=list, max_length=10)
-    truncation: TruncationMetadata
+    truncation: TruncationMetadata = TruncationMetadata(truncated=False)
 
     @model_validator(mode="after")
     def validate_envelope(self) -> SpecialistResult:
-        expected_kind = {
-            "market_search": "dealer_listing",
-            "auction_search": "auction_lot",
-            "price_trends": "sale_observation",
-            "similar_lots": "similar_lot",
-        }[self.capability]
+        expected_kind = _CAPABILITY_KINDS[self.capability]
         if any(item.kind != expected_kind for item in self.items):
             raise ValueError("evidence item kind does not match capability")
-
-        allowed_providers = _CAPABILITY_PROVIDERS[self.capability]
-        if any(item.provider not in allowed_providers for item in self.items):
-            raise ValueError("evidence provider is not allowed for capability")
-        if any(attempt.provider not in allowed_providers for attempt in self.provider_attempts):
-            raise ValueError("provider attempt is not allowed for capability")
-
-        source_ids = [item.canonical_source_id for item in self.items]
-        if len(source_ids) != len(set(source_ids)):
-            raise ValueError("canonical source identities must be unique")
-        providers = [attempt.provider for attempt in self.provider_attempts]
-        if len(providers) != len(set(providers)):
-            raise ValueError("provider attempts must be unique and ordered")
-
+        if self.capability != "price_trends" and self.trend is not None:
+            raise ValueError("trend is only valid for price_trends")
+        # A failed source must never read as "nothing matched".
         if self.outcome in {"complete", "partial"} and not self.items:
             raise ValueError("complete and partial outcomes require evidence")
         if self.outcome in {"no_match", "unavailable"} and self.items:
             raise ValueError("no_match and unavailable outcomes cannot contain evidence")
         degraded = any(attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in self.provider_attempts)
-        if self.outcome == "partial" and not degraded:
-            raise ValueError("partial outcomes require a degraded provider attempt")
-        if self.outcome == "complete" and degraded:
-            raise ValueError("complete outcomes cannot contain degraded provider attempts")
-        if self.outcome == "no_match" and any(
-            attempt.status not in {"success", "no_match"} for attempt in self.provider_attempts
-        ):
-            raise ValueError("no_match permits only successful/no-match attempts")
         if self.outcome == "unavailable" and not degraded:
             raise ValueError("unavailable requires a degraded provider attempt")
-
-        if self.capability != "price_trends":
-            if self.trend is not None:
-                raise ValueError("trend is only valid for price_trends")
-        elif self.trend is not None:
-            if self.trend.sample_size != len(self.items):
-                raise ValueError("trend sample_size must equal evidence item count")
-            if set(self.trend.supporting_source_ids) != set(source_ids):
-                raise ValueError("trend supporting sources must reference result evidence")
-            if self.items:
-                observations = [item for item in self.items if isinstance(item, SaleObservation)]
-                observed_dates = [item.sale_date for item in observations]
-                if self.trend.date_from != min(observed_dates) or self.trend.date_to != max(observed_dates):
-                    raise ValueError("trend date coverage must be derived from sale observations")
-
-                currencies = {item.currency for item in observations}
-                bases = {item.price_basis for item in observations}
-                comparable = len(currencies) == 1 and len(bases) == 1
-                aggregate = (
-                    self.trend.currency,
-                    self.trend.price_basis,
-                    self.trend.low,
-                    self.trend.median,
-                    self.trend.high,
-                )
-                if comparable:
-                    amounts = [item.amount for item in observations]
-                    expected = (
-                        next(iter(currencies)),
-                        next(iter(bases)),
-                        min(amounts),
-                        median(amounts),
-                        max(amounts),
-                    )
-                    if aggregate != expected:
-                        raise ValueError("trend price summary must be derived from comparable sale observations")
-                    if (
-                        len(observations) >= 3
-                        and len(set(observed_dates)) >= 2
-                        and (max(observed_dates) - min(observed_dates)).days >= 30
-                        and all(item.verification_state == "verified" for item in observations)
-                    ):
-                        amounts_by_date: dict[date, list[Decimal]] = {}
-                        for observation in observations:
-                            amounts_by_date.setdefault(observation.sale_date, []).append(observation.amount)
-                        ordered_date_amounts = [
-                            median(amounts_by_date[sale_date]) for sale_date in sorted(amounts_by_date)
-                        ]
-                        first_amount = ordered_date_amounts[0]
-                        last_amount = ordered_date_amounts[-1]
-                        expected_state = (
-                            "rising"
-                            if last_amount > first_amount
-                            else "declining"
-                            if last_amount < first_amount
-                            else "stable"
-                        )
-                        if self.trend.state != expected_state:
-                            raise ValueError(
-                                "trend direction must be derived from chronologically ordered observations"
-                            )
-                elif any(value is not None for value in aggregate):
-                    raise ValueError("incomparable observations cannot produce aggregate price metadata")
-                if not comparable and self.trend.state != "unknown":
-                    raise ValueError("incomparable observations require an unknown trend state")
-            elif any(
-                value is not None
-                for value in (
-                    self.trend.date_from,
-                    self.trend.date_to,
-                    self.trend.currency,
-                    self.trend.price_basis,
-                    self.trend.low,
-                    self.trend.median,
-                    self.trend.high,
-                )
-            ):
-                raise ValueError("trend without evidence cannot contain derived sample metadata")
-
-            if self.trend.state != "unknown":
-                if not self.items:
-                    raise ValueError("directional trends require evidence")
-                if any(item.verification_state != "verified" for item in self.items):
-                    raise ValueError("directional trends require verified observations")
-        elif self.items:
-            if self.trend is None:
-                raise ValueError("price_trends evidence requires a trend summary")
-
-        if self.capability == "similar_lots":
-            ordered = sorted(
-                self.items,
-                key=lambda item: (-item.similarity_score, item.canonical_source_id),
-            )
-            if self.items != ordered:
-                raise ValueError("similar lots must use deterministic ranking")
+        if self.outcome == "no_match" and degraded:
+            raise ValueError("no_match cannot follow a degraded provider attempt")
         return self
 
 
-def canonical_source_identity(url: str) -> str:
-    """Return the stable comparison identity without changing the display URL."""
-    validated = _validate_source_url(url)
-    parsed = urlsplit(validated)
-    host = (parsed.hostname or "").rstrip(".").lower()
-    port = parsed.port
-    netloc = host if port in {None, 443} else f"{host}:{port}"
-    return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, ""))
-
-
-def validate_registered_source_url(
-    provider: str,
-    url: str,
-    allowed_hosts: frozenset[str] | None = None,
-) -> str:
-    """Validate a source URL against the provider's fixed source boundary."""
-    validated = _validate_source_url(url)
-    if allowed_hosts is None:
-        _validate_registered_source(provider, validated)
-    else:
-        host = (urlsplit(validated).hostname or "").rstrip(".").lower()
-        if not any(host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts):
-            raise ValueError("source URL host is not configured")
-    return validated
+_CAPABILITY_KINDS: dict[str, str] = {
+    "market_search": "dealer_listing",
+    "auction_search": "auction_lot",
+    "price_trends": "sale_observation",
+    "similar_lots": "similar_lot",
+}
 
 
 def _clean_optional_text(value: object, *, maximum: int = 300) -> str | None:
@@ -718,24 +469,57 @@ def _parse_sale_date(value: object) -> date | None:
     return None
 
 
-def _provenance(
-    fields: Sequence[str],
-    *,
-    source_url: str,
-    observed_at: datetime,
-    confidence: Confidence,
-    verification_state: VerificationState,
-) -> list[FieldProvenance]:
-    return [
-        FieldProvenance(
-            field=field,
-            source_url=source_url,
-            observed_at=observed_at,
-            confidence=confidence,
-            verification_state=verification_state,
-        )
-        for field in fields
-    ]
+def _parse_verification(candidate: Mapping[str, Any]) -> tuple[Confidence, VerificationState]:
+    verification_state = str(candidate.get("verificationState") or "verified").strip().lower()
+    confidence = str(candidate.get("confidence") or "high").strip().lower()
+    if verification_state not in {"verified", "partial"} or confidence not in {"high", "medium", "low"}:
+        raise ValueError("candidate verification metadata is invalid")
+    return confidence, verification_state  # type: ignore[return-value]
+
+
+def _parse_image_url(candidate: Mapping[str, Any]) -> str | None:
+    raw = str(candidate.get("imageUrl") or candidate.get("image_url") or "").strip()
+    if not raw:
+        return None
+    try:
+        return _validate_source_url(raw)
+    except ValueError:
+        return None
+
+
+def _parse_candidate_references(candidate: Mapping[str, Any]) -> list[CandidateReference]:
+    raw = candidate.get("candidateReferences") or candidate.get("candidate_references") or []
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        return []
+    references: list[CandidateReference] = []
+    for entry in raw[:5]:
+        if not isinstance(entry, Mapping):
+            continue
+        catalog = _clean_optional_text(entry.get("catalog"), maximum=64)
+        number = _clean_optional_text(entry.get("number"), maximum=64)
+        if not catalog or not number:
+            continue
+        uri = _clean_optional_text(entry.get("uri"), maximum=2048)
+        try:
+            references.append(
+                CandidateReference(
+                    catalog=catalog,
+                    number=number,
+                    volume=_clean_optional_text(entry.get("volume"), maximum=64),
+                    uri=uri or None,
+                )
+            )
+        except ValueError:
+            continue
+    return references
+
+
+def _shared_evidence_values(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "description": _clean_optional_text(candidate.get("description"), maximum=500),
+        "image_url": _parse_image_url(candidate),
+        "candidate_references": _parse_candidate_references(candidate),
+    }
 
 
 def adapt_dealer_candidate(
@@ -754,12 +538,11 @@ def adapt_dealer_candidate(
     title = _clean_optional_text(candidate.get("name") or candidate.get("title"))
     if not title:
         raise ValueError("dealer candidate requires a source-backed title")
+    confidence, verification_state = _parse_verification(candidate)
 
     price_value = candidate.get("listed_price")
     if price_value is None:
         price_value = candidate.get("estPrice") or candidate.get("price")
-    listed_price = _parse_decimal(price_value)
-    currency = _parse_currency(candidate.get("currency") or price_value)
     raw_availability = str(candidate.get("availability") or "").strip().lower()
     availability = {
         "available": "available",
@@ -769,23 +552,6 @@ def adapt_dealer_candidate(
         "unknown": "unknown",
     }.get(raw_availability)
 
-    values = {
-        "description": _clean_optional_text(candidate.get("description"), maximum=500),
-        "dealer_name": _clean_optional_text(candidate.get("sourceName") or candidate.get("dealer_name")),
-        "listed_price": listed_price,
-        "currency": currency,
-        "availability": availability,
-        "ruler": _clean_optional_text(candidate.get("ruler")),
-        "denomination": _clean_optional_text(candidate.get("denomination")),
-        "era": _clean_optional_text(candidate.get("era")),
-        "material": _clean_optional_text(candidate.get("material")),
-    }
-    # Listings built from search results (page not fetched) arrive marked partial.
-    verification_state = str(candidate.get("verificationState") or "verified").strip().lower()
-    confidence = str(candidate.get("confidence") or "high").strip().lower()
-    if verification_state not in {"verified", "partial"} or confidence not in {"high", "medium", "low"}:
-        raise ValueError("dealer candidate verification metadata is invalid")
-    proven_fields = ["title", *(field for field, value in values.items() if value is not None)]
     return DealerListing(
         kind="dealer_listing",
         source_url=source_url,
@@ -795,14 +561,15 @@ def adapt_dealer_candidate(
         confidence=confidence,
         verification_state=verification_state,
         title=title,
-        provenance=_provenance(
-            proven_fields,
-            source_url=source_url,
-            observed_at=observed_at,
-            confidence=confidence,
-            verification_state=verification_state,
-        ),
-        **values,
+        dealer_name=_clean_optional_text(candidate.get("sourceName") or candidate.get("dealer_name")),
+        listed_price=_parse_decimal(price_value),
+        currency=_parse_currency(candidate.get("currency") or price_value),
+        availability=availability,
+        ruler=_clean_optional_text(candidate.get("ruler")),
+        denomination=_clean_optional_text(candidate.get("denomination")),
+        era=_clean_optional_text(candidate.get("era")),
+        material=_clean_optional_text(candidate.get("material")),
+        **_shared_evidence_values(candidate),
     )
 
 
@@ -822,43 +589,30 @@ def adapt_auction_candidate(
     title = _clean_optional_text(candidate.get("title") or candidate.get("name"))
     if not title:
         raise ValueError("auction candidate requires a source-backed title")
+    confidence, verification_state = _parse_verification(candidate)
 
-    estimate = _parse_decimal(candidate.get("estimate"))
-    current_bid = _parse_decimal(candidate.get("currentBid") or candidate.get("current_bid"))
-    currency = _parse_currency(candidate.get("currency"))
-    values = {
-        "description": _clean_optional_text(candidate.get("description"), maximum=500),
-        "auction_house": _clean_optional_text(candidate.get("auctionHouse") or candidate.get("auction_house")),
-        "sale_name": _clean_optional_text(candidate.get("saleName") or candidate.get("sale_name")),
-        "lot_number": _clean_optional_text(candidate.get("lotNumber") or candidate.get("lot_number"), maximum=100),
-        "sale_date": _parse_sale_date(candidate.get("saleDate") or candidate.get("sale_date")),
-        "estimate": estimate,
-        "current_bid": current_bid,
-        "currency": currency,
-        "lot_status": _clean_optional_text(candidate.get("lotStatus") or candidate.get("lot_status"), maximum=64),
-        "ruler": _clean_optional_text(candidate.get("ruler")),
-        "denomination": _clean_optional_text(candidate.get("denomination")),
-        "era": _clean_optional_text(candidate.get("era")),
-        "material": _clean_optional_text(candidate.get("material")),
-    }
-    proven_fields = ["title", *(field for field, value in values.items() if value is not None)]
     return AuctionLot(
         kind="auction_lot",
         source_url=source_url,
         canonical_source_id=canonical_source_identity(source_url),
         provider=provider,
         observed_at=observed_at,
-        confidence="high",
-        verification_state="verified",
+        confidence=confidence,
+        verification_state=verification_state,
         title=title,
-        provenance=_provenance(
-            proven_fields,
-            source_url=source_url,
-            observed_at=observed_at,
-            confidence="high",
-            verification_state="verified",
-        ),
-        **values,
+        auction_house=_clean_optional_text(candidate.get("auctionHouse") or candidate.get("auction_house")),
+        sale_name=_clean_optional_text(candidate.get("saleName") or candidate.get("sale_name")),
+        lot_number=_clean_optional_text(candidate.get("lotNumber") or candidate.get("lot_number"), maximum=100),
+        sale_date=_parse_sale_date(candidate.get("saleDate") or candidate.get("sale_date")),
+        estimate=_parse_decimal(candidate.get("estimate")),
+        current_bid=_parse_decimal(candidate.get("currentBid") or candidate.get("current_bid")),
+        currency=_parse_currency(candidate.get("currency")),
+        lot_status=_clean_optional_text(candidate.get("lotStatus") or candidate.get("lot_status"), maximum=64),
+        ruler=_clean_optional_text(candidate.get("ruler")),
+        denomination=_clean_optional_text(candidate.get("denomination")),
+        era=_clean_optional_text(candidate.get("era")),
+        material=_clean_optional_text(candidate.get("material")),
+        **_shared_evidence_values(candidate),
     )
 
 
@@ -893,15 +647,8 @@ def adapt_sale_observation(
     }.get(raw_basis)
     if not title or sale_date is None or amount is None or currency is None or price_basis is None:
         raise ValueError("sale observation requires complete source-backed sale fields")
+    confidence, verification_state = _parse_verification(candidate)
 
-    description = _clean_optional_text(candidate.get("description"), maximum=500)
-    verification_state = str(candidate.get("verificationState") or "verified").strip().lower()
-    confidence = str(candidate.get("confidence") or "high").strip().lower()
-    if verification_state not in {"verified", "partial"} or confidence not in {"high", "medium", "low"}:
-        raise ValueError("sale observation verification metadata is invalid")
-    fields = ["title", "sale_date", "amount", "currency", "price_basis"]
-    if description is not None:
-        fields.append("description")
     return SaleObservation(
         kind="sale_observation",
         source_url=source_url,
@@ -911,142 +658,57 @@ def adapt_sale_observation(
         confidence=confidence,
         verification_state=verification_state,
         title=title,
-        description=description,
         sale_date=sale_date,
         amount=amount,
         currency=currency,
         price_basis=price_basis,
-        provenance=_provenance(
-            fields,
-            source_url=source_url,
-            observed_at=observed_at,
-            confidence=confidence,
-            verification_state=verification_state,
-        ),
+        **_shared_evidence_values(candidate),
     )
 
 
-def _merge_duplicate(
-    existing: DealerListing | AuctionLot,
-    candidate: DealerListing | AuctionLot,
-) -> tuple[DealerListing | AuctionLot, bool]:
-    fields = (
-        (
-            "description",
-            "dealer_name",
-            "listed_price",
-            "currency",
-            "availability",
-            "ruler",
-            "denomination",
-            "era",
-            "material",
-        )
-        if isinstance(existing, DealerListing)
-        else (
-            "description",
-            "auction_house",
-            "sale_name",
-            "lot_number",
-            "sale_date",
-            "estimate",
-            "current_bid",
-            "currency",
-            "lot_status",
-            "ruler",
-            "denomination",
-            "era",
-            "material",
-        )
-    )
-    verification_rank = {"partial": 0, "verified": 1}
-    confidence_rank = {"low": 0, "medium": 1, "high": 2}
-
-    def strength(item: DealerListing | AuctionLot) -> tuple[int, int, int]:
-        return (
-            verification_rank[item.verification_state],
-            confidence_rank[item.confidence],
-            len(item.provenance),
-        )
-
-    base, other = (candidate, existing) if strength(candidate) > strength(existing) else (existing, candidate)
-    updates: dict[str, Any] = {}
-    conflict = existing.title != candidate.title
-    for field in fields:
-        base_value = getattr(base, field)
-        other_value = getattr(other, field)
-        if base_value is None and other_value is not None:
-            updates[field] = other_value
-        elif base_value is not None and other_value is not None and base_value != other_value:
-            conflict = True
-    if not updates:
-        return base, conflict
-    merged = base.model_copy(update=updates)
-    proven_fields = [
-        field
-        for field in type(merged).model_fields
-        if field in _SOURCE_BACKED_FIELDS and getattr(merged, field, None) is not None
-    ]
-    merged = merged.model_copy(
-        update={
-            "provenance": _provenance(
-                proven_fields,
-                source_url=merged.source_url,
-                observed_at=merged.observed_at,
-                confidence=merged.confidence,
-                verification_state=merged.verification_state,
-            )
-        }
-    )
-    return type(merged).model_validate(merged.model_dump()), conflict
+def _merge_duplicate(existing: EvidenceItem, candidate: EvidenceItem) -> EvidenceItem:
+    """Keep the richer of two observations of the same source."""
+    updates = {
+        field: getattr(candidate, field)
+        for field in type(existing).model_fields
+        if getattr(existing, field, None) in (None, [], "") and getattr(candidate, field, None) not in (None, [], "")
+    }
+    return existing.model_copy(update=updates) if updates else existing
 
 
-def _deduplicate_items(
-    items: Sequence[DealerListing | AuctionLot],
-) -> tuple[list[DealerListing | AuctionLot], list[str]]:
-    deduplicated: dict[str, DealerListing | AuctionLot] = {}
+def _deduplicate_items(items: Sequence[EvidenceItem]) -> tuple[list[EvidenceItem], list[str]]:
+    merged: dict[str, EvidenceItem] = {}
     warnings: list[str] = []
     for item in items:
-        existing = deduplicated.get(item.canonical_source_id)
+        existing = merged.get(item.canonical_source_id)
         if existing is None:
-            deduplicated[item.canonical_source_id] = item
+            merged[item.canonical_source_id] = item
             continue
-        merged, conflict = _merge_duplicate(existing, item)
-        deduplicated[item.canonical_source_id] = merged
-        if conflict and "Duplicate source observations contained conflicting facts." not in warnings:
-            warnings.append("Duplicate source observations contained conflicting facts.")
-    return list(deduplicated.values()), warnings
+        merged[item.canonical_source_id] = _merge_duplicate(existing, item)
+        warnings.append("Conflicting duplicate observations of one source were merged.")
+    return list(merged.values()), warnings[:1]
 
 
 def _sale_strength(item: SaleObservation) -> tuple[int, int]:
     return (
-        {"partial": 0, "verified": 1}[item.verification_state],
-        {"low": 0, "medium": 1, "high": 2}[item.confidence],
+        1 if item.verification_state == "verified" else 0,
+        {"high": 2, "medium": 1, "low": 0}[item.confidence],
     )
 
 
-def _deduplicate_sales(
-    items: Sequence[SaleObservation],
-) -> tuple[list[SaleObservation], list[str]]:
-    deduplicated: dict[str, SaleObservation] = {}
+def _deduplicate_sales(items: Sequence[SaleObservation]) -> tuple[list[SaleObservation], list[str]]:
+    merged: dict[tuple[str, date, Decimal, str, str], SaleObservation] = {}
     warnings: list[str] = []
     for item in items:
-        existing = deduplicated.get(item.canonical_source_id)
+        key = (item.canonical_source_id, item.sale_date, item.amount, item.currency, item.price_basis)
+        existing = merged.get(key)
         if existing is None:
-            deduplicated[item.canonical_source_id] = item
+            merged[key] = item
             continue
-        fields_match = (
-            existing.title == item.title
-            and existing.sale_date == item.sale_date
-            and existing.amount == item.amount
-            and existing.currency == item.currency
-            and existing.price_basis == item.price_basis
-        )
-        if not fields_match and "Duplicate sale observations contained conflicting facts." not in warnings:
-            warnings.append("Duplicate sale observations contained conflicting facts.")
+        warnings.append("Conflicting duplicate completed-sale observations were merged.")
         if _sale_strength(item) > _sale_strength(existing):
-            deduplicated[item.canonical_source_id] = item
-    return list(deduplicated.values()), warnings
+            merged[key] = item
+    return list(merged.values()), warnings[:1]
 
 
 def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
@@ -1055,7 +717,7 @@ def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
             state="unknown",
             sample_size=0,
             confidence="low",
-            limitations=["No verified completed-sale observations were available."],
+            limitations=["No completed-sale observations were available."],
             supporting_source_ids=[],
         )
 
@@ -1074,7 +736,7 @@ def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
     if len(price_bases) > 1:
         limitations.append("Price basis observations kept hammer and premium-inclusive values separate.")
     if not enough_samples:
-        limitations.append("Fewer than three verified completed sales were available.")
+        limitations.append("Fewer than three completed sales were available.")
     if not enough_dates:
         limitations.append("Completed sales covered fewer than two distinct sale dates.")
     if not enough_coverage:
@@ -1083,13 +745,7 @@ def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
         limitations.append("At least one completed-sale observation was only partially verified.")
 
     state: Literal["rising", "stable", "declining", "unknown"] = "unknown"
-    aggregate: dict[str, Any] = {
-        "currency": None,
-        "price_basis": None,
-        "low": None,
-        "median": None,
-        "high": None,
-    }
+    aggregate: dict[str, Any] = {"currency": None, "price_basis": None, "low": None, "median": None, "high": None}
     if comparable:
         amounts = [item.amount for item in items]
         aggregate = {
@@ -1107,11 +763,7 @@ def _build_price_trend(items: Sequence[SaleObservation]) -> PriceTrendSummary:
             state = "rising" if ordered[-1] > ordered[0] else "declining" if ordered[-1] < ordered[0] else "stable"
 
     confidence: Confidence = (
-        "high"
-        if state != "unknown"
-        else "medium"
-        if comparable and len(items) >= 3
-        else "low"
+        "high" if state != "unknown" else "medium" if comparable and len(items) >= 3 else "low"
     )
     return PriceTrendSummary(
         state=state,
@@ -1129,61 +781,33 @@ def _finalize_result(
     *,
     capability: SpecialistCapability,
     outcome: SpecialistOutcome,
-    items: Sequence[DealerListing | AuctionLot | SaleObservation | SimilarLot],
+    items: Sequence[EvidenceItem],
     provider_attempts: Sequence[ProviderAttempt],
     warnings: Sequence[str],
     omitted_items: int,
     trend: PriceTrendSummary | None = None,
 ) -> SpecialistResult:
-    core = {
-        "schema_version": 1,
-        "capability": capability,
-        "outcome": outcome,
-        "items": [item.model_dump(mode="json") for item in items],
-        "trend": trend.model_dump(mode="json") if trend is not None else None,
-        "provider_attempts": [attempt.model_dump(mode="json") for attempt in provider_attempts],
-        "warnings": list(warnings)[:10],
-    }
-    digest = hashlib.sha256(
-        json.dumps(core, separators=(",", ":"), sort_keys=True).encode()
-    ).hexdigest()
-    size = 0
-    for _ in range(5):
-        result = SpecialistResult.model_validate(
-            {
-                **core,
-                "truncation": {
-                    "truncated": omitted_items > 0,
-                    "original_bytes": size,
-                    "persisted_bytes": size,
-                    "digest": digest,
-                    "omitted_items": omitted_items,
-                },
-            }
-        )
-        encoded_size = len(result.model_dump_json().encode())
-        if encoded_size == size:
-            return result
-        size = encoded_size
-    return result
+    return SpecialistResult(
+        capability=capability,
+        outcome=outcome,
+        items=list(items),
+        trend=trend,
+        provider_attempts=list(provider_attempts),
+        warnings=list(warnings)[:10],
+        truncation=TruncationMetadata(truncated=omitted_items > 0, omitted_items=omitted_items),
+    )
+
+
+def _outcome_for(items: Sequence[Any], degraded: bool) -> SpecialistOutcome:
+    if items:
+        return "partial" if degraded else "complete"
+    return "unavailable" if degraded else "no_match"
 
 
 _SIMILARITY_STOPWORDS = frozenset(
     {
-        "active",
-        "auction",
-        "coin",
-        "coins",
-        "find",
-        "for",
-        "lot",
-        "lots",
-        "my",
-        "of",
-        "similar",
-        "the",
-        "to",
-        "with",
+        "active", "auction", "coin", "coins", "find", "for", "lot", "lots",
+        "my", "of", "similar", "the", "to", "with",
     }
 )
 
@@ -1223,10 +847,6 @@ def project_similar_lots(query: str, auction_result: SpecialistResult) -> Specia
                 matched.append(marker)
         if not matched:
             continue
-        similarity_score = min(1.0, 0.35 + (0.1 * len(matched)))
-        provenance_fields = ["title"]
-        if item.description is not None:
-            provenance_fields.append("description")
         projected.append(
             SimilarLot(
                 kind="similar_lot",
@@ -1238,52 +858,112 @@ def project_similar_lots(query: str, auction_result: SpecialistResult) -> Specia
                 verification_state=item.verification_state,
                 title=item.title,
                 description=item.description,
-                similarity_score=similarity_score,
+                image_url=item.image_url,
+                candidate_references=list(item.candidate_references),
+                similarity_score=min(1.0, 0.35 + (0.1 * len(matched))),
                 matched_attributes=matched,
                 material_differences=[],
-                provenance=_provenance(
-                    provenance_fields,
-                    source_url=item.source_url,
-                    observed_at=item.observed_at,
-                    confidence=item.confidence,
-                    verification_state=item.verification_state,
-                ),
             )
         )
 
     projected.sort(key=lambda item: (-item.similarity_score, item.canonical_source_id))
     projected_count = len(projected)
-    result_limit = min(projected_count, 10)
-    projected = projected[:result_limit]
+    projected = projected[:MAX_ITEMS]
     degraded = any(
-        attempt.status in _DEGRADED_PROVIDER_STATUSES
-        for attempt in auction_result.provider_attempts
+        attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in auction_result.provider_attempts
     )
-    if projected:
-        outcome: SpecialistOutcome = "partial" if degraded else "complete"
-    elif degraded:
-        outcome = "unavailable"
-    else:
-        outcome = "no_match"
     attempts = [
         attempt.model_copy(
             update={
-                "status": attempt.status if attempt.status in _DEGRADED_PROVIDER_STATUSES else (
-                    "success" if projected else "no_match"
-                ),
-                "accepted_items": len(projected) if attempt.status not in _DEGRADED_PROVIDER_STATUSES else 0,
-                "warning_code": attempt.warning_code if attempt.status in _DEGRADED_PROVIDER_STATUSES else None,
+                "status": attempt.status
+                if attempt.status in _DEGRADED_PROVIDER_STATUSES
+                else ("success" if projected else "no_match"),
+                "accepted_items": 0 if attempt.status in _DEGRADED_PROVIDER_STATUSES else len(projected),
             }
         )
         for attempt in auction_result.provider_attempts
     ]
     return _finalize_result(
         capability="similar_lots",
-        outcome=outcome,
+        outcome=_outcome_for(projected, degraded),
         items=projected,
         provider_attempts=attempts,
         warnings=auction_result.warnings,
-        omitted_items=max(0, projected_count - result_limit),
+        omitted_items=max(0, projected_count - len(projected)),
+    )
+
+
+async def _collect_provider_items(
+    *,
+    capability: str,
+    provider_runner: ProviderRunner,
+    query: SpecialistQuery,
+    timestamp: datetime,
+    adapt: Callable[[Mapping[str, Any]], Any],
+    keep: Callable[[Any], bool],
+    cancellation_check: CancellationCheck | None,
+) -> tuple[list[Any], ProviderAttempt, list[str]]:
+    """Run one configured source and normalize what it returned."""
+    warnings: list[str] = []
+    try:
+        await raise_if_cancelled(cancellation_check)
+        raw_candidates = await provider_runner.run(query.query, query.limit)
+        await raise_if_cancelled(cancellation_check)
+        if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
+            raise ProviderMalformedError
+        normalized: list[Any] = []
+        invalid_count = 0
+        for candidate in raw_candidates:
+            if not isinstance(candidate, Mapping):
+                invalid_count += 1
+                continue
+            try:
+                item = adapt(candidate)
+            except (ValueError, TypeError) as exc:
+                invalid_count += 1
+                logger.info(
+                    "Specialist candidate rejected capability=%s provider=%s reason=%s",
+                    capability,
+                    provider_runner.provider,
+                    exc,
+                )
+                continue
+            if keep(item):
+                normalized.append(item)
+        if invalid_count and not normalized:
+            raise ProviderMalformedError
+        if invalid_count:
+            warnings.append(_SAFE_PROVIDER_WARNINGS["malformed"])
+        status: ProviderStatus = "success" if normalized else "no_match"
+        return (
+            normalized,
+            ProviderAttempt(
+                provider=provider_runner.provider,
+                status=status,
+                observed_at=timestamp,
+                accepted_items=min(len(normalized), MAX_ITEMS),
+            ),
+            warnings,
+        )
+    except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException) as exc:
+        status, error = "timeout", exc
+    except ProviderUnavailableError as exc:
+        status, error = "unavailable", exc
+    except (ProviderMalformedError, ValueError) as exc:
+        status, error = "malformed", exc
+    except _EXTERNAL_PROVIDER_ERRORS as exc:
+        status, error = "failure", exc
+    _log_degraded_provider(capability, provider_runner.provider, status, error)
+    return (
+        [],
+        ProviderAttempt(
+            provider=provider_runner.provider,
+            status=status,
+            observed_at=timestamp,
+            accepted_items=0,
+            warning_code=_WARNING_CODES[status],
+        ),
+        [_SAFE_PROVIDER_WARNINGS[status]],
     )
 
 
@@ -1299,104 +979,44 @@ async def run_provider_search(
     parsed_query = query if isinstance(query, SpecialistQuery) else SpecialistQuery.model_validate(query)
     timestamp = _validate_utc(observed_at or datetime.now(timezone.utc))
     attempts: list[ProviderAttempt] = []
-    accepted: list[DealerListing | AuctionLot] = []
+    accepted: list[EvidenceItem] = []
     warnings: list[str] = []
-    omitted_items = 0
 
     for provider_runner in provider_runners:
-        status: ProviderStatus
-        try:
-            await raise_if_cancelled(cancellation_check)
-            raw_candidates = await provider_runner.run(parsed_query.query, parsed_query.limit)
-            await raise_if_cancelled(cancellation_check)
-            if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
-                raise ProviderMalformedError
-            normalized: list[DealerListing | AuctionLot] = []
-            invalid_count = 0
-            for candidate in raw_candidates:
-                if not isinstance(candidate, Mapping):
-                    invalid_count += 1
-                    continue
-                try:
-                    item = (
-                        adapt_dealer_candidate(
-                            candidate,
-                            provider=provider_runner.provider,
-                            observed_at=timestamp,
-                            allowed_hosts=provider_runner.allowed_hosts,
-                        )
-                        if capability == "market_search"
-                        else adapt_auction_candidate(
-                            candidate,
-                            provider=provider_runner.provider,
-                            observed_at=timestamp,
-                            allowed_hosts=provider_runner.allowed_hosts,
-                        )
-                    )
-                except (ValueError, TypeError):
-                    invalid_count += 1
-                    continue
-                if isinstance(item, DealerListing) and item.availability == "sold":
-                    continue
-                normalized.append(item)
-            if invalid_count and not normalized:
-                raise ProviderMalformedError
-            if invalid_count:
-                warnings.append(_SAFE_PROVIDER_WARNINGS["malformed"])
-            accepted.extend(normalized)
-            status = "success" if normalized else "no_match"
-            attempts.append(
-                ProviderAttempt(
-                    provider=provider_runner.provider,
-                    status=status,
-                    observed_at=timestamp,
-                    accepted_items=min(len(normalized), 10),
-                    warning_code=None,
-                )
+        def adapt(candidate: Mapping[str, Any], runner: ProviderRunner = provider_runner) -> EvidenceItem:
+            adapter = adapt_dealer_candidate if capability == "market_search" else adapt_auction_candidate
+            return adapter(
+                candidate,
+                provider=runner.provider,
+                observed_at=timestamp,
+                allowed_hosts=runner.allowed_hosts,
             )
-        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException) as exc:
-            status = "timeout"
-            _log_degraded_provider(capability, provider_runner.provider, status, exc)
-        except ProviderUnavailableError as exc:
-            status = "unavailable"
-            _log_degraded_provider(capability, provider_runner.provider, status, exc)
-        except (ProviderMalformedError, ValueError) as exc:
-            status = "malformed"
-            _log_degraded_provider(capability, provider_runner.provider, status, exc)
-        except _EXTERNAL_PROVIDER_ERRORS as exc:
-            status = "failure"
-            _log_degraded_provider(capability, provider_runner.provider, status, exc)
-        if status in _DEGRADED_PROVIDER_STATUSES:
-            attempts.append(
-                ProviderAttempt(
-                    provider=provider_runner.provider,
-                    status=status,
-                    observed_at=timestamp,
-                    accepted_items=0,
-                    warning_code=_WARNING_CODES[status],
-                )
-            )
-            warnings.append(_SAFE_PROVIDER_WARNINGS[status])
+
+        items, attempt, provider_warnings = await _collect_provider_items(
+            capability=capability,
+            provider_runner=provider_runner,
+            query=parsed_query,
+            timestamp=timestamp,
+            adapt=adapt,
+            keep=lambda item: not (isinstance(item, DealerListing) and item.availability == "sold"),
+            cancellation_check=cancellation_check,
+        )
+        accepted.extend(items)
+        attempts.append(attempt)
+        warnings.extend(provider_warnings)
 
     deduplicated, duplicate_warnings = _deduplicate_items(accepted)
     warnings.extend(duplicate_warnings)
-    result_limit = min(parsed_query.limit, 10)
-    omitted_items += max(0, len(deduplicated) - result_limit)
-    items = deduplicated[:result_limit]
+    limit = min(parsed_query.limit, MAX_ITEMS)
+    items = deduplicated[:limit]
     degraded = any(attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in attempts)
-    if items:
-        outcome: SpecialistOutcome = "partial" if degraded else "complete"
-    elif degraded:
-        outcome = "unavailable"
-    else:
-        outcome = "no_match"
     return _finalize_result(
         capability=capability,
-        outcome=outcome,
+        outcome=_outcome_for(items, degraded),
         items=items,
         provider_attempts=attempts,
         warnings=warnings,
-        omitted_items=omitted_items,
+        omitted_items=max(0, len(deduplicated) - limit),
     )
 
 
@@ -1415,88 +1035,43 @@ async def run_price_trend_search(
     warnings: list[str] = []
 
     for provider_runner in provider_runners:
-        status: ProviderStatus
-        try:
-            await raise_if_cancelled(cancellation_check)
-            raw_candidates = await provider_runner.run(parsed_query.query, parsed_query.limit)
-            await raise_if_cancelled(cancellation_check)
-            if isinstance(raw_candidates, str | bytes) or not isinstance(raw_candidates, Sequence):
-                raise ProviderMalformedError
-            normalized: list[SaleObservation] = []
-            invalid_count = 0
-            for candidate in raw_candidates:
-                if not isinstance(candidate, Mapping):
-                    invalid_count += 1
-                    continue
-                try:
-                    normalized.append(
-                        adapt_sale_observation(
-                            candidate,
-                            provider=provider_runner.provider,
-                            observed_at=timestamp,
-                            allowed_hosts=provider_runner.allowed_hosts,
-                        )
-                    )
-                except (TypeError, ValueError):
-                    invalid_count += 1
-            if invalid_count and not normalized:
-                raise ProviderMalformedError
-            if invalid_count:
-                warnings.append(_SAFE_PROVIDER_WARNINGS["malformed"])
-            accepted.extend(normalized)
-            status = "success" if normalized else "no_match"
-            attempts.append(
-                ProviderAttempt(
-                    provider=provider_runner.provider,
-                    status=status,
-                    observed_at=timestamp,
-                    accepted_items=min(len(normalized), 10),
-                    warning_code=None,
-                )
+        def adapt(candidate: Mapping[str, Any], runner: ProviderRunner = provider_runner) -> SaleObservation:
+            return adapt_sale_observation(
+                candidate,
+                provider=runner.provider,
+                observed_at=timestamp,
+                allowed_hosts=runner.allowed_hosts,
             )
-        except (TimeoutError, asyncio.TimeoutError, httpx.TimeoutException) as exc:
-            status = "timeout"
-            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
-        except ProviderUnavailableError as exc:
-            status = "unavailable"
-            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
-        except (ProviderMalformedError, ValueError) as exc:
-            status = "malformed"
-            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
-        except _EXTERNAL_PROVIDER_ERRORS as exc:
-            status = "failure"
-            _log_degraded_provider("price_trends", provider_runner.provider, status, exc)
-        if status in _DEGRADED_PROVIDER_STATUSES:
-            attempts.append(
-                ProviderAttempt(
-                    provider=provider_runner.provider,
-                    status=status,
-                    observed_at=timestamp,
-                    accepted_items=0,
-                    warning_code=_WARNING_CODES[status],
-                )
-            )
-            warnings.append(_SAFE_PROVIDER_WARNINGS[status])
+
+        items, attempt, provider_warnings = await _collect_provider_items(
+            capability="price_trends",
+            provider_runner=provider_runner,
+            query=parsed_query,
+            timestamp=timestamp,
+            adapt=adapt,
+            keep=lambda _item: True,
+            cancellation_check=cancellation_check,
+        )
+        accepted.extend(items)
+        attempts.append(attempt)
+        warnings.extend(provider_warnings)
 
     deduplicated, duplicate_warnings = _deduplicate_sales(accepted)
     warnings.extend(duplicate_warnings)
-    result_limit = min(parsed_query.limit, 10)
-    omitted_items = max(0, len(deduplicated) - result_limit)
-    items = deduplicated[:result_limit]
-    trend = _build_price_trend(items)
+    limit = min(parsed_query.limit, MAX_ITEMS)
+    items = deduplicated[:limit]
     degraded = any(attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in attempts)
-    if items:
-        outcome: SpecialistOutcome = "partial" if degraded else "complete"
-    elif degraded:
-        outcome = "unavailable"
-    else:
-        outcome = "no_match"
     return _finalize_result(
         capability="price_trends",
-        outcome=outcome,
+        outcome=_outcome_for(items, degraded),
         items=items,
-        trend=trend,
+        trend=_build_price_trend(items),
         provider_attempts=attempts,
         warnings=warnings,
-        omitted_items=omitted_items,
+        omitted_items=max(0, len(deduplicated) - limit),
     )
+
+
+def specialist_result_json(result: SpecialistResult) -> str:
+    """Canonical JSON for a specialist result."""
+    return json.dumps(result.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":"), sort_keys=True)

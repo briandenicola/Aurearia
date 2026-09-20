@@ -195,34 +195,21 @@ def sanitize_untrusted_tool_data(value: Any) -> Any:
     return value
 
 
-def bound_tool_result(value: dict[str, Any], max_bytes: int) -> tuple[dict[str, Any], int, bool, str]:
-    """Return a canonical, sanitized result within the persisted byte boundary."""
+TRUNCATED_RESULT_SUMMARY = "Tool result exceeded the persisted-result limit."
+
+
+def bound_tool_result(value: dict[str, Any], max_bytes: int) -> tuple[dict[str, Any], bool]:
+    """Return a sanitized result within the persisted size limit.
+
+    Returns the result and whether it had to be replaced by a truncation
+    notice. Sizes are a local cap, not a contract: nothing downstream
+    recomputes them.
+    """
     sanitized = sanitize_untrusted_tool_data(value)
-    encoded = json.dumps(
-        sanitized,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode()
-    digest = hashlib.sha256(encoded).hexdigest()
+    encoded = json.dumps(sanitized, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
     if len(encoded) <= max_bytes:
-        return sanitized, len(encoded), False, digest
-    bounded = {
-        "truncated": True,
-        "original_bytes": len(encoded),
-        "digest": digest,
-        "summary": "Tool result exceeded the persisted-result limit.",
-    }
-    if len(
-        json.dumps(
-            bounded,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode()
-    ) > max_bytes:
-        raise CopilotToolError("invalid_tool_call", "Tool result limit is too small.")
-    return bounded, len(encoded), True, digest
+        return sanitized, False
+    return {"truncated": True, "summary": TRUNCATED_RESULT_SUMMARY}, True
 
 
 class CopilotCollectionToolClient:
@@ -280,7 +267,7 @@ class CopilotCollectionToolClient:
                 validated = validated_model.model_dump(mode="json")
             except ValidationError as exc:
                 raise ValueError("completed tool result is invalid") from exc
-            bounded, _, truncated, _ = bound_tool_result(validated, self.max_result_bytes)
+            bounded, truncated = bound_tool_result(validated, self.max_result_bytes)
             if truncated:
                 raise ValueError("completed tool result exceeds the execution result limit")
             validated_results[tool_name] = bounded
@@ -338,13 +325,10 @@ class CopilotCollectionToolClient:
             raise CopilotToolError("invalid_tool_call", "The tool returned an invalid result.")
         validated = validated_model.model_dump(mode="json")
 
-        bounded, original_bytes, truncated, digest = bound_tool_result(
-            validated,
-            self.max_result_bytes,
-        )
+        bounded, truncated = bound_tool_result(validated, self.max_result_bytes)
         self._completed_call_ids.add(tool_call_id)
         self._results[tool_name] = bounded
-        return bounded, original_bytes, truncated, digest
+        return bounded, truncated
 
     async def _execute_callback(
         self,

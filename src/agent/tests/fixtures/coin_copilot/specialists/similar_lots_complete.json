@@ -22,15 +22,6 @@
       ],
       "material_differences": [
         "Different officina mark"
-      ],
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.numisbids.com/n.php?p=lot&sid=9000&lot=1",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
       ]
     }
   ],
@@ -47,9 +38,6 @@
   "warnings": [],
   "truncation": {
     "truncated": false,
-    "original_bytes": 1024,
-    "persisted_bytes": 1024,
-    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "omitted_items": 0
   }
 }

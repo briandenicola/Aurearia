@@ -34,6 +34,7 @@ from app.teams.portfolio_review import build_collection_only_portfolio_review
 from app.teams.price_trends import run_price_trends
 from app.teams.specialist_contracts import project_similar_lots
 from app.tools.copilot_collection_tools import (
+    TRUNCATED_RESULT_SUMMARY,
     CopilotCollectionToolClient,
     CopilotToolError,
     build_copilot_tool_definitions,
@@ -224,15 +225,6 @@ def _normalize_model_tool_arguments(
     return normalized
 
 
-def _canonical_json_bytes(value: Any) -> int:
-    """Byte length of the canonical form the Go API recomputes and must match.
-
-    UTF-8 without ASCII escaping, compact separators, sorted keys: identical to
-    ``bound_tool_result`` and Go's ``SanitizeCopilotJSON``.
-    """
-    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"))
-
-
 def _checkpoint_messages(request: CopilotExecuteRequest, answer: str | None = None) -> list[dict[str, str]]:
     messages = [message.model_dump() for message in request.messages]
     if answer:
@@ -262,7 +254,7 @@ def _build_checkpoint(
         if len(checkpoint.model_dump_json().encode("utf-8")) <= _MAX_CHECKPOINT_PAYLOAD_BYTES:
             return checkpoint
         candidates = [
-            (index, _canonical_json_bytes(tool["result"]))
+            (index, len(json.dumps(tool["result"], separators=(",", ":"))))
             for index, tool in enumerate(completed_tools)
             if not tool["truncated"]
         ]
@@ -274,14 +266,7 @@ def _build_checkpoint(
             )
         index, _ = max(candidates, key=lambda item: item[1])
         tool = completed_tools[index]
-        compacted = {
-            "truncated": True,
-            "original_bytes": tool["original_bytes"],
-            "digest": tool["result_digest"],
-            "summary": "Tool result exceeded the persisted-result limit.",
-        }
-        tool["result"] = compacted
-        tool["persisted_bytes"] = _canonical_json_bytes(compacted)
+        tool["result"] = {"truncated": True, "summary": TRUNCATED_RESULT_SUMMARY}
         tool["truncated"] = True
 
 
@@ -635,7 +620,7 @@ async def run_coin_copilot(
                 ), result in zip(started_calls, results, strict=True):
                     if isinstance(result, BaseException):
                         raise result
-                    bounded, original_bytes, truncated, digest, duration_ms = result
+                    bounded, truncated, duration_ms = result
                     seen_call_ids.add(tool_call_id)
                     plan[matching_step] = plan[matching_step].model_copy(
                         update={"status": "completed"}
@@ -644,10 +629,7 @@ async def run_coin_copilot(
                         {
                             "tool_call_id": tool_call_id,
                             "tool_name": tool_name,
-                            "result_digest": digest,
                             "result": bounded,
-                            "original_bytes": original_bytes,
-                            "persisted_bytes": _canonical_json_bytes(bounded),
                             "truncated": truncated,
                         }
                     )

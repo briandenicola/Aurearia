@@ -189,49 +189,24 @@ func (s *CoinCopilotService) logSpecialistCompletion(
 	run *models.CoinCopilotRun,
 	capability string,
 	durationMS int64,
-	result CopilotSpecialistResult,
+	result map[string]any,
+	truncated bool,
 ) {
-	attempts := result.ProviderAttempts
-	if len(attempts) == 0 {
-		attempts = []CopilotProviderAttempt{{Provider: "none", Status: "none"}}
+	items, _ := result["items"].([]any)
+	outcome, _ := result["outcome"].(string)
+	if outcome == "" {
+		outcome = "truncated"
 	}
-	for _, attempt := range attempts {
-		s.logger.Info(
-			"coin-copilot-specialist",
-			"run_id=%s execution_id=%s capability=%s provider_id=%s provider_outcome=%s aggregate_outcome=%s duration_ms=%d item_count=%d original_bytes=%d persisted_bytes=%d truncated=%t digest=%s",
-			run.ID,
-			run.ExecutionID,
-			capability,
-			attempt.Provider,
-			attempt.Status,
-			result.Outcome,
-			durationMS,
-			len(result.Items),
-			result.Truncation.OriginalBytes,
-			result.Truncation.PersistedBytes,
-			result.Truncation.Truncated,
-			result.Truncation.Digest,
-		)
-	}
-}
-
-func (s *CoinCopilotService) logTruncatedSpecialistCompletion(
-	run *models.CoinCopilotRun,
-	capability string,
-	durationMS int64,
-	result CopilotBoundedToolResult,
-	persistedBytes int,
-) {
 	s.logger.Info(
 		"coin-copilot-specialist",
-		"run_id=%s execution_id=%s capability=%s provider_id=none provider_outcome=none aggregate_outcome=truncated duration_ms=%d item_count=0 original_bytes=%d persisted_bytes=%d truncated=true digest=%s",
+		"run_id=%s execution_id=%s capability=%s aggregate_outcome=%s duration_ms=%d item_count=%d truncated=%t",
 		run.ID,
 		run.ExecutionID,
 		capability,
+		outcome,
 		durationMS,
-		result.OriginalBytes,
-		persistedBytes,
-		result.Digest,
+		len(items),
+		truncated,
 	)
 }
 
@@ -324,46 +299,11 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			return ErrInvalidCopilotFrame
 		}
 		for i := range state.CompletedTools {
-			specialist := isCoinCopilotSpecialistTool(state.CompletedTools[i].ToolName)
-			if specialist && state.CompletedTools[i].Truncated {
-				fallback, err := DecodeCopilotBoundedToolResult(state.CompletedTools[i].Result)
-				if err != nil {
-					return err
-				}
-				bounded, _, truncatedAgain, _, err := SanitizeCopilotJSON(
-					state.CompletedTools[i].Result,
-					run.MaxPersistedToolResultBytes,
-				)
-				if err != nil || truncatedAgain ||
-					state.CompletedTools[i].OriginalBytes != fallback.OriginalBytes ||
-					state.CompletedTools[i].PersistedBytes != len(bounded) ||
-					state.CompletedTools[i].ResultDigest != fallback.Digest {
-					return ErrInvalidCopilotFrame
-				}
-				state.CompletedTools[i].Result = bounded
-				continue
-			}
-			if specialist {
-				if _, err := DecodeCopilotSpecialistResult(state.CompletedTools[i].Result, state.CompletedTools[i].ToolName); err != nil {
-					return err
-				}
-			}
-			bounded, originalBytes, truncated, digest, err := SanitizeCopilotJSON(state.CompletedTools[i].Result, run.MaxPersistedToolResultBytes)
+			bounded, _, err := SanitizeCopilotJSON(state.CompletedTools[i].Result, run.MaxPersistedToolResultBytes)
 			if err != nil {
 				return err
 			}
-			if specialist &&
-				(state.CompletedTools[i].OriginalBytes != originalBytes ||
-					state.CompletedTools[i].PersistedBytes != len(bounded) ||
-					state.CompletedTools[i].Truncated != truncated ||
-					state.CompletedTools[i].ResultDigest != digest) {
-				return ErrInvalidCopilotFrame
-			}
 			state.CompletedTools[i].Result = bounded
-			state.CompletedTools[i].OriginalBytes = originalBytes
-			state.CompletedTools[i].PersistedBytes = len(bounded)
-			state.CompletedTools[i].Truncated = truncated
-			state.CompletedTools[i].ResultDigest = digest
 		}
 		if ValidateCopilotCheckpoint(state, run) != nil {
 			return ErrInvalidCopilotFrame
@@ -426,9 +366,7 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			Summary    string          `json:"result_summary"`
 			Result     json.RawMessage `json:"result"`
 		}
-		var completedSpecialist *CopilotSpecialistResult
-		var completedFallback *CopilotBoundedToolResult
-		persistedSpecialistBytes := 0
+		var completedSpecialist map[string]any
 		if err := json.Unmarshal(frame.Payload, &payload); err != nil || payload.ToolCallID == "" || payload.StepID == "" || !IsCoinCopilotToolAllowed(payload.ToolName) || payload.DurationMS < 0 {
 			return ErrInvalidCopilotFrame
 		}
@@ -437,42 +375,34 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 		default:
 			return ErrInvalidCopilotFrame
 		}
-		boundedResult, _, truncated, _, err := SanitizeCopilotJSON(payload.Result, run.MaxPersistedToolResultBytes)
+		boundedResult, truncated, err := SanitizeCopilotJSON(payload.Result, run.MaxPersistedToolResultBytes)
 		if err != nil {
 			return err
 		}
-		persistedSpecialistBytes = len(boundedResult)
 		publicPayload := map[string]any{
 			"toolCallId": payload.ToolCallID, "toolName": payload.ToolName, "stepId": payload.StepID,
 			"status": payload.Status, "durationMs": payload.DurationMS,
 			"resultSummary": SanitizeCopilotText(payload.Summary, 300), "truncated": truncated,
 		}
 		if isCoinCopilotSpecialistTool(payload.ToolName) && payload.Status == "succeeded" {
-			if fallback, fallbackErr := DecodeCopilotBoundedToolResult(payload.Result); fallbackErr == nil {
-				truncated = true
-				publicPayload["truncated"] = true
-				completedFallback = &fallback
-			} else {
-				result, err := DecodeCopilotSpecialistResult(payload.Result, payload.ToolName)
-				if err != nil {
-					return err
-				}
-				specialistResult, err := ProjectCopilotSpecialistResult(result, payload.ToolName)
-				if err != nil {
-					return err
-				}
-				publicPayload["specialistResult"] = specialistResult
-				completedSpecialist = &result
+			result, resultErr := PublicCopilotToolResult(boundedResult)
+			if resultErr != nil {
+				return resultErr
 			}
+			if _, isTruncated := result["truncated"]; !isTruncated {
+				publicPayload["specialistResult"] = result
+			} else {
+				publicPayload["truncated"] = true
+				truncated = true
+			}
+			completedSpecialist = result
 		}
 		public, _ := json.Marshal(publicPayload)
 		if err := s.appendFrameEvent(run, models.CopilotEventToolCompleted, public); err != nil {
 			return err
 		}
-		if completedFallback != nil {
-			s.logTruncatedSpecialistCompletion(run, payload.ToolName, payload.DurationMS, *completedFallback, persistedSpecialistBytes)
-		} else if completedSpecialist != nil {
-			s.logSpecialistCompletion(run, payload.ToolName, payload.DurationMS, *completedSpecialist)
+		if completedSpecialist != nil {
+			s.logSpecialistCompletion(run, payload.ToolName, payload.DurationMS, completedSpecialist, truncated)
 		}
 		return nil
 	case "clarification_required":
@@ -571,7 +501,7 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 }
 
 func (s *CoinCopilotService) appendFrameEvent(run *models.CoinCopilotRun, eventType models.CopilotEventType, payload []byte) error {
-	sanitized, _, _, _, err := SanitizeCopilotJSON(payload, CoinCopilotMaxEventBytes)
+	sanitized, _, err := SanitizeCopilotJSON(payload, CoinCopilotMaxEventBytes)
 	if err != nil {
 		return err
 	}

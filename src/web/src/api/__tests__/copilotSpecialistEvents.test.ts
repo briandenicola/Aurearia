@@ -39,7 +39,6 @@ function toolCompletedEvent(overrides: Record<string, unknown> = {}) {
           era: 'Byzantine',
           material: 'Gold',
           description: 'Byzantine Empire gold solidus.',
-          facts: ['Dealer: Catawiki', 'Price: USD 450'],
           matchedAttributes: [],
           materialDifferences: [],
           ...overrides,
@@ -48,9 +47,6 @@ function toolCompletedEvent(overrides: Record<string, unknown> = {}) {
         warnings: [],
         truncation: {
           truncated: false,
-          originalBytes: 11794,
-          persistedBytes: 11794,
-          digest: 'a'.repeat(64),
           omittedItems: 0,
         },
       },
@@ -77,7 +73,12 @@ describe('coin copilot specialist events', () => {
     expect(result.items[0]!.listedPrice).toBe(450)
   })
 
-  it('still rejects an unknown field so the contract cannot drift silently', () => {
-    expect(parse(toolCompletedEvent({ secretField: 'x' }))).toHaveLength(0)
+  it('tolerates fields the agent service adds later instead of dropping the event', () => {
+    expect(parse(toolCompletedEvent({ newlyAddedField: 'x' }))).toHaveLength(1)
+  })
+
+  it('rejects evidence whose links are not safe to render', () => {
+    expect(parse(toolCompletedEvent({ sourceUrl: 'javascript:alert(1)' }))).toHaveLength(0)
+    expect(parse(toolCompletedEvent({ imageUrl: 'http://insecure.example/x.jpg' }))).toHaveLength(0)
   })
 })

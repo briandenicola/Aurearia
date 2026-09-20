@@ -37,7 +37,7 @@ export function copilotDealerListingToSuggestion(
     material: item.material ?? '',
     denomination: item.denomination ?? '',
     estPrice: price,
-    imageUrl: '',
+    imageUrl: item.imageUrl ?? '',
     sourceUrl: item.sourceUrl,
     sourceName: item.dealerName ?? '',
   }

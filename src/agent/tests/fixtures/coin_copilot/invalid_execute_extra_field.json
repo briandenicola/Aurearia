@@ -4,7 +4,12 @@
   "run_id": "ccr_fixture",
   "execution_id": "cce_fixture",
   "goal": "Summarize my collection.",
-  "messages": [{"role": "user", "content": "Summarize my collection."}],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Summarize my collection."
+    }
+  ],
   "checkpoint": {
     "version": 0,
     "plan": [],
@@ -35,6 +40,8 @@
   },
   "tools_base_url": "http://test-api:8080",
   "execution_token": "fixture-execution-token",
-  "allowed_tools": ["collection_summary"],
+  "allowed_tools": [
+    "collection_summary"
+  ],
   "unexpected": true
 }

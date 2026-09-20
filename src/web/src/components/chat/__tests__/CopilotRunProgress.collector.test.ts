@@ -42,7 +42,6 @@ function evidence(overrides: Partial<CoinCopilotSpecialistEvidence> = {}): CoinC
     denomination: 'Denarius',
     era: 'Roman Imperial',
     material: 'Silver',
-    facts: [],
     matchedAttributes: [],
     materialDifferences: [],
     ...overrides,
@@ -62,9 +61,6 @@ function mountProgress(
     warnings: [],
     truncation: {
       truncated: false,
-      originalBytes: 100,
-      persistedBytes: 100,
-      digest: 'a'.repeat(64),
       omittedItems: 0,
     },
   }
@@ -128,7 +124,6 @@ describe('CopilotRunProgress collector wishlist action', () => {
     ['non-canonical availability', evidence({ availability: 'AVAILABLE' as 'available' }), 'market_search'],
     ['missing title', evidence({ title: ' ' }), 'market_search'],
     ['missing URL', evidence({ sourceUrl: ' ' }), 'market_search'],
-    ['misleading facts', evidence({ availability: undefined, facts: ['Availability: available'] }), 'market_search'],
   ] as const)('hides the action for %s', (_label, item, capability) => {
     expect(mountProgress(item, capability).find('button').exists()).toBe(false)
   })

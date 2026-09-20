@@ -20,72 +20,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000010",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -104,72 +39,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000011",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -188,72 +58,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000012",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -272,72 +77,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000013",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -356,72 +96,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000014",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -440,72 +115,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000015",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -524,72 +134,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000016",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -608,72 +153,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000017",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -692,72 +172,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000018",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -776,72 +191,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000019",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     },
     {
       "kind": "dealer_listing",
@@ -860,72 +210,7 @@
       "ruler": "Domitian",
       "denomination": "Denarius",
       "era": "Roman Imperial",
-      "material": "Silver",
-      "provenance": [
-        {
-          "field": "title",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "dealer_name",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "listed_price",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "currency",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "availability",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "ruler",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "denomination",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "era",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        },
-        {
-          "field": "material",
-          "source_url": "https://www.cngcoins.com/Coin.aspx?CoinID=4000020",
-          "observed_at": "2026-09-18T12:00:00Z",
-          "confidence": "high",
-          "verification_state": "verified"
-        }
-      ]
+      "material": "Silver"
     }
   ],
   "trend": null,
@@ -941,9 +226,6 @@
   "warnings": [],
   "truncation": {
     "truncated": false,
-    "original_bytes": 1024,
-    "persisted_bytes": 1024,
-    "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "omitted_items": 0
   }
 }

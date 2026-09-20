@@ -1,9 +1,0 @@
-{
-  "base_fixture": "price_trends_complete.json",
-  "changes": [
-    {
-      "path": ["trend", "state"],
-      "value": "declining"
-    }
-  ]
-}

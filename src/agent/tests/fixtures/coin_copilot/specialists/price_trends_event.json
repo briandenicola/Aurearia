@@ -72,10 +72,7 @@
       "warnings": [],
       "truncation": {
         "truncated": false,
-        "originalBytes": 1024,
-        "persistedBytes": 1024,
-        "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        "omittedItems": 0
+        "omitted_items": 0
       }
     }
   }

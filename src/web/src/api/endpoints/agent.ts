@@ -484,92 +484,32 @@ function isBoundedStrings(value: unknown, maximum: number, itemMaximum = 500): v
     value.every(item => typeof item === 'string' && item.length <= itemMaximum)
 }
 
-function isOptionalBoundedString(value: unknown, max: number): boolean {
-  return value === undefined || (typeof value === 'string' && value.length <= max)
-}
-
+// The agent service owns the specialist schema. The client checks only what it
+// must to render safely: the capability matches the tool, item count is bounded,
+// and every URL it will turn into a link or an image is https.
 function isSpecialistEvidence(value: unknown, expectedKind: CoinCopilotEvidenceKind): boolean {
-  // Keep in step with CopilotSpecialistPublicEvidence in the Go API: an
-  // unlisted key here silently discards the whole tool_completed event.
-  if (!isRecord(value) || !hasOnlyKeys(value, [
-    'kind', 'title', 'sourceUrl', 'observedAt', 'confidence', 'verificationState',
-    'facts', 'matchedAttributes', 'materialDifferences',
-    'description', 'dealerName', 'listedPrice', 'currency', 'availability',
-    'ruler', 'denomination', 'era', 'material',
-  ])) return false
-  if (
-    !isOptionalBoundedString(value.description, 2000) ||
-    !isOptionalBoundedString(value.dealerName, 300) ||
-    !isOptionalBoundedString(value.currency, 3) ||
-    !isOptionalBoundedString(value.availability, 50) ||
-    !isOptionalBoundedString(value.ruler, 200) ||
-    !isOptionalBoundedString(value.denomination, 200) ||
-    !isOptionalBoundedString(value.era, 100) ||
-    !isOptionalBoundedString(value.material, 100) ||
-    (value.listedPrice !== undefined &&
-      !(typeof value.listedPrice === 'number' && Number.isFinite(value.listedPrice)))
-  ) return false
-  if (
-    value.kind !== expectedKind ||
-    typeof value.title !== 'string' ||
-    value.title.length === 0 ||
-    value.title.length > 300 ||
-    !isSafeSpecialistUrl(value.sourceUrl) ||
-    typeof value.observedAt !== 'string' ||
-    !['high', 'medium', 'low'].includes(String(value.confidence)) ||
-    !['verified', 'partial'].includes(String(value.verificationState)) ||
-    !isBoundedStrings(value.facts, 10) ||
-    !isBoundedStrings(value.matchedAttributes, 20, 200) ||
-    !isBoundedStrings(value.materialDifferences, 20, 200)
-  ) return false
-  return expectedKind !== 'similar_lot' || value.matchedAttributes.length > 0
-}
-
-function isNullableFiniteNumber(value: unknown): boolean {
-  return value === null || (typeof value === 'number' && Number.isFinite(value))
-}
-
-function isSpecialistTrend(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, [
-    'state', 'sampleSize', 'dateFrom', 'dateTo', 'currency', 'priceBasis',
-    'low', 'median', 'high', 'confidence', 'limitations', 'supportingSourceIds',
-  ])) return false
-  return ['rising', 'stable', 'declining', 'unknown'].includes(String(value.state)) &&
-    isNonNegativeInteger(value.sampleSize) &&
-    (value.dateFrom === null || typeof value.dateFrom === 'string') &&
-    (value.dateTo === null || typeof value.dateTo === 'string') &&
-    (value.currency === null || typeof value.currency === 'string') &&
-    [null, 'hammer', 'realized_including_premium'].includes(value.priceBasis as null | string) &&
-    isNullableFiniteNumber(value.low) &&
-    isNullableFiniteNumber(value.median) &&
-    isNullableFiniteNumber(value.high) &&
-    ['high', 'medium', 'low'].includes(String(value.confidence)) &&
-    isBoundedStrings(value.limitations, 10) &&
-    isBoundedStrings(value.supportingSourceIds, 10, 2048) &&
-    value.supportingSourceIds.every(isSafeSpecialistUrl)
+  if (!isRecord(value) || value.kind !== expectedKind) return false
+  if (typeof value.title !== 'string' || value.title.length === 0 || value.title.length > 300) return false
+  if (!isSafeSpecialistUrl(value.sourceUrl)) return false
+  if (value.imageUrl !== undefined && value.imageUrl !== null && !isSafeSpecialistUrl(value.imageUrl)) return false
+  if (Array.isArray(value.candidateReferences)) {
+    const safeReferences = value.candidateReferences.every(reference =>
+      isRecord(reference) &&
+      (reference.uri === undefined || reference.uri === null || isSafeSpecialistUrl(reference.uri)))
+    if (!safeReferences) return false
+  }
+  return ['verified', 'partial'].includes(String(value.verificationState))
 }
 
 function isSpecialistResult(value: unknown, toolName: string): value is CoinCopilotSpecialistResult {
-  if (!isRecord(value) || !hasOnlyKeys(value, [
-    'capability', 'outcome', 'items', 'trend', 'warnings', 'truncation',
-  ])) return false
+  if (!isRecord(value)) return false
   const capability = value.capability as CoinCopilotSpecialistCapability
   if (!(capability in SPECIALIST_KINDS) || capability !== toolName) return false
-  if (!['complete', 'partial', 'no_match', 'unavailable'].includes(String(value.outcome)) ||
-      !Array.isArray(value.items) || value.items.length > 10 ||
-      !value.items.every(item => isSpecialistEvidence(item, SPECIALIST_KINDS[capability])) ||
-      !isBoundedStrings(value.warnings, 10)) return false
-  if (['complete', 'partial'].includes(String(value.outcome)) !== (value.items.length > 0)) return false
-  if (capability === 'price_trends' ? !isSpecialistTrend(value.trend) : value.trend !== null) return false
-  if (!isRecord(value.truncation) || !hasOnlyKeys(value.truncation, [
-    'truncated', 'originalBytes', 'persistedBytes', 'digest', 'omittedItems',
-  ])) return false
-  return typeof value.truncation.truncated === 'boolean' &&
-    isNonNegativeInteger(value.truncation.originalBytes) &&
-    isNonNegativeInteger(value.truncation.persistedBytes) &&
-    typeof value.truncation.digest === 'string' &&
-    /^[a-f0-9]{64}$/.test(value.truncation.digest) &&
-    isNonNegativeInteger(value.truncation.omittedItems)
+  if (!['complete', 'partial', 'no_match', 'unavailable'].includes(String(value.outcome))) return false
+  if (!Array.isArray(value.items) || value.items.length > 10) return false
+  if (!value.items.every(item => isSpecialistEvidence(item, SPECIALIST_KINDS[capability]))) return false
+  if (value.trend !== null && value.trend !== undefined && !isRecord(value.trend)) return false
+  return Array.isArray(value.warnings) && value.warnings.length <= 10
 }
 
 function isCoinCopilotUsage(value: unknown) {

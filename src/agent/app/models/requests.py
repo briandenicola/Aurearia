@@ -275,8 +275,6 @@ class CopilotBoundedToolResult(StrictRequestModel):
     """Exact Feature 359 fallback emitted when a persisted result exceeds its byte limit."""
 
     truncated: Literal[True]
-    original_bytes: int = Field(ge=0)
-    digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
     summary: Literal["Tool result exceeded the persisted-result limit."]
 
 
@@ -285,10 +283,7 @@ class CopilotCompletedTool(StrictRequestModel):
 
     tool_call_id: CopilotToolCallID
     tool_name: str
-    result_digest: Annotated[str, StringConstraints(max_length=64)] = ""
     result: SpecialistResult | dict[str, Any]
-    original_bytes: int = Field(default=0, ge=0)
-    persisted_bytes: int = Field(default=0, ge=0)
     truncated: bool = False
 
     @model_validator(mode="after")

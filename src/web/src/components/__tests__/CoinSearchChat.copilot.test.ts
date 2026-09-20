@@ -128,7 +128,6 @@ function specialistResult(
       denomination: 'Denarius',
       era: 'Roman Imperial',
       material: 'Silver',
-      facts: ['Dealer: Classical Numismatic Group', 'Price: USD 275'],
       matchedAttributes: [],
       materialDifferences: [],
     }] : [],
@@ -138,9 +137,6 @@ function specialistResult(
       : [],
     truncation: {
       truncated: false,
-      originalBytes: 100,
-      persistedBytes: 100,
-      digest: 'a'.repeat(64),
       omittedItems: 0,
     },
   }
@@ -170,7 +166,6 @@ function priceTrendResult(): CoinCopilotSpecialistResult {
       observedAt: '2026-09-18T12:00:00Z',
       confidence: 'high',
       verificationState: 'verified',
-      facts: ['Amount: USD 275', 'Price basis: Hammer'],
       matchedAttributes: [],
       materialDifferences: [],
     }],
@@ -191,9 +186,6 @@ function priceTrendResult(): CoinCopilotSpecialistResult {
     warnings: [],
     truncation: {
       truncated: false,
-      originalBytes: 300,
-      persistedBytes: 300,
-      digest: 'b'.repeat(64),
       omittedItems: 0,
     },
   }

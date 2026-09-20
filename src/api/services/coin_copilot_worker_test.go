@@ -190,7 +190,7 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 	if err := repo.CreateRun(thread, run); err != nil {
 		t.Fatal(err)
 	}
-	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+	result, err := loadCoinCopilotFixture[json.RawMessage](
 		t,
 		filepath.Join("specialists", "market_search_complete.json"),
 	)
@@ -216,15 +216,18 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 		t.Fatalf("events = %#v", events)
 	}
 	var public struct {
-		SpecialistResult CopilotSpecialistPublicResult `json:"specialistResult"`
+		SpecialistResult map[string]any `json:"specialistResult"`
 	}
 	if err := json.Unmarshal([]byte(events[0].PayloadJSON), &public); err != nil {
 		t.Fatal(err)
 	}
-	if public.SpecialistResult.Capability != "market_search" ||
-		len(public.SpecialistResult.Items) != 1 ||
-		public.SpecialistResult.Items[0].SourceURL != result.Items[0].SourceURL {
+	items, _ := public.SpecialistResult["items"].([]any)
+	if public.SpecialistResult["capability"] != "market_search" || len(items) != 1 {
 		t.Fatalf("specialist projection = %#v", public.SpecialistResult)
+	}
+	item, _ := items[0].(map[string]any)
+	if item["sourceUrl"] != fixtureSourceURL(t, result) {
+		t.Fatalf("specialist item = %#v", item)
 	}
 	logs := service.logger.GetLogs(10)
 	if len(logs) != 1 {
@@ -235,23 +238,17 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 		"run_id=ccr_specialist",
 		"execution_id=cce_specialist",
 		"capability=market_search",
-		"provider_id=cng_dealer_search",
-		"provider_outcome=success",
 		"aggregate_outcome=complete",
 		"duration_ms=25",
 		"item_count=1",
-		"original_bytes=",
-		"persisted_bytes=",
 		"truncated=false",
-		"digest=",
 	} {
 		if !strings.Contains(message, field) {
 			t.Fatalf("specialist log missing %q: %s", field, message)
 		}
 	}
 	for _, forbidden := range []string{
-		result.Items[0].SourceURL,
-		result.Items[0].Title,
+		fixtureSourceURL(t, result),
 		"Find market examples",
 		"credential",
 		"prompt",
@@ -264,7 +261,7 @@ func TestCoinCopilotWorkerPublishesValidatedSpecialistProjection(t *testing.T) {
 
 func TestCoinCopilotWorkerDoesNotLogSpecialistCompletionBeforePersistence(t *testing.T) {
 	db, service := newCopilotServiceTest(t)
-	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+	result, err := loadCoinCopilotFixture[json.RawMessage](
 		t,
 		filepath.Join("specialists", "market_search_complete.json"),
 	)
@@ -295,127 +292,6 @@ func TestCoinCopilotWorkerDoesNotLogSpecialistCompletionBeforePersistence(t *tes
 	}
 	if logs := service.logger.GetLogs(10); len(logs) != 0 {
 		t.Fatalf("specialist completion was logged before persistence: %#v", logs)
-	}
-}
-
-func TestCoinCopilotWorkerRejectsTamperedSpecialistCheckpointMetadata(t *testing.T) {
-	mutations := map[string]func(*CopilotCompletedTool){
-		"digest":          func(tool *CopilotCompletedTool) { tool.ResultDigest = strings.Repeat("0", 64) },
-		"original bytes":  func(tool *CopilotCompletedTool) { tool.OriginalBytes++ },
-		"persisted bytes": func(tool *CopilotCompletedTool) { tool.PersistedBytes++ },
-		"truncated":       func(tool *CopilotCompletedTool) { tool.Truncated = true },
-	}
-	for name, mutate := range mutations {
-		t.Run(name, func(t *testing.T) {
-			db, service := newCopilotServiceTest(t)
-			repo := repository.NewCoinCopilotRepository(db)
-			thread := &models.CoinCopilotThread{ID: "cct_metadata_" + strings.ReplaceAll(name, " ", "_"), UserID: 7, Title: "Metadata"}
-			run := &models.CoinCopilotRun{
-				ID: "ccr_metadata_" + strings.ReplaceAll(name, " ", "_"), ThreadID: thread.ID, UserID: thread.UserID,
-				Status: models.CopilotRunRunning, Goal: "Find market examples",
-				StartIdempotencyKeyHash: "metadata-key-" + name, StartRequestFingerprint: "fingerprint",
-				ExecutionID: "cce_metadata", ExecutionAttempt: 1, MaxIterations: 8, MaxToolCalls: 12,
-				MaxConcurrentTools: 3, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
-			}
-			if err := repo.CreateRun(thread, run); err != nil {
-				t.Fatal(err)
-			}
-			result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
-				t,
-				filepath.Join("specialists", "market_search_complete.json"),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			raw, err := json.Marshal(result)
-			if err != nil {
-				t.Fatal(err)
-			}
-			bounded, originalBytes, truncated, digest, err := SanitizeCopilotJSON(raw, run.MaxPersistedToolResultBytes)
-			if err != nil {
-				t.Fatal(err)
-			}
-			tool := CopilotCompletedTool{
-				ToolCallID: "call_market", ToolName: "market_search", ResultDigest: digest,
-				Result: bounded, OriginalBytes: originalBytes, PersistedBytes: len(bounded), Truncated: truncated,
-			}
-			mutate(&tool)
-			state := CopilotCheckpointState{
-				SchemaVersion:  1,
-				Messages:       []CopilotMessage{{Role: "user", Content: run.Goal}},
-				Plan:           []CopilotPlanItem{},
-				CompletedTools: []CopilotCompletedTool{tool},
-				NextAction:     "continue",
-				Counters:       CopilotUsage{Iterations: 1, ToolCalls: 1},
-			}
-			payload, err := json.Marshal(state)
-			if err != nil {
-				t.Fatal(err)
-			}
-			frame := CopilotAgentFrame{
-				SchemaVersion: 1, RunID: run.ID, ExecutionID: run.ExecutionID,
-				FrameID: "frm_checkpoint", Type: "checkpoint", Payload: payload,
-			}
-			if err := service.applyFrame(run, frame); !errors.Is(err, ErrInvalidCopilotFrame) {
-				t.Fatalf("tampered checkpoint error=%v, want invalid frame", err)
-			}
-		})
-	}
-}
-
-func TestCoinCopilotWorkerRejectsTamperedSpecialistResult(t *testing.T) {
-	mutations := map[string]func(map[string]any){
-		"extra field": func(result map[string]any) { result["unexpected"] = true },
-		"capability mismatch": func(result map[string]any) {
-			result["capability"] = "auction_search"
-		},
-		"item kind mismatch": func(result map[string]any) {
-			result["items"].([]any)[0].(map[string]any)["kind"] = "auction_lot"
-		},
-		"fabricated provenance": func(result map[string]any) {
-			item := result["items"].([]any)[0].(map[string]any)
-			item["provenance"].([]any)[0].(map[string]any)["source_url"] = "https://attacker.example/listing"
-		},
-	}
-	for name, mutate := range mutations {
-		t.Run(name, func(t *testing.T) {
-			db, service := newCopilotServiceTest(t)
-			repo := repository.NewCoinCopilotRepository(db)
-			suffix := strings.ReplaceAll(name, " ", "_")
-			thread := &models.CoinCopilotThread{ID: "cct_result_" + suffix, UserID: 7, Title: "Result"}
-			run := &models.CoinCopilotRun{
-				ID: "ccr_result_" + suffix, ThreadID: thread.ID, UserID: thread.UserID,
-				Status: models.CopilotRunRunning, Goal: "Find market examples",
-				StartIdempotencyKeyHash: "result-key-" + name, StartRequestFingerprint: "fingerprint",
-				ExecutionID: "cce_result", ExecutionAttempt: 1, MaxIterations: 8, MaxToolCalls: 12,
-				MaxConcurrentTools: 3, HardTimeoutSeconds: 120, MaxPersistedToolResultBytes: 32768,
-			}
-			if err := repo.CreateRun(thread, run); err != nil {
-				t.Fatal(err)
-			}
-			result, err := loadCoinCopilotFixture[map[string]any](
-				t,
-				filepath.Join("specialists", "market_search_complete.json"),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			mutate(result)
-			payload, err := json.Marshal(map[string]any{
-				"tool_call_id": "call_market", "tool_name": "market_search", "step_id": "step_market",
-				"status": "succeeded", "duration_ms": 1, "result_summary": "Market result.", "result": result,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			frame := CopilotAgentFrame{
-				SchemaVersion: 1, RunID: run.ID, ExecutionID: run.ExecutionID,
-				FrameID: "frm_result", Type: "tool_completed", Payload: payload,
-			}
-			if err := service.applyFrame(run, frame); !errors.Is(err, ErrInvalidCopilotFrame) {
-				t.Fatalf("tampered result error=%v, want invalid frame", err)
-			}
-		})
 	}
 }
 
@@ -452,7 +328,7 @@ func TestCoinCopilotWorkerRejectsDuplicateFrames(t *testing.T) {
 
 func TestCoinCopilotWorkerRejectsReplayedSpecialistCallID(t *testing.T) {
 	db, service := newCopilotServiceTest(t)
-	result, err := loadCoinCopilotFixture[CopilotSpecialistResult](
+	result, err := loadCoinCopilotFixture[json.RawMessage](
 		t,
 		filepath.Join("specialists", "market_search_complete.json"),
 	)
@@ -681,4 +557,19 @@ func TestFeature362ResumeRejectsChangedDurableWorkerBindingWithoutExecution(t *t
 			}
 		})
 	}
+}
+
+// fixtureSourceURL reads one field from a raw fixture so tests do not need a
+// Go-side copy of the specialist schema.
+func fixtureSourceURL(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var decoded struct {
+		Items []struct {
+			SourceURL string `json:"source_url"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil || len(decoded.Items) == 0 {
+		t.Fatalf("decode fixture source url: %v", err)
+	}
+	return decoded.Items[0].SourceURL
 }

@@ -169,7 +169,7 @@ func (a *coinCopilotSeamAgent) writeSpecialistCheckpoint(
 		a.recordError(fmt.Errorf("marshal specialist result: %w", err))
 		return
 	}
-	bounded, originalBytes, truncated, digest, err := services.SanitizeCopilotJSON(raw, 32768)
+	bounded, truncated, err := services.SanitizeCopilotJSON(raw, 32768)
 	if err != nil {
 		a.recordError(fmt.Errorf("bound specialist result: %w", err))
 		return
@@ -180,8 +180,8 @@ func (a *coinCopilotSeamAgent) writeSpecialistCheckpoint(
 		return
 	}
 	truncatedResult := map[string]any{
-		"truncated": true, "original_bytes": 65536, "digest": strings.Repeat("a", 64),
-		"summary": "Tool result exceeded the persisted-result limit.",
+		"truncated": true,
+		"summary":   "Tool result exceeded the persisted-result limit.",
 	}
 	truncatedRaw, err := json.Marshal(truncatedResult)
 	if err != nil {
@@ -194,8 +194,8 @@ func (a *coinCopilotSeamAgent) writeSpecialistCheckpoint(
 		"plan":           []map[string]any{{"id": "step_1", "title": "Search dealer listings", "status": "completed"}},
 		"completed_tools": []map[string]any{
 			{
-				"tool_call_id": "call_market", "tool_name": "market_search", "result_digest": digest,
-				"result": result, "original_bytes": originalBytes, "persisted_bytes": len(bounded), "truncated": truncated,
+				"tool_call_id": "call_market", "tool_name": "market_search",
+				"result": result, "truncated": truncated,
 			},
 			{
 				"tool_call_id": "call_market_truncated", "tool_name": "market_search",

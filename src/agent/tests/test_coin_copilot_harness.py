@@ -248,17 +248,12 @@ async def test_deep_analysis_request_and_rerun_execute_without_tool_overlap(oper
 async def test_deep_analysis_bounded_fallback_survives_live_frame_and_checkpoint():
     class BoundedHandoffToolClient:
         async def execute(self, _name, _call_id, _args):
-            digest = "a" * 64
             return (
                 {
                     "truncated": True,
-                    "original_bytes": 65536,
-                    "digest": digest,
                     "summary": "Tool result exceeded the persisted-result limit.",
                 },
-                65536,
                 True,
-                digest,
             )
 
     model = _SequenceModel(
@@ -285,7 +280,7 @@ async def test_deep_analysis_bounded_fallback_survives_live_frame_and_checkpoint
     completed = next(frame for frame in frames if frame.type == "tool_completed")
     checkpoint = next(frame for frame in frames if frame.type == "checkpoint")
     assert completed.payload.result["summary"] == "Tool result exceeded the persisted-result limit."
-    assert checkpoint.payload.completed_tools[0].result["digest"] == "a" * 64
+    assert checkpoint.payload.completed_tools[0].result["truncated"] is True
     assert frames[-1].type == "completed"
 
 
@@ -537,15 +532,12 @@ async def test_resume_hydrates_completed_summary_for_virtual_analysis():
             "missingFields": {"diameterMm": 2},
         }
     }
-    bounded, original_bytes, truncated, digest = bound_tool_result(summary, 32768)
+    bounded, truncated = bound_tool_result(summary, 32768)
     payload["checkpoint"]["completed_tools"] = [
         {
             "tool_call_id": "call_summary",
             "tool_name": "collection_summary",
-            "result_digest": digest,
             "result": bounded,
-            "original_bytes": original_bytes,
-            "persisted_bytes": len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()),
             "truncated": truncated,
         }
     ]
@@ -588,16 +580,13 @@ async def test_resume_hydrates_completed_summary_for_virtual_analysis():
 async def test_resume_reconstructs_completed_handoff_without_callback():
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
     handoff = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))["results"]["accepted"]
-    bounded, original_bytes, truncated, digest = bound_tool_result(handoff, 32768)
+    bounded, truncated = bound_tool_result(handoff, 32768)
     payload["allowed_tools"].append("deep_analysis_handoff")
     payload["checkpoint"]["completed_tools"] = [
         {
             "tool_call_id": "call_handoff",
             "tool_name": "deep_analysis_handoff",
-            "result_digest": digest,
             "result": bounded,
-            "original_bytes": original_bytes,
-            "persisted_bytes": len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()),
             "truncated": truncated,
         }
     ]
@@ -609,8 +598,9 @@ async def test_resume_reconstructs_completed_handoff_without_callback():
     frames = await _frames(request, model, tools)
 
     assert tools.calls == []
+    # The saved handoff fact is replayed to the model instead of re-running it.
     assert "call_handoff" in str(model.messages[0])
-    assert digest in str(model.messages[0])
+    assert "accepted" in str(model.messages[0])
     assert frames[-1].type == "completed"
     assert frames[-1].payload.usage.tool_calls == 1
 
@@ -619,16 +609,13 @@ async def test_resume_reconstructs_completed_handoff_without_callback():
 async def test_completed_handoff_call_id_rejects_changed_binding_without_callback():
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
     handoff = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))["results"]["accepted"]
-    bounded, original_bytes, truncated, digest = bound_tool_result(handoff, 32768)
+    bounded, truncated = bound_tool_result(handoff, 32768)
     payload["allowed_tools"].append("deep_analysis_handoff")
     payload["checkpoint"]["completed_tools"] = [
         {
             "tool_call_id": "call_handoff",
             "tool_name": "deep_analysis_handoff",
-            "result_digest": digest,
             "result": bounded,
-            "original_bytes": original_bytes,
-            "persisted_bytes": len(json.dumps(bounded, separators=(",", ":"), sort_keys=True).encode()),
             "truncated": truncated,
         }
     ]
@@ -1258,7 +1245,7 @@ async def test_specialist_runner_executes_locally_without_callback_route_authori
         client=httpx.AsyncClient(transport=httpx.MockTransport(callback_handler)),
     )
     try:
-        result, _, truncated, _ = await client.execute(
+        result, truncated = await client.execute(
             "market_search",
             "call_market",
             {"query": "Domitian denarius Minerva", "limit": 5},
@@ -1338,44 +1325,3 @@ def test_non_specialist_tool_summary_is_unchanged():
     assert coin_copilot._tool_summary("get_coin", {"outcome": "unavailable"}) == "Coin details returned."
 
 
-@pytest.mark.asyncio
-async def test_checkpoint_byte_accounting_matches_go_for_non_ascii_evidence(monkeypatch):
-    """Go recomputes UTF-8 canonical bytes for each completed tool and rejects any mismatch."""
-    specialist_result = json.loads(
-        (FIXTURE.parent / "specialists" / "market_search_complete.json").read_text(encoding="utf-8")
-    )
-    for item in specialist_result["items"]:
-        item["title"] = "Aurelian, 270–275. Æ Antoninianus, Künker"
-
-    async def market_runner(_args, **_kwargs):
-        return specialist_result
-
-    monkeypatch.setattr(coin_copilot, "run_market_search", market_runner)
-    model = _SequenceModel(
-        [
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {"name": "market_search", "args": {"query": "Aurelian"}, "id": "call_utf8", "type": "tool_call"}
-                ],
-            ),
-            AIMessage(content="One listing was found."),
-        ]
-    )
-    request = _request()
-    request.allowed_tools.append("market_search")
-
-    frames = await _frames(request, model, tool_client=None)
-
-    checkpoints = [frame for frame in frames if frame.type == "checkpoint"]
-    assert checkpoints
-    for checkpoint in checkpoints:
-        # Inspect the frame exactly as it is streamed to the Go API.
-        wire = json.loads(checkpoint.model_dump_json())
-        for tool in wire["payload"]["completed_tools"]:
-            canonical = json.dumps(
-                tool["result"], ensure_ascii=False, separators=(",", ":"), sort_keys=True
-            ).encode("utf-8")
-            assert tool["persisted_bytes"] == len(canonical)
-            if not tool["truncated"]:
-                assert tool["original_bytes"] == len(canonical)

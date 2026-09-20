@@ -23,14 +23,11 @@
       {
         "tool_call_id": "call_1",
         "tool_name": "collection_summary",
-        "result_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "result": {
           "summary": {
             "totalCoins": 2
           }
         },
-        "original_bytes": 28,
-        "persisted_bytes": 28,
         "truncated": false
       }
     ],

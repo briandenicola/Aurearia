@@ -404,3 +404,34 @@ post-cancellation commit, and no cross-user visibility.
 - Existing Coin Copilot feature flag, model-capability preflight, execution
   credentials, typed frames, cancellation, checkpoints, event replay, and
   legacy fallback.
+
+## Amendment 2026-09-19: one validation boundary
+
+Shipping this spec as written produced three hand-written copies of the same
+schema (Pydantic, Go structs, TypeScript validators) plus a byte-exact digest
+contract between Python and Go. Every seam between those copies produced a
+user-visible outage: a title containing "Æ" was rejected as a corrupt
+checkpoint because Python counted ASCII-escaped bytes and Go counted UTF-8,
+and every dealer result was silently discarded by the browser because its
+key allow-list omitted fields the Go projection sent.
+
+The following requirements are therefore withdrawn:
+
+- **FR-007**, as far as it required each layer to re-validate the schema and
+  fail closed. The agent service owns the schema. Go persists and streams the
+  result as data, converting keys for the browser without knowing the fields.
+  The browser checks only what it needs to render safely.
+- **FR-008**, as far as it required per-field provenance records. Evidence
+  keeps its source URL, observed time, confidence and verification state;
+  the per-field provenance list is gone.
+- **FR-017**, as far as it required a digest and byte counts. Tool results are
+  bounded by a size cap with a truncation flag. No digest is recomputed
+  across languages.
+
+Retained without change: source URLs must be https, credential-free and on a
+configured host; provider text is untrusted data screened for injection and
+token shapes; results are bounded in size and item count; outcomes stay typed
+so a failed source can never read as "no matches".
+
+Evidence now also carries `image_url` and `candidate_references`, which the
+original contract dropped and which the legacy pipeline had always shown.

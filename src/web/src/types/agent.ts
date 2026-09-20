@@ -203,9 +203,27 @@ export interface CoinCopilotSpecialistEvidence {
   denomination?: string
   era?: string
   material?: string
-  facts: string[]
-  matchedAttributes: string[]
-  materialDifferences: string[]
+  auctionHouse?: string
+  saleName?: string
+  lotNumber?: string
+  saleDate?: string
+  estimate?: number
+  currentBid?: number
+  lotStatus?: string
+  amount?: number
+  priceBasis?: 'hammer' | 'realized_including_premium'
+  similarityScore?: number
+  imageUrl?: string | null
+  candidateReferences?: CoinCopilotCandidateReference[]
+  matchedAttributes?: string[]
+  materialDifferences?: string[]
+}
+
+export interface CoinCopilotCandidateReference {
+  catalog: string
+  number: string
+  volume?: string | null
+  uri?: string | null
 }
 
 export interface CoinCopilotPriceTrend {
@@ -231,9 +249,6 @@ export interface CoinCopilotSpecialistResult {
   warnings: string[]
   truncation: {
     truncated: boolean
-    originalBytes: number
-    persistedBytes: number
-    digest: string
     omittedItems: number
   }
 }

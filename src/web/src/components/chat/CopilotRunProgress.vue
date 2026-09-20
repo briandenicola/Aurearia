@@ -98,21 +98,38 @@
             :key="item.sourceUrl"
             class="flex flex-col gap-2 border-t border-border-subtle pt-2"
           >
-            <a
-              :href="item.sourceUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-medium text-gold"
-            >
-              {{ item.title }}
-            </a>
+            <div class="flex gap-2">
+              <img
+                v-if="item.imageUrl"
+                :src="item.imageUrl"
+                alt=""
+                loading="lazy"
+                class="h-14 w-14 shrink-0 rounded-sm object-cover"
+              />
+              <a
+                :href="item.sourceUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-gold"
+              >
+                {{ item.title }}
+              </a>
+            </div>
             <p class="mb-0 text-xs text-text-muted">
               Observed {{ formatObservedAt(item.observedAt) }} ·
               {{ titleCase(item.confidence) }} confidence ·
               {{ titleCase(item.verificationState) }}
             </p>
-            <ul v-if="item.facts.length" class="mb-0 flex list-none flex-col gap-1 p-0 text-xs">
-              <li v-for="fact in item.facts" :key="fact">{{ fact }}</li>
+            <ul v-if="itemFacts(item).length" class="mb-0 flex list-none flex-col gap-1 p-0 text-xs">
+              <li v-for="fact in itemFacts(item)" :key="fact">{{ fact }}</li>
+            </ul>
+            <ul
+              v-if="item.candidateReferences?.length"
+              class="mb-0 flex list-none flex-wrap gap-1 p-0 text-xs text-text-muted"
+            >
+              <li v-for="reference in item.candidateReferences" :key="`${reference.catalog}${reference.number}`">
+                {{ reference.catalog }} {{ reference.volume ?? '' }} {{ reference.number }}
+              </li>
             </ul>
             <button
               v-if="isEligibleCopilotDealerListing(tool.specialistResult.capability, item)"
@@ -303,6 +320,34 @@ function toolLabel(name: string) {
     .split('_')
     .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : part)
     .join(' ')
+}
+
+// Display lines are built here from typed fields; the agent service sends the
+// evidence, not a pre-rendered list.
+function itemFacts(item: CoinCopilotSpecialistEvidence): string[] {
+  const money = (amount?: number) =>
+    amount == null ? '' : `${item.currency ? `${item.currency} ` : ''}${amount}`
+  const lines: [string, string | number | undefined][] = [
+    ['Dealer', item.dealerName],
+    ['Price', money(item.listedPrice)],
+    ['Availability', item.availability],
+    ['Auction house', item.auctionHouse],
+    ['Sale', item.saleName],
+    ['Lot', item.lotNumber],
+    ['Sale date', item.saleDate],
+    ['Estimate', money(item.estimate)],
+    ['Current bid', money(item.currentBid)],
+    ['Amount', money(item.amount)],
+    ['Price basis', item.priceBasis],
+    ['Ruler', item.ruler],
+    ['Denomination', item.denomination],
+    ['Era', item.era],
+    ['Material', item.material],
+  ]
+  return lines
+    .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+    .map(([label, value]) => `${label}: ${titleCase(String(value))}`)
+    .slice(0, 10)
 }
 
 function titleCase(value: string) {

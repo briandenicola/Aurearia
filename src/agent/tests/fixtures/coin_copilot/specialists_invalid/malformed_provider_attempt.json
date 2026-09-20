@@ -2,7 +2,11 @@
   "base_fixture": "market_search_complete.json",
   "changes": [
     {
-      "path": ["provider_attempts", 0, "status"],
+      "path": [
+        "provider_attempts",
+        0,
+        "status"
+      ],
       "value": "timeout"
     }
   ]
