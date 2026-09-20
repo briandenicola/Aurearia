@@ -146,6 +146,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 			WithWorkflow(d.agentProxy, d.settingsSvc, repository.NewAgentRepository(database.DB), d.logger).
 			WithSetRepository(setRepo)
 		setBuilderService.StartWorkers(1)
+		d.setBuilderSvc = setBuilderService
 		setBuilderHandler := handlers.NewSetBuilderHandler(setBuilderService)
 		setSnapshotScheduler := services.NewSetSnapshotScheduler(setService, d.settingsSvc, d.logger)
 		go setSnapshotScheduler.Start()

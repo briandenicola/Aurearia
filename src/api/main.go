@@ -138,6 +138,7 @@ func main() {
 		notifications:      d.notifRepo,
 		notificationSvc:    d.notifSvc,
 		cancelBackground:   cancelBackground,
+		workers:            []workerStopper{d.aiJobSvc, d.setBuilderSvc, d.wishlistSearchAlertSvc},
 	})
 }
 

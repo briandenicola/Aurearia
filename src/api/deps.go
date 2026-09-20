@@ -63,6 +63,7 @@ type appDeps struct {
 	valRepo                        *repository.ValuationRepository
 	valSvc                         *services.ValuationService
 	aiJobSvc                       *services.AIJobService
+	setBuilderSvc                  *services.SetBuilderService
 	coinLookupSvc                  *services.CoinLookupService
 	deepIdentificationRepo         *repository.DeepIdentificationRepository
 	deepIdentificationSvc          *services.DeepIdentificationService

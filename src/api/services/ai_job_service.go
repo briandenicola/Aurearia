@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -15,8 +16,6 @@ import (
 )
 
 const (
-	aiJobQueueSize       = 100
-	aiJobStaleTimeout    = time.Hour
 	aiJobAnalyzeTimeout  = 5 * time.Minute
 	aiJobEstimateTimeout = 3 * time.Minute
 )
@@ -25,6 +24,7 @@ var (
 	ErrAIJobInvalidSide        = errors.New("side must be 'obverse' or 'reverse'")
 	ErrAIJobNoImages           = errors.New("coin has no matching image to analyze")
 	ErrAIJobNoImagesForGrading = errors.New("coin has no image available for grading")
+	ErrAIJobStopped            = errors.New("AI job workers are stopping")
 )
 
 type AIJobAgent interface {
@@ -33,6 +33,8 @@ type AIJobAgent interface {
 	CollectPortfolioReview(ctx context.Context, req PortfolioReviewProxyRequest) (string, error)
 }
 
+type aiJobInferenceError struct{ error }
+
 type AIJobService struct {
 	repo        *repository.AIJobRepository
 	agentProxy  AIJobAgent
@@ -40,7 +42,11 @@ type AIJobService struct {
 	settingsSvc *SettingsService
 	notifSvc    *NotificationService
 	logger      *Logger
-	queue       chan uint
+	wake        chan struct{}
+	ctx         context.Context
+	cancel      context.CancelFunc
+	done        chan struct{}
+	startOnce   sync.Once
 }
 
 type AIJobSubmissionResponse struct {
@@ -62,6 +68,7 @@ func NewAIJobService(
 	notifSvc *NotificationService,
 	logger *Logger,
 ) *AIJobService {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &AIJobService{
 		repo:        repo,
 		agentProxy:  agentProxy,
@@ -69,7 +76,10 @@ func NewAIJobService(
 		settingsSvc: settingsSvc,
 		notifSvc:    notifSvc,
 		logger:      logger,
-		queue:       make(chan uint, aiJobQueueSize),
+		wake:        make(chan struct{}, 1),
+		ctx:         ctx,
+		cancel:      cancel,
+		done:        make(chan struct{}),
 	}
 }
 
@@ -77,19 +87,45 @@ func (s *AIJobService) StartWorkers(workerCount int) {
 	if workerCount < 1 {
 		workerCount = 1
 	}
-	if ids, err := s.repo.RecoverStaleJobs(aiJobStaleTimeout); err == nil {
-		for _, id := range ids {
-			s.enqueueID(id)
-		}
-	} else {
-		s.logger.Warn("ai-jobs", "Failed to recover stale AI jobs: %v", err)
-	}
-	for i := 0; i < workerCount; i++ {
-		go s.worker()
+	s.startOnce.Do(func() {
+		go func() {
+			defer close(s.done)
+			for s.ctx.Err() == nil {
+				if err := s.repo.ReconcileInterruptedJobs(); err == nil {
+					break
+				} else {
+					s.logger.Error("ai-jobs", "Failed to reconcile interrupted jobs: %v", err)
+				}
+				select {
+				case <-s.ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+			}
+			var workers sync.WaitGroup
+			for i := 0; i < workerCount; i++ {
+				workers.Go(s.worker)
+			}
+			workers.Wait()
+		}()
+	})
+}
+
+func (s *AIJobService) StopWorkers(ctx context.Context) error {
+	s.cancel()
+	s.startOnce.Do(func() { close(s.done) })
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
 func (s *AIJobService) EnqueueAnalysis(userID, coinID uint, side string) (*models.AIJob, bool, error) {
+	if s.ctx.Err() != nil {
+		return nil, false, ErrAIJobStopped
+	}
 	if side != "" && side != "obverse" && side != "reverse" {
 		return nil, false, ErrAIJobInvalidSide
 	}
@@ -109,6 +145,9 @@ func (s *AIJobService) EnqueueAnalysis(userID, coinID uint, side string) (*model
 }
 
 func (s *AIJobService) EnqueueValueEstimate(userID, coinID uint) (*models.AIJob, bool, error) {
+	if s.ctx.Err() != nil {
+		return nil, false, ErrAIJobStopped
+	}
 	if _, err := s.repo.FindCoinWithImages(coinID, userID); err != nil {
 		return nil, false, err
 	}
@@ -121,6 +160,9 @@ func (s *AIJobService) EnqueueValueEstimate(userID, coinID uint) (*models.AIJob,
 }
 
 func (s *AIJobService) EnqueueCoinGrading(userID, coinID uint) (*models.AIJob, bool, error) {
+	if s.ctx.Err() != nil {
+		return nil, false, ErrAIJobStopped
+	}
 	coin, err := s.repo.FindCoinWithImages(coinID, userID)
 	if err != nil {
 		return nil, false, err
@@ -149,15 +191,32 @@ func (s *AIJobService) ListCoinJobs(userID, coinID uint, activeOnly bool) ([]mod
 
 func (s *AIJobService) enqueueID(jobID uint) {
 	select {
-	case s.queue <- jobID:
+	case s.wake <- struct{}{}:
 	default:
-		go func() { s.queue <- jobID }()
 	}
 }
 
 func (s *AIJobService) worker() {
-	for jobID := range s.queue {
-		s.processJob(jobID)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for s.ctx.Err() == nil {
+		ids, err := s.repo.ListQueuedIDs()
+		if err != nil {
+			s.logger.Error("ai-jobs", "Failed to list queued jobs: %v", err)
+		} else {
+			for _, id := range ids {
+				if s.ctx.Err() != nil {
+					return
+				}
+				s.processJob(id)
+			}
+		}
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-s.wake:
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -177,6 +236,7 @@ func (s *AIJobService) processJob(jobID uint) {
 		s.logger.Error("ai-jobs", "Job %d failed: %v", job.ID, processErr)
 		if err := s.repo.Fail(job.ID, processErr.Error()); err != nil {
 			s.logger.Error("ai-jobs", "Failed to persist job %d failure: %v", job.ID, err)
+			return
 		}
 		s.notifyFailure(job, processErr.Error())
 	}
@@ -188,7 +248,14 @@ func (s *AIJobService) processJobWithRetry(job *models.AIJob) error {
 		if attempt > 0 {
 			backoff := valuationRetryDelay * time.Duration(attempt)
 			s.logger.Warn("ai-jobs", "Job %d retry %d after %s", job.ID, attempt, backoff)
-			time.Sleep(backoff)
+			select {
+			case <-s.ctx.Done():
+				return s.ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+		if err := s.ctx.Err(); err != nil {
+			return err
 		}
 
 		switch job.JobType {
@@ -204,7 +271,8 @@ func (s *AIJobService) processJobWithRetry(job *models.AIJob) error {
 		if processErr == nil {
 			return nil
 		}
-		if !isRetryableError(processErr) {
+		var inferenceErr *aiJobInferenceError
+		if !errors.As(processErr, &inferenceErr) || !isRetryableError(inferenceErr.error) {
 			return processErr
 		}
 	}
@@ -238,7 +306,7 @@ func (s *AIJobService) processAnalysisJob(job *models.AIJob) error {
 		prompt = s.settingsSvc.GetSetting(SettingReversePrompt)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), aiJobAnalyzeTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, aiJobAnalyzeTimeout)
 	defer cancel()
 	analysis, err := s.agentProxy.AnalyzeCoin(ctx, AnalyzeProxyRequest{
 		LLM:    llmCfg,
@@ -248,6 +316,9 @@ func (s *AIJobService) processAnalysisJob(job *models.AIJob) error {
 		Prompt: prompt,
 	})
 	if err != nil {
+		return &aiJobInferenceError{err}
+	}
+	if err := s.ctx.Err(); err != nil {
 		return err
 	}
 
@@ -258,12 +329,9 @@ func (s *AIJobService) processAnalysisJob(job *models.AIJob) error {
 	case "":
 		column = "ai_analysis"
 	}
-	if err := s.repo.UpdateCoinAnalysis(job.CoinID, job.UserID, column, analysis); err != nil {
-		return err
-	}
 	result := map[string]string{"analysis": analysis, "side": job.Side}
 	resultJSON, _ := json.Marshal(result)
-	if err := s.repo.Complete(job.ID, string(resultJSON)); err != nil {
+	if err := s.repo.CompleteAnalysis(job, column, analysis, string(resultJSON)); err != nil {
 		return err
 	}
 	s.notifyComplete(job, coin.Name)
@@ -289,7 +357,7 @@ func (s *AIJobService) processCoinGradingJob(job *models.AIJob) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), aiJobAnalyzeTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, aiJobAnalyzeTimeout)
 	defer cancel()
 	report, err := s.agentProxy.GradeCoin(ctx, GradeProxyRequest{
 		LLM:    llmCfg,
@@ -297,6 +365,9 @@ func (s *AIJobService) processCoinGradingJob(job *models.AIJob) error {
 		Images: base64Images,
 	})
 	if err != nil {
+		return &aiJobInferenceError{err}
+	}
+	if err := s.ctx.Err(); err != nil {
 		return err
 	}
 	if report == "" {
@@ -330,7 +401,7 @@ func (s *AIJobService) processValueEstimateJob(job *models.AIJob) error {
 	userMessage := fmt.Sprintf("Estimate the current market value of this coin:\n\n%s\n\n"+
 		"Return ONLY the JSON block as specified in your instructions. No preamble or extra text.", description)
 
-	ctx, cancel := context.WithTimeout(context.Background(), aiJobEstimateTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, aiJobEstimateTimeout)
 	defer cancel()
 	aiText, err := s.agentProxy.CollectPortfolioReview(ctx, PortfolioReviewProxyRequest{
 		LLM: llmCfg,
@@ -342,6 +413,9 @@ func (s *AIJobService) processValueEstimateJob(job *models.AIJob) error {
 		ValuationPrompt: s.getValuationPrompt(),
 	})
 	if err != nil {
+		return &aiJobInferenceError{err}
+	}
+	if err := s.ctx.Err(); err != nil {
 		return err
 	}
 	if aiText == "" {

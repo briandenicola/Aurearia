@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -23,9 +24,7 @@ const (
 	maxSetBuilderAgentSlots = 300
 	maxSetProposalSlots     = maxSetBuilderAgentSlots
 	defaultProposalExpiry   = 7 * 24 * time.Hour
-	setBuilderQueueSize     = 100
 	setBuilderRunTimeout    = 10 * time.Minute
-	setBuilderStaleTimeout  = 30 * time.Minute
 )
 
 const (
@@ -49,6 +48,7 @@ var (
 	ErrSetProposalApprovalUnavailable = errors.New("set proposal approval is not configured")
 	ErrSetProposalExpired             = errors.New("set proposal has expired")
 	ErrSetProposalFeedbackRequired    = errors.New("set proposal regeneration feedback is required")
+	ErrSetBuilderStopped              = errors.New("set builder workers are stopping")
 )
 
 type SetBuilderAgent interface {
@@ -64,16 +64,24 @@ type SetBuilderService struct {
 	agentRepo   *repository.AgentRepository
 	setRepo     *repository.SetRepository
 	logger      *Logger
-	queue       chan uint
+	wake        chan struct{}
+	ctx         context.Context
+	cancel      context.CancelFunc
+	done        chan struct{}
+	startOnce   sync.Once
 	now         func() time.Time
 }
 
 // NewSetBuilderService creates a SetBuilderService.
 func NewSetBuilderService(repo *repository.SetBuilderRepository, notifRepo *repository.NotificationRepository) *SetBuilderService {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &SetBuilderService{
 		repo:      repo,
 		notifRepo: notifRepo,
-		queue:     make(chan uint, setBuilderQueueSize),
+		wake:      make(chan struct{}, 1),
+		ctx:       ctx,
+		cancel:    cancel,
+		done:      make(chan struct{}),
 		now:       time.Now,
 	}
 }
@@ -136,6 +144,9 @@ type SetProposalUpdateRequest struct {
 
 // CreateRun validates and persists a queued Agentic set builder run.
 func (s *SetBuilderService) CreateRun(userID uint, request SetBuilderRunRequest) (*models.SetBuilderRun, error) {
+	if s.ctx.Err() != nil {
+		return nil, ErrSetBuilderStopped
+	}
 	prompt, err := normalizeSetBuilderPrompt(request.Prompt)
 	if err != nil {
 		return nil, err
@@ -161,15 +172,38 @@ func (s *SetBuilderService) StartWorkers(workerCount int) {
 	if workerCount < 1 {
 		workerCount = 1
 	}
-	if ids, err := s.repo.RecoverStaleRuns(setBuilderStaleTimeout); err == nil {
-		for _, id := range ids {
-			s.enqueueRunID(id)
-		}
-	} else if s.logger != nil {
-		s.logger.Warn("set-builder", "Failed to recover stale set builder runs: %v", err)
-	}
-	for i := 0; i < workerCount; i++ {
-		go s.worker()
+	s.startOnce.Do(func() {
+		go func() {
+			defer close(s.done)
+			for s.ctx.Err() == nil {
+				if err := s.repo.ReconcileInterruptedRuns(); err == nil {
+					break
+				} else {
+					s.logError("Failed to reconcile interrupted runs: %v", err)
+				}
+				select {
+				case <-s.ctx.Done():
+					return
+				case <-time.After(time.Second):
+				}
+			}
+			var workers sync.WaitGroup
+			for i := 0; i < workerCount; i++ {
+				workers.Go(s.worker)
+			}
+			workers.Wait()
+		}()
+	})
+}
+
+func (s *SetBuilderService) StopWorkers(ctx context.Context) error {
+	s.cancel()
+	s.startOnce.Do(func() { close(s.done) })
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -178,15 +212,32 @@ func (s *SetBuilderService) enqueueRunID(runID uint) {
 		return
 	}
 	select {
-	case s.queue <- runID:
+	case s.wake <- struct{}{}:
 	default:
-		go func() { s.queue <- runID }()
 	}
 }
 
 func (s *SetBuilderService) worker() {
-	for runID := range s.queue {
-		s.processRun(runID)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for s.ctx.Err() == nil {
+		ids, err := s.repo.ListQueuedRunIDs()
+		if err != nil {
+			s.logError("Failed to list queued runs: %v", err)
+		} else {
+			for _, id := range ids {
+				if s.ctx.Err() != nil {
+					return
+				}
+				s.processRun(id)
+			}
+		}
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-s.wake:
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -204,6 +255,7 @@ func (s *SetBuilderService) processRun(runID uint) {
 		s.logError("Set builder run %d failed: %v", run.ID, err)
 		if failErr := s.repo.FailRun(run.ID, run.UserID, s.now(), err.Error(), "go_worker"); failErr != nil {
 			s.logError("Failed to persist set builder run %d failure: %v", run.ID, failErr)
+			return
 		}
 		s.notifyRunFailed(run, err.Error())
 	}
@@ -241,7 +293,7 @@ func (s *SetBuilderService) processClaimedRun(run *models.SetBuilderRun) error {
 		maxSetBuilderAgentSlots,
 		setBuilderCollectionCoinCount(collection),
 	)
-	ctx, cancel := context.WithTimeout(context.Background(), setBuilderRunTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, setBuilderRunTimeout)
 	defer cancel()
 	result, err := s.agent.RunSetBuilder(ctx, SetBuilderProxyRequest{
 		LLM:                  llmCfg,
@@ -255,6 +307,9 @@ func (s *SetBuilderService) processClaimedRun(run *models.SetBuilderRun) error {
 		Feedback:             run.Feedback,
 	})
 	if err != nil {
+		return err
+	}
+	if err := s.ctx.Err(); err != nil {
 		return err
 	}
 	if result == nil {
@@ -431,6 +486,9 @@ func (s *SetBuilderService) RejectProposal(userID, proposalID uint, reason strin
 }
 
 func (s *SetBuilderService) RegenerateProposal(userID, proposalID uint, feedback string) (*models.SetBuilderRun, error) {
+	if s.ctx.Err() != nil {
+		return nil, ErrSetBuilderStopped
+	}
 	feedback = strings.TrimSpace(feedback)
 	if feedback == "" {
 		return nil, ErrSetProposalFeedbackRequired
