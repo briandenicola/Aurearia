@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, type PropType } from 'vue'
+import type { Coin } from '@/types'
 import AddCoinPage from '../AddCoinPage.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +26,7 @@ vi.mock('@/composables/useCoinOptions', async () => {
 
 const photo = new File(['photo'], 'obverse.jpg', { type: 'image/jpeg' })
 const CoinFormStub = defineComponent({
-  props: ['form', 'loading'], emits: ['submit'],
+  props: { form: Object as PropType<Partial<Coin>>, loading: Boolean }, emits: ['submit'],
   setup(_, { expose }) { expose({ obverseFile: photo }) },
   template: '<button @click="$emit(\'submit\')">Save manual</button>',
 })
