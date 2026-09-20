@@ -33,6 +33,10 @@ async def test_anthropic_binds_fixed_tools_strictly(monkeypatch):
     descriptions = {tool.name: tool.description for tool in tools}
     assert "administrator-configured dealer sources" in descriptions["market_search"]
     assert "administrator-configured auction sources" in descriptions["auction_search"]
+    assert "coins for sale or to buy" in descriptions["market_search"]
+    assert "without requiring collection ownership or additional confirmation" in descriptions["market_search"]
+    assert "without requiring collection ownership or additional confirmation" in descriptions["auction_search"]
+    assert "Search only the owner's collection" in descriptions["search_my_collection"]
     assert "VCoins" not in descriptions["market_search"]
     assert "NumisBids" not in descriptions["auction_search"]
 

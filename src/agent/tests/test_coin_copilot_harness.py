@@ -171,6 +171,53 @@ def test_search_policy_uses_configured_sources_without_stale_provider_names():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("goal", "history"),
+    [
+        ("Find Aurelian coins for sale online.", []),
+        (
+            "I am not asking about my collection. I am asking your to find coins for sell online of any Aurelian coin",
+            [
+                {"role": "user", "content": "Find Aurelian coins for sale online."},
+                {
+                    "role": "assistant",
+                    "content": "My role is limited to your personal coin collection. Would you like me to search?",
+                },
+            ],
+        ),
+        ("Find Vespasian denarii at auction.", []),
+    ],
+)
+async def test_shopping_policy_reaches_model_with_unmodified_natural_language(goal, history):
+    payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    payload["goal"] = goal
+    payload["messages"] = [*history, {"role": "user", "content": goal}]
+    payload["allowed_tools"].extend(["market_search", "auction_search"])
+    request = CopilotExecuteRequest.model_validate(payload)
+    # This records model inputs; it does not simulate or prove live tool selection.
+    model = _SequenceModel([AIMessage(content="Fixture response.")])
+
+    await _frames(request, model, _ToolClient([]))
+
+    messages = model.messages[0]
+    prompt = " ".join(str(messages[0].content).split())
+    assert "only for the owner's collection" not in prompt
+    assert "safe collection-only answer" not in prompt
+    assert "Collection data access must remain owner-scoped" in prompt
+    assert "do not require owning a matching coin" in prompt
+    assert "call market_search in the same turn" in prompt
+    assert "use auction_search for an explicit auction request" in prompt
+    assert "Do not ask for permission to perform an already-requested read-only search" in prompt
+    assert "Budget, denomination, and condition are optional filters, not prerequisites" in prompt
+    assert "Correct prior assistant claims that shopping is outside your scope" in prompt
+    assert "Never call or propose generic web browsing, write, approval" in prompt
+    assert [(message.type, message.content) for message in messages[1:]] == [
+        ("human" if message["role"] == "user" else "ai", message["content"])
+        for message in payload["messages"]
+    ]
+
+
+@pytest.mark.asyncio
 async def test_collector_context_is_labeled_untrusted_and_kept_separate_from_collection_facts():
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
     payload["collector_context"] = {
@@ -1323,5 +1370,4 @@ def test_specialist_tool_summary_reflects_outcome(result, expected):
 
 def test_non_specialist_tool_summary_is_unchanged():
     assert coin_copilot._tool_summary("get_coin", {"outcome": "unavailable"}) == "Coin details returned."
-
 

@@ -49,6 +49,21 @@ supervisor. Changing the setting does not require a separate Copilot
 configuration. This restores search configuration parity; it does not
 remove dealer HTTP 403 blocks or HTTP 429 rate limits.
 
+Coin Copilot treats a clear request to find coins for sale as a request to search
+the configured dealers immediately, not as a collection-only question or a reason
+to ask permission again. Auction requests use the configured auction sources.
+You do not need to own the requested coin, name an internal tool, or provide a
+budget, denomination, or condition to start a search. Collection reads remain
+owner-scoped, and searches do not authorize purchases or collection changes.
+
+**Chat acceptance check:** In a fresh chat, enter "Find Aurelian coins for sale
+online." without adding tool names or configured-source hints. The first request
+should start dealer search and show its evidence or explicit no-match/unavailable
+outcome, not ask whether to search. Also verify that a plain-language correction
+after an earlier collection-only refusal starts the search without another
+confirmation. Prompt-contract tests cover the supplied instructions and unchanged
+conversation text; they do not prove a live model's tool-selection behavior.
+
 ### Team 2: Coin Shows
 - Searches for upcoming coin shows and auction events
 - Verifies event dates are in the future
