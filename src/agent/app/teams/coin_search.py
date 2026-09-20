@@ -21,11 +21,12 @@ from langgraph.graph import END, StateGraph
 
 from app.config import settings
 from app.llm.content import extract_search_text, extract_text_content
-from app.llm.provider import create_search_agent, get_chat_model, get_search_model
+from app.llm.provider import create_search_agent, get_chat_model, get_search_model, get_structured_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import AlertDiscoveryRequest, LLMConfig
 from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
 from app.safety import with_safety
+from app.teams.json_extraction import extract_json_payload
 from app.teams.specialist_contracts import (
     CancellationCheck,
     ProviderMalformedError,
@@ -40,6 +41,29 @@ from app.tools.numismatic_authority import normalize_candidate_references
 from app.tools.search import fetch_dealer_page, fetch_registered_dealer_page
 
 logger = logging.getLogger(__name__)
+
+MARKET_LISTINGS_SCHEMA = {
+    "title": "MarketListings",
+    "description": "Source-backed coin listings. Return an empty listings array when there are no matches.",
+    "type": "object",
+    "properties": {
+        "listings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    key: {"type": "string"}
+                    for key in (
+                        "name", "sourceUrl", "sourceName", "description", "category", "era",
+                        "ruler", "material", "denomination", "estPrice", "imageUrl", "availability",
+                    )
+                } | {"candidateReferences": {"type": "array", "items": {"type": "object"}}},
+                "required": ["name", "sourceUrl"],
+            },
+        },
+    },
+    "required": ["listings"],
+}
 
 SEARCH_PROMPT = with_safety("""You are a numismatic search specialist. Search the web to find coins
 currently for sale that match the user's request.
@@ -240,17 +264,31 @@ async def _format_dealer_candidates(
     *,
     strict: bool = False,
 ) -> tuple[str, list[dict[str, Any]]]:
-    model = get_chat_model(llm_config)
+    model = get_structured_model(llm_config, MARKET_LISTINGS_SCHEMA) if strict else get_chat_model(llm_config)
     messages = [
-        SystemMessage(content=FORMAT_PROMPT),
+        SystemMessage(content=FORMAT_PROMPT + (
+            "\nFor this request use the MarketListings schema: put the array in listings, not a markdown block."
+            if strict else ""
+        )),
         HumanMessage(
             content=f"User searched for: {user_message}\n\n"
             f"Extracted listing data:\n{fetched_listings}"
         ),
     ]
     response = await ainvoke_with_retry(model, messages)
+    if strict:
+        parsed = response.get("parsed")
+        candidates = parsed.get("listings") if isinstance(parsed, dict) else None
+        if (
+            response.get("parsing_error") is not None
+            or not isinstance(candidates, list)
+            or any(not isinstance(item, dict) for item in candidates)
+        ):
+            logger.warning("Market formatter failed structured output validation")
+            raise ProviderMalformedError
+        return json.dumps(candidates), candidates
     formatted = extract_text_content(response.content)
-    candidates = _extract_json_array_strict(formatted) if strict else _extract_json_array(formatted)
+    candidates = _extract_json_array(formatted)
     return formatted, candidates
 
 
@@ -320,6 +358,9 @@ async def _collect_market_candidates(
     _, candidates = await _format_dealer_candidates(llm_config, query, fetched, strict=True)
     candidates = _apply_observed_availability(candidates, fetched)
     await raise_if_cancelled(cancellation_check)
+    if not candidates:
+        candidates = await _search_result_candidates(llm_config, query, search_results, allowed_fetch_hosts)
+        await raise_if_cancelled(cancellation_check)
     return candidates[:limit]
 
 
@@ -383,13 +424,22 @@ async def run_market_search(
                 allowed_hosts=frozenset(source_hosts or set()),
             )
         ]
-    return await run_provider_search(
+    result = await run_provider_search(
         capability="market_search",
         query=query,
         provider_runners=provider_runners,
         observed_at=observed_at,
         cancellation_check=cancellation_check,
     )
+    if any(item.verification_state == "partial" for item in result.items):
+        return result.model_copy(update={
+            "outcome": "partial",
+            "warnings": [
+                *result.warnings,
+                "Some listings are only partially verified; current availability may be unknown.",
+            ][:10],
+        })
+    return result
 
 
 def create_coin_search_team(
@@ -649,8 +699,7 @@ def _extract_json_array(text: str) -> list[dict]:
 
 
 def _extract_json_array_strict(text: str) -> list[dict[str, Any]]:
-    match = re.search(r"```json\s*\n(.*?)\n```", text, flags=re.DOTALL)
-    payload = match.group(1).strip() if match else text.strip()
+    payload = extract_json_payload(text)
     try:
         parsed = json.loads(payload)
     except json.JSONDecodeError as exc:

@@ -34,6 +34,13 @@ The agent uses specialized teams for different tasks:
 - Fetches listing pages and extracts coin metadata
 - Returns: name, denomination, ruler, era, material, estimated price, source link
 
+Coin Copilot's market specialist uses structured model output rather than
+relying on a markdown JSON response. If a dealer blocks direct access, or a
+fetched results page yields no listings, it can use source-backed search
+results instead. Those listings are explicitly **partially verified**, with
+unknown availability; they are not presented as confirmed live inventory.
+Malformed model output remains an explicit provider failure, not "no matches."
+
 ### Team 2: Coin Shows
 - Searches for upcoming coin shows and auction events
 - Verifies event dates are in the future

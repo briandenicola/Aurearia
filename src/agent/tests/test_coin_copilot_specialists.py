@@ -28,6 +28,17 @@ from app.tools.search import _listing_availability_signal, validate_search_sourc
 OBSERVED_AT = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
 
 
+class _StructuredMarketFixture:
+    def __init__(self, model):
+        self.model = model
+
+    async def ainvoke(self, messages, **kwargs):
+        from app.teams.coin_search import _extract_json_array_strict
+
+        response = await self.model.ainvoke(messages, **kwargs)
+        return {"parsed": {"listings": _extract_json_array_strict(response.content)}, "parsing_error": None}
+
+
 def _dealer_candidate(**overrides):
     candidate = {
         "sourceUrl": "https://www.cngcoins.com/Coin.aspx?CoinID=400001",
@@ -884,6 +895,7 @@ async def test_market_search_pipeline_returns_listing_from_real_search_response_
     )
     monkeypatch.setattr(coin_search, "get_search_model", lambda _config: search_model)
     monkeypatch.setattr(coin_search, "get_chat_model", lambda _config: format_model)
+    monkeypatch.setattr(coin_search, "get_structured_model", lambda *_args: _StructuredMarketFixture(format_model))
 
     result = await run_market_search(
         {"query": "Aurelian coins under $500", "limit": 5},
@@ -1090,6 +1102,7 @@ def _blocked_dealer_setup(monkeypatch, format_json):
     format_model = FakeModel("```json\n" + json.dumps(format_json(listing_url)) + "\n```")
     monkeypatch.setattr(coin_search, "get_search_model", lambda _config: FakeModel(search_content))
     monkeypatch.setattr(coin_search, "get_chat_model", lambda _config: format_model)
+    monkeypatch.setattr(coin_search, "get_structured_model", lambda *_args: _StructuredMarketFixture(format_model))
     return listing_url, format_model
 
 
@@ -1112,7 +1125,8 @@ async def test_market_search_uses_search_results_when_dealer_pages_are_blocked(m
         observed_at=OBSERVED_AT,
     )
 
-    assert result.outcome == "complete"
+    assert result.outcome == "partial"
+    assert result.warnings
     assert [item.source_url for item in result.items] == [listing_url]
     item = result.items[0]
     assert (item.verification_state, item.confidence, item.availability) == ("partial", "medium", "unknown")
