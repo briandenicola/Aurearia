@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -172,6 +173,65 @@ func TestWishlistURLAnalyzeRejectsOversizedAndNonHTMLResponses(t *testing.T) {
 			})}
 			if _, err := service.Analyze(context.Background(), 1, "https://dealer.example/lot/42"); !errors.Is(err, ErrWishlistURLFetchFailed) {
 				t.Fatalf("Analyze() error = %v, want ErrWishlistURLFetchFailed", err)
+			}
+		})
+	}
+}
+
+func TestWishlistURLFetchBlocksPrivateDialBeforeSending(t *testing.T) {
+	var requests atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<html><title>Private resource</title></html>")
+	}))
+	t.Cleanup(target.Close)
+
+	service := NewWishlistURLService(nil, nil, nil)
+	transport, ok := service.client.Transport.(*http.Transport)
+	if !ok || transport.Proxy != nil {
+		t.Fatal("wishlist retrieval must use a direct restricted transport, not an environment proxy")
+	}
+	t.Cleanup(service.client.CloseIdleConnections)
+
+	_, _, _, _, err := service.fetchAndClean(context.Background(), target.URL)
+	if !errors.Is(err, ErrWishlistURLFetchFailed) || !strings.Contains(err.Error(), ErrOutboundTargetBlocked.Error()) {
+		t.Fatalf("expected a connect-time block, got %v", err)
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("private endpoint received %d requests", requests.Load())
+	}
+}
+
+func TestWishlistURLFetchRevalidatesRedirectsBeforeSending(t *testing.T) {
+	for _, location := range []string{
+		"http://localhost/lot",
+		"http://127.0.0.1/lot",
+		"http://169.254.169.254/latest/meta-data",
+		"http://[::1]/lot",
+		"https://user@dealer.example/lot",
+		"ftp://dealer.example/lot",
+	} {
+		t.Run(location, func(t *testing.T) {
+			service := NewWishlistURLService(nil, nil, nil)
+			requests := 0
+			service.client.Transport = wishlistURLRoundTripper(func(req *http.Request) (*http.Response, error) {
+				requests++
+				if requests > 1 {
+					t.Error("blocked redirect reached the transport")
+					return nil, errors.New("unexpected redirected request")
+				}
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Header:     http.Header{"Location": []string{location}},
+					Body:       io.NopCloser(strings.NewReader("")),
+					Request:    req,
+				}, nil
+			})
+
+			_, _, _, _, err := service.fetchAndClean(context.Background(), "https://dealer.example/lot")
+			if !errors.Is(err, ErrWishlistURLFetchFailed) || requests != 1 {
+				t.Fatalf("expected rejection before a second request, got requests=%d error=%v", requests, err)
 			}
 		})
 	}

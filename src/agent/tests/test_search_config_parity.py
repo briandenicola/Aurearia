@@ -60,8 +60,12 @@ async def test_legacy_and_copilot_send_identical_search_configuration(monkeypatc
     legacy_messages = search_model.ainvoke.call_args_list[0].args[0]
     copilot_messages = search_model.ainvoke.call_args_list[1].args[0]
     assert [message.content for message in copilot_messages] == [message.content for message in legacy_messages]
-    assert "vcoins.com" in copilot_messages[0].content
-    assert "ma-shops.com" in copilot_messages[0].content
+    expected_sources = (
+        "Search only these administrator-configured dealer hosts: "
+        "ma-shops.com, vcoins.com. Ignore results from every other host."
+    )
+    expected_prompt = "\n\n".join(part for part in (prompt, expected_sources, coin_search.SEARCH_PROMPT) if part)
+    assert copilot_messages[0].content == expected_prompt
     if prompt:
         assert copilot_messages[0].content.startswith(prompt)
         assert all(prompt not in str(frame.model_dump()) for frame in frames)
