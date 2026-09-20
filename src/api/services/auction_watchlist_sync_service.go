@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,12 @@ type AuctionWatchlistSyncStats struct {
 	LotsSynced   int
 	Errors       int
 }
+
+var (
+	ErrAuctionSyncCredentialsMissing = errors.New("auction credentials not configured")
+	ErrAuctionSyncCredentials        = errors.New("cannot read auction credentials")
+	ErrAuctionSyncLogin              = errors.New("auction login failed")
+)
 
 type AuctionWatchlistSyncService struct {
 	auctionRepo *repository.AuctionLotRepository
@@ -36,6 +43,7 @@ func (s *AuctionWatchlistSyncService) WithQuickAccessSupport(quickAccess *QuickA
 // provider now reports a bid on (the ones worth notifying about).
 type syncProviderResult struct {
 	synced       int
+	lots         []models.AuctionLot
 	newlyTracked []models.AuctionLot
 	newlyBidding []models.AuctionLot
 	newlyOutbid  []models.AuctionLot
@@ -139,6 +147,30 @@ func (s *AuctionWatchlistSyncService) SyncUser(user *models.User) (int, error) {
 	return total, nil
 }
 
+// SyncSource uses the scheduled normalization and persistence path without notifications.
+func (s *AuctionWatchlistSyncService) SyncSource(user *models.User, source models.AuctionSource) ([]models.AuctionLot, error) {
+	if user == nil {
+		return nil, fmt.Errorf("user is required")
+	}
+	var result syncProviderResult
+	var err error
+	switch source {
+	case models.AuctionSourceNumisBids:
+		if user.NumisBidsUsername == "" || user.NumisBidsPassword == "" {
+			return nil, ErrAuctionSyncCredentialsMissing
+		}
+		result, err = s.syncNumisBids(user)
+	case models.AuctionSourceCNG:
+		if user.CNGUsername == "" || user.CNGPassword == "" {
+			return nil, ErrAuctionSyncCredentialsMissing
+		}
+		result, err = s.syncCNG(user)
+	default:
+		return nil, fmt.Errorf("unsupported auction source")
+	}
+	return result.lots, err
+}
+
 // notifyNewlyTracked sends the batched new-lot notification for one user. Notification
 // failures are never allowed to fail the sync itself: the refreshed lot data is the primary
 // outcome, the notification is a courtesy on top of it (F026).
@@ -214,11 +246,11 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (syncProv
 	result := syncProviderResult{}
 	password, err := s.decryptStoredCredential(user, "numis_bids_password", user.NumisBidsPassword)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w: %w", ErrAuctionSyncCredentials, err)
 	}
 	client, err := s.nbSvc.Login(user.NumisBidsUsername, password)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w: %w", ErrAuctionSyncLogin, err)
 	}
 	raw, err := s.nbSvc.FetchWatchlist(client)
 	if err != nil {
@@ -266,6 +298,11 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (syncProv
 		if err != nil {
 			return result, err
 		}
+		stored, err := s.auctionRepo.GetByID(upsert.LotID, user.ID)
+		if err != nil {
+			return result, err
+		}
+		result.lots = append(result.lots, *stored)
 		result.synced++
 		// On the update path the provider-shaped lot has no ID of its own; take the stored
 		// row's so notifications can link to it.
@@ -287,11 +324,11 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 	result := syncProviderResult{}
 	password, err := s.decryptStoredCredential(user, "cng_password", user.CNGPassword)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w: %w", ErrAuctionSyncCredentials, err)
 	}
 	client, err := s.cngSvc.Login(user.CNGUsername, password)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w: %w", ErrAuctionSyncLogin, err)
 	}
 
 	// Used to detect whether a closed lot was won: compared against each lot's winning
@@ -314,30 +351,9 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 	for _, wl := range lots {
 		auctionEndTime := ParseCNGDate(wl.SaleDate)
 
-		// Presence of an absentee (max) bid means the user has placed a bid on this lot.
-		status := models.AuctionStatusWatching
-		if wl.MaxBid != nil {
-			status = models.AuctionStatusBidding
-		}
-
-		var winningBid *float64
-		switch {
-		case wl.ProviderStatus != "" && wl.ProviderStatus != "active":
-			// CNG reports the lot as closed. Resolve the real outcome instead of guessing
-			// from end-time: a lot we were only watching (never bid on) is simply passed;
-			// one we bid on is won or lost depending on who the final bid belongs to.
-			switch {
-			case wl.MaxBid == nil:
-				status = models.AuctionStatusPassed
-			case customerRowID != "" && wl.WinningCustomerRowID == customerRowID:
-				status = models.AuctionStatusWon
-				winningBid = firstNonNilFloat(wl.SoldPrice, wl.CurrentBid)
-			default:
-				status = models.AuctionStatusLost
-			}
-		case auctionEndTime != nil && auctionEndTime.Before(now):
-			// Fallback for the rare case the provider status field itself is unavailable.
-			status = models.AuctionStatusPassed
+		status, winningBid := cngSyncOutcome(wl, customerRowID, auctionEndTime, now)
+		if status == models.AuctionStatusBidding && wl.ProviderStatus != "active" {
+			s.warn("CNG lot %s for user %d has insufficient outcome evidence; leaving unresolved", wl.SourceLotID, user.ID)
 		}
 
 		lot := models.AuctionLot{
@@ -367,6 +383,11 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 		if err != nil {
 			return result, err
 		}
+		stored, err := s.auctionRepo.GetByID(upsert.LotID, user.ID)
+		if err != nil {
+			return result, err
+		}
+		result.lots = append(result.lots, *stored)
 		result.synced++
 		// On the update path the provider-shaped lot has no ID of its own; take the stored
 		// row's so notifications can link to it.
@@ -388,6 +409,24 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (syncProviderRe
 		return result, err
 	}
 	return result, nil
+}
+
+func cngSyncOutcome(wl WatchlistLot, customerRowID string, end *time.Time, now time.Time) (models.AuctionLotStatus, *float64) {
+	closed := wl.ProviderStatus == "sold"
+	if wl.MaxBid == nil {
+		if closed || (wl.ProviderStatus == "" && end != nil && end.Before(now)) {
+			return models.AuctionStatusPassed, nil
+		}
+		return models.AuctionStatusWatching, nil
+	}
+	// Dates alone cannot establish who won. Missing identities must remain recoverable.
+	if !closed || strings.TrimSpace(customerRowID) == "" || strings.TrimSpace(wl.WinningCustomerRowID) == "" {
+		return models.AuctionStatusBidding, nil
+	}
+	if wl.WinningCustomerRowID == customerRowID {
+		return models.AuctionStatusWon, firstNonNilFloat(wl.SoldPrice, wl.CurrentBid)
+	}
+	return models.AuctionStatusLost, nil
 }
 
 func (s *AuctionWatchlistSyncService) upsertWithQuickAccessCleanup(lot *models.AuctionLot) (repository.AuctionLotUpsertResult, error) {

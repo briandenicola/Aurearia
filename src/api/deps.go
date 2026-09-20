@@ -74,6 +74,7 @@ type appDeps struct {
 	shipmentSvc                    *services.ShipmentService
 	wishlistSearchAlertSvc         *services.WishlistSearchAlertService
 	auctionLotRepo                 *repository.AuctionLotRepository
+	auctionWatchlistSyncSvc        *services.AuctionWatchlistSyncService
 	auctionEventRepo               *repository.AuctionEventRepository
 	quickAccessSvc                 *services.QuickAccessService
 	auctionEndingRepo              *repository.AuctionEndingRepository
@@ -344,6 +345,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		shipmentSvc:                    shipmentSvc,
 		wishlistSearchAlertSvc:         wishlistSearchAlertSvc,
 		auctionLotRepo:                 auctionLotRepo,
+		auctionWatchlistSyncSvc:        auctionWatchlistSyncSvc,
 		auctionEventRepo:               auctionEventRepo,
 		quickAccessSvc:                 quickAccessSvc,
 		auctionEndingRepo:              auctionEndingRepo,

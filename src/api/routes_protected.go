@@ -247,7 +247,9 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		nbSvc := services.NewNumisBidsService(d.logger)
 		cngSvc := services.NewCNGAuctionService(d.logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
-		auctionLotHandler := handlers.NewAuctionLotHandler(d.auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, d.logger, d.credentialEncryptionSvc).WithShipmentSupport(d.shipmentSvc)
+		auctionLotHandler := handlers.NewAuctionLotHandler(d.auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, d.logger, d.credentialEncryptionSvc).
+			WithShipmentSupport(d.shipmentSvc).
+			WithWatchlistSync(d.auctionWatchlistSyncSvc)
 		protected.GET("/auctions", auctionLotHandler.List)
 		protected.GET("/auctions/counts", auctionLotHandler.Counts)
 		protected.PUT("/auctions/bulk-link-event", auctionLotHandler.BulkLinkEvent)

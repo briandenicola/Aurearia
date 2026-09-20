@@ -20,6 +20,15 @@ Track auction lots from NumisBids and CNG Auctions with status updates, price mo
 
 NumisBids lots should be treated as tracked watchlist/import records. After the sale closes, check the provider page and update the lot status manually to **Won**, **Lost**, or **Passed**. If you won the lot, enter the winning bid before converting it to a collection coin.
 
+Manual and scheduled sync use the same provider normalization and persistence.
+CNG bid-bearing lots stay unresolved until the provider reports closure and both
+the account and winning bidder identities are known. A past end date alone cannot
+establish a win or loss; a later successful sync can resolve the outcome.
+Previously recorded Won/Lost outcomes remain protected from automatic changes.
+Manual sync still sends no notifications and only fetches the selected provider.
+Sync failures are reported rather than presented as complete success; lots already
+saved before a failure remain saved and can safely be refreshed on retry.
+
 ## Key Features
 
 - **Manual Lot Entry** — Paste NumisBids or CNG lot URLs to add lots
