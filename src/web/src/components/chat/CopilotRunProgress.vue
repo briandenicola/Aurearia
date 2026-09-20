@@ -24,7 +24,7 @@
     </ol>
 
     <div v-if="tools.length" class="mt-3 flex flex-col gap-2 border-t border-border-subtle pt-3">
-      <div v-for="tool in tools" :key="tool.toolCallId" class="flex flex-col gap-2 text-sm text-text-secondary">
+      <div v-for="(tool, toolIndex) in tools" :key="tool.toolCallId" class="flex flex-col gap-2 text-sm text-text-secondary">
         <div class="flex items-start gap-2">
           <LoaderCircle v-if="tool.status === 'running'" :size="15" class="mt-0.5 shrink-0 animate-spin text-gold" />
           <CheckCircle2 v-else-if="tool.status === 'succeeded'" :size="15" class="mt-0.5 shrink-0 text-gold" />
@@ -93,8 +93,24 @@
             </ul>
           </section>
 
+          <p
+            v-if="dealerSuggestions(tool).length && hasPartialDealerEvidence(tool)"
+            class="mb-0 text-xs text-text-muted"
+          >
+            Some listings were read from search results and are only partially verified.
+          </p>
+
+          <CoinSuggestionGrid
+            v-if="dealerSuggestions(tool).length"
+            :suggestions="dealerSuggestions(tool)"
+            :added-set="gridAddedSet(tool, toolIndex)"
+            :adding-idx="gridAddingIdx(tool, toolIndex)"
+            :message-index="toolIndex"
+            @add-to-wishlist="(_coin, key) => emitGridWishlist(tool, key)"
+          />
+
           <article
-            v-for="item in tool.specialistResult.items"
+            v-for="item in (tool.specialistResult.capability === 'market_search' ? [] : tool.specialistResult.items)"
             :key="item.sourceUrl"
             class="flex flex-col gap-2 border-t border-border-subtle pt-2"
           >
@@ -279,8 +295,10 @@ import type {
 import type { CoinCopilotToolProgress } from '@/composables/useCoinCopilot'
 import {
   copilotDealerListingKey,
+  copilotDealerListingToSuggestion,
   isEligibleCopilotDealerListing,
 } from '@/utils/copilotWishlist'
+import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 
 const props = defineProps<{
   run: CoinCopilotRun | null
@@ -293,7 +311,7 @@ const props = defineProps<{
   addedSet: Set<string>
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   cancel: []
   addToWishlist: [
     capability: CoinCopilotSpecialistCapability,
@@ -301,6 +319,57 @@ defineEmits<{
     key: string,
   ]
 }>()
+
+// Dealer listings render through the same card the legacy chat uses, so the
+// grid fetches thumbnails and the look matches. Wish list clicks are mapped
+// back to the typed evidence item the parent re-checks before saving.
+function eligibleDealerItems(tool: CoinCopilotToolProgress) {
+  const capability = tool.specialistResult?.capability
+  if (!capability) return []
+  return (tool.specialistResult?.items ?? []).filter(item =>
+    isEligibleCopilotDealerListing(capability, item))
+}
+
+function hasPartialDealerEvidence(tool: CoinCopilotToolProgress) {
+  return eligibleDealerItems(tool).some(item => item.verificationState === 'partial')
+}
+
+function dealerSuggestions(tool: CoinCopilotToolProgress) {
+  return eligibleDealerItems(tool).map(copilotDealerListingToSuggestion)
+}
+
+function gridKey(toolIndex: number, itemIndex: number) {
+  return `${toolIndex}-${itemIndex}`
+}
+
+function gridAddedSet(tool: CoinCopilotToolProgress, toolIndex: number) {
+  const keys = new Set<string>()
+  eligibleDealerItems(tool).forEach((item, index) => {
+    if (props.addedSet.has(copilotDealerListingKey(tool.toolCallId, item.sourceUrl))) {
+      keys.add(gridKey(toolIndex, index))
+    }
+  })
+  return keys
+}
+
+function gridAddingIdx(tool: CoinCopilotToolProgress, toolIndex: number) {
+  const index = eligibleDealerItems(tool).findIndex(
+    item => props.addingIdx === copilotDealerListingKey(tool.toolCallId, item.sourceUrl),
+  )
+  return index === -1 ? null : gridKey(toolIndex, index)
+}
+
+function emitGridWishlist(tool: CoinCopilotToolProgress, key: string) {
+  const index = Number(key.split('-').pop())
+  const item = eligibleDealerItems(tool)[index]
+  if (!item || !tool.specialistResult) return
+  emit(
+    'addToWishlist',
+    tool.specialistResult.capability,
+    item,
+    copilotDealerListingKey(tool.toolCallId, item.sourceUrl),
+  )
+}
 
 const statusLabel = computed(() => {
   switch (props.run?.status) {

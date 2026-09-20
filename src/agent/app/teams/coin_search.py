@@ -70,7 +70,7 @@ Structure each listing into this exact JSON schema:
     "denomination": "e.g. Denarius, Tetradrachm",
     "estPrice": "Listed price e.g. $150.00",
     "availability": "Available|Sold|Unknown based only on listing text",
-    "imageUrl": "",
+    "imageUrl": "Direct https image URL from the listing data, or empty",
     "sourceUrl": "The exact URL from the listing data — never fabricate",
     "sourceName": "Dealer or site name",
     "candidateReferences": [
@@ -88,7 +88,7 @@ Structure each listing into this exact JSON schema:
 Rules:
 - Use ONLY data from the listing extracts. Do NOT invent fields.
 - sourceUrl MUST be copied exactly from the data. NEVER fabricate URLs.
-- Set imageUrl to "" (the frontend handles images)
+- Set imageUrl only to an https image URL present in the listing data; use "" otherwise
 - Infer category, era, ruler, material, denomination from the listing text
 - Exclude listings that are clearly sold, sold out, unavailable, or no longer available
 - Set availability from explicit listing text only; use "Unknown" when the listing does not say

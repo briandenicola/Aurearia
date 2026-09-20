@@ -269,6 +269,46 @@ async def _fetch_dealer_page(
         return f"Error fetching page: {e}"
 
 
+_NON_PRODUCT_IMAGE_HINTS = ("logo", "icon", "sprite", "banner", "placeholder", "avatar", "pixel", "blank")
+
+
+def _extract_image_urls(html: str, base_url: str, limit: int = 10) -> list[str]:
+    """Return https product-image URLs from a dealer page, best effort.
+
+    Dealer pages rarely expose an image in their markup in a structured way, so
+    the frontend still scrapes as a fallback; this simply passes along what is
+    plainly there.
+    """
+    candidates: list[str] = []
+    for match in re.finditer(r'<(?:img|source)[^>]+(?:src|data-src|srcset)="([^"]+)"', html, re.IGNORECASE):
+        raw = match.group(1).split(",")[0].strip().split(" ")[0]
+        if not raw or raw.startswith("data:"):
+            continue
+        absolute = urljoin(base_url, raw)
+        if not absolute.startswith("https://"):
+            continue
+        lowered = absolute.lower()
+        if any(hint in lowered for hint in _NON_PRODUCT_IMAGE_HINTS):
+            continue
+        if absolute not in candidates:
+            candidates.append(absolute)
+        if len(candidates) >= limit:
+            break
+    for match in re.finditer(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', html, re.IGNORECASE):
+        absolute = urljoin(base_url, match.group(1).strip())
+        if absolute.startswith("https://") and absolute not in candidates:
+            candidates.insert(0, absolute)
+    return candidates[:limit]
+
+
+def _image_section(html: str, base_url: str) -> str:
+    images = _extract_image_urls(html, base_url)
+    if not images:
+        return ""
+    listed = "\n".join(f"  {image}" for image in images)
+    return f"Images found on page:\n{listed}\n\n"
+
+
 def _parse_vcoins(html: str, base_url: str) -> str:
     """Parse VCoins search results or listing page."""
     listings = []
@@ -305,6 +345,7 @@ def _parse_vcoins(html: str, base_url: str) -> str:
         return _parse_generic(html, base_url)
 
     result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += _image_section(html, base_url)
     result += f"Found {len(listings)} listings on VCoins:\n\n"
     for i, item in enumerate(listings[:10], 1):
         result += f"{i}. {item['title']}\n"
@@ -342,6 +383,7 @@ def _parse_mashops(html: str, base_url: str) -> str:
         return _parse_generic(html, base_url)
 
     result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += _image_section(html, base_url)
     result += f"Found {len(listings)} listings on MA-Shops:\n\n"
     for i, item in enumerate(listings[:10], 1):
         result += f"{i}. {item['title']}\n"
@@ -423,6 +465,7 @@ def _parse_generic(html: str, base_url: str) -> str:
     text_only = re.sub(r"\s+", " ", "".join(parser.text_parts)).strip()[:2000]
 
     result = f"Availability signal: {_listing_availability_signal(html)}\n"
+    result += _image_section(html, base_url)
     result += f"Page title: {page_title}\n"
     result += f"Base URL: {base_url}\n\n"
 

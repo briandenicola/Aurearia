@@ -1220,3 +1220,49 @@ async def test_a_rate_limited_host_is_not_hit_again_in_the_same_search(monkeypat
 
     assert attempted.count("https://www.vcoins.com/a/2") == 0
     assert "https://www.ma-shops.com/b/1" in fetched
+
+
+def test_dealer_page_extraction_passes_through_product_images():
+    from app.tools.search import _parse_generic
+
+    html = (
+        '<html><head><title>Vespasian</title>'
+        '<meta property="og:image" content="https://img.example/coin.jpg"></head><body>'
+        '<a href="https://www.vcoins.com/en/x/1/product/a/1/Default.aspx">Vespasianus Denarius ornate prow</a>'
+        '<img src="/assets/logo.png"><img src="https://img.example/thumb.jpg">'
+        '<img src="data:image/png;base64,AAA"></body></html>'
+    )
+
+    extracted = _parse_generic(html, "https://www.vcoins.com/en/search")
+
+    assert "https://img.example/coin.jpg" in extracted
+    assert "https://img.example/thumb.jpg" in extracted
+    assert "logo.png" not in extracted
+    assert "data:image" not in extracted
+
+
+@pytest.mark.asyncio
+async def test_dealer_listing_keeps_the_listing_image_and_catalog_reference():
+    result = await run_market_search(
+        {"query": "Vespasian denarius"},
+        provider_runners=[
+            _provider(
+                "cng_dealer_search",
+                [
+                    _dealer_candidate(
+                        imageUrl="https://img.example/coin.jpg",
+                        candidateReferences=[{"catalog": "RIC", "volume": "II", "number": "941"}],
+                    )
+                ],
+            )
+        ],
+        observed_at=OBSERVED_AT,
+    )
+
+    item = result.items[0]
+    assert item.image_url == "https://img.example/coin.jpg"
+    assert [(reference.catalog, reference.volume, reference.number) for reference in item.candidate_references] == [
+        ("RIC", "II", "941")
+    ]
+    wire = result.model_dump(mode="json")["items"][0]
+    assert wire["image_url"] == "https://img.example/coin.jpg"

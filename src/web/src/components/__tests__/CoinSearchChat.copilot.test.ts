@@ -286,19 +286,16 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     const specialist = progress.get('[data-testid="copilot-specialist-result"]')
     expect(specialist.text()).toContain(label)
 
+    // Dealer listings render through the legacy suggestion card (stubbed here).
+    const grid = specialist.findComponent({ name: 'CoinSuggestionGrid' })
     if (outcome === 'complete' || outcome === 'partial') {
-      expect(specialist.text()).toContain('Domitian denarius')
-      expect(specialist.text()).toContain('Observed Sep 18, 2026')
-      expect(specialist.text()).toContain('High confidence')
-      expect(specialist.text()).toContain('Verified')
-      const source = specialist.get('a')
-      expect(source.attributes()).toMatchObject({
-        href: 'https://www.cngcoins.com/Coin.aspx?CoinID=400001',
-        target: '_blank',
-        rel: 'noopener noreferrer',
-      })
+      expect(grid.exists()).toBe(true)
+      expect(grid.props('suggestions')).toMatchObject([{
+        name: 'Domitian denarius',
+        sourceUrl: 'https://www.cngcoins.com/Coin.aspx?CoinID=400001',
+      }])
     } else {
-      expect(specialist.find('a').exists()).toBe(false)
+      expect(grid.exists()).toBe(false)
     }
   })
 
@@ -309,7 +306,10 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
     mocks.tools = [specialistTool(result)]
     const wrapper = mountChat()
 
-    await wrapper.get('[data-testid="copilot-specialist-result"] button').trigger('click')
+    const grid = wrapper.get('[data-testid="copilot-specialist-result"]')
+      .findComponent({ name: 'CoinSuggestionGrid' })
+    grid.vm.$emit('add-to-wishlist', { name: 'Domitian denarius' }, '0-0')
+    await wrapper.vm.$nextTick()
 
     expect(mocks.addToWishlist).toHaveBeenCalledWith({
       name: 'Domitian denarius',

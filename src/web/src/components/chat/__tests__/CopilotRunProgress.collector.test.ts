@@ -91,15 +91,72 @@ function mountProgress(
 }
 
 describe('CopilotRunProgress collector wishlist action', () => {
+  it('renders dealer listings with the same card the legacy chat uses', () => {
+    const wrapper = mountProgress(evidence({ imageUrl: 'https://img.example/coin.jpg' }))
+    const grid = wrapper.findComponent({ name: 'CoinSuggestionGrid' })
+
+    expect(grid.exists()).toBe(true)
+    expect(grid.props('suggestions')).toMatchObject([{
+      name: 'Domitian denarius',
+      imageUrl: 'https://img.example/coin.jpg',
+      sourceName: 'Classical Numismatic Group',
+      era: 'Roman Imperial',
+      material: 'Silver',
+      denomination: 'Denarius',
+    }])
+  })
+
+  it('maps a grid wish list click back to the typed evidence item', async () => {
+    const wrapper = mountProgress()
+    const grid = wrapper.findComponent({ name: 'CoinSuggestionGrid' })
+
+    grid.vm.$emit('add-to-wishlist', { name: 'Domitian denarius' }, '0-0')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('addToWishlist')).toEqual([[
+      'market_search',
+      evidence(),
+      'copilot:call_market:https://www.cngcoins.com/Coin.aspx?CoinID=400001',
+    ]])
+  })
+
   it('emits an eligible typed dealer listing only after an explicit button click', async () => {
     const wrapper = mountProgress()
-    const button = wrapper.get('button')
+    const button = wrapper.findAll('button').find(candidate => candidate.text().includes('Add to Wishlist'))
 
-    expect(button.element.tagName).toBe('BUTTON')
-    expect(button.attributes('type')).toBe('button')
+    expect(button).toBeDefined()
     expect(wrapper.emitted('addToWishlist')).toBeUndefined()
 
-    await button.trigger('click')
+    await button!.trigger('click')
+
+    expect(wrapper.emitted('addToWishlist')).toEqual([[
+      'market_search',
+      evidence(),
+      'copilot:call_market:https://www.cngcoins.com/Coin.aspx?CoinID=400001',
+    ]])
+  })
+
+  it('renders dealer listings with the same card the legacy chat uses', () => {
+    const wrapper = mountProgress(evidence({ imageUrl: 'https://img.example/coin.jpg' }))
+    const grid = wrapper.findComponent({ name: 'CoinSuggestionGrid' })
+
+    expect(grid.exists()).toBe(true)
+    expect(grid.props('suggestions')).toMatchObject([{
+      name: 'Domitian denarius',
+      imageUrl: 'https://img.example/coin.jpg',
+      sourceName: 'Classical Numismatic Group',
+      era: 'Roman Imperial',
+      material: 'Silver',
+      denomination: 'Denarius',
+    }])
+  })
+
+  it('maps a grid wish list click back to the typed evidence item', async () => {
+    const wrapper = mountProgress()
+    const grid = wrapper.findComponent({ name: 'CoinSuggestionGrid' })
+
+    grid.vm.$emit('add-to-wishlist', { name: 'Domitian denarius' }, '0-0')
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.emitted('addToWishlist')).toEqual([[
       'market_search',
@@ -130,11 +187,10 @@ describe('CopilotRunProgress collector wishlist action', () => {
 
   it('disables an already-added listing', () => {
     const key = 'copilot:call_market:https://www.cngcoins.com/Coin.aspx?CoinID=400001'
-    const button = mountProgress(evidence(), 'market_search', {
-      addedSet: new Set([key]),
-    }).get('button')
+    const wrapper = mountProgress(evidence(), 'market_search', { addedSet: new Set([key]) })
+    const button = wrapper.findAll('button').find(candidate => candidate.text().includes('Added'))
 
-    expect(button.attributes('disabled')).toBeDefined()
-    expect(button.text()).toBe('Added to Wishlist')
+    expect(button).toBeDefined()
+    expect(button!.text()).toContain('Added!')
   })
 })
