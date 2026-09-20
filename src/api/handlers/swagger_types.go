@@ -7,6 +7,11 @@ import (
 
 // Swagger response types for documentation
 
+type ImageCleanupPendingResponse struct {
+	Message        string `json:"message"`
+	CleanupPending bool   `json:"cleanupPending"`
+}
+
 type ErrorResponse struct {
 	Error   string `json:"error" example:"Something went wrong"`
 	Code    string `json:"code,omitempty" example:"validation_error"`

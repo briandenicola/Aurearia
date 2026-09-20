@@ -132,7 +132,10 @@ async function saveProcessedImage() {
     await uploadImage(props.coinId, file, props.imageType, isPrimary)
     // Replace semantics: the upload appends a new record, so remove the
     // original image of this type to avoid duplicate obverse/reverse entries.
-    await deleteImage(props.coinId, props.imageId)
+    const deletion = await deleteImage(props.coinId, props.imageId)
+    if (deletion.data.cleanupPending) {
+      alert('Image saved. Old image files are awaiting cleanup; the API will retry on startup. Do not upload the replacement again.')
+    }
     emit('saved')
     close()
   } catch (err) {

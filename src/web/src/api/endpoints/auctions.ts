@@ -86,7 +86,12 @@ export const deleteAuctionLot = (id: number) => api.delete(`/auctions/${id}`)
 
 export const linkAuctionLotEvent = (id: number, eventId: number | null) => api.put<AuctionLot>(`/auctions/${id}/event`, { eventId })
 
-export const bulkLinkAuctionLotEvent = (lotIds: number[], eventId: number | null) => api.put<{ updated: number }>('/auctions/bulk-link-event', { lotIds, eventId })
+export interface BulkEventLinkResult {
+  updated: number
+  failures: { lotId: number; code: 'not_found' | 'storage_error'; error: string }[]
+}
+
+export const bulkLinkAuctionLotEvent = (lotIds: number[], eventId: number | null) => api.put<BulkEventLinkResult>('/auctions/bulk-link-event', { lotIds, eventId })
 
 export const importAuctionLot = (data: { url: string; source?: string; title?: string; description?: string; auctionHouse?: string; saleName?: string; category?: string; imageUrl?: string; estimate?: number | null; currentBid?: number | null; currency?: string }) =>
   api.post<AuctionLot>('/auctions/import', data)

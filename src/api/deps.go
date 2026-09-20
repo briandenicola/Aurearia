@@ -176,6 +176,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
 	imageRepo := repository.NewImageRepository(database.DB)
 	imageSvc := services.NewImageService(imageRepo, cfg.UploadDir)
+	if err := imageSvc.RetryPendingCleanup(); err != nil {
+		logger.Error("startup", "Pending image cleanup requires retry: %v", err)
+	}
 	imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)

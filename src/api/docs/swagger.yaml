@@ -633,6 +633,13 @@ definitions:
     required:
     - cidr
     type: object
+  handlers.ImageCleanupPendingResponse:
+    properties:
+      cleanupPending:
+        type: boolean
+      message:
+        type: string
+    type: object
   handlers.ImageDeletedResponse:
     properties:
       message:
@@ -4435,6 +4442,15 @@ definitions:
       value:
         type: number
     type: object
+  services.BulkEventLinkResult:
+    properties:
+      failures:
+        items:
+          $ref: '#/definitions/services.EventLinkFailure'
+        type: array
+      updated:
+        type: integer
+    type: object
   services.CancelCollectionProposalResult:
     properties:
       message:
@@ -4646,6 +4662,15 @@ definitions:
         type: array
       usurpers:
         $ref: '#/definitions/services.CategoryProgress'
+    type: object
+  services.EventLinkFailure:
+    properties:
+      code:
+        type: string
+      error:
+        type: string
+      lotId:
+        type: integer
     type: object
   services.GeocodeCandidate:
     properties:
@@ -8357,8 +8382,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Sets or clears the calendar event for multiple auction lots at
-        once.
+      description: 'Partial success: commits each distinct owned lot independently;
+        returns confirmed updated count and per-lot failures.'
       parameters:
       - description: Lot IDs and event ID
         in: body
@@ -8372,9 +8397,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: integer
-            type: object
+            $ref: '#/definitions/services.BulkEventLinkResult'
         "400":
           description: Bad Request
           schema:
@@ -10025,8 +10048,9 @@ paths:
       - Images
   /coins/{id}/images/{imageId}:
     delete:
-      description: Deletes an image from a coin. Removes the file from disk and the
-        database record.
+      description: Commits metadata deletion before file cleanup. A 202 cleanupPending
+        response can be retried with the same DELETE; startup also retries. Missing
+        files are accepted; fully completed deletions subsequently return 404.
       parameters:
       - description: Coin ID
         in: path
@@ -10045,6 +10069,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handlers.ImageDeletedResponse'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.ImageCleanupPendingResponse'
         "400":
           description: Bad Request
           schema:
@@ -10055,6 +10083,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:

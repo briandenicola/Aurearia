@@ -72,8 +72,11 @@ func Connect(dbPath string) {
 	}
 
 	// Enable WAL mode for better concurrent performance
-	DB.Exec("PRAGMA journal_mode=WAL")
-	DB.Exec("PRAGMA foreign_keys=ON")
+	for _, statement := range []string{"PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON"} {
+		if err := DB.Exec(statement).Error; err != nil {
+			log.Fatalf("Failed to configure database: %v", err)
+		}
+	}
 
 	// Migrate certainty → invoice_number column in coin_references (idempotent)
 	if err := migrateCoinReferenceCertaintyColumn(DB); err != nil {
@@ -92,6 +95,9 @@ func Connect(dbPath string) {
 	// its order after the deployed compatibility interlock is executable and
 	// regression-testable. AutoMigrate adds only nullable columns/new tables;
 	// operational rollback deliberately preserves both.
+	if err := DB.AutoMigrate(&models.ImageCleanup{}); err != nil {
+		log.Fatalf("Failed to migrate image cleanup records: %v", err)
+	}
 	if err := migrateFeature362(DB); err != nil {
 		log.Fatalf("Failed to migrate Feature 362 schema: %v", err)
 	}
@@ -132,13 +138,9 @@ func Connect(dbPath string) {
 	// Note: CurrentValueUpdatedAt is a new nullable time.Time column.
 	// SQLite AutoMigrate adds it as a plain NULL column without FK constraints — safe additive change.
 
-	// Backfill existing api_keys with default read-only capability
-	DB.Exec("UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''")
-	DB.Exec("UPDATE auction_lots SET source='numisbids' WHERE source IS NULL OR source=''")
-	DB.Exec("UPDATE auction_lots SET source_url=numis_bids_url WHERE (source_url IS NULL OR source_url='') AND numis_bids_url IS NOT NULL AND numis_bids_url<>''")
-	DB.Exec("UPDATE featured_coins SET source_type='owned' WHERE source_type IS NULL OR source_type=''")
-	DB.Exec("UPDATE users SET coin_of_day_include_wishlist=1 WHERE coin_of_day_include_wishlist IS NULL")
-	DB.Exec("UPDATE deep_identification_jobs SET expires_at=? WHERE status IN (?, ?)", models.DeepIdentificationNoExpirySentinel, models.DeepJobStatusCompleted, models.DeepJobStatusPartial)
+	if err := backfillRequiredDefaults(DB); err != nil {
+		log.Fatalf("Failed required database backfill: %v", err)
+	}
 
 	// D2 source backfill + D4 cleanup: see backfillCoinValueHistorySources below.
 	// D4 runs only after a successful backfill -- data-integrity gate (B2 fix).
@@ -169,6 +171,26 @@ func Connect(dbPath string) {
 	}
 
 	log.Println("Database connected and migrated")
+}
+
+func backfillRequiredDefaults(db *gorm.DB) error {
+	for _, step := range []struct {
+		name string
+		sql  string
+		args []interface{}
+	}{
+		{"API key capabilities", "UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''", nil},
+		{"auction source", "UPDATE auction_lots SET source='numisbids' WHERE source IS NULL OR source=''", nil},
+		{"auction source URL", "UPDATE auction_lots SET source_url=numis_bids_url WHERE (source_url IS NULL OR source_url='') AND numis_bids_url IS NOT NULL AND numis_bids_url<>''", nil},
+		{"featured coin source", "UPDATE featured_coins SET source_type='owned' WHERE source_type IS NULL OR source_type=''", nil},
+		{"coin of day wishlist preference", "UPDATE users SET coin_of_day_include_wishlist=1 WHERE coin_of_day_include_wishlist IS NULL", nil},
+		{"completed identification retention", "UPDATE deep_identification_jobs SET expires_at=? WHERE status IN (?, ?)", []interface{}{models.DeepIdentificationNoExpirySentinel, models.DeepJobStatusCompleted, models.DeepJobStatusPartial}},
+	} {
+		if err := db.Exec(step.sql, step.args...).Error; err != nil {
+			return fmt.Errorf("%s: %w", step.name, err)
+		}
+	}
+	return nil
 }
 
 func migrateFeature362(db *gorm.DB) error {

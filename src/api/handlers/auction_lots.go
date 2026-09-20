@@ -340,7 +340,11 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 		return
 	}
 
-	updated, _ := h.repo.GetByID(uint(id), userID)
+	updated, err := h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Updated auction lot could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -392,7 +396,11 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	lot, _ := h.repo.GetByID(uint(id), userID)
+	lot, err := h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Updated auction lot could not be reloaded"})
+		return
+	}
 	c.JSON(http.StatusOK, lot)
 }
 
@@ -422,24 +430,22 @@ func (h *AuctionLotHandler) LinkEvent(c *gin.Context) {
 		return
 	}
 
-	lot, err := h.repo.GetByID(uint(id), userID)
-	if err != nil {
-		if repository.IsRecordNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get auction lot"})
-		return
-	}
-
 	var req LinkEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	h.repo.UpdateFields(lot, map[string]interface{}{"event_id": req.EventID})
-	updated, _ := h.repo.GetByID(uint(id), userID)
+	updated, err := h.svc.LinkEvent(uint(id), userID, req.EventID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot or calendar event not found"})
+		} else {
+			h.logger.Error("auctions", "Failed to link event for lot %d: %v", id, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to link auction lot"})
+		}
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -456,12 +462,12 @@ type ConvertToCoinRequest struct {
 // BulkLinkEvent associates or disassociates multiple auction lots with a calendar event.
 //
 //	@Summary		Bulk link lots to calendar event
-//	@Description	Sets or clears the calendar event for multiple auction lots at once.
+//	@Description	Partial success: commits each distinct owned lot independently; returns confirmed updated count and per-lot failures.
 //	@Tags			Auctions
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		BulkLinkEventRequest	true	"Lot IDs and event ID"
-//	@Success		200		{object}	map[string]int
+//	@Success		200		{object}	services.BulkEventLinkResult
 //	@Failure		400		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auctions/bulk-link-event [put]
@@ -474,17 +480,11 @@ func (h *AuctionLotHandler) BulkLinkEvent(c *gin.Context) {
 		return
 	}
 
-	updated := 0
-	for _, lotID := range req.LotIDs {
-		lot, err := h.repo.GetByID(lotID, userID)
-		if err != nil {
-			continue
-		}
-		h.repo.UpdateFields(lot, map[string]interface{}{"event_id": req.EventID})
-		updated++
+	result := h.svc.BulkLinkEvent(req.LotIDs, userID, req.EventID)
+	for _, failure := range result.Failures {
+		h.logger.Warn("auctions", "Event link failed for lot %d: %s", failure.LotID, failure.Code)
 	}
-
-	c.JSON(http.StatusOK, gin.H{"updated": updated})
+	c.JSON(http.StatusOK, result)
 }
 
 // ConvertToCoin creates an owned Coin from a won auction lot.

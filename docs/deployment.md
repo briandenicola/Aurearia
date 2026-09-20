@@ -33,6 +33,10 @@ The app container contains:
 
 Data is stored in a **SQLite database** (via GORM, WAL mode enabled) and coin images are stored directly on the filesystem.
 
+Required default-data backfills fail startup with the affected step name instead of serving readiness after a failed write. They retain their existing order and are safe to rerun; previously completed independent steps may remain applied.
+
+Image deletion commits metadata plus a durable cleanup record before removing files. Pending original/thumbnail/medium cleanup is retried on API startup or by repeating the same image DELETE. Cleanup failures are logged and remain recorded, but do not block unrelated startup. See [recoverable image deletion](image-cleanup-design.md) for the response contract and recovery boundaries.
+
 Both production images run as a non-root runtime user with UID/GID `10001:10001`. The app image owns `/app`, `/app/data`, and `/app/uploads`; the agent image owns `/app` and has no persistent writable volume by default.
 
 ### Background jobs during restart

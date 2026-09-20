@@ -1,5 +1,9 @@
 # Auction Tracking
 
+## Event-link results
+
+Single-lot linking validates ownership of both the lot and calendar event and commits only after its response can be reloaded. Bulk linking uses **partial success**: each distinct lot commits independently. The response contains `updated` (confirmed writes only) and `failures` with `lotId`, `code` (`not_found` or `storage_error`), and a safe error message. Successful links are kept; failed lots remain selected in the UI for retry. A null event ID unlinks the owned lot.
+
 > Monitor NumisBids and CNG Auctions lots with provider-aware status tracking, price alerts, bid reminders, calendar links, and collection conversion.
 
 ## Overview

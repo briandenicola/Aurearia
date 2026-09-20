@@ -4510,7 +4510,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Sets or clears the calendar event for multiple auction lots at once.",
+                "description": "Partial success: commits each distinct owned lot independently; returns confirmed updated count and per-lot failures.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4536,10 +4536,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "integer"
-                            }
+                            "$ref": "#/definitions/services.BulkEventLinkResult"
                         }
                     },
                     "400": {
@@ -7845,7 +7842,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deletes an image from a coin. Removes the file from disk and the database record.",
+                "description": "Commits metadata deletion before file cleanup. A 202 cleanupPending response can be retried with the same DELETE; startup also retries. Missing files are accepted; fully completed deletions subsequently return 404.",
                 "produces": [
                     "application/json"
                 ],
@@ -7876,6 +7873,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.ImageDeletedResponse"
                         }
                     },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ImageCleanupPendingResponse"
+                        }
+                    },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
@@ -7890,6 +7893,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -19901,6 +19910,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.ImageCleanupPendingResponse": {
+            "type": "object",
+            "properties": {
+                "cleanupPending": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.ImageDeletedResponse": {
             "type": "object",
             "properties": {
@@ -25405,6 +25425,20 @@ const docTemplate = `{
                 }
             }
         },
+        "services.BulkEventLinkResult": {
+            "type": "object",
+            "properties": {
+                "failures": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.EventLinkFailure"
+                    }
+                },
+                "updated": {
+                    "type": "integer"
+                }
+            }
+        },
         "services.CancelCollectionProposalResult": {
             "type": "object",
             "properties": {
@@ -25721,6 +25755,20 @@ const docTemplate = `{
                 },
                 "usurpers": {
                     "$ref": "#/definitions/services.CategoryProgress"
+                }
+            }
+        },
+        "services.EventLinkFailure": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "lotId": {
+                    "type": "integer"
                 }
             }
         },

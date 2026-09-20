@@ -296,7 +296,7 @@ export const uploadImage = (coinId: number, file: File, imageType: string, isPri
 }
 
 export const deleteImage = (coinId: number, imageId: number) =>
-  api.delete(`/coins/${coinId}/images/${imageId}`)
+  api.delete<{ message: string; cleanupPending?: boolean }>(`/coins/${coinId}/images/${imageId}`)
 
 // Analysis
 export const analyzeCoin = (coinId: number, side?: 'obverse' | 'reverse') => {

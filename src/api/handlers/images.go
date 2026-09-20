@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -340,12 +341,14 @@ func handleUploadError(c *gin.Context, logger *services.Logger, coinID uint64, e
 // Delete removes an image from a coin.
 //
 //	@Summary		Delete a coin image
-//	@Description	Deletes an image from a coin. Removes the file from disk and the database record.
+//	@Description	Commits metadata deletion before file cleanup. A 202 cleanupPending response can be retried with the same DELETE; startup also retries. Missing files are accepted; fully completed deletions subsequently return 404.
 //	@Tags			Images
 //	@Produce		json
 //	@Param			id		path		int	true	"Coin ID"
 //	@Param			imageId	path		int	true	"Image ID"
 //	@Success		200		{object}	ImageDeletedResponse
+//	@Success		202		{object}	ImageCleanupPendingResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
@@ -366,13 +369,18 @@ func (h *ImageHandler) Delete(c *gin.Context) {
 
 	_, err = h.svc.DeleteImage(uint(coinID), uint(imageID), userID)
 	if err != nil {
-		switch err {
-		case services.ErrCoinNotFound:
+		switch {
+		case errors.Is(err, services.ErrCoinNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
-		case services.ErrImageNotFound:
+		case errors.Is(err, services.ErrImageNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Image not found"})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image"})
+			h.logger.Error("images", "Image deletion failed for image %d: %v", imageID, err)
+			if errors.Is(err, services.ErrImageCleanupPending) {
+				c.JSON(http.StatusAccepted, ImageCleanupPendingResponse{Message: "Image metadata deleted; file cleanup pending. Retry this DELETE or restart the API.", CleanupPending: true})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image"})
+			}
 		}
 		return
 	}

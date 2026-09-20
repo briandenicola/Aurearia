@@ -68,9 +68,9 @@ describe('EditCoinPage', () => {
     expect(source).not.toContain('updateQuickCaptureDraft')
   })
 
-  it('refreshes Quick Access once only after the replacement upload and deletion finish', async () => {
+  it.each([false, true])('finishes replacement once and warns if cleanup is pending (%s)', async cleanupPending => {
     let resolveUpload!: (value: { data: Record<string, never> }) => void
-    let resolveDelete!: (value: { data: Record<string, never> }) => void
+    let resolveDelete!: (value: { data: { cleanupPending: boolean } }) => void
     mocks.uploadImage.mockReturnValue(new Promise(resolve => { resolveUpload = resolve }))
     mocks.deleteImage.mockReturnValue(new Promise(resolve => { resolveDelete = resolve }))
     const obverseFile = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
@@ -103,9 +103,13 @@ describe('EditCoinPage', () => {
     expect(mocks.deleteImage).toHaveBeenCalledWith(42, 91)
     expect(mocks.refresh).not.toHaveBeenCalled()
 
-    resolveDelete({ data: {} })
+    resolveDelete({ data: { cleanupPending } })
     await flushPromises()
     expect(mocks.refresh).toHaveBeenCalledTimes(1)
     expect(mocks.back).toHaveBeenCalledTimes(1)
+    expect(mocks.uploadImage).toHaveBeenCalledTimes(1)
+    if (cleanupPending) expect(mocks.showAlert).toHaveBeenCalledWith(expect.stringContaining('Old image files are awaiting cleanup'), { title: 'Image cleanup pending' })
+    else expect(mocks.showAlert).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 })

@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AuctionsPage from '../AuctionsPage.vue'
-import { getAuctionLot, getAuctionLotCounts, getAuctionLots, listAlerts, listReminders, syncNumisBidsWatchlist } from '@/api/client'
+import { bulkLinkAuctionLotEvent, getAuctionLot, getAuctionLotCounts, getAuctionLots, listAlerts, listReminders, syncNumisBidsWatchlist } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import type { AuctionLot } from '@/types'
 
@@ -111,6 +111,24 @@ describe('AuctionsPage', () => {
     vi.mocked(listAlerts).mockResolvedValue({ data: { alerts: [] } } as Awaited<ReturnType<typeof listAlerts>>)
     vi.mocked(listReminders).mockResolvedValue({ data: { reminders: [] } } as Awaited<ReturnType<typeof listReminders>>)
     vi.mocked(getAuctionLot).mockResolvedValue({ data: makeLot({ id: 42, title: 'Julia Domna AR Denarius' }) } as Awaited<ReturnType<typeof getAuctionLot>>)
+  })
+
+  it.each([false, true])('reports bulk failures and retains failed selections (transport failure: %s)', async transportFailure => {
+    vi.mocked(getAuctionLots).mockResolvedValue({ data: { lots: [makeLot({ id: 1, status: 'bidding' }), makeLot({ id: 2, status: 'bidding' })], total: 2, page: 1, limit: 50 } } as Awaited<ReturnType<typeof getAuctionLots>>)
+    if (transportFailure) vi.mocked(bulkLinkAuctionLotEvent).mockRejectedValue(new Error('offline'))
+    else vi.mocked(bulkLinkAuctionLotEvent).mockResolvedValue({ data: { updated: 1, failures: [{ lotId: 2, code: 'storage_error', error: 'Failed to link auction lot' }] } } as Awaited<ReturnType<typeof bulkLinkAuctionLotEvent>>)
+    const wrapper = mountPage()
+    try {
+      await flushPromises()
+      await wrapper.findAll('button').find(button => button.text() === 'Select')!.trigger('click')
+      await wrapper.findAll('button').find(button => button.text() === 'Select All')!.trigger('click')
+      wrapper.findComponent({ name: 'AuctionBulkActionBar' }).vm.$emit('link-event', 12)
+      await flushPromises()
+      expect(bulkLinkAuctionLotEvent).toHaveBeenCalledWith([1, 2], 12)
+      expect(wrapper.findComponent({ name: 'AuctionBulkActionBar' }).props('selectedCount')).toBe(transportFailure ? 2 : 1)
+      expect(wrapper.get('[role="status"]').text()).toContain(transportFailure ? 'Unable to link selected lots' : '1 lots updated. 1 failed.')
+      if (!transportFailure) expect(wrapper.text()).toContain('Lot 2: Failed to link auction lot')
+    } finally { wrapper.unmount() }
   })
 
   // Auction sync notifications (in-app and Pushover) link to /auctions?lot=<id>; the linked
