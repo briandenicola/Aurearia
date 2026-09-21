@@ -16,7 +16,14 @@ Aurearia is a full-stack PWA for managing a personal coin collection, with deep 
 
 ## Document Hierarchy
 
-All decisions must respect the Hierarchy of Authority defined in `.specify/memory/constitution.md` §0. When in doubt, walk the list top-down: **Constitution → PRD → active spec → plan → tasks → backlog → `.squad/decisions.md` → agent judgment.**
+All decisions respect `.specify/memory/constitution.md` §0. ADR 0019 and these
+consumer edits are a proposed amendment: local preparation is authorized, but
+acceptance/publication remain gated by §22. The accepted baseline is 3.1.0 until
+that PR is approved and merged.
+
+The proposed hierarchy is **Constitution → PRD → applicable accepted ADRs →
+active spec → plan → tasks → backlog → active decisions → agent judgment**.
+Frameworks, templates, charters, and session state cannot override project policy.
 
 Resolution rule: when two sources disagree, the higher-ranked one wins, and the lower-ranked source must be updated to match (or an amendment proposed per §22).
 
@@ -25,51 +32,45 @@ Resolution rule: when two sources disagree, the higher-ranked one wins, and the 
 Operational rules for every AI agent (Copilot CLI, Coding Agent, Squad). Full text in `.specify/memory/constitution.md` §18.
 
 ### Always
-- Read the constitution, `.squad/decisions.md`, the active `specs/NNN-*/spec.md`, your agent charter in `.squad/agents/<you>/charter.md`, and any relevant `.squad/skills/` entries **before editing code**.
+- Read the constitution, relevant active decisions, and explicitly selected work
+  artifact before editing. Load charter/history only for a role you are acting in.
+- After ADR 0019 acceptance, use the bug/small-change, feature, or high-risk lane
+  in §18.1. Ordinary work stays on `beta`; never guess the feature from the branch
+  or newest spec. Use an approved issue/process plan where appropriate.
+- Until native migration, inspect relevant `.squad/skills/`; repository-native
+  skills/scoped instructions remain a P4 deliverable.
 - Quote spec section IDs (e.g., `§17`, Principle I) in commit messages and PR descriptions.
-- Run the Quality Gate locally (see §17) before declaring a task done.
+- Record applicable §17 verification and the exact tested commit/tree before
+  claiming verified work. Missing or unauthorized execution remains incomplete.
 - Follow Principle IV: choose the simplest complete proportional change.
 
 ### Never
 - Invent file paths, package names, APIs, or facts — re-read or grep first.
 - Retroactively modify a locked file (constitution, landed spec, merged ADR) without an amendment per §22.
-- Bypass a reviewer rejection. **Strict Lockout** (§18.2): once a reviewer marks `BLOCK`, the change does not ship until the block is explicitly cleared by that reviewer.
+- Bypass a reviewer rejection or its author restrictions. Existing blocks retain
+  their terms; prospective author-revision rules activate only on ADR 0019
+  acceptance. Reassignment is never clearance.
 - Ship a hopeful patch that only fixes the first observed failure, or a clever rewrite for a small bug, without proving the broader root cause.
 
 ### Session Handoff
-- Scribe writes `.squad/log/{timestamp}-*.md` and merges `.squad/decisions/inbox/` → `.squad/decisions.md` at the end of each batch.
+- After ADR 0019 acceptance, the implementation owner persists the handoff in
+  `.squad/log/` and the current-work pointer; Scribe is optional help.
+  Wait for required recording to finish. Do not stage unrelated files or
+  automatically commit, stash, push, or release.
+- Current views may be curated only under the accepted archival policy, with
+  preserved originals and review blocks. P2 archival has not run.
 - **Do NOT introduce `SESSION-NOTES.md` or `.copilot-state.md`** — constitution §18 forbids these. The `.squad/log/` + `decisions.md` pair is the canonical handoff surface.
 
 ## Build, Test, and Lint
 
-A [Taskfile](../Taskfile.yml) wraps common commands. Run `task --list` to see all targets.
+Use [docs/testing.md §6](../docs/testing.md#6-running-tests-locally-vs-ci) for
+current CI-aligned commands and Windows invocation. Frontend completion includes
+`npm run lint` with `--max-warnings 0`, strict type-check, full tests, and build.
+Do not substitute `--quiet` or `vue-tsc --noEmit` for required gates.
 
-```bash
-# Go API (from src/api/)
-go build ./...                          # compile
-go vet ./...                            # lint
-go test -v ./...                        # all tests (architecture + unit)
-go test -v -run TestNoDirectDatabase .  # single test by name
-
-# Vue frontend (from src/web/)
-npm run build                           # production build (type-check + vite)
-npm run type-check                      # vue-tsc only
-npx vue-tsc --noEmit                    # alternative type check
-
-# Python agent (from src/agent/)
-pip install -e ".[dev]"                 # install with dev deps
-ruff check app/ tests/                  # lint
-pytest tests/ -v                        # all tests
-pytest tests/test_foo.py::test_bar -v   # single test
-
-# Task runner shortcuts (from repo root)
-task build                              # build API + web
-task test                               # Go tests
-task up                                 # API + web dev servers
-task up-all                             # API + web + agent dev servers
-task test-agent                         # Python tests
-task lint-agent                         # Python lint
-```
+[Taskfile](../Taskfile.yml) contains convenience targets, not a complete parity
+wrapper. Shared executable gate entry points are pending P3. Dependency setup
+is separate from validation; obtain required permission before machine changes.
 
 ## Architecture
 
@@ -319,4 +320,7 @@ Any deviation requires an ADR (§22) before merge.
 
 ## Constitution Compliance
 
-Every PR self-checks the constitution. In the PR description, cite the **Principle(s)** and **operational section(s)** affected (e.g., "Principle I + §17"). The **Quality Gate (§17)** and **Definition of Done (§21)** are enforced on every PR — see `.github/pull_request_template.md` for the 15-item DoD checklist.
+Every PR cites affected **Principles** and **operational sections**, applicable
+§17 evidence, reviewer disposition, and the reviewed commit/tree. Use
+`.github/pull_request_template.md` for §21. Written requirements are not proof of
+live GitHub enforcement. Main/release actions need separate owner authorization.

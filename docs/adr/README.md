@@ -23,7 +23,8 @@ Proposed ──► Accepted ──► Deprecated
                   └─────► Superseded by NNNN
 ```
 
-- **Proposed** — opened in a PR, under review.
+- **Proposed** — drafted or under review; not governing authority. Local
+  preparation does not imply publication or acceptance.
 - **Accepted** — merged. Body becomes immutable; only the header
   may be amended (status, supersession link).
 - **Deprecated** — no longer applies, but no replacement exists.
@@ -39,6 +40,12 @@ Per Constitution §22 (Amendment Process):
 3. Merge promotes status to `Accepted`.
 4. If the ADR amends a constitution principle, the constitution's
    revision-history row is updated in the same PR.
+
+Track approval/merge evidence separately from implementation. Correct an index
+to match its source header without rewriting an accepted body. Conflicting or
+missing approval evidence remains unresolved; do not promote a Proposed record
+merely because its code or principle exists. ADR 0019's local amendment
+preparation remains Proposed pending the separately approved section 22 PR.
 
 ## When to Open an ADR
 
@@ -63,11 +70,12 @@ ADR 0001 for the full list.
 | 0010 | [OCRE ODbL 1.0 Automated Coin-Type Provider (Nomisma SPARQL)](0010-ocre-odbl-provider.md) | 2026-08-15 | Accepted |
 | 0011 | [Persisted Deep Agentic Coin Identification](0011-deep-agentic-coin-identification.md) | 2026-08-16 | Proposed (amended by 0012) |
 | 0012 | [Vision-First Deep Identification (Image Hypothesis as Primary Claim Source)](0012-vision-first-deep-identification.md) | 2026-08-16 | Accepted |
-| 0013 | [Wishlist Coins May Hold Catalog References](0013-wishlist-coins-may-hold-catalog-references.md) | 2026-08-17 | Proposed (amends Feature 351) |
+| 0013 | [Wishlist Coins May Hold Catalog References](0013-wishlist-coins-may-hold-catalog-references.md) | 2026-08-17 | Accepted (amends Feature 351) |
 | 0014 | [Scoped-Worker CSP Isolation for Background-Removal `unsafe-eval`](0014-background-removal-worker-csp-isolation.md) | 2026-08-24 | Accepted |
 | 0015 | [Lock Background-Removal Build Assets](0015-lock-background-removal-build-assets.md) | 2026-08-31 | Accepted |
 | 0016 | [Go-Owned Durable Coin Copilot State](0016-go-owned-durable-coin-copilot-state.md) | 2026-09-17 | Proposed |
-| 0017 | [Coin Copilot Deep Analysis Handoff](0017-coin-copilot-deep-analysis-handoff.md) | 2026-09-18 | Proposed |
+| 0017 | [Coin Copilot Deep Analysis Handoff](0017-coin-copilot-deep-analysis-handoff.md) | 2026-09-18 | Accepted |
 | 0018 | [Role-Specific Deep Analysis](0018-role-specific-deep-analysis.md) | 2026-09-19 | Proposed |
+| 0019 | [Evidence-Based Agentic Delivery](0019-evidence-based-agentic-delivery.md) | 2026-09-21 | Proposed |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

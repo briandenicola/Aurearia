@@ -2,6 +2,10 @@
 
 Guidelines for contributing to the Aurearia application.
 
+Read the constitution and applicable accepted ADRs first. ADR 0019 and its
+consumer changes are a proposed amendment; local preparation does not activate
+new policy or authorize publication.
+
 ## Getting Started
 
 ```bash
@@ -24,8 +28,23 @@ task up          # starts both API and web dev servers
 | Branch | Purpose |
 |---|---|
 | `main` | Production-ready code |
-| `beta` | Pre-release testing |
-| `feature/*` | Feature development |
+| `beta` | Ordinary feature/bug development and integration |
+| Other branches/worktrees | Only when explicitly authorized |
+
+Select work by the owner-approved issue/spec/process plan, not the newest spec.
+Use the smallest sufficient lane from constitution §18.1. A bug needs a
+reproduction, bounded cause/non-goals, regression evidence, and review; a feature
+needs criteria, plan, and tasks. High-risk changes add compatibility/recovery
+evidence, independent review, and explicit owner approval.
+
+For SpecKit on `beta`, set `$env:SPECIFY_FEATURE` to the exact selected spec
+directory name in the same process as each script invocation. Do not run the
+branch-creating script implicitly. Follow `.github/agents/speckit.specify.agent.md`
+for its existing dry-run/manual-file preparation path.
+
+Implemented, verified, accepted, and released are distinct states. Preserve
+review restrictions and record the tested/reviewed commit or tree. Green CI
+does not authorize a beta-to-main merge or release.
 
 ## Code Architecture
 
@@ -56,7 +75,8 @@ These rules are enforced by `src/api/architecture_test.go`.
 
 1. Add component in `src/web/src/pages/` or `src/web/src/components/`
 2. Add route in `src/web/src/router/index.ts` if it's a page
-3. Run type check: `cd src/web && npx vue-tsc --noEmit`
+3. Run applicable frontend gates from `docs/testing.md` §6: zero-warning lint,
+   strict type-check, full tests, and build, plus affected browser workflows.
 
 ## Code Style
 
@@ -73,26 +93,15 @@ These rules are enforced by `src/api/architecture_test.go`.
 
 ## Build and Test
 
-```bash
-# Go API
-cd src/api
-go build ./...                    # compile
-go vet ./...                      # lint
-go test -v ./...                  # architecture tests
+Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for the
+current command inventory, locked environment, Windows invocation, and CI-only
+evidence. Shared Taskfile gate entry points are pending P3; existing targets do
+not imply full parity. Obtain required authorization before setup, builds, or
+containers; missing execution is incomplete rather than passed.
 
-# Vue frontend
-cd src/web
-npm run build                     # production build
-npx vue-tsc --noEmit              # type check
-
-# Python agent
-cd src/agent
-ruff check app/ tests/            # lint
-pytest tests/ -q                  # tests
-
-# Docker
-task docker-build                 # full container image
-```
+Keep pure-document review proportional, but exercise executable policy/prompts
+and workflows with relevant behavior/fixtures. Independent review and explicit
+owner release approval cannot be replaced by task checkboxes.
 
 ## Commit Messages
 
@@ -108,3 +117,7 @@ Include the co-author trailer when using Copilot:
 ```
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
+
+Cite the governing Principle/section in commits and PRs. Commit/push only when
+authorized, stage only approved paths, and preserve unrelated work. A handoff
+does not automatically commit or stash the worktree.
