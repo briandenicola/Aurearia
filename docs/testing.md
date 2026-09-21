@@ -2,8 +2,8 @@
 
 This document is the canonical testing strategy for Aurearia. It explains what we test, what we intentionally do not test, and how contributors should add new tests across the Go API, Vue PWA, and Python agent.
 
-ADR 0019's proportional-policy changes are a prepared amendment, pending section
-22 acceptance. The command inventory below describes existing scripts/CI; it
+ADR 0019's proportional-policy changes were accepted via PR #734 under section
+22. The command inventory below describes existing scripts/CI; it
 does not claim new P3 gate wrappers or live protection changes are installed.
 
 ## 1. Testing Philosophy

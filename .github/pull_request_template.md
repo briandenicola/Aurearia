@@ -1,6 +1,6 @@
 ## Summary
 <!-- 1-3 sentences: what changes and why -->
-<!-- ADR 0019 consumer draft: prospective policy awaits section 22 acceptance. -->
+<!-- Constitution 4.0.0 / ADR 0019 accepted via PR #734; apply sections 17 and 21. -->
 
 ## Constitution self-check
 - Principle(s) touched: <!-- e.g., I (Clear Layered Architecture), IV (Simple Complete Changes) -->

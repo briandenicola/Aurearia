@@ -7,8 +7,8 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
-This template is subordinate to the constitution. ADR 0019 consumer changes
-remain Proposed until section 22 acceptance. A bounded bug/issue need not create
+This template is subordinate to constitution 4.0.0 / ADR 0019, accepted via
+PR #734. A bounded bug/issue need not create
 a feature document set. Never amend a landed spec retroactively without authority.
 
 ## Scope and Non-Goals *(mandatory)*

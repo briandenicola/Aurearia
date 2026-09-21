@@ -44,8 +44,8 @@ Per Constitution §22 (Amendment Process):
 Track approval/merge evidence separately from implementation. Correct an index
 to match its source header without rewriting an accepted body. Conflicting or
 missing approval evidence remains unresolved; do not promote a Proposed record
-merely because its code or principle exists. ADR 0019's local amendment
-preparation remains Proposed pending the separately approved section 22 PR.
+merely because its code or principle exists. ADR 0019 was accepted through the
+owner-approved merge of PR #734 into beta, as recorded in its lifecycle header.
 
 ## When to Open an ADR
 
@@ -76,6 +76,6 @@ ADR 0001 for the full list.
 | 0016 | [Go-Owned Durable Coin Copilot State](0016-go-owned-durable-coin-copilot-state.md) | 2026-09-17 | Proposed |
 | 0017 | [Coin Copilot Deep Analysis Handoff](0017-coin-copilot-deep-analysis-handoff.md) | 2026-09-18 | Accepted |
 | 0018 | [Role-Specific Deep Analysis](0018-role-specific-deep-analysis.md) | 2026-09-19 | Proposed |
-| 0019 | [Evidence-Based Agentic Delivery](0019-evidence-based-agentic-delivery.md) | 2026-09-21 | Proposed |
+| 0019 | [Evidence-Based Agentic Delivery](0019-evidence-based-agentic-delivery.md) | 2026-09-21 | Accepted (PR #734) |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

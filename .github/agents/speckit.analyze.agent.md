@@ -12,8 +12,8 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Respect constitution section 0 and applicable accepted ADRs. ADR 0019 consumer
-changes remain Proposed until section 22 acceptance. Select the work explicitly,
+Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
+via PR #734; constitution 4.0.0 governs. Select the work explicitly,
 never from the newest spec or `beta`. Set `$env:SPECIFY_FEATURE` to its exact
 directory name in the same process as the prerequisite command below.
 

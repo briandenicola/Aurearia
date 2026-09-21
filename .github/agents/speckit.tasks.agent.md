@@ -18,7 +18,7 @@ $ARGUMENTS
 ## Authority and Selection
 
 Read the constitution, applicable accepted ADRs, and explicit approved work.
-ADR 0019 consumer changes remain Proposed until section 22 acceptance.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 Stay on `beta` unless a branch is expressly authorized. Never guess the spec.
 Set `$env:SPECIFY_FEATURE` to its directory name in the same process as:
 

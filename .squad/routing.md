@@ -1,7 +1,7 @@
 # Work Routing
 
 How to choose an optional specialist. Subject to constitution sections 0 and 18.
-ADR 0019 consumer edits remain Proposed until its section 22 acceptance.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 
 ## Routing Table
 

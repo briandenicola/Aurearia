@@ -1,5 +1,5 @@
 End the session under constitution sections 17, 18.5, and 21.
-ADR 0019 consumer edits remain Proposed until section 22 acceptance.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 
 1. Reconcile the selected issue/spec/process plan: distinguish implemented,
    verified, accepted, and released work. Checked tasks do not clear review blocks.

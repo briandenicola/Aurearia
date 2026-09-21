@@ -11,8 +11,8 @@ description: "Bounded feature tasks with required verification and independent a
 **Implementation owner**: [owner]
 **Non-goals / stop conditions**: [scope and approval boundaries]
 
-This template is subordinate to the constitution. ADR 0019 consumer changes
-remain Proposed until section 22 acceptance. Generate only tasks needed for the
+This template is subordinate to constitution 4.0.0 / ADR 0019, accepted via
+PR #734. Generate only tasks needed for the
 approved outcome; do not copy illustrative setup or technology scaffolding.
 
 **Tests are required where applicable**, not optional because the user omitted

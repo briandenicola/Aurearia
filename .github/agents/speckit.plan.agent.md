@@ -18,8 +18,8 @@ $ARGUMENTS
 ## Authority and Selection
 
 Read the constitution, selected spec, applicable accepted ADRs, and relevant
-active decisions. ADR 0019 consumer changes remain Proposed until section 22
-acceptance. A small repair may use a bounded issue rather than a full plan.
+active decisions. ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+A small repair may use a bounded issue rather than a full plan.
 Do not infer a feature from `beta` or the newest spec.
 
 Set `$env:SPECIFY_FEATURE` to the explicitly selected directory name in the same

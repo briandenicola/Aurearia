@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** P1 draft approved for independent review, governance verification, and a governance-only PR into beta; merge and acceptance pending
+**Status:** ADR 0019 accepted via PR #734; D05 lifecycle reconciliation open; P2-P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -69,6 +69,14 @@ beta-to-main amendment route and authorizes the necessary commit/push/PR work.
 Merge, installs, deployments, application changes, and release remain prohibited
 without further approval. An isolated worktree preserves concurrent unrelated
 application edits in the original `beta` worktree.
+
+**Acceptance and closeout (2026-09-21):** The owner approved and merged PR #734
+into `beta` at `ca85f7830349a4472cb5409c082b9485e7e34c44`, then authorized a
+metadata-only closeout PR to synchronize acceptance notices and the section 22
+announcement. Constitution 4.0.0 is the accepted policy. Earlier preparation
+entries below are historical snapshots, not current activation blockers.
+This authorization does not extend to merging the closeout PR, installations,
+deployments, P2 archival, or clearing unresolved historical review restrictions.
 
 ## 3. Baseline and observed problems
 

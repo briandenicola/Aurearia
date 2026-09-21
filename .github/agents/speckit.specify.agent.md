@@ -17,8 +17,8 @@ $ARGUMENTS
 
 ## Authority and Selection
 
-Read the constitution and applicable accepted ADRs. ADR 0019 consumer edits
-remain Proposed until section 22 acceptance. Do not change a landed spec without
+Read the constitution and applicable accepted ADRs. ADR 0019 is Accepted via
+PR #734; constitution 4.0.0 governs. Do not change a landed spec without
 amendment authority. Clarify material scope, behavior, and approval ambiguity;
 never invent product decisions or treat a proposal as approved.
 

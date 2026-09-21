@@ -1,7 +1,13 @@
 # ADR 0019: Evidence-Based Agentic Delivery
 
 Date: 2026-09-21
-Status: Proposed
+Status: Accepted
+Accepted: 2026-09-21 via [PR #734](https://github.com/briandenicola/Aurearia/pull/734)
+Merge commit: `ca85f7830349a4472cb5409c082b9485e7e34c44`
+
+Lifecycle note: The body below is preserved as the approved proposal.
+Its preparation-time pending statements are historical; this header records the
+owner-approved acceptance. Deferred work and historical review blocks remain open.
 
 ## Context
 

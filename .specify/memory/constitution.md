@@ -1,9 +1,9 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 3.1.0 → 4.0.0 (PROPOSED MAJOR — ADR 0019)
-  Activation: drafting, review, governance checks, and PR into beta authorized;
-    merge and acceptance require separate owner approval under section 22.
+  Version change: 3.1.0 → 4.0.0 (MAJOR — Accepted ADR 0019)
+  Activation: owner approved and merged PR #734 into beta on 2026-09-21;
+    merge commit ca85f7830349a4472cb5409c082b9485e7e34c44.
   Modified principles: IX (gate applicability references section 17)
   Added sections: None
   Removed sections: None
@@ -19,7 +19,6 @@
     - .squad/routing.md, ceremonies.md, and agent charters
     - CONTRIBUTING.md, docs/testing.md, docs/adr/README.md
   Follow-up TODOs:
-    - Independent review clearance and owner-approved amendment merge into beta
     - P2 archival, P3 executable checks, P4 native integration, P5 live controls
     - Historical review/spec lifecycle reconciliation remains evidence-gated
     - See ADR 0019's P1 consumer inventory and explicit context-budget exceptions
@@ -32,18 +31,17 @@
 > Deviations require an explicit, documented waiver (ADR) under §22.
 
 **Project**: Ancient Coins (self-hosted personal collection PWA)
-**Version**: 4.0.0 (proposed; accepted baseline remains 3.1.0)
+**Version**: 4.0.0
 **Ratified**: 2026-04-28
-**Last Amended**: 2026-06-11
+**Last Amended**: 2026-09-21
 **Amendment Prepared**: 2026-09-21 — ADR 0019
 
-> **Activation pending:** The owner authorized drafting, independent review,
-> governance-only checks, and a temporary governance-only PR into `beta`.
-> Merge, installation, deployment, and acceptance are not authorized.
-> Until the section 22 PR is approved and
-> merged, 3.1.0 remains the accepted contract. In particular, no archival,
-> historical-block clearance, or release is authorized by this draft.
-> The unchanged accepted text is available from baseline commit
+> **Effective:** The owner approved and merged amendment PR #734 into `beta`
+> on 2026-09-21 at `ca85f7830349a4472cb5409c082b9485e7e34c44`.
+> ADR 0019 is Accepted and constitution 4.0.0 governs new work.
+> This acceptance does not itself authorize P2 execution, tool installations,
+> deployments, releases, or clearance of historical reviewer blocks.
+> The previous 3.1.0 text is available from baseline commit
 > `cacc177c2ecd85d62899507413184cfc395a7f6a` at this path.
 
 ## §0. Hierarchy of Authority
@@ -617,6 +615,6 @@ plan's Complexity Tracking table.
 | 2.0.0 | 2026-05-28 | Maximus (approved by Brian) | Added §0 Hierarchy of Authority, §17 Quality Gate, §18 AI Agent Operating Rules, §19 Documentation Requirements, §20 Audit & Continuous Improvement, §21 Definition of Done, §22 Amendment Process, §23 Revision History. All 16 Principles (I–XVI) preserved verbatim. | ADR 0001 (to be added in Phase 3) |
 | 3.0.0 | 2026-06-09 | Brian | Consolidated 17 principles into 9 streamlined principles and made Simple Complete Changes Principle IV. | ADR 0005 |
 | 3.1.0 | 2026-06-11 | Brian | Added workflow-contract, blast-radius, configurable-value, and exact regression coverage gates to reduce repeated user-flow regressions. | ADR 0006 |
-| 4.0.0 (Proposed) | 2026-09-21 | Copilot; owner authorized draft, review, governance checks, and PR into beta | Reconciles authority, proportional gates, current views, bounded agents, review restrictions, evidence-backed completion, and audit cadence. Merge/acceptance pending separate owner approval under section 22. | ADR 0019 |
+| 4.0.0 | 2026-09-21 | Copilot; approved and merged by owner in PR #734 | Reconciles authority, proportional gates, current views, bounded agents, review restrictions, evidence-backed completion, and audit cadence. Accepted at ca85f7830349a4472cb5409c082b9485e7e34c44; historical review restrictions remain unchanged. | ADR 0019 |
 
-**Version**: 4.0.0 (Proposed) | **Accepted baseline**: 3.1.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-06-11
+**Version**: 4.0.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-09-21

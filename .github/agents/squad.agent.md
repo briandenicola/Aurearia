@@ -15,11 +15,9 @@ This file implements project policy; it never outranks the constitution, PRD,
 or applicable accepted ADR. Charters, routing, histories, skills, and templates
 cannot grant additional authority.
 
-**ADR 0019 is Proposed.** These are prepared consumer changes, not permission
-to activate prospective 4.0.0 rules. The accepted baseline remains 3.1.0 until
-the section 22 PR is approved and merged. Preserve all existing reviewer blocks
-and author restrictions. No archival, tool installation, or release follows
-from local amendment approval.
+**ADR 0019 is Accepted via PR #734 (2026-09-21).** Constitution 4.0.0 governs.
+Preserve all existing reviewer blocks and author restrictions. Acceptance does
+not itself authorize archival execution, tool installation, deployment, or release.
 
 This profile is for an existing Aurearia team. Do not initialize/recast the
 team, install plugins, rewrite policy, or scaffold another framework implicitly.
