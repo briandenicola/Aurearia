@@ -113,7 +113,7 @@ test('real Task invocation propagates lint failure and never skips a missing lin
   assert.equal(readFileSync(join(f.dir, 'src/web/calls.txt'), 'utf8'), '');
 });
 test('CI and docs use the shared gates; package and runner-only coverage remain explicit', () => {
-  const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
+  const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8').replaceAll('\r\n', '\n');
   const docs = readFileSync(join(root, 'docs/testing.md'), 'utf8');
   const pkg = JSON.parse(readFileSync(join(root, 'src/web/package.json'), 'utf8'));
   for (const target of ['check:go', 'check:web', 'check:agent', 'check:openapi', 'check:delivery', 'test-race']) {
@@ -127,6 +127,14 @@ test('CI and docs use the shared gates; package and runner-only coverage remain 
   assert.match(ci, /CGO_ENABLED: "1"/);
   assert.equal((ci.match(/run: task setup:go/g) ?? []).length, 2);
   assert.match(ci, /os: \[ubuntu-latest, windows-latest\]/);
+  const delivery = ci.split('\n  go-api:')[0];
+  const checkouts = delivery.split(/      - uses: actions\/checkout@[^\n]+\n/).slice(1);
+  assert.equal(checkouts.length, 2);
+  assert.match(checkouts[0], /^        if: runner.os != 'Windows'\s*$/);
+  const windowsCheckout = checkouts[1].split('      - uses: actions/setup-node@')[0];
+  assert.match(windowsCheckout, /^        if: runner.os == 'Windows'\n/);
+  assert.match(windowsCheckout, /sparse-checkout-cone-mode: false/);
+  assert.match(windowsCheckout, /sparse-checkout: \|\n            \/\*\n            !\/\.squad\/log\/\*\*\n            !\/\.squad\/orchestration-log\/\*\*\s*$/);
   assert.doesNotMatch(ci, /skipping|continue-on-error|--if-present/i);
   const security = readFileSync(join(root, '.github/workflows/security-scan.yml'), 'utf8');
   for (const job of ['gitleaks', 'govulncheck', 'npm-audit', 'pip-audit', 'agent-image-pip-check', 'container-security']) {

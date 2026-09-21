@@ -148,6 +148,13 @@ The delivery scripts themselves need only Node built-ins; their fixture suite
 also needs Task, Git, npm and PowerShell 7 (`pwsh`). No dependency installation
 occurs in completion recipes.
 
+The Windows delivery job omits only `.squad/log/` and
+`.squad/orchestration-log/` through non-cone sparse checkout: historical
+timestamp filenames contain colons that Windows cannot check out. The Linux
+delivery job retains the complete checkout. Archives are not renamed or deleted;
+the checker reports sparse-excluded reference targets as warnings, not verified
+file contents.
+
 Authorized setup targets are `task setup:go` (`go mod download` using the installed
 toolchain), `task setup:web` (`npm ci`), `task setup:agent`
 (`uv sync --locked --extra dev`), and `task setup:openapi` (swag v1.16.6).
