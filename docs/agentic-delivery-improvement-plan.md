@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** ADR 0019 accepted via PR #734; D05/P2 implemented and independently verified, owner acceptance pending; P3-P6 not started
+**Status:** D05/P2 accepted via PR #736; P3 implemented with local evidence, independent review and hosted CI pending; P4-P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -358,6 +358,43 @@ independent merely because a Markdown field says so.
 The checker runs offline, makes no repository changes, and has no dependency on
 an LLM. Intentional fixture failures demonstrate each blocking rule. Start size
 and historical-lifecycle findings as warnings; do not blanket-waive new defects.
+
+**P3 execution (2026-09-21):** Owner requested "go start P3" after accepting
+#736. Work uses `docs/delivery-validation` from
+`af2ac2488cf38cd4ce82a33cdd7de986d3fe8045`, preserving the original dirty beta
+worktree. No local installation, merge or deployment is authorized or performed.
+P4-P6 and live required-context changes remain outside this batch.
+
+**Bounded portability approval:** Hosted Windows checkout exposed 33 historical
+log filenames containing colons. Sparse exclusions did not avoid Git's NTFS
+protection check. The owner explicitly approved a filename-only fix, preserving
+contents and recording old/new paths. The
+[path map](../.squad/artifacts/windows-log-path-mapping-2026-09-21.json)
+records each unchanged Git blob identity. Both hosted jobs use full checkout with
+NTFS protection enabled; local Git configuration and historical bodies remain
+unchanged. This is not approval for broader archive cleanup.
+
+- D08 shared `check:*` targets are wired into Quality Gate; setup is separate,
+  npm lint is unconditional, Python uses locked/offline/no-sync validation,
+  and the race/security/browser/compatibility surfaces remain present.
+- D09 is a Node-built-in-only offline checker with explicit active scope,
+  diagnostics, native metadata checks, current-work targets and warning budgets.
+  Historical bodies/archives and optional/runtime examples are not policed.
+- D10 includes invalid fixtures, diagnostic-ablation controls, real Task
+  failure/missing-linter execution and the SpecKit stdout/Boolean regression.
+  The original SpecKit bug is restored only in a disposable fixture to prove
+  detection; real feature artifacts are never mutated.
+- Local Windows delivery fixtures, actual `task check:go` (build/vet/full tests),
+  and actual `task check:openapi` pass using existing tools/cached dependencies.
+  Full web/Python application execution and Linux behavior await the hosted jobs;
+  fake command fixtures are not presented as application test results.
+- Shared OpenAPI generation exposed existing version drift. The `main.go`
+  annotation and four generated snapshots are synchronized from 4.0.0 to the
+  canonical VERSION 4.3.0; these five single-value changes do not change endpoints.
+  Swagger's displayed banner still says v1.16.4 for module v1.16.6, so the tool
+  pin is checked against Go build information rather than that stale banner.
+- Independent review and matching hosted evidence are required before marking
+  D08-D10 complete. Owner merge/release approval remains separate.
 
 ### P4. Align Copilot tooling and make Squad optional
 

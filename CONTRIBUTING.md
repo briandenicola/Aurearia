@@ -68,7 +68,7 @@ These rules are enforced by `src/api/architecture_test.go`.
 3. **Service** (if business logic needed) -- Add to `src/api/services/*_service.go`
 4. **Handler** -- Add thin HTTP handler in `src/api/handlers/`
 5. **Wire** -- Register in `src/api/main.go` (create repo/service, pass to handler constructor)
-6. **Swagger** -- Add annotations to handler, run `swag init` if using swag CLI
+6. **Swagger** -- Add annotations, then run `task openapi` and `task check:openapi` with the pinned generator already prepared
 7. **Test** -- Run `go test ./...` from `src/api/` to verify architecture rules pass
 
 ### New Vue Page/Component
@@ -94,10 +94,14 @@ These rules are enforced by `src/api/architecture_test.go`.
 ## Build and Test
 
 Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for the
-current command inventory, locked environment, Windows invocation, and CI-only
-evidence. Shared Taskfile gate entry points are pending P3; existing targets do
-not imply full parity. Obtain required authorization before setup, builds, or
-containers; missing execution is incomplete rather than passed.
+shared Taskfile completion gates, locked environment, Windows invocation, and
+CI-only evidence. From the root, run applicable `task check:go`,
+`task check:web`, `task check:agent`, `task check:openapi` and
+`task check:delivery`; `task check` runs all base gates. OpenAPI generation
+writes files. Dependency setup uses separate authorized `setup:*` targets.
+Obtain required authorization before setup, builds, or containers; missing
+execution is incomplete rather than passed. Race, security, browser,
+compatibility and release checks remain additional where applicable.
 
 Keep pure-document review proportional, but exercise executable policy/prompts
 and workflows with relevant behavior/fixtures. Independent review and explicit

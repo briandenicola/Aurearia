@@ -1,20 +1,23 @@
 ---
 updated_at: 2026-09-21
-focus_area: Agentic delivery D05 and P2 lifecycle/context curation
+focus_area: Agentic delivery P3 executable validation and governance drift checks
 owner: Copilot CLI implementation owner; repository owner approves merge
-work_branch: docs/delivery-lifecycle-context
-baseline_commit: e6ab8313346b971dce4b288804036222f7d4c95d
+work_branch: docs/delivery-validation
+baseline_commit: af2ac2488cf38cd4ce82a33cdd7de986d3fe8045
+work_artifact: docs/agentic-delivery-improvement-plan.md
+tasks_artifact: docs/agentic-delivery-improvement-plan.md
 ---
 
 # Current Work
 
-The owner authorized **D05 and P2 only**, on an isolated branch with a PR into
-beta. No merge, tool installation, deployment, application repair or P3-P6 work
-is authorized by this batch. Preserve the original dirty beta worktree.
+The owner accepted D05/P2 through merged PR #736 and authorized **P3 (D08-D10)**.
+Continue on an isolated branch with a PR into beta. No merge, local tool
+installation, deployment, application repair or P4-P6 work is authorized by this
+batch. Preserve the original dirty beta worktree.
 
 ## Authoritative pointers
 
-- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D05/D06/D07 are
+- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D08/D09/D10 are
   the task ledger; this pointer deliberately does not duplicate their checklist.
 - [Constitution](../../.specify/memory/constitution.md), sections 17-22, and
   [accepted ADR 0019](../../docs/adr/0019-evidence-based-agentic-delivery.md).
@@ -38,9 +41,7 @@ governance batch does not repair or clear them.
 
 ## Next Action
 
-Independent preservation/governance review passed for the candidate recorded in
-the [final handoff](../log/2026-09-21-delivery-context-review.md).
-The D05/P2 PR from `docs/delivery-lifecycle-context` into beta now requires owner
-review and merge approval. Do not merge automatically. The PR is the
-acceptance/evidence surface; after owner merge, request selection of the next
-plan phase instead of automatically starting P3.
+Complete P3's shared recipes, offline checker and negative fixtures; obtain
+independent review and matching Windows/Linux evidence. Publish the P3 PR into
+beta for owner approval. D05/P2 is accepted, not pending a second approval.
+No application review restriction is cleared by delivery-tooling work.
