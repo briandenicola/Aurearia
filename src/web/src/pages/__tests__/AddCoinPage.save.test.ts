@@ -8,12 +8,13 @@ import CoinLookupCaptureWizard from '@/components/coin-lookup/CoinLookupCaptureW
 const mocks = vi.hoisted(() => ({
   draft: vi.fn(), commit: vi.fn(), upload: vi.fn(), add: vi.fn(), alert: vi.fn(),
   push: vi.fn(), update: vi.fn(), extract: vi.fn(), normalize: vi.fn(), stopCamera: vi.fn(), isPwa: true,
+  confirm: vi.fn(),
 }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/stores/coins', () => ({ useCoinsStore: () => ({ addCoin: mocks.add }) }))
 vi.mock('@/composables/usePwa', () => ({ usePwa: () => ({ isPwa: mocks.isPwa }) }))
 vi.mock('@/utils/galleryImage', () => ({ normalizeGalleryImage: mocks.normalize }))
-vi.mock('@/composables/useDialog', () => ({ useDialog: () => ({ showAlert: mocks.alert }) }))
+vi.mock('@/composables/useDialog', () => ({ useDialog: () => ({ showAlert: mocks.alert, showConfirm: mocks.confirm }) }))
 vi.mock('@/api/client', () => ({
   createIntakeDraft: mocks.draft, commitIntakeDraft: mocks.commit, uploadImage: mocks.upload,
   updateCoin: mocks.update, extractText: mocks.extract,
@@ -56,6 +57,11 @@ async function draft(wrapper: ReturnType<typeof render>) {
   await click(wrapper, 'Generate Intake Draft')
 }
 
+async function useManualMode(wrapper: ReturnType<typeof render>) {
+  await wrapper.get('[aria-label="Use manual entry"]').trigger('click')
+  await flushPromises()
+}
+
 async function selectImage(wrapper: ReturnType<typeof render>, file: File) {
   const input = wrapper.get('input[type="file"]')
   Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
@@ -76,6 +82,7 @@ describe('Add Coin save workflow', () => {
     mocks.add.mockResolvedValue({ id: 43 })
     mocks.upload.mockResolvedValue({})
     mocks.alert.mockResolvedValue(undefined)
+    mocks.confirm.mockResolvedValue(true)
     vi.stubGlobal('URL', { createObjectURL: vi.fn((file: File) => `blob:${file.name}`), revokeObjectURL: vi.fn() })
   })
 
@@ -93,7 +100,7 @@ describe('Add Coin save workflow', () => {
 
   it('surfaces the server reason for a manual save failure', async () => {
     const wrapper = render()
-    await click(wrapper, 'Use Manual Mode')
+    await useManualMode(wrapper)
     mocks.add.mockRejectedValueOnce({ response: { data: { error: 'era is not supported' } } })
     await click(wrapper, 'Save manual')
     expect(mocks.alert).toHaveBeenCalledWith('era is not supported', { title: 'Error' })
@@ -116,7 +123,7 @@ describe('Add Coin save workflow', () => {
 
   it('retries a manual image upload without creating a duplicate coin', async () => {
     const wrapper = render()
-    await click(wrapper, 'Use Manual Mode')
+    await useManualMode(wrapper)
     mocks.upload.mockRejectedValueOnce(new Error('Upload interrupted'))
     await click(wrapper, 'Save manual')
     expect(wrapper.text()).toContain('Coin saved')
@@ -128,11 +135,13 @@ describe('Add Coin save workflow', () => {
 
   it('does not repeat a successful obverse upload when the reverse fails', async () => {
     const wrapper = render()
-    await draft(wrapper)
     const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
+    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo)
+    await flushPromises()
     await wrapper.get('[aria-label="Add reverse image"]').trigger('click')
     wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', reverse)
     await flushPromises()
+    await click(wrapper, 'Generate Intake Draft')
     mocks.upload.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('Reverse interrupted'))
     await wrapper.find('form').trigger('submit')
     await flushPromises()
@@ -147,7 +156,8 @@ describe('Add Coin save workflow', () => {
     const wizard = wrapper.getComponent(CoinLookupCaptureWizard)
 
     expect(wizard.props('purpose')).toBe('intake')
-    expect(wrapper.get('ol[aria-label="Coin intake progress"]').text()).toContain('Card')
+    expect(wrapper.get('ol[aria-label="Coin intake progress"]').text()).toContain('Details')
+    expect(wrapper.get('[aria-label="Add coin card"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Step 1 of 3')
     expect(wrapper.text()).toContain('Add the obverse')
     expect(wrapper.text()).not.toContain('Generate Intake Draft')

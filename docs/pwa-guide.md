@@ -72,6 +72,28 @@ Pull-to-refresh only activates when you're scrolled to the very top of the page,
 
 On mobile and PWA, a **Photo** button appears on image upload sections (coin detail page, add/edit coin forms). Tapping it opens your device's rear camera directly so you can photograph a coin without switching to a separate camera app first.
 
+### Full-Screen Coin Capture
+
+In the installed app, **Add Coin** (`/add`) and **Identify Coin** (`/lookup`) drop the
+nav bar and the floating agent button and take over the whole screen as a camera
+viewfinder:
+
+- **Close** (top left) leaves the flow; **Add / Identify** switches between the two
+  without leaving the camera; the **lightning bolt** (top right) jumps to Quick
+  Capture. Switching or closing with photos on the stage asks before discarding them.
+- A three-segment rail tracks **1 Obverse → 2 Reverse → 3 Details**. Only the obverse
+  is required; tap a segment to move between steps once it is unlocked.
+- The guide ring marks where the coin should sit. Fill it with soft, even light.
+- Along the bottom: **Library** picks an existing photo, the **shutter** starts the
+  camera, takes the shot, and retakes it afterwards, and the third button is
+  **Manual** (Add Coin's hand-entry form) or **Deep** (Identify's Deep Analysis).
+- Once an obverse exists, the primary action — *Generate Intake Draft* or
+  *Analyze Photos* — appears at the bottom of the stage.
+
+In a browser tab the same two pages keep the two-column wizard, which is built for a
+mouse and a wide window. The viewfinder's colors stay dark in every theme so a coin's
+tone is always judged against the same background.
+
 ### Biometric Login (Face ID / Touch ID / Fingerprint)
 
 Aurearia supports WebAuthn/FIDO2 passkey authentication, letting you sign in with your device's biometrics instead of typing a password.

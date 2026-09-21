@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen">
     <!-- Nav bar — brand + hamburger for both desktop and PWA -->
-    <nav v-if="auth.isAuthenticated" class="fixed inset-x-0 top-0 z-[100] border-b border-border-subtle bg-surface/95 backdrop-blur-md">
+    <nav v-if="auth.isAuthenticated && !immersive" class="fixed inset-x-0 top-0 z-[100] border-b border-border-subtle bg-surface/95 backdrop-blur-md">
       <div class="mx-auto flex h-[60px] max-w-[1200px] items-center justify-between gap-4 px-4">
         <button class="flex shrink-0 cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 py-1.5 transition-colors hover:bg-gold-glow" @click="sidebarOpen = !sidebarOpen">
           <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="h-9 w-9 rounded-full border-2 border-gold-dim object-cover" />
@@ -124,7 +124,7 @@
       </aside>
     </Transition>
 
-    <main class="min-h-screen" :class="{ 'pt-[76px]': auth.isAuthenticated }">
+    <main class="min-h-screen" :class="{ 'pt-[76px]': auth.isAuthenticated && !immersive }">
       <div v-if="auth.isAuthenticated && notificationError" class="container mb-4 flex items-center justify-between gap-3" role="status">
         <span class="text-chip text-text-secondary">{{ notificationError }}</span>
         <button class="btn btn-secondary btn-sm" @click="refreshNotifications">Retry</button>
@@ -135,7 +135,7 @@
     <Teleport to="body">
       <!-- PWA floating agent button -->
       <button
-        v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive"
+        v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive && !immersive"
         class="fixed z-[1100] flex h-[52px] w-[52px] touch-none items-center justify-center rounded-full border border-border-accent bg-card text-gold shadow-card bottom-[calc(24px+env(safe-area-inset-bottom))] right-[calc(24px+env(safe-area-inset-right))]"
         :style="fabPositionStyle"
         @click="handleAgentFabClick"
@@ -196,6 +196,7 @@ import { usePinnedSets } from '@/composables/usePinnedSets'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
+import { useImmersiveShell } from '@/composables/useImmersiveShell'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppToasts from '@/components/AppToasts.vue'
@@ -224,6 +225,9 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const { isPwa } = usePwa()
+// Full-bleed surfaces (PWA coin capture) take the whole viewport; the nav bar
+// and the floating agent button step aside while one is mounted.
+const { immersive } = useImmersiveShell()
 
 const showChat = ref(false)
 const agentInitialPrompt = ref<string | null>(null)

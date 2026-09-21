@@ -42,9 +42,11 @@ for (const mode of ['pwa', 'desktop'] as const) {
       await route.fulfill({ json: { coinId: 7002 } })
     })
 
+    const stage = mode === 'pwa' ? '.capture-stage' : '.capture-workspace'
+
     await page.goto('/lookup')
     await expect(page.getByRole('heading', { name: 'Add the obverse' })).toBeVisible()
-    const identifyBounds = await page.locator('.capture-workspace').boundingBox()
+    const identifyBounds = await page.locator(stage).boundingBox()
     await page.screenshot({ path: testInfo.outputPath(`identify-${mode}.png`), fullPage: true })
     await page.goto('/add')
     if (mode === 'desktop') {
@@ -53,21 +55,21 @@ for (const mode of ['pwa', 'desktop'] as const) {
     }
     await expect(page.getByRole('heading', { name: 'Add the obverse' })).toBeVisible()
     await expect(page.getByRole('list', { name: 'Coin intake progress' }).locator('li')).toHaveText([
-      /Obverse/, /Reverse/, /Card/,
+      /Obverse/, /Reverse/, mode === 'pwa' ? /Details/ : /Card/,
     ])
     await expect(page.getByRole('button', { name: 'Add reverse image' })).toBeDisabled()
     await expect(page.locator('html')).not.toHaveAttribute('data-camera-requested', 'true')
-    const addBounds = await page.locator('.capture-workspace').boundingBox()
+    const addBounds = await page.locator(stage).boundingBox()
     expect(addBounds?.x).toBe(identifyBounds?.x)
     expect(addBounds?.width).toBe(identifyBounds?.width)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     await page.screenshot({ path: testInfo.outputPath(`add-coin-${mode}.png`), fullPage: true })
 
     if (mode === 'pwa') {
-      await page.getByRole('button', { name: 'Start Camera', exact: true }).click()
+      await page.getByRole('button', { name: 'Start camera', exact: true }).click()
       await expect(page.getByText('Camera permission was denied. You can still upload images.')).toBeVisible()
     }
-    const upload = page.getByRole('button', { name: mode === 'pwa' ? 'Upload from library' : 'Upload Image', exact: true })
+    const upload = page.getByRole('button', { name: mode === 'pwa' ? 'Choose from library' : 'Upload Image', exact: true })
     const obverseChooser = page.waitForEvent('filechooser')
     await upload.click()
     await (await obverseChooser).setFiles({ name: 'obverse.png', mimeType: 'image/png', buffer: tinyPng })
@@ -110,7 +112,7 @@ test('PWA manual bypass saves without calling AI intake', async ({ page }) => {
   })
 
   await page.goto('/add')
-  await page.getByRole('button', { name: 'Use manual mode instead' }).click()
+  await page.getByRole('button', { name: 'Use manual entry' }).click()
   await coinFormControl(page, 'Name').fill('Manual PWA Coin')
   await page.getByRole('button', { name: 'Add to Collection' }).click()
   await expect(page).toHaveURL('/coin/7001')

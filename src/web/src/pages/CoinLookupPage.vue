@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="mx-auto min-w-0 max-w-[900px]">
-      <div class="page-header">
+      <div v-if="!isPwa || state !== 'capture'" class="page-header">
         <h1>Identify Coin</h1>
         <div class="pwa-actions">
           <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
@@ -295,6 +295,7 @@ import { useDeepAnalysisLauncher } from '@/composables/useDeepAnalysisLauncher'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
 import { normalizeGalleryImage } from '@/utils/galleryImage'
 import { useAuthStore } from '@/stores/auth'
+import { usePwa } from '@/composables/usePwa'
 
 interface CapturedImage {
   role: CoinLookupImageRole
@@ -306,6 +307,7 @@ type LookupState = 'capture' | 'analyzing' | 'results'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { isPwa } = usePwa()
 
 const state = ref<LookupState>('capture')
 const capturedImages = ref<CapturedImage[]>([])

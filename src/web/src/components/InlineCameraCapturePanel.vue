@@ -1,5 +1,5 @@
 <template>
-  <div class="camera-first-card" :class="{ 'desktop-workspace': desktopWorkspace }">
+  <div class="camera-first-card" :class="{ 'desktop-workspace': desktopWorkspace, immersive }">
     <div class="camera-container">
       <video
         ref="cameraVideo"
@@ -11,20 +11,22 @@
         @loadedmetadata="onVideoMetadataLoaded"
       />
       <div v-if="!cameraStream" class="camera-placeholder">
-        <Camera :size="48" />
-        <p>Start the camera when you're ready.</p>
-        <button
-          type="button"
-          class="btn btn-secondary btn-sm camera-start-btn"
-          @click="startCamera"
-        >
-          <Camera :size="16" />
-          Start Camera
-        </button>
+        <template v-if="!immersive">
+          <Camera :size="48" />
+          <p>Start the camera when you're ready.</p>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm camera-start-btn"
+            @click="startCamera"
+          >
+            <Camera :size="16" />
+            Start Camera
+          </button>
+        </template>
       </div>
       <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
 
-      <div v-if="cameraStream !== null" class="focus-overlay">
+      <div v-if="cameraStream !== null && !immersive" class="focus-overlay">
         <div class="focus-mask"></div>
         <div class="focus-ring"></div>
         <p class="focus-instruction">{{ instruction }}</p>
@@ -33,7 +35,7 @@
 
     <slot name="before-actions"></slot>
 
-    <div v-if="desktopWorkspace" class="desktop-camera-actions">
+    <div v-if="desktopWorkspace && !immersive" class="desktop-camera-actions">
       <button
         v-if="cameraStream === null"
         type="button"
@@ -59,7 +61,7 @@
       </button>
     </div>
 
-    <div class="camera-actions">
+    <div v-if="!immersive" class="camera-actions">
       <button
         type="button"
         class="shutter-btn"
@@ -94,11 +96,18 @@ const props = withDefaults(
     filenamePrefix?: string
     instruction?: string
     desktopWorkspace?: boolean
+    /**
+     * Render as a bare viewfinder that fills its parent: no card chrome, no
+     * placeholder copy, no built-in shutter or ring. PwaCaptureShell supplies
+     * all of those and drives capture through the exposed methods below.
+     */
+    immersive?: boolean
   }>(),
   {
     filenamePrefix: 'capture',
     instruction: 'Focus one coin in the circle',
     desktopWorkspace: false,
+    immersive: false,
   }
 )
 
@@ -226,7 +235,11 @@ onBeforeUnmount(() => {
 })
 
 defineExpose({
+  startCamera,
   stopCamera,
+  captureFromCamera,
+  cameraReady,
+  cameraActive: computed(() => cameraStream.value !== null),
 })
 </script>
 
@@ -364,7 +377,7 @@ defineExpose({
 }
 
 @media (max-height: 700px) {
-  .camera-container {
+  .camera-first-card:not(.immersive) .camera-container {
     height: 40vh;
   }
 }
@@ -399,6 +412,24 @@ defineExpose({
   background: var(--bg-card-hover);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
+}
+
+.camera-first-card.immersive {
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.camera-first-card.immersive .camera-container {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 @media (min-width: 769px) {

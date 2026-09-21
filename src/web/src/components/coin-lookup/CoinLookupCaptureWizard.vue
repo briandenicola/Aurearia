@@ -1,5 +1,23 @@
 <template>
-  <section class="capture-wizard" aria-labelledby="capture-wizard-title">
+  <!--
+    Installed PWA gets the full-bleed camera shell from the approved capture
+    mockup; browser tabs keep the two-column wizard below, which still has to
+    work with a mouse on a wide window.
+  -->
+  <PwaCaptureShell
+    v-if="isPwa"
+    ref="pwaShell"
+    v-bind="props"
+    @captured="(role, file) => emit('captured', role, file)"
+    @selected="(role, file) => emit('selected', role, file)"
+    @remove="role => emit('remove', role)"
+    @analyze="emit('analyze')"
+    @deep-analyze="emit('deepAnalyze')"
+    @manual="emit('manual')"
+    @update:notes="value => emit('update:notes', value)"
+  />
+
+  <section v-else class="capture-wizard" aria-labelledby="capture-wizard-title">
     <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
 
     <ol class="capture-progress" :aria-label="purpose === 'intake' ? 'Coin intake progress' : 'Identification progress'">
@@ -164,6 +182,8 @@
 import { computed, ref, watch } from 'vue'
 import { AlertCircle, Camera, Check, ChevronLeft, ChevronRight, Microscope, Search, X } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
+import PwaCaptureShell from '@/components/coin-lookup/PwaCaptureShell.vue'
+import { usePwa } from '@/composables/usePwa'
 import type { CoinLookupImageRole } from '@/types'
 
 interface CaptureImage {
@@ -201,8 +221,13 @@ const emit = defineEmits<{
   remove: [role: CoinLookupImageRole]
   analyze: []
   deepAnalyze: []
+  /** Intake only: leave assisted capture for the manual coin form. */
+  manual: []
   'update:notes': [value: string]
 }>()
+
+const { isPwa } = usePwa()
+const pwaShell = ref<InstanceType<typeof PwaCaptureShell> | null>(null)
 
 const steps = computed(() => [
   {
@@ -280,6 +305,7 @@ watch(() => props.reverse, (reverse) => {
 })
 
 function stopCamera() {
+  pwaShell.value?.stopCamera()
   cameraPanel.value?.stopCamera()
 }
 
