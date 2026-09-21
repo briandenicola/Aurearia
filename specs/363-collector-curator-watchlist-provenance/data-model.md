@@ -117,12 +117,12 @@ specialist result with these fields:
 | `sourceUrl` | Existing validated HTTPS dealer URL. |
 | `observedAt` | Existing validated timestamp. |
 | `confidence` | Existing `high|medium|low`; displayed but not a substitute for verification. |
-| `verificationState` | Must equal `verified`; `partial` is ineligible. |
+| `verificationState` | `verified` or `partial`; partial requires visible uncertainty and confirmation under amended FR-012/014. |
 | `description` | Optional typed dealer description. |
 | `dealerName` | Optional typed dealer/source label. |
 | `listedPrice` | Optional non-negative number. |
 | `currency` | Optional three-letter currency paired with the price where present. |
-| `availability` | `available|sold|unknown|null`; only `available` is eligible. |
+| `availability` | `available|sold|unknown|null`; available/unknown are eligible, unknown requires visible uncertainty and confirmation. |
 | `ruler` | Optional bounded string. |
 | `denomination` | Optional bounded string. |
 | `era` | Optional bounded string. |

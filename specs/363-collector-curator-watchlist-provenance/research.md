@@ -73,12 +73,14 @@
   ```text
   capability = market_search
   item.kind = dealer_listing
-  item.verificationState = verified
-  item.availability = available
+  item.verificationState in {verified, partial}
+  item.availability in {available, unknown}
   ```
 
-  Any absent, partial, unknown, sold, malformed, or auction value is
-  ineligible.
+  Any absent, sold, malformed, or auction value is ineligible.
+  The owner-authorized 2026-09-21 amendment supersedes the original
+  verified/available-only decision: partial/unknown results require visible
+  listing-specific uncertainty and explicit confirmation before saving.
 - **Rationale**: These fields already exist in the internal
   `CopilotSpecialistEvidence`/Pydantic `DealerListing`. The active spec names
   this exact boundary.

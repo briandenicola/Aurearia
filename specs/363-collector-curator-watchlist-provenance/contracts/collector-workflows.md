@@ -204,8 +204,8 @@ The UI may render **Add to Wishlist** only when all conditions are true:
 ```text
 specialistResult.capability === "market_search"
 item.kind === "dealer_listing"
-item.verificationState === "verified"
-item.availability === "available"
+item.verificationState in {"verified", "partial"}
+item.availability in {"available", "unknown"}
 item.sourceUrl is non-empty
 item.title is non-empty
 ```
@@ -213,8 +213,8 @@ item.title is non-empty
 Everything else is ineligible, including:
 
 - `auction_search` and `auction_lot`;
-- `partial`, missing, or unknown verification;
-- sold, unknown, missing, withdrawn, or otherwise non-available state;
+- missing or invalid verification;
+- sold, missing, withdrawn, or otherwise ineligible availability;
 - malformed or truncated values that cannot satisfy the typed contract;
 - text or `facts` that merely claim eligibility.
 
@@ -223,6 +223,11 @@ Everything else is ineligible, including:
 `CopilotRunProgress.vue` emits the typed dealer item only from the owner's
 button click. Rendering, replay, SSE receipt, tool completion, model text, and
 conversation commands do not emit the action.
+
+Under the owner-authorized 2026-09-21 spec amendment, partial verification and
+unknown availability are displayed against the affected listing. The parent
+requires explicit uncertainty confirmation, suppresses repeated pending clicks,
+and rechecks eligibility after confirmation. Cancellation creates nothing.
 
 `CoinSearchChat.vue` routes the event to the existing
 `useCoinSearchChat.addToWishlist` function and its state:

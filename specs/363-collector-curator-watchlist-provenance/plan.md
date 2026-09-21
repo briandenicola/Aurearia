@@ -52,8 +52,9 @@ no extra provider fan-out; wishlist save has the same latency as the shipped
 legacy suggestion flow; URL retrieval is single-page, response-size limited,
 timeout bounded, and asynchronously reportable
 **Constraints**: owner-derived scope; bounded profile values; Python remains
-stateless/read-only; only verified and currently available `dealer_listing`
-items from `market_search` are eligible; auction source/config/model/route/
+stateless/read-only; only verified/partial `dealer_listing` items with
+available/unknown availability from `market_search` are eligible, with the
+2026-09-21 spec amendment's uncertainty confirmation; auction source/config/model/route/
 service/UI files are untouched
 **Scale/Scope**: personal-scale application, fewer than 10 concurrent users;
 one profile row per owner; one listing URL per intake
@@ -98,7 +99,7 @@ is justified.
 | `CopilotSpecialistEvidence` | Source of typed `dealer_listing`, `verification_state`, `availability`, identity fields, price, currency, and provenance. |
 | `ProjectCopilotSpecialistResult` | Add only the typed dealer fields the browser needs; do not parse the rendered `facts` strings. |
 | `CoinCopilotSpecialistEvidence` in `src/web/src/types/agent.ts` | Extend the existing public discriminated evidence type with optional dealer fields needed to build a `CoinSuggestion`. |
-| `CopilotRunProgress.vue` | Render the explicit button only when capability is `market_search`, kind is `dealer_listing`, verification is `verified`, and availability is `available`. Never render it for `auction_search`/`auction_lot`. |
+| `CopilotRunProgress.vue` | Render the explicit button only for `market_search` / `dealer_listing`, `verified` or `partial` verification, and `available` or `unknown` availability. Show listing-specific uncertainty. Never render it for auctions. |
 | `CoinSearchChat.vue` | Pass the existing wishlist callback/state into `CopilotRunProgress` and keep the existing category/era modal at the parent level. |
 | `collection_summary`, `portfolio_review`, `gap_analysis` | Remain the complete analysis set for curator guidance. No new curator agent or provider is added. |
 | `SettingsPage.vue` and settings component conventions | Add a compact Collector Profile section using the existing API client and design system. Do not use global admin settings. |
@@ -213,7 +214,9 @@ Research is recorded in [research.md](./research.md). The decisions are:
 - Extend the existing public specialist projection with typed dealer fields.
 - In `CopilotRunProgress`, calculate eligibility from typed fields only:
   `capability === "market_search"`, `kind === "dealer_listing"`,
-  `verificationState === "verified"`, and `availability === "available"`.
+  verification in `verified|partial`, and availability in `available|unknown`.
+  Partial/unknown results display uncertainty and require confirmation in
+  `CoinSearchChat` before the canonical action; recheck eligibility after awaiting.
 - Adapt an eligible item to `CoinSuggestion` and emit the existing
   `addToWishlist` callback. The button click is the only trigger.
 - Reuse `resolveCategoryAndEra`, `buildWishlistCoinPayload`, `createCoin`, and
@@ -275,8 +278,8 @@ Research is recorded in [research.md](./research.md). The decisions are:
    TypeScript type.
 2. Wire the existing `addToWishlist` callback/state from `CoinSearchChat` into
    `CopilotRunProgress`.
-3. Render the button only for verified, available dealer results; explicitly
-   exclude every auction and non-eligible state.
+3. Render the button only for dealer results satisfying amended FR-012; explicitly
+   exclude auctions and other ineligible states. Confirm partial/unknown uncertainty.
 4. Apply the existing reference-URL duplicate lookup inside the canonical
    wishlist create transaction and preserve category/era and image behavior.
 5. Test eligibility, explicit-click-only mutation, mapping, cancellation,

@@ -90,9 +90,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { Camera, Images } from 'lucide-vue-next'
+import type { CoinLookupImageRole } from '@/types'
 
 const props = withDefaults(
   defineProps<{
+    imageRole: CoinLookupImageRole
     filenamePrefix?: string
     instruction?: string
     desktopWorkspace?: boolean
@@ -112,7 +114,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  captured: [file: File]
+  captured: [file: File, role: CoinLookupImageRole]
   upload: []
 }>()
 
@@ -120,31 +122,44 @@ const cameraVideo = ref<HTMLVideoElement | null>(null)
 const cameraStream = ref<MediaStream | null>(null)
 const cameraError = ref('')
 const videoReady = ref(false)
-const cameraReady = computed(() => cameraStream.value !== null && videoReady.value)
+const starting = ref(false)
+const capturing = ref(false)
+const cameraReady = computed(() => cameraStream.value !== null && videoReady.value && !capturing.value)
+let generation = 0
+let disposed = false
 
 async function startCamera() {
-  if (cameraStream.value) return
+  if (disposed || starting.value || cameraStream.value) return
   if (!navigator.mediaDevices?.getUserMedia) {
     cameraError.value = 'Camera access is unavailable on this device.'
     return
   }
 
+  const requestGeneration = generation
+  starting.value = true
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' } },
       audio: false,
     })
+    if (requestGeneration !== generation) {
+      for (const track of stream.getTracks()) track.stop()
+      return
+    }
     cameraStream.value = stream
     cameraError.value = ''
     videoReady.value = false
 
     await nextTick()
 
+    if (requestGeneration !== generation) return
     if (cameraVideo.value) {
       cameraVideo.value.srcObject = stream
       await cameraVideo.value.play()
     }
   } catch (error) {
+    if (requestGeneration !== generation) return
+    stopCamera()
     const err = error as { name?: string }
     if (err.name === 'NotAllowedError') {
       cameraError.value = 'Camera permission was denied. You can still upload images.'
@@ -153,22 +168,27 @@ async function startCamera() {
     } else {
       cameraError.value = 'Camera is unavailable. You can still upload images.'
     }
+  } finally {
+    if (requestGeneration === generation) starting.value = false
   }
 }
 
 function onVideoMetadataLoaded() {
   const video = cameraVideo.value
-  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+  if (cameraStream.value && video && video.videoWidth > 0 && video.videoHeight > 0) {
     videoReady.value = true
   }
 }
 
 function stopCamera() {
-  if (!cameraStream.value) return
-  for (const track of cameraStream.value.getTracks()) {
+  generation += 1
+  starting.value = false
+  capturing.value = false
+  for (const track of cameraStream.value?.getTracks() ?? []) {
     track.stop()
   }
   cameraStream.value = null
+  if (cameraVideo.value) cameraVideo.value.srcObject = null
   videoReady.value = false
 }
 
@@ -193,6 +213,7 @@ function computeCoverCropRect(
 }
 
 async function captureFromCamera() {
+  if (disposed || capturing.value) return
   const video = cameraVideo.value
   if (!video || !cameraReady.value || video.videoWidth === 0 || video.videoHeight === 0) {
     cameraError.value = 'Camera is not ready yet. Try again in a moment.'
@@ -217,20 +238,36 @@ async function captureFromCamera() {
   canvas.width = sw
   canvas.height = sh
   const context = canvas.getContext('2d')
-  if (!context) return
-
-  context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
-  if (!blob) {
-    cameraError.value = 'Could not capture image from camera.'
+  if (!context) {
+    cameraError.value = 'Could not prepare image capture. You can still upload images.'
     return
   }
 
-  emit('captured', new File([blob], `${props.filenamePrefix}-${Date.now()}.jpg`, { type: 'image/jpeg' }))
+  const captureGeneration = generation
+  const role = props.imageRole
+  const filename = `${props.filenamePrefix}-${Date.now()}.jpg`
+  capturing.value = true
+  try {
+    context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+    if (captureGeneration !== generation) return
+    if (!blob) {
+      cameraError.value = 'Could not capture image from camera.'
+      return
+    }
+    cameraError.value = ''
+    emit('captured', new File([blob], filename, { type: 'image/jpeg' }), role)
+  } catch {
+    if (captureGeneration === generation) {
+      cameraError.value = 'Could not capture image from camera. You can still upload images.'
+    }
+  } finally {
+    if (captureGeneration === generation) capturing.value = false
+  }
 }
 
 onBeforeUnmount(() => {
+  disposed = true
   stopCamera()
 })
 

@@ -98,8 +98,9 @@
           class="w-full"
           desktop-workspace
           :filename-prefix="`lookup-${currentStep.role}`"
+          :image-role="currentStep.role"
           :instruction="currentStep.instruction"
-          @captured="$emit('captured', currentStep.role, $event)"
+          @captured="(file, role) => $emit('captured', role, file)"
           @upload="fileInput?.click()"
         />
 

@@ -407,6 +407,18 @@ class SpecialistResult(StrictSpecialistModel):
             raise ValueError("unavailable requires a degraded provider attempt")
         if self.outcome == "no_match" and degraded:
             raise ValueError("no_match cannot follow a degraded provider attempt")
+        if self.capability == "price_trends" and (self.items or self.trend is not None):
+            if self.trend is None:
+                raise ValueError("price trend evidence requires a summary")
+            expected = _build_price_trend([item for item in self.items if isinstance(item, SaleObservation)])
+            # Wording and source ordering may differ in older checkpoints.
+            excluded = {"limitations", "supporting_source_ids"}
+            if self.trend.model_dump(exclude=excluded) != expected.model_dump(exclude=excluded):
+                raise ValueError("price trend summary does not match its evidence")
+            if sorted(self.trend.supporting_source_ids) != sorted(expected.supporting_source_ids):
+                raise ValueError("price trend supporting sources do not match its evidence")
+            if expected.limitations and not self.trend.limitations:
+                raise ValueError("price trend limitations must be visible")
         return self
 
 

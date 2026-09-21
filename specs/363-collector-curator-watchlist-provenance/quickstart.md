@@ -77,6 +77,10 @@ Feature implementation must not edit an auction subsystem file.
    references, and interpretable current value.
 8. Verify purchase/acquisition, invoice/SKU, storage, sold, owned-collection,
    auction, and draft fields remain empty/default.
+9. Repeat with partial verification, unknown availability, and both. Check the
+   listing-specific uncertainty, cancel confirmation (zero creates), confirm
+   (one create), repeat clicks while pending (one dialog/create), and change
+   availability to sold while confirmation is open (zero creates).
 
 ## Scenario 4 — Eligibility exclusions
 
@@ -84,10 +88,9 @@ For each fixture below, verify no **Add to Wishlist** button is rendered and no
 call can be triggered:
 
 - `auction_search` or `kind="auction_lot"`;
-- `verificationState="partial"`;
 - absent/unknown verification;
 - `availability="sold"`;
-- `availability="unknown"` or null/absent;
+- null/absent availability;
 - malformed result;
 - non-specialist prose or rendered `facts` that merely contain words such as
   “verified” or “available”;
@@ -247,7 +250,8 @@ task openapi
 
 Each owner may keep one small private context profile. Coin Copilot uses it
 only to contextualize its existing read-only collection analysis. A wishlist
-coin is created only when the owner explicitly clicks an eligible verified,
-available dealer card, through the existing canonical wishlist flow. Auction
+coin is created only when the owner explicitly clicks an eligible dealer card
+under amended FR-012 and confirms partial/unknown uncertainty when present,
+through the existing canonical wishlist flow. Auction
 results never expose the action, and no action platform or additional
 subsystem exists.

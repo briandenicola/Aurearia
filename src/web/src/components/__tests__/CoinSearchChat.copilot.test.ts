@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import CoinSearchChat from '../CoinSearchChat.vue'
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   resume: vi.fn(),
   addToWishlist: vi.fn(),
+  confirm: vi.fn(),
   active: false,
   run: null as CoinCopilotRun | null,
   tools: [] as CoinCopilotToolProgress[],
@@ -26,7 +27,7 @@ vi.mock('@/api/client', () => ({
 }))
 
 vi.mock('@/composables/useDialog', () => ({
-  useDialog: () => ({ showAlert: vi.fn() }),
+  useDialog: () => ({ showAlert: vi.fn(), showConfirm: mocks.confirm }),
 }))
 
 vi.mock('@/composables/useCoinSearchChat', () => ({
@@ -194,6 +195,7 @@ function priceTrendResult(): CoinCopilotSpecialistResult {
 describe('CoinSearchChat Coin Copilot drawer integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.confirm.mockResolvedValue(true)
     mocks.active = false
     mocks.run = null
     mocks.clarification = null
@@ -324,6 +326,55 @@ describe('CoinSearchChat Coin Copilot drawer integration', () => {
       sourceUrl: 'https://www.cngcoins.com/Coin.aspx?CoinID=400001',
       sourceName: 'Classical Numismatic Group',
     }, 'copilot:call_complete:https://www.cngcoins.com/Coin.aspx?CoinID=400001')
+  })
+
+  it.each([
+    ['partial', 'available', true], ['partial', 'available', false],
+    ['verified', 'unknown', true], ['verified', 'unknown', false],
+    ['partial', 'unknown', true], ['partial', 'unknown', false],
+  ] as const)('confirms %s/%s before saving (confirm=%s)', async (verification, availability, confirmed) => {
+    mocks.run = activeRun('completed')
+    const result = specialistResult('complete')
+    const item = result.items[0]!
+    item.verificationState = verification
+    item.availability = availability
+    mocks.tools = [specialistTool(result)]
+    mocks.confirm.mockResolvedValue(confirmed)
+    const wrapper = mountChat()
+    const progress = wrapper.getComponent({ name: 'CopilotRunProgress' })
+    expect(mocks.addToWishlist).not.toHaveBeenCalled()
+    progress.vm.$emit('addToWishlist', 'market_search', item, 'uncertain')
+    expect(mocks.addToWishlist).not.toHaveBeenCalled()
+    await flushPromises()
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.stringContaining(availability === 'unknown' ? 'Availability is unknown' : 'only partially verified'),
+      expect.objectContaining({ confirmLabel: 'Add to Wishlist' }),
+    )
+    expect(mocks.addToWishlist).toHaveBeenCalledTimes(confirmed ? 1 : 0)
+    wrapper.unmount()
+  })
+
+  it.each(['repeat', 'sold', 'unmount', 'new-run'])('handles %s while uncertainty confirmation is pending', async (action) => {
+    mocks.run = activeRun('completed')
+    const result = specialistResult('complete')
+    const item = result.items[0]!
+    item.availability = 'unknown'
+    mocks.tools = [specialistTool(result)]
+    let confirm!: (value: boolean) => void
+    mocks.confirm.mockReturnValue(new Promise<boolean>(resolve => { confirm = resolve }))
+    const wrapper = mountChat()
+    const progress = wrapper.getComponent({ name: 'CopilotRunProgress' })
+    progress.vm.$emit('addToWishlist', 'market_search', item, 'uncertain')
+    if (action === 'repeat') progress.vm.$emit('addToWishlist', 'market_search', item, 'uncertain')
+    if (action === 'sold') item.availability = 'sold'
+    if (action === 'unmount') wrapper.unmount()
+    if (action === 'new-run') mocks.run.id = 'ccr_replaced'
+    expect(mocks.addToWishlist).not.toHaveBeenCalled()
+    confirm(true)
+    await flushPromises()
+    expect(mocks.confirm).toHaveBeenCalledTimes(1)
+    expect(mocks.addToWishlist).toHaveBeenCalledTimes(action === 'repeat' ? 1 : 0)
+    if (action !== 'unmount') wrapper.unmount()
   })
 
   it('rejects a forged ineligible wishlist event from the child component', async () => {
