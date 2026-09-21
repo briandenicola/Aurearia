@@ -3,8 +3,8 @@
 This document is the canonical testing strategy for Aurearia. It explains what we test, what we intentionally do not test, and how contributors should add new tests across the Go API, Vue PWA, and Python agent.
 
 ADR 0019's proportional-policy changes were accepted via PR #734 under section
-22. The command inventory below describes existing scripts/CI; it
-does not claim new P3 gate wrappers or live protection changes are installed.
+22. Section 6 documents the shared P3 Taskfile gates used locally and in CI.
+Workflow jobs are not proof that live branch protections require them.
 
 ## 1. Testing Philosophy
 
@@ -125,42 +125,110 @@ claiming verification. Pure docs need document/link/consistency review and any
 existing doc checks. Executable prompts, policy, scripts, and workflow changes
 need relevant behavior/fixture evidence; Markdown is not an automatic exemption.
 
-The current source of executable behavior is
-[`ci.yml`](../.github/workflows/ci.yml), the other workflows, and package manifests.
-Until P3 adds shared gate entry points, use this inventory:
+The [Taskfile](../Taskfile.yml) is the shared completion entry point.
+[`ci.yml`](../.github/workflows/ci.yml) calls the same targets, without a
+missing-linter fallback. Run from the repository root in an already prepared
+environment; select every affected layer rather than claiming unrelated skips.
 
-| Directory | Completion commands in an already prepared environment |
-|-----------|--------------------------------------------------------|
-| `src/api` | `go build ./...`, `go vet ./...`, `go test -v ./...` |
-| `src/web` | `npm run lint`, `npm run type-check`, `npm run test`, `npm run build` |
-| `src/agent` | `uv run --no-sync ruff check app/ tests/`, `uv run --no-sync pytest tests/ -v` |
-| Repository root, affected browser flows | `task test-critical-workflows` (delegates to `npm run test:browser`) |
-| Repository root, API changes | `task openapi`, then review generated artifacts and snapshot consistency |
+| Completion target | Commands / effect |
+|-------------------|-------------------|
+| `task check:go` | `go build ./...`, `go vet ./...`, `go test -v ./...` in `src/api` |
+| `task check:web` | `npm run lint`, `npm run type-check`, full `npm run test`, `npm run build` in `src/web` |
+| `task check:agent` | Require prepared `.venv`, verify lock AND environment with `uv sync --locked --check --offline --extra dev`, then `uv run --no-sync --offline` Ruff and full pytest; Python downloads disabled |
+| `task check:openapi` | Run the pinned installed generator, sync version and snapshots, fail on generated tracked-file drift; **writes files** |
+| `task check:delivery` | Node fixture/negative tests, PowerShell SpecKit selection regression, then offline governance check |
+| `task check:governance` | Read-only, offline active-governance checks; errors fail, warnings do not |
+| `task check` | All base completion targets above, sequentially; not a replacement for additional browser/race/security/compatibility/release jobs |
+| `task test-critical-workflows` | Affected browser workflows (`npm run test:browser`) |
 
 **Preparation is separate and requires authorization.** Match toolchains to
-manifests/workflows. Web CI uses `npm ci`. Agent CI installs its pinned uv and
-Python 3.12, then uses `uv sync --locked --extra dev`. CI subsequently runs
-`uv run ruff check app/ tests/` and `uv run pytest tests/ -v`; local `--no-sync`
-avoids implicit dependency changes and assumes that locked environment has
-already been verified. Do not treat a default system Python as the project venv.
-`task openapi` installs/runs the generator and writes files; it is not read-only.
-Missing setup or execution permission means pending evidence, not a pass.
+manifests/workflows. CI uses Task 3.44.0 via a SHA-pinned setup action, Node
+24.15.0, Go from `src/api/go.mod`, and Python 3.12 with uv 0.11.22.
+The delivery scripts themselves need only Node built-ins; their fixture suite
+also needs Task, Git, npm and PowerShell 7 (`pwsh`). No dependency installation
+occurs in completion recipes.
 
-**Windows:** use `npm.cmd` for the npm commands when PowerShell blocks `npm.ps1`.
+Authorized setup targets are `task setup:go` (`go mod download` using the installed
+toolchain), `task setup:web` (`npm ci`), `task setup:agent`
+(`uv sync --locked --extra dev`), and `task setup:openapi` (swag v1.16.6).
+They require the corresponding tools to be installed already. The legacy
+`build-agent` target is explicitly a setup alias, not compilation evidence.
+`build-web` and `run-web` no longer implicitly run npm install.
+Agent lint/tests use the prepared project environment, not system Python.
+The agent's `uv sync --check` only verifies; it does not synchronize/install.
+Go completion/race/OpenAPI commands disable toolchain switching and module
+downloads (`GOTOOLCHAIN=local`, `GOPROXY=off`), so missing setup fails explicitly.
+These are command-local assignments (and explicit OpenAPI child-process values),
+not overridable Task `env` defaults. Regression probes exercise conflicting
+inherited values, including `CGO_ENABLED=0` and Python-download overrides.
+Missing tools, dependencies or execution permission mean incomplete evidence;
+do not install implicitly or weaken the command.
+
+`task openapi` now only generates; it does not install. Both OpenAPI modes write
+the version annotation and generated artifacts. `task check:openapi` additionally
+compares against the index with `git diff --exit-code`; review/stage intentional
+snapshot changes and rerun. CI starts from a clean index and fails on drift.
+Neither command is a read-only audit.
+
+**Windows:** the Taskfile selects `npm.cmd` so PowerShell's npm.ps1 policy does
+not change the gate. Use `npm.cmd` for direct package commands as well.
 Use Windows paths such as `Set-Location .\src\web`; each fresh shell starts in the
 repository root. Do not replace the package test script with a Vitest-only call.
 
-**CI/release evidence:** preserve the separate Go race job (`CGO_ENABLED=1`,
-`go test -race ./...`), generated OpenAPI diff, security scans, compatibility and
+**CI/release evidence:** the separate race job calls `task test-race`
+(`CGO_ENABLED=1`, `go test -race ./...`). Preserve generated OpenAPI consistency,
+security scans, compatibility and
 container jobs. Use appropriate runners/toolchains; unavailable local checks
 remain pending until matching CI evidence exists. Cite the exact tested SHA.
 Live required-context configuration is separate from jobs merely existing.
 
-Existing [Taskfile](../Taskfile.yml) targets and hooks are conveniences, not a
-complete parity wrapper. Some build targets install dependencies. Read before
-running; do not invent P3 targets or silently substitute a weaker command.
+Fast feedback remains targeted tests. Completion is the applicable shared
+targets above. CI/release adds all applicable runner-only and release checks.
+Delivery fixtures run on both Windows and Ubuntu; this does not substitute for
+actual application execution in the language jobs.
 Record commands, outcomes, manual exceptions, and commit/dirty-tree identity.
 Later changes invalidate applicable previous results.
+
+### Governance checker boundaries
+
+[The checker](../scripts/delivery/check-governance.mjs) defines its active surface
+explicitly: repository instructions, PR/contributor/testing guidance, active
+decisions/current pointer, `.github/agents`, `.github/prompts`,
+`.github/instructions`, `.specify/templates`, and current role charters/histories.
+It does not recursively lint archives, session logs, ADR requirement bodies,
+landed specifications or backlog prose as current policy.
+
+Blocking rules check concrete Markdown link targets (including reference-style
+definitions), principle identifiers against the constitution, ADR header/index
+status/target agreement, current-work structure/targets, and required native
+skill `name`/`description` metadata under `.github/skills` and `.agents/skills`.
+Backticked examples/optional runtime paths and placeholder templates are not
+treated as file links. Remote URLs are not fetched. Sparse-excluded tracked
+reference targets are reported as warnings; an ordinary missing target is an
+error. Diagnostics include file, line, rule code and severity; errors exit 1.
+
+The current pointer requires scalar `updated_at` (real YYYY-MM-DD), `focus_area`,
+`owner`, `work_artifact` and `tasks_artifact` frontmatter. Artifact paths are
+canonical repository-relative existing Markdown files under docs/specs, or
+`https://github.com/briandenicola/Aurearia/issues/NUMBER` for bounded issue work
+(URL syntax only; remote existence/authorization is not checked offline).
+Feature selection requires matching `spec.md`/`tasks.md`; a process plan or issue
+may serve both roles. No new feature spec is required for a small issue repair.
+Names/descriptions accept plain, quoted or block scalar text; the checker
+validates required metadata, not the entire YAML language.
+
+Size limits and Proposed ADR lifecycle questions start as warnings. New malformed
+status/index links remain errors; there is no blanket waiver for new drift.
+The checker cannot establish prose correctness, owner authorization, historical
+review clearance, native tool discovery, independence or release acceptance.
+Those remain evidence-backed human/reviewer decisions. P4 still owns native
+skill migration; this phase installs no skill packages.
+
+Fixtures deliberately remove targets, corrupt state/status/metadata, introduce
+obsolete principles and disable blocking diagnostics. Real Task invocations
+exercise lint failure propagation and missing-script failure without installing
+dependencies. The SpecKit regression runs explicit selections and a throwaway
+copy restoring the original stdout/Boolean bug; it never mutates a real feature.
 
 ## 7. Coverage philosophy
 
@@ -357,7 +425,7 @@ be claimed unless the commands were actually executed.
 - Task runner: [`../Taskfile.yml`](../Taskfile.yml)
 
 TODOs:
-- Python static type checking is still absent. If we promote it to backlog, file it as `specs/_backlog/F012-agent-static-type-checking.md`.
+- Python static type checking is still absent. Any owner-approved backlog addition must use a newly allocated identifier; F012 already belongs to a different feature.
 # Structured storage tray regressions
 
 ```powershell

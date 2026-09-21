@@ -3,10 +3,13 @@ version: '3'
 env:
   DOCKER_REPO: bjd145
 
+vars:
+  NPM: '{{if eq OS "windows"}}npm.cmd{{else}}npm{{end}}'
+
 tasks:
   default:
-  cmds:
-    - task --list
+    cmds:
+      - task --list
   
   up:
     desc: Run both API and web servers in parallel
@@ -22,54 +25,92 @@ tasks:
       - go build -o ancient-coins-api .
 
   openapi:
-    desc: Regenerate Swagger artifacts and sync docs/openapi.json
+    desc: Regenerate Swagger artifacts and version annotation (writes files; no install)
+    cmds:
+      - node scripts/delivery/openapi.mjs
+
+  setup:openapi:
+    desc: Install the pinned Swagger generator (requires setup authorization)
+    cmds:
+      - GOTOOLCHAIN=local go install github.com/swaggo/swag/cmd/swag@v1.16.6
+
+  setup:go:
+    desc: Download Go dependencies using the installed toolchain (requires setup authorization)
     dir: src/api
     cmds:
-      # Keep the `@version` swagger annotation in lockstep with the root VERSION
-      # file (single canonical source, F9/T096) before swag bakes it into
-      # docs.go/swagger.json — prevents the 4.0/4.0.0 drift that undermined
-      # diagnosing a prior failed run.
-      # NOTE (Linux/macOS): the VERSION file must be read inside a BEGIN block.
-      # A previous form read it in the body with `local @ARGV = ("../../VERSION")`,
-      # which hijacked the `-i` in-place machinery mid-loop: main.go was truncated
-      # to 0 bytes and its source was written into VERSION. Reading in BEGIN keeps
-      # @ARGV/ARGVOUT pointing at main.go. Trailing whitespace is stripped with a
-      # regex rather than chomp, since `-0777` sets `$/ = undef` and chomp is a no-op.
-      - cmd: perl -0777 -pi -e 'BEGIN { open my $vf, "<", "../../VERSION" or die "cannot read VERSION - $!"; $v = do { local $/; <$vf> }; close $vf; $v =~ s/\A\s+|\s+\z//g } s{(?m)^(//\t\@version\s+)\S+}{$1$v}' main.go
-        platforms: [linux, darwin]
-      # NOTE (Windows, two compounding bugs):
-      # 1. Task parses `cmd:` lines with its own POSIX-like shell (mvdan.cc/sh)
-      #    before handing the string to powershell.exe. Inside a double-quoted
-      #    string that shell expands `$name` on its own (undefined -> empty),
-      #    which mangled this step into `('' + )` and threw a PowerShell parser
-      #    error. Every PowerShell `$variable` below must be escaped as
-      #    `\$variable` so Task's shell passes it through literally.
-      # 2. The replacement text used the bare `$1` backreference directly
-      #    followed by the version digits (e.g. `$1` + "4.0.0" -> "$14.0.0").
-      #    .NET regex reads `$14` as "capture group 14" (nonexistent), so the
-      #    substitution silently produced the literal text "$14.0.0" instead
-      #    of the version, corrupting the annotation without an error. Use
-      #    `${1}` (braced group reference) so the group number can never fuse
-      #    with the following version digits, regardless of VERSION's shape.
-      - cmd: powershell -NoProfile -Command "\$v = (Get-Content '../../VERSION' -Raw).Trim(); \$c = Get-Content main.go -Raw; \$c = \$c -replace '(?m)^(//\t@version\s+)\S+', ('\${1}' + \$v); Set-Content -NoNewline -Path main.go -Value \$c"
-        platforms: [windows]
-      - go install github.com/swaggo/swag/cmd/swag@v1.16.6
-      - '"$(go env GOPATH)/bin/swag" init -g main.go -o ./docs --parseDependency --parseInternal'
-      - cmd: cp docs/swagger.json ../../docs/openapi.json
-        platforms: [linux, darwin]
-      - cmd: powershell -NoProfile -Command "Copy-Item 'docs/swagger.json' '../../docs/openapi.json' -Force"
-        platforms: [windows]
-      - cmd: test -s ../../docs/openapi.json
-        platforms: [linux, darwin]
-      - cmd: powershell -NoProfile -Command "if (-not (Test-Path '../../docs/openapi.json')) { exit 1 }"
-        platforms: [windows]
+      - GOTOOLCHAIN=local go mod download
+
+  setup:web:
+    desc: Install locked web dependencies (requires setup authorization)
+    dir: src/web
+    cmds:
+      - '{{.NPM}} ci'
+
+  setup:agent:
+    desc: Prepare locked Python dev environment (requires setup authorization)
+    dir: src/agent
+    cmds:
+      - UV_PYTHON_DOWNLOADS=never uv sync --locked --extra dev
+
+  check:
+    desc: All base completion gates; prepared tools required; OpenAPI writes files
+    cmds:
+      - task: check:delivery
+      - task: check:go
+      - task: check:web
+      - task: check:agent
+      - task: check:openapi
+
+  check:go:
+    desc: Go completion gate shared with CI
+    dir: src/api
+    cmds:
+      - GOTOOLCHAIN=local GOPROXY=off go build ./...
+      - GOTOOLCHAIN=local GOPROXY=off go vet ./...
+      - task: test
+
+  check:web:
+    desc: Web completion gate shared with CI (no dependency installation)
+    dir: src/web
+    cmds:
+      - '{{.NPM}} run lint'
+      - '{{.NPM}} run type-check'
+      - '{{.NPM}} run test'
+      - '{{.NPM}} run build'
+
+  check:agent:
+    desc: Locked Python completion gate shared with CI (offline; no installation)
+    dir: src/agent
+    preconditions:
+      - sh: test -f .venv/pyvenv.cfg
+        msg: Missing prepared agent venv; obtain authorization for task setup:agent
+    cmds:
+      - UV_PYTHON_DOWNLOADS=never uv sync --locked --check --offline --extra dev
+      - task: lint-agent
+      - task: test-agent
+
+  check:openapi:
+    desc: Regenerate OpenAPI and fail on snapshot drift (writes files; no install)
+    cmds:
+      - node scripts/delivery/openapi.mjs --check
+
+  check:governance:
+    desc: Read-only offline active-governance consistency checks
+    cmds:
+      - node scripts/delivery/check-governance.mjs
+
+  check:delivery:
+    desc: Delivery guard fixtures, SpecKit regression, and offline governance check
+    cmds:
+      - node --test scripts/delivery/governance.test.mjs scripts/delivery/validation.test.mjs
+      - pwsh -NoProfile -File scripts/delivery/specify.test.ps1
+      - task: check:governance
 
   build-web:
     desc: Build the Vue frontend
     dir: src/web
     cmds:
-      - npm install
-      - npm run build
+      - '{{.NPM}} run build'
 
   run-api:
     desc: Run the Go API server
@@ -84,8 +125,7 @@ tasks:
     desc: Run the Vite dev server
     dir: src/web
     cmds:
-      - npm install
-      - npm run dev
+      - '{{.NPM}} run dev'
 
   build:
     desc: Build both API and web
@@ -97,27 +137,24 @@ tasks:
     desc: Run Go architecture and unit tests
     dir: src/api
     cmds:
-      - go test -v ./...
+      - GOTOOLCHAIN=local GOPROXY=off go test -v ./...
 
   test-race:
     desc: Run Go tests under the race detector (requires a C toolchain)
     dir: src/api
-    env:
-      CGO_ENABLED: "1"
     cmds:
-      - go test -race ./...
+      - GOTOOLCHAIN=local GOPROXY=off CGO_ENABLED=1 go test -race ./...
 
   test-critical-workflows:
     desc: Run F013 critical browser workflow tests
     dir: src/web
     cmds:
-      - npm run test:browser
+      - '{{.NPM}} run test:browser'
 
   build-agent:
-    desc: Build the Python agent service
-    dir: src/agent
+    desc: Legacy setup alias (installs dependencies; NOT a validation/build gate)
     cmds:
-      - pip install -e ".[dev]"
+      - task: setup:agent
 
   run-agent:
     desc: Run the Python agent dev server
@@ -129,14 +166,20 @@ tasks:
   test-agent:
     desc: Run Python agent tests
     dir: src/agent
+    preconditions:
+      - sh: test -f .venv/pyvenv.cfg
+        msg: Missing prepared agent venv; obtain authorization for task setup:agent
     cmds:
-      - python -m pytest tests/ -v
+      - UV_PYTHON_DOWNLOADS=never uv run --no-sync --offline pytest tests/ -v
 
   lint-agent:
     desc: Lint Python agent code
     dir: src/agent
+    preconditions:
+      - sh: test -f .venv/pyvenv.cfg
+        msg: Missing prepared agent venv; obtain authorization for task setup:agent
     cmds:
-      - ruff check app/ tests/
+      - UV_PYTHON_DOWNLOADS=never uv run --no-sync --offline ruff check app/ tests/
 
   up-all:
     desc: Run API, web, and agent servers in parallel

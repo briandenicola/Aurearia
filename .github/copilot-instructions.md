@@ -56,7 +56,8 @@ Operational rules for every AI agent (Copilot CLI, Coding Agent, Squad). Full te
   Wait for required recording to finish. Do not stage unrelated files or
   automatically commit, stash, push, or release.
 - Current views may be curated only under the accepted archival policy, with
-  preserved originals and review blocks. P2 archival has not run.
+  preserved originals and review blocks. P2 archival was accepted through PR #736;
+  use the current views and their preservation inventory, not full archives.
 - **Do NOT introduce `SESSION-NOTES.md` or `.copilot-state.md`** — constitution §18 forbids these. The `.squad/log/` + `decisions.md` pair is the canonical handoff surface.
 
 ## Build, Test, and Lint
@@ -66,9 +67,12 @@ current CI-aligned commands and Windows invocation. Frontend completion includes
 `npm run lint` with `--max-warnings 0`, strict type-check, full tests, and build.
 Do not substitute `--quiet` or `vue-tsc --noEmit` for required gates.
 
-[Taskfile](../Taskfile.yml) contains convenience targets, not a complete parity
-wrapper. Shared executable gate entry points are pending P3. Dependency setup
-is separate from validation; obtain required permission before machine changes.
+[Taskfile](../Taskfile.yml) provides the CI-shared `check:go`, `check:web`,
+`check:agent`, `check:openapi`, and `check:delivery` completion targets.
+Use all applicable targets; runner-only race/security/compatibility/release
+checks remain additional. OpenAPI regeneration writes files. Dependency setup
+uses separate authorized `setup:*` targets; missing tooling fails rather than
+silently installing or skipping validation.
 
 ## Architecture
 
