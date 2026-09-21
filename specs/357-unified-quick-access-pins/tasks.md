@@ -277,9 +277,9 @@ Superseded by the repository owner's explicit frontend authorization on 2026-09-
 ## Phase 17: Frontend Quality Gate and Review
 
 - [x] **T092** [X] [Aurelia] Run from `src/web`: `npm run type-check`, targeted Vitest files, `npm test`, `npm run lint`, and `npm run build`; record exact results.
-- [x] **T093** [X] [Brutus] Independently verify FR-037-FR-054 and SC-008-SC-012, including keyboard/accessible names, 375px PWA layout, deep-link history behavior, lifecycle freshness, logout race safety, and existing pinned Sets regression.
+- [ ] **T093** [X] [Brutus] Independently verify FR-037-FR-054 and SC-008-SC-012, including keyboard/accessible names, 375px PWA layout, deep-link history behavior, lifecycle freshness, logout race safety, and existing pinned Sets regression. D05 recorded the original REJECT. On 2026-09-21 the owner-appointed successor explicitly cleared its original/re-review findings on tree `910fa92e`; see [receipt](../../docs/audits/2026-09-21.md). This does not newly certify every layout/device criterion, so full task acceptance remains qualified rather than retroactively checked.
 - [x] **T094** [X] [Brutus] Inspect `git diff --name-only` and BLOCK if any `src/api/` file changed or any completed backend task was reopened.
-- [ ] **T095** [X] [Maximus] Perform post-implementation architecture review against D13-D19, module-level lifecycle rules, router parent/query patterns, Principle III/IV/V/VI/IX, §17, and §21.
+- [x] **T095** [X] [Maximus] Perform post-implementation architecture review against D13-D19, module-level lifecycle rules, router parent/query patterns, Principle III/IV/V/VI/IX, §17, and §21. Owner-appointed independent successor explicitly PASS/CLEAR on staged tree `8b07947f37bd69a1254816645d6d0ed4200a8025`, 2026-09-21; [receipt](../../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). T093's broader manual criteria and T096 remain separately qualified/pending.
 - [ ] **T096** [X] [Maximus] Reconcile frontend task checkboxes and require the PR description to cite backend dependency `4d3b6a06`, spec FR-037-FR-054, Constitution Principles II/III/IV/V/VI/IX, §17, and §21.
 
 ## Frontend Dependencies and Execution Order

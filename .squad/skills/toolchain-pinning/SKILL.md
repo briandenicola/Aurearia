@@ -1,10 +1,5 @@
-# Toolchain Pinning Skill
+# Relocated skill
 
-Use this when a task changes CI-installed tools, language patch versions, or Docker base-image references.
+Use the [canonical native skill](../../../.github/skills/toolchain-pinning/SKILL.md). This compatibility pointer contains no separate policy.
 
-1. Inventory all matching pins with `rg`: language version files, workflows, Taskfile targets, Dockerfiles, and directly related docs.
-2. Replace mutable Go tool installs with reviewed module versions. Keep workflow installs and matching Taskfile installs identical.
-3. For Docker base images, prefer `tag@sha256:<OCI index digest>` so multi-arch builds still work. Refresh the digest for the exact reviewed tag; do not switch image families or OS variants unless the task explicitly asks.
-4. Update docs that describe the runtime/tool version and pin refresh cadence.
-5. Validate the smallest relevant surface: OpenAPI generation when `swag` changes, `cd src/api; go test ./...`, and `govulncheck ./...` when available.
-6. Leave locked specs/constitution entries alone unless an amendment is explicitly in scope.
+The [original recipe](https://github.com/briandenicola/Aurearia/blob/7df826fc2504ce1154c05bc8b5d11a818ef7014b/.squad/skills/toolchain-pinning/SKILL.md) remains available as historical reference, not current instructions.

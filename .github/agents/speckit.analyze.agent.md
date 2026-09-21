@@ -12,7 +12,16 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
+Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
+via PR #734; constitution 4.0.0 governs. Select the work explicitly,
+never from the newest spec or `beta`. Set `$env:SPECIFY_FEATURE` to its exact
+directory name in the same process as the prerequisite command below.
+
 Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/speckit.tasks` has successfully produced a complete `tasks.md`.
+
+Include required regression/contract evidence, non-goals, approval boundaries,
+and unresolved reviewer restrictions. This analysis is not software acceptance,
+release approval, or a substitute for either release audit.
 
 ## Operating Constraints
 

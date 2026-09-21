@@ -2,39 +2,53 @@
 
 This document is the canonical testing strategy for Aurearia. It explains what we test, what we intentionally do not test, and how contributors should add new tests across the Go API, Vue PWA, and Python agent.
 
+ADR 0019's proportional-policy changes were accepted via PR #734 under section
+22. Section 6 documents the shared P3 Taskfile gates used locally and in CI.
+Workflow jobs are not proof that live branch protections require them.
+
 ## 1. Testing Philosophy
 
-**Confidence over coverage.** We optimize for catching regressions in the paths that can break users, data integrity, or architectural rules, not for inflating a percentage. This follows Constitution Principle X and §21.6: tests exist to prove important behavior, and every new service method must have at least one unit test.
+**Confidence over coverage.** We optimize for regressions affecting users, data
+integrity, and architecture, not percentages. Principle IX favors automated
+enforcement; §21.6 requires exact-path regression evidence and §21.9 requires at
+least one unit test for each new service method.
 
-**Fast feedback first.** The cheapest checks run earliest: Go architecture tests, TypeScript checks, Ruff, and pytest/Vitest before any manual browser poking. This matches Principle IV and §17, which treat type/build parity and automated checks as merge gates.
+**Fast feedback first.** Use targeted checks early, then applicable completion
+gates. Strict type/build parity is Principle III; proportional changes are
+Principle IV. Targeted success alone does not satisfy §17.
 
-**Test the contract, not the implementation.** Handler tests exercise HTTP status codes and JSON payloads, store tests assert state transitions, and agent tests validate schemas, routing helpers, and endpoint contracts instead of private internals. This is the practical testing expression of Principle VII (schema-driven contracts).
+**Test the contract, not the implementation.** Handler tests exercise HTTP status codes and JSON payloads, store tests assert state transitions, and agent tests validate schemas, routing helpers, and endpoint contracts instead of private internals. This applies Principle III (Strict Types and Explicit Contracts).
 
-**Architecture tests are constitutional tests.** `src/api/architecture_test.go` is not "extra credit"; it enforces the Go layer rules from Principle I via Principle X. If those tests fail, the codebase is drifting away from the constitution even if feature tests still pass.
+**Architecture tests are constitutional tests.** `src/api/architecture_test.go`
+enforces Principle I via Principle IX. Passing feature tests cannot compensate
+for a failing architectural guard.
 
-**End-to-end is rare and deliberate.** Cross-service and browser-wide tests are expensive, brittle, and especially weak for nondeterministic AI behavior. Per Principles III and VI, we instead test deterministic seams—HTTP contracts, repository behavior, parsing, schema validation, and orchestration helpers—and use production telemetry for model quality.
+**Integration evidence follows risk.** Deterministic cross-service seams,
+DB-backed tests, and browser workflows catch failures isolated unit mocks cannot.
+Use them where the changed contract requires them. Model-quality evaluation
+remains distinct from deterministic orchestration tests.
 
 ## 2. Test Surface Inventory
 
 | Service | Layer | Tool | Location | Run command | What it tests |
 |---|---|---|---|---|---|
 | Go API | Architecture | `go test` | `src/api/architecture_test.go` | `cd src/api && go test -v -run "TestNoDirectDatabaseImports|TestHandlersDoNotUseRawSQL|TestPackageImportMatrix" .` | 1 file / 3 tests enforcing DI-only database access, no raw SQL in handlers, and the package import matrix. |
-| Go API | Unit + package-level behavior | `go test` | `src/api/{handlers,middleware,repository,services}/*_test.go` | `cd src/api && go test -v ./...` | 14 files / 115 tests: handlers 30, middleware 10, repository 23, services 52. Uses `httptest`, Gin test routers, and in-memory SQLite. |
+| Go API | Unit + package-level behavior | `go test` | `src/api/{handlers,middleware,repository,services}/*_test.go` | `cd src/api && go test -v ./...` | Handler, middleware, repository, and service behavior using HTTP test routers and in-memory SQLite. |
 | Go API | Dedicated integration / E2E | `go test` | `src/api/integration/*_test.go` | `cd src/api && go test -v ./integration/...` | Full DB-backed service/handler workflow tests (Numista compatibility/performance/security/workflows). Not a cross-process suite by default. |
 | Go API | Go↔Python seam (cross-process) | `go test -tags=seam` | `src/api/integration/deep_identification_seam_test.go` | See §10 below | T106 (spec 351): boots the real Python agent service and drives the real `DeepIdentificationPipelineRunner` over a real HTTP/SSE round trip. CI-excluded by build tag + env var; see §10. |
-| Vue Web | Type checking | `vue-tsc` | `src/web/package.json`, `src/web/src/**` | `cd src/web && npx vue-tsc --noEmit` | CI gate for compile-time contract safety. Use it, but do not stop there. |
-| Vue Web | Lint | ESLint | `src/web/package.json`, `src/web/eslint.config.*` if present | `cd src/web && npm run lint` | Static linting gate; the script exists even though the current CI workflow does not run it yet. |
-| Vue Web | Unit / component / store / API tests | Vitest + Vue Test Utils | `src/web/src/**/__tests__/*` | `cd src/web && npm run test` | 8 files / 61 tests: API client 24, auth store 17, components 10, pages 3, design-token enforcement 7. Mocks browser APIs and the API client at the boundary. |
+| Vue Web | Type checking | `vue-tsc` | `src/web/package.json`, `src/web/src/**` | `cd src/web && npm run type-check` | CI runs the package script (`vue-tsc --build`); `--noEmit` is not a substitute. |
+| Vue Web | Lint | ESLint | `src/web/package.json`, `src/web/eslint.config.*` | `cd src/web && npm run lint` | CI runs zero-warning lint (`--max-warnings 0`); never replace it with `--quiet`. |
+| Vue Web | Unit / component / store / API tests | Node test runner + Vitest | `src/web/scripts/`, `src/web/src/**/__tests__/*` | `cd src/web && npm run test` | The script runs asset-script tests plus Vitest; calling Vitest alone omits part of the gate. |
 | Vue Web | Build parity | `vite` + `vue-tsc --build` | `src/web/package.json` | `cd src/web && npm run build` | Production build gate. This is stricter than `vue-tsc --noEmit`; nullable props and indexed access that pass locally can still fail here. |
 | Vue Web | Browser workflows | Playwright | `src/web/e2e/` | `task test-critical-workflows` | Deterministic F013 smoke coverage for login/session setup, manual add coin, edit-one-field, storage-location set/clear, tags/sets, upload/delete image, collection search/filter, and mobile viewport edit workflows with mocked API routes and golden fixtures. |
-| Python Agent | Lint | Ruff | `src/agent/app/`, `src/agent/tests/`, `src/agent/pyproject.toml` | `cd src/agent && ruff check app/ tests/` | Import order, correctness, and style rules for the deterministic Python surface. |
-| Python Agent | Unit / contract tests | pytest | `src/agent/tests/test_*.py` | `cd src/agent && pytest tests/ -v` | 6 files / 35 tests covering FastAPI request validation, Pydantic models, retry logic, streaming helpers, availability parsing, and supervisor location context. |
+| Python Agent | Lint | Ruff | `src/agent/app/`, `src/agent/tests/`, `src/agent/pyproject.toml` | See §6 locked environment | Import order, correctness, and style rules for the deterministic Python surface. |
+| Python Agent | Unit / contract tests | pytest | `src/agent/tests/test_*.py` | See §6 locked environment | Request validation, schemas, provider/routing behavior, streaming, and deterministic orchestration. |
 | Python Agent | Static type checking | None configured today | `src/agent/pyproject.toml` | N/A | No `mypy` or `pyright` config is present; schema validation and pytest carry the current contract burden. |
 
 Notes:
-- `grep -rln "httptest\|testserver\|integration" src/api --include="*_test.go"` finds handler and middleware HTTP tests, but no dedicated integration package.
+- `src/api/integration/` contains a dedicated integration package in addition to package-local HTTP tests.
 - Browser workflow tests live in `src/web/e2e/workflows/` and run with Playwright.
-- `pytest tests/ --collect-only -q` currently collects 35 agent tests across 6 files.
+- Test counts change; use current runner output instead of historical counts as gate evidence.
 - `src/web/e2e/screenshots/` is a separate, deliberately-real-network screenshot tool
   (`npm run screenshots:beta`, documented in `src/web/README.md`) for capturing
   production-like tour screenshots against a real deployment. It requires beta
@@ -91,7 +105,8 @@ result-consuming UI.
 - Stub browser globals explicitly with `vi.stubGlobal`, as shown in `src/web/src/api/__tests__/client.test.ts` and `src/web/src/stores/__tests__/auth.test.ts`.
 - Keep fixtures small and inline until multiple files need the same data.
 - Source-scanning tests are acceptable for structural UI rules when rendering is unnecessary; see `src/web/src/__tests__/design-tokens.test.ts` and `src/web/src/pages/__tests__/CollectionPage.test.ts`.
-- Always finish with `npm run test` and `npm run build`; the build catches stricter TypeScript failures than lighter local checks.
+- Finish with the applicable §6 frontend gates, including zero-warning lint,
+  strict type-check, full package tests, and production build.
 
 ### Python Agent
 
@@ -105,18 +120,142 @@ result-consuming UI.
 
 ## 6. Running tests locally vs. CI
 
-- Start from the task runner when possible: `task test` (Go), `task build` (Go + web build), `task test-agent`, and `task lint-agent` from [`../Taskfile.yml`](../Taskfile.yml).
-- Run critical browser workflows from the repository root with `task test-critical-workflows`. The target delegates to the existing web package script, `npm run test:browser`.
-- Frontend tests and lint currently live in npm scripts documented in [`../src/web/README.md`](../src/web/README.md): `npm run test`, `npm run lint`, `npm run build`, `npm run type-check`.
-- The current Quality Gate workflow lives at [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml). Today it runs Go build/vet/architecture tests, Vue `vue-tsc --noEmit`, and Python Ruff + pytest.
-- Local expectations are intentionally stricter than the current CI file in a few places: the Constitution still expects full `go test ./...` and `npm run build` before you call work done.
-- Pre-commit hooks run only a subset locally; they are a convenience layer, not the definition of done. The full gate remains Constitution §17 plus the CI workflow.
+Use targeted checks for feedback and all applicable completion checks before
+claiming verification. Pure docs need document/link/consistency review and any
+existing doc checks. Executable prompts, policy, scripts, and workflow changes
+need relevant behavior/fixture evidence; Markdown is not an automatic exemption.
+
+The [Taskfile](../Taskfile.yml) is the shared completion entry point.
+[`ci.yml`](../.github/workflows/ci.yml) calls the same targets, without a
+missing-linter fallback. Run from the repository root in an already prepared
+environment; select every affected layer rather than claiming unrelated skips.
+
+| Completion target | Commands / effect |
+|-------------------|-------------------|
+| `task check:go` | `go build ./...`, `go vet ./...`, `go test -v ./...` in `src/api` |
+| `task check:web` | `npm run lint`, `npm run type-check`, full `npm run test`, `npm run build` in `src/web` |
+| `task check:agent` | Require prepared `.venv`, verify lock AND environment with `uv sync --locked --check --offline --extra dev`, then `uv run --no-sync --offline` Ruff and full pytest; Python downloads disabled |
+| `task check:openapi` | Run the pinned installed generator, sync version and snapshots, fail on generated tracked-file drift; **writes files** |
+| `task check:delivery` | Node fixture/negative tests, PowerShell SpecKit selection regression, then offline governance check |
+| `task check:governance` | Read-only, offline active-governance checks; errors fail, warnings do not |
+| `task check` | All base completion targets above, sequentially; not a replacement for additional browser/race/security/compatibility/release jobs |
+| `task test-critical-workflows` | Affected browser workflows (`npm run test:browser`) |
+
+**Preparation is separate and requires authorization.** Match toolchains to
+manifests/workflows. CI uses Task 3.44.0 via a SHA-pinned setup action, Node
+24.15.0, Go from `src/api/go.mod`, and Python 3.12 with uv 0.11.22.
+The delivery scripts themselves need only Node built-ins; their fixture suite
+also needs Task, Git, npm and PowerShell 7 (`pwsh`). No dependency installation
+occurs in completion recipes.
+
+Both delivery jobs use a full checkout with Git NTFS protection explicitly
+enabled. The owner authorized a filename-only portability fix for 33 historical
+logs whose timestamp colons prevented Windows checkout even with sparse
+exclusions. [The path map](../.squad/artifacts/windows-log-path-mapping-2026-09-21.json)
+records old/new names and unchanged Git blob identities. Historical contents
+and references are not rewritten; use the map or its baseline commit to resolve
+old paths. Regression tests verify preservation and reject new invalid filename
+characters. No local Git protection setting is changed.
+
+Authorized setup targets are `task setup:go` (`go mod download` using the installed
+toolchain), `task setup:web` (`npm ci`), `task setup:agent`
+(`uv sync --locked --extra dev`), and `task setup:openapi` (swag v1.16.6).
+They require the corresponding tools to be installed already. The legacy
+`build-agent` target is explicitly a setup alias, not compilation evidence.
+`build-web` and `run-web` no longer implicitly run npm install.
+Agent lint/tests use the prepared project environment, not system Python.
+The agent's `uv sync --check` only verifies; it does not synchronize/install.
+Go completion/race/OpenAPI commands disable toolchain switching and module
+downloads (`GOTOOLCHAIN=local`, `GOPROXY=off`), so missing setup fails explicitly.
+These are command-local assignments (and explicit OpenAPI child-process values),
+not overridable Task `env` defaults. Regression probes exercise conflicting
+inherited values, including `CGO_ENABLED=0` and Python-download overrides.
+Missing tools, dependencies or execution permission mean incomplete evidence;
+do not install implicitly or weaken the command.
+
+`task openapi` now only generates; it does not install. Both OpenAPI modes write
+the version annotation and generated artifacts. `task check:openapi` additionally
+compares against the index with `git diff --exit-code`; review/stage intentional
+snapshot changes and rerun. CI starts from a clean index and fails on drift.
+Neither command is a read-only audit.
+
+**Windows:** the Taskfile selects `npm.cmd` so PowerShell's npm.ps1 policy does
+not change the gate. Use `npm.cmd` for direct package commands as well.
+Use Windows paths such as `Set-Location .\src\web`; each fresh shell starts in the
+repository root. Do not replace the package test script with a Vitest-only call.
+
+**CI/release evidence:** the separate race job calls `task test-race`
+(`CGO_ENABLED=1`, `go test -race ./...`). Preserve generated OpenAPI consistency,
+security scans, compatibility and
+container jobs. Use appropriate runners/toolchains; unavailable local checks
+remain pending until matching CI evidence exists. Cite the exact tested SHA.
+Live required-context configuration is separate from jobs merely existing.
+
+Fast feedback remains targeted tests. Completion is the applicable shared
+targets above. CI/release adds all applicable runner-only and release checks.
+Delivery fixtures run on both Windows and Ubuntu; this does not substitute for
+actual application execution in the language jobs.
+Record commands, outcomes, manual exceptions, and commit/dirty-tree identity.
+Later changes invalidate applicable previous results.
+
+### Governance checker boundaries
+
+[The checker](../scripts/delivery/check-governance.mjs) defines its active surface
+explicitly: repository instructions, PR/contributor/testing guidance, active
+decisions/current pointer, `.github/agents`, `.github/prompts`,
+`.github/instructions`, `.specify/templates`, and current role charters/histories.
+It does not recursively lint archives, session logs, ADR requirement bodies,
+landed specifications or backlog prose as current policy.
+
+Blocking rules check concrete Markdown link targets (including reference-style
+definitions), principle identifiers against the constitution, ADR header/index
+status/target agreement, current-work structure/targets, and required native
+skill `name`/`description` metadata under `.github/skills` and `.agents/skills`.
+P4 also validates path-scoped `applyTo` metadata (the repository's literal,
+`*` and `**` subset), and the restricted reviewer's exact read/search tool list
+with no model override or extra capability metadata.
+Backticked examples/optional runtime paths and placeholder templates are not
+treated as file links. Remote URLs are not fetched. Sparse-excluded tracked
+reference targets are reported as warnings; an ordinary missing target is an
+error. Diagnostics include file, line, rule code and severity; errors exit 1.
+
+The current pointer requires scalar `updated_at` (real YYYY-MM-DD), `focus_area`,
+`owner`, `work_artifact` and `tasks_artifact` frontmatter. Artifact paths are
+canonical repository-relative existing Markdown files under docs/specs, or
+`https://github.com/briandenicola/Aurearia/issues/NUMBER` for bounded issue work
+(URL syntax only; remote existence/authorization is not checked offline).
+Feature selection requires matching `spec.md`/`tasks.md`; a process plan or issue
+may serve both roles. No new feature spec is required for a small issue repair.
+Names/descriptions accept plain, quoted or block scalar text; the checker
+validates required metadata, not the entire YAML language.
+
+Size limits and Proposed ADR lifecycle questions start as warnings. New malformed
+status/index links remain errors; there is no blanket waiver for new drift.
+The checker cannot establish prose correctness, owner authorization, historical
+review clearance, native tool discovery, independence or release acceptance.
+Those remain evidence-backed human/reviewer decisions. The
+[native integration guide](agentic-native-integration.md) documents migration,
+fresh-client discovery, capability probes and SpecKit's deferred upgrade.
+No personal skill or installed tool is changed by the repository migration.
+
+Fixtures deliberately remove targets, corrupt state/status/metadata, introduce
+obsolete principles and disable blocking diagnostics. Real Task invocations
+exercise lint failure propagation and missing-script failure without installing
+dependencies. The SpecKit regression runs explicit selections and a throwaway
+copy restoring the original stdout/Boolean bug; it never mutates a real feature.
+Native integration fixtures cover representative matching/nonmatching paths,
+all 20 legacy-to-19-native mappings, broken pointers, duplicate recipes and
+broadened reviewer tools. Disabling the new blocking diagnostics breaks their
+assertions. These deterministic checks are not an LLM behavior simulation;
+runtime discovery and refusal evidence must come from the actual client.
 
 ## 7. Coverage philosophy
 
 We do **not** gate PRs on a repo-wide coverage percentage. Coverage is a signal for blind spots, not a target to game.
 
-Constitution §21.6 is the operative rule: **"every new service method has ≥ 1 unit test."** That pushes effort toward critical paths, invariants, and regressions instead of padding helpers with low-value tests. Use `go test ./... -cover` as a diagnostic when helpful, but do not treat a single percentage as proof of safety.
+Constitution §21.9 requires **"every new service method has ≥ 1 unit test."**
+Section 21.6 separately requires exact-path regression evidence. Use coverage
+output diagnostically, never a single percentage as proof of safety.
 
 ## 8. F013 golden collection fixtures
 
@@ -296,7 +435,7 @@ be claimed unless the commands were actually executed.
 
 ## 11. Cross-references
 
-- Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle X, §17, and §21)
+- Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle IX, §17, and §21)
 - System architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Go API README: [`../src/api/README.md`](../src/api/README.md)
 - Vue frontend README: [`../src/web/README.md`](../src/web/README.md)
@@ -305,7 +444,7 @@ be claimed unless the commands were actually executed.
 - Task runner: [`../Taskfile.yml`](../Taskfile.yml)
 
 TODOs:
-- Python static type checking is still absent. If we promote it to backlog, file it as `specs/_backlog/F012-agent-static-type-checking.md`.
+- Python static type checking is still absent. Any owner-approved backlog addition must use a newly allocated identifier; F012 already belongs to a different feature.
 # Structured storage tray regressions
 
 ```powershell

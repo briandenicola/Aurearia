@@ -1,5 +1,5 @@
 <template>
-  <div class="camera-first-card" :class="{ 'desktop-workspace': desktopWorkspace }">
+  <div class="camera-first-card" :class="{ 'desktop-workspace': desktopWorkspace, immersive }">
     <div class="camera-container">
       <video
         ref="cameraVideo"
@@ -11,20 +11,22 @@
         @loadedmetadata="onVideoMetadataLoaded"
       />
       <div v-if="!cameraStream" class="camera-placeholder">
-        <Camera :size="48" />
-        <p>Start the camera when you're ready.</p>
-        <button
-          type="button"
-          class="btn btn-secondary btn-sm camera-start-btn"
-          @click="startCamera"
-        >
-          <Camera :size="16" />
-          Start Camera
-        </button>
+        <template v-if="!immersive">
+          <Camera :size="48" />
+          <p>Start the camera when you're ready.</p>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm camera-start-btn"
+            @click="startCamera"
+          >
+            <Camera :size="16" />
+            Start Camera
+          </button>
+        </template>
       </div>
       <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
 
-      <div v-if="cameraStream !== null" class="focus-overlay">
+      <div v-if="cameraStream !== null && !immersive" class="focus-overlay">
         <div class="focus-mask"></div>
         <div class="focus-ring"></div>
         <p class="focus-instruction">{{ instruction }}</p>
@@ -33,7 +35,7 @@
 
     <slot name="before-actions"></slot>
 
-    <div v-if="desktopWorkspace" class="desktop-camera-actions">
+    <div v-if="desktopWorkspace && !immersive" class="desktop-camera-actions">
       <button
         v-if="cameraStream === null"
         type="button"
@@ -59,7 +61,7 @@
       </button>
     </div>
 
-    <div class="camera-actions">
+    <div v-if="!immersive" class="camera-actions">
       <button
         type="button"
         class="shutter-btn"
@@ -88,22 +90,31 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { Camera, Images } from 'lucide-vue-next'
+import type { CoinLookupImageRole } from '@/types'
 
 const props = withDefaults(
   defineProps<{
+    imageRole: CoinLookupImageRole
     filenamePrefix?: string
     instruction?: string
     desktopWorkspace?: boolean
+    /**
+     * Render as a bare viewfinder that fills its parent: no card chrome, no
+     * placeholder copy, no built-in shutter or ring. PwaCaptureShell supplies
+     * all of those and drives capture through the exposed methods below.
+     */
+    immersive?: boolean
   }>(),
   {
     filenamePrefix: 'capture',
     instruction: 'Focus one coin in the circle',
     desktopWorkspace: false,
+    immersive: false,
   }
 )
 
 const emit = defineEmits<{
-  captured: [file: File]
+  captured: [file: File, role: CoinLookupImageRole]
   upload: []
 }>()
 
@@ -111,31 +122,44 @@ const cameraVideo = ref<HTMLVideoElement | null>(null)
 const cameraStream = ref<MediaStream | null>(null)
 const cameraError = ref('')
 const videoReady = ref(false)
-const cameraReady = computed(() => cameraStream.value !== null && videoReady.value)
+const starting = ref(false)
+const capturing = ref(false)
+const cameraReady = computed(() => cameraStream.value !== null && videoReady.value && !capturing.value)
+let generation = 0
+let disposed = false
 
 async function startCamera() {
-  if (cameraStream.value) return
+  if (disposed || starting.value || cameraStream.value) return
   if (!navigator.mediaDevices?.getUserMedia) {
     cameraError.value = 'Camera access is unavailable on this device.'
     return
   }
 
+  const requestGeneration = generation
+  starting.value = true
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' } },
       audio: false,
     })
+    if (requestGeneration !== generation) {
+      for (const track of stream.getTracks()) track.stop()
+      return
+    }
     cameraStream.value = stream
     cameraError.value = ''
     videoReady.value = false
 
     await nextTick()
 
+    if (requestGeneration !== generation) return
     if (cameraVideo.value) {
       cameraVideo.value.srcObject = stream
       await cameraVideo.value.play()
     }
   } catch (error) {
+    if (requestGeneration !== generation) return
+    stopCamera()
     const err = error as { name?: string }
     if (err.name === 'NotAllowedError') {
       cameraError.value = 'Camera permission was denied. You can still upload images.'
@@ -144,22 +168,27 @@ async function startCamera() {
     } else {
       cameraError.value = 'Camera is unavailable. You can still upload images.'
     }
+  } finally {
+    if (requestGeneration === generation) starting.value = false
   }
 }
 
 function onVideoMetadataLoaded() {
   const video = cameraVideo.value
-  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+  if (cameraStream.value && video && video.videoWidth > 0 && video.videoHeight > 0) {
     videoReady.value = true
   }
 }
 
 function stopCamera() {
-  if (!cameraStream.value) return
-  for (const track of cameraStream.value.getTracks()) {
+  generation += 1
+  starting.value = false
+  capturing.value = false
+  for (const track of cameraStream.value?.getTracks() ?? []) {
     track.stop()
   }
   cameraStream.value = null
+  if (cameraVideo.value) cameraVideo.value.srcObject = null
   videoReady.value = false
 }
 
@@ -184,6 +213,7 @@ function computeCoverCropRect(
 }
 
 async function captureFromCamera() {
+  if (disposed || capturing.value) return
   const video = cameraVideo.value
   if (!video || !cameraReady.value || video.videoWidth === 0 || video.videoHeight === 0) {
     cameraError.value = 'Camera is not ready yet. Try again in a moment.'
@@ -208,25 +238,45 @@ async function captureFromCamera() {
   canvas.width = sw
   canvas.height = sh
   const context = canvas.getContext('2d')
-  if (!context) return
-
-  context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
-  if (!blob) {
-    cameraError.value = 'Could not capture image from camera.'
+  if (!context) {
+    cameraError.value = 'Could not prepare image capture. You can still upload images.'
     return
   }
 
-  emit('captured', new File([blob], `${props.filenamePrefix}-${Date.now()}.jpg`, { type: 'image/jpeg' }))
+  const captureGeneration = generation
+  const role = props.imageRole
+  const filename = `${props.filenamePrefix}-${Date.now()}.jpg`
+  capturing.value = true
+  try {
+    context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+    if (captureGeneration !== generation) return
+    if (!blob) {
+      cameraError.value = 'Could not capture image from camera.'
+      return
+    }
+    cameraError.value = ''
+    emit('captured', new File([blob], filename, { type: 'image/jpeg' }), role)
+  } catch {
+    if (captureGeneration === generation) {
+      cameraError.value = 'Could not capture image from camera. You can still upload images.'
+    }
+  } finally {
+    if (captureGeneration === generation) capturing.value = false
+  }
 }
 
 onBeforeUnmount(() => {
+  disposed = true
   stopCamera()
 })
 
 defineExpose({
+  startCamera,
   stopCamera,
+  captureFromCamera,
+  cameraReady,
+  cameraActive: computed(() => cameraStream.value !== null),
 })
 </script>
 
@@ -364,7 +414,7 @@ defineExpose({
 }
 
 @media (max-height: 700px) {
-  .camera-container {
+  .camera-first-card:not(.immersive) .camera-container {
     height: 40vh;
   }
 }
@@ -399,6 +449,24 @@ defineExpose({
   background: var(--bg-card-hover);
   border-color: var(--accent-gold);
   color: var(--accent-gold);
+}
+
+.camera-first-card.immersive {
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.camera-first-card.immersive .camera-container {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 @media (min-width: 769px) {

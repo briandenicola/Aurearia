@@ -1,9 +1,24 @@
 # Feature Specification: [FEATURE NAME]
 
-**Feature Branch**: `[###-feature-name]`  
+**Work ID / spec directory**: `[###-feature-name]`
+**Working branch**: `beta` unless explicitly approved otherwise
+**Lane**: [feature / high risk]
 **Created**: [DATE]  
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
+
+This template is subordinate to constitution 4.0.0 / ADR 0019, accepted via
+PR #734. A bounded bug/issue need not create
+a feature document set. Never amend a landed spec retroactively without authority.
+
+## Scope and Non-Goals *(mandatory)*
+
+- **Approved outcome**: [observable user value]
+- **Non-goals**: [explicit exclusions]
+- **Stop conditions**: [scope discovery, missing approval/evidence, review block]
+- **Authorizing evidence / ADRs**: [owner approval and applicable accepted records]
+- **Lifecycle evidence**: [implemented / verified / accepted / released, exact
+  commit/tree and reviewer; "Draft" is not acceptance]
 
 ## User Scenarios & Testing *(mandatory)*
 

@@ -1,41 +1,26 @@
-Periodic audit per Constitution §20 (Audit & Continuous Improvement). Cadence:
-weekly on active features, plus a deeper review at every release boundary.
+Run the explicitly selected audit under constitution section 20.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs the cadence.
 
-Owners: **Maximus** (architectural / constitutional drift) and **Brutus**
-(security / quality drift). Findings recorded under `docs/audits/`.
+1. Confirm the audit type and boundary:
+   - Software QC for major/high-risk work or release readiness: exact base/head,
+     requirements, contracts, and affected workflows.
+   - Agentic delivery after an owner-designated major release: governance,
+     instructions, state, enforcement, coordination, and prior corrective actions.
+2. Read applicable authority, the exact changes/evidence, and relevant current
+   decisions. Check all applicable Principles I-IX, not obsolete I-XVI labels.
+3. Load the matching audit skill if available. Do not claim a repository-native
+   skill is installed before P4. `/speckit.analyze` is only cross-artifact
+   spec/plan/tasks analysis, not a replacement for either audit.
+4. Investigate directly unless a bounded specialist context is genuinely needed.
+   No mandatory fan-out, weekly broad ceremony, builds, or installs by default.
+5. Report confirmed blockers, verification gaps, and follow-ups separately with
+   file/line or exact command/commit evidence. State PASS, BLOCKED, or INCOMPLETE
+   for the agreed scope. Green CI does not rule out untested defects.
+6. Save a report, create issues, or update handoff records only when authorized.
+   Do not fix code, alter settings, clear existing reviewer blocks, or release.
 
-Steps:
-
-1. **Re-read the gates** — `.specify/memory/constitution.md` (full text,
-   not just the active spec).
-2. **Run `/speckit.analyze`** against the active `specs/NNN-*/` to surface
-   spec ↔ plan ↔ tasks drift. Capture its raw output.
-3. **Maximus review** — walk every Principle (I–XVI) and operational section
-   (§0, §17–§22). For each, note: `PASS`, `DRIFT` (with file:line + the
-   higher-authority document violated), or `N/A`.
-4. **Brutus review** — security & quality lens:
-   - OWASP API Top 10 (2023) per protected endpoint
-   - JWT issuance / refresh / revocation per Principle XII
-   - Input validation, output encoding, secret handling per Principle XI
-   - GORM: parameterization, N+1, missing indexes
-   - Container: non-root, read-only FS, no exposed secrets
-   - Recent commits (last 7 days) for drift from spec or Conventional Commits
-5. **Architecture tests** — `go test -v -run TestNo ./src/api/...` to confirm
-   Principle I import rules still hold (per Principle X).
-6. **Write findings** — append to `docs/audits/{YYYY-MM-DD}.md` (create the
-   folder and file if missing). One row per finding:
-   `| severity | principle/§ | file:line | summary | proposed fix |`.
-   Severities: `Critical` / `High` / `Medium` / `Low` / `Info`.
-7. **Open issues** — for every `High`/`Critical`, open a GitHub issue via
-   `gh issue create` titled `audit: <summary>` and link the audit file.
-8. **Log + decisions** — append a one-line summary to `.squad/log/` and, if
-   the audit requires a binding decision (e.g., revoke a previous waiver),
-   drop a card into `.squad/decisions/inbox/`.
-
-Output to chat: a table of findings grouped by severity. Do NOT make code
-changes from this prompt — audits surface, they do not fix. Fixes happen via
-normal spec → plan → tasks flow.
-
-References: Constitution §20 (Audit & Continuous Improvement), §0 (Hierarchy
-of Authority), §22 (Amendment Process). Squad agents: Maximus + Brutus
-(co-owners), Scribe (logs).
+Software checks use the actual package/workflow recipes in `docs/testing.md` §6,
+including lint and strict types. Permission/setup gaps remain incomplete.
+For delivery audits, distinguish written policy from observed live enforcement.
+Record release-closeout invocation explicitly: a skill alone is not a trigger.
+A finding closes only with corrective-action evidence.

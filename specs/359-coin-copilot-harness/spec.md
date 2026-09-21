@@ -2,7 +2,8 @@
 
 **Feature Branch**: `359-coin-copilot-harness`  
 **Created**: 2026-09-17  
-**Status**: Design Complete — Ready for Implementation  
+**Status**: Implemented; validation recorded through T070; included in owner-merged PR #732
+**Lifecycle evidence**: [D05 reconciliation](../../.squad/decisions.md#d05-lifecycle-reconciliation), 2026-09-21. Release-wide audit/acceptance evidence remains qualified; requirement body unchanged.
 **Input**: GitHub issue #721, narrowed by the product owner's locked MVP scope
 
 ## Scope Authority

@@ -2,6 +2,7 @@
 
 Date: 2026-08-16
 Status: Accepted
+Partial supersession: [ADR 0018](0018-role-specific-deep-analysis.md) supersedes only the single-vision-call constraint, accepted through owner-merged PR #732. Other decisions remain applicable; body unchanged.
 
 ## Context
 

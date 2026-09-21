@@ -1,13 +1,12 @@
 ---
-description: Execute the implementation planning workflow using the plan template to generate design artifacts.
-handoffs: 
+description: Plan the smallest complete implementation of an explicitly selected approved feature.
+handoffs:
   - label: Create Tasks
     agent: speckit.tasks
-    prompt: Break the plan into tasks
-    send: true
+    prompt: Break the approved plan into bounded tasks with verification.
   - label: Create Checklist
     agent: speckit.checklist
-    prompt: Create a checklist for the following domain...
+    prompt: Check requirements quality for the selected work.
 ---
 
 ## User Input
@@ -16,138 +15,54 @@ handoffs:
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+## Authority and Selection
 
-## Pre-Execution Checks
+Read the constitution, selected spec, applicable accepted ADRs, and relevant
+active decisions. ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+A small repair may use a bounded issue rather than a full plan.
+Do not infer a feature from `beta` or the newest spec.
 
-**Check for extension hooks (before planning)**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.before_plan` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
+Set `$env:SPECIFY_FEATURE` to the explicitly selected directory name in the same
+process as every prerequisite/setup script. Use
+`.\.specify\scripts\powershell\check-prerequisites.ps1 -Json -PathsOnly` to resolve
+paths. Inspect the target before writing: `setup-plan.ps1 -Json` copies a plan
+template and must not overwrite an existing plan implicitly. Use the existing
+plan and a surgical edit for updates.
 
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+Before using returned paths, verify the selected directory exists under this
+worktree's `specs/`, that `FEATURE_DIR` and `FEATURE_SPEC` match that exact
+selection, and that the required spec exists. `-PathsOnly` success resolves
+paths; it does not validate selection or prerequisites. Stop on mismatch or
+missing artifacts.
 
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
+## Planning
 
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
+1. Fill `.specify/templates/plan-template.md` from actual code/manifests and
+   approved requirements. Record owner, lane, non-goals, and stop conditions.
+2. Research concrete unknowns and existing helpers directly. Delegate only a
+   bounded investigation needing separate context; no agent per technology.
+3. Resolve consequential decisions with the owner. Constitution violations need
+   the prescribed amendment, not just a justification in a complexity table.
+4. Design the smallest complete slices. Identify affected contracts, sibling
+   workflows, risks, configuration, and reusable components. High-risk work
+   includes compatibility/recovery evidence and independent review.
+5. Create supporting research, data-model, contract, or quickstart documents
+   only when useful; otherwise record N/A with a reason in the plan. Do not
+   require an empty file set before planning can finish.
+6. Define exact-path regression/failure tests, applicable completion gates from
+   `docs/testing.md` §6, CI-only evidence, and approval/setup gaps.
+7. Recheck authority, acceptance coverage, scope, and review restrictions.
+   Report the selected work, plan path, decisions, and remaining evidence.
+   Planning completion is not implementation acceptance.
 
-    Wait for the result of the hook command before proceeding to the Outline.
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+## Instruction Generation and Hooks
 
-## Outline
+Do not automatically run `update-agent-context.ps1`: its existing writer has not
+been proven to preserve hand-maintained repository instructions under ADR 0019.
+Any generator update needs reviewed targets, preserved manual content, and
+separate authorization; native/scoped integration is pending P4.
 
-1. **Setup**: Run `.specify/scripts/powershell/setup-plan.ps1 -Json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
-
-2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
-
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
-   - Phase 1: Update agent context by running the agent script
-   - Re-evaluate Constitution Check post-design
-
-4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
-
-5. **Check for extension hooks**: After reporting, check if `.specify/extensions.yml` exists in the project root.
-   - If it exists, read it and look for entries under the `hooks.after_plan` key
-   - If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
-   - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-   - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-     - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-     - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-   - For each executable hook, output the following based on its `optional` flag:
-     - **Optional hook** (`optional: true`):
-       ```
-       ## Extension Hooks
-
-       **Optional Hook**: {extension}
-       Command: `/{command}`
-       Description: {description}
-
-       Prompt: {prompt}
-       To execute: `/{command}`
-       ```
-     - **Mandatory hook** (`optional: false`):
-       ```
-       ## Extension Hooks
-
-       **Automatic Hook**: {extension}
-       Executing: `/{command}`
-       EXECUTE_COMMAND: {command}
-       ```
-   - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
-
-## Phases
-
-### Phase 0: Outline & Research
-
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
-
-2. **Generate and dispatch research agents**:
-
-   ```text
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
-   ```
-
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
-
-**Output**: research.md with all NEEDS CLARIFICATION resolved
-
-### Phase 1: Design & Contracts
-
-**Prerequisites:** `research.md` complete
-
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
-
-2. **Define interface contracts** (if project has external interfaces) → `/contracts/`:
-   - Identify what interfaces the project exposes to users or other systems
-   - Document the contract format appropriate for the project type
-   - Examples: public APIs for libraries, command schemas for CLI tools, endpoints for web services, grammars for parsers, UI contracts for applications
-   - Skip if project is purely internal (build scripts, one-off tools, etc.)
-
-3. **Agent context update**:
-   - Run `.specify/scripts/powershell/update-agent-context.ps1 -AgentType copilot`
-   - These scripts detect which AI agent is in use
-   - Update the appropriate agent-specific context file
-   - Add only new technology from current plan
-   - Preserve manual additions between markers
-
-**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
-
-## Key rules
-
-- Use absolute paths
-- ERROR on gate failures or unresolved clarifications
+If extensions are configured, inspect hooks and side effects. Invalid YAML or an
+unevaluable required condition blocks execution; never silently skip it.
+"Mandatory" is not authorization. Run only approved hooks and await their result.
+No implicit installs, worktrees, branch changes, commits, pushes, or settings edits.

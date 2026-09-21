@@ -37,6 +37,7 @@
           </div>
 
           <CoinLookupCaptureWizard
+            v-if="!isPwa || !draft"
             ref="captureWizard"
             purpose="intake"
             :obverse="captureImages.obverse"
@@ -50,8 +51,10 @@
             @selected="handleGallerySelection"
             @remove="clearCapturedImage"
             @analyze="generateDraft"
+            @manual="switchToManualMode"
           />
-          <button type="button" class="btn btn-ghost justify-self-start" @click="switchToManualMode">
+          <!-- PWA reaches manual entry from the capture shell's Manual button. -->
+          <button v-if="!isPwa" type="button" class="btn btn-ghost justify-self-start" @click="switchToManualMode">
             Use manual mode instead
           </button>
 

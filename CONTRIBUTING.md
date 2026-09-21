@@ -2,6 +2,10 @@
 
 Guidelines for contributing to the Aurearia application.
 
+Read constitution 4.0.0 and applicable accepted ADRs first. ADR 0019 was accepted
+via owner-approved PR #734. Policy acceptance does not itself authorize execution,
+publication, or release.
+
 ## Getting Started
 
 ```bash
@@ -24,8 +28,23 @@ task up          # starts both API and web dev servers
 | Branch | Purpose |
 |---|---|
 | `main` | Production-ready code |
-| `beta` | Pre-release testing |
-| `feature/*` | Feature development |
+| `beta` | Ordinary feature/bug development and integration |
+| Other branches/worktrees | Only when explicitly authorized |
+
+Select work by the owner-approved issue/spec/process plan, not the newest spec.
+Use the smallest sufficient lane from constitution §18.1. A bug needs a
+reproduction, bounded cause/non-goals, regression evidence, and review; a feature
+needs criteria, plan, and tasks. High-risk changes add compatibility/recovery
+evidence, independent review, and explicit owner approval.
+
+For SpecKit on `beta`, set `$env:SPECIFY_FEATURE` to the exact selected spec
+directory name in the same process as each script invocation. Do not run the
+branch-creating script implicitly. Follow `.github/agents/speckit.specify.agent.md`
+for its existing dry-run/manual-file preparation path.
+
+Implemented, verified, accepted, and released are distinct states. Preserve
+review restrictions and record the tested/reviewed commit or tree. Green CI
+does not authorize a beta-to-main merge or release.
 
 ## Code Architecture
 
@@ -49,14 +68,15 @@ These rules are enforced by `src/api/architecture_test.go`.
 3. **Service** (if business logic needed) -- Add to `src/api/services/*_service.go`
 4. **Handler** -- Add thin HTTP handler in `src/api/handlers/`
 5. **Wire** -- Register in `src/api/main.go` (create repo/service, pass to handler constructor)
-6. **Swagger** -- Add annotations to handler, run `swag init` if using swag CLI
+6. **Swagger** -- Add annotations, then run `task openapi` and `task check:openapi` with the pinned generator already prepared
 7. **Test** -- Run `go test ./...` from `src/api/` to verify architecture rules pass
 
 ### New Vue Page/Component
 
 1. Add component in `src/web/src/pages/` or `src/web/src/components/`
 2. Add route in `src/web/src/router/index.ts` if it's a page
-3. Run type check: `cd src/web && npx vue-tsc --noEmit`
+3. Run applicable frontend gates from `docs/testing.md` §6: zero-warning lint,
+   strict type-check, full tests, and build, plus affected browser workflows.
 
 ## Code Style
 
@@ -73,26 +93,32 @@ These rules are enforced by `src/api/architecture_test.go`.
 
 ## Build and Test
 
-```bash
-# Go API
-cd src/api
-go build ./...                    # compile
-go vet ./...                      # lint
-go test -v ./...                  # architecture tests
+Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for the
+shared Taskfile completion gates, locked environment, Windows invocation, and
+CI-only evidence. From the root, run applicable `task check:go`,
+`task check:web`, `task check:agent`, `task check:openapi` and
+`task check:delivery`; `task check` runs all base gates. OpenAPI generation
+writes files. Dependency setup uses separate authorized `setup:*` targets.
+Obtain required authorization before setup, builds, or containers; missing
+execution is incomplete rather than passed. Race, security, browser,
+compatibility and release checks remain additional where applicable.
 
-# Vue frontend
-cd src/web
-npm run build                     # production build
-npx vue-tsc --noEmit              # type check
+Native Copilot domain instructions and skills are documented in
+[the integration guide](docs/agentic-native-integration.md). Start a fresh client
+session after instruction changes; static fixtures do not prove runtime
+discovery. Squad is optional. Required independent review uses the read/search-only
+profile with supplied diffs/evidence and an owner-approved bounded lease.
 
-# Python agent
-cd src/agent
-ruff check app/ tests/            # lint
-pytest tests/ -q                  # tests
+Keep pure-document review proportional, but exercise executable policy/prompts
+and workflows with relevant behavior/fixtures. Independent review and explicit
+owner release approval cannot be replaced by task checkboxes.
 
-# Docker
-task docker-build                 # full container image
-```
+Use the PR template's canonical completion record to bind each criterion and
+affected workflow to its result, evidence link and tested commit/tree. Handoffs
+link it and record only their delta. Stale reviews and unresolved blocks cannot
+support acceptance. See [acceptance and release controls](docs/agentic-acceptance-controls.md)
+for the proposed main protections, exact-candidate approval and activation status.
+Beta validation/publishing is not main release or local-server deployment approval.
 
 ## Commit Messages
 
@@ -108,3 +134,7 @@ Include the co-author trailer when using Copilot:
 ```
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
+
+Cite the governing Principle/section in commits and PRs. Commit/push only when
+authorized, stage only approved paths, and preserve unrelated work. A handoff
+does not automatically commit or stash the worktree.

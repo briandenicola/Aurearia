@@ -1,58 +1,56 @@
 ---
-updated_at: 2026-09-19T12:19:13Z
-focus_area: F014 stabilization complete; F015 paused after private profile foundation
-active_issues:
-  - User retest pending for Coin Copilot execution frames and Deep Analysis notes
-  - Deep Analysis must be aligned with the collection obverse/reverse AI analysis pipeline
-  - F015 T012-T034 intentionally paused for a new context
-handoff_commit: f0f3e807
+updated_at: 2026-09-21
+focus_area: Release-readiness repair and bounded historical review
+owner: Copilot CLI implementation owner; repository owner approves merge
+work_branch: fix/release-readiness-blockers
+baseline_commit: 42988f3d6938707d15fb8871f836740ecd496529
+work_artifact: docs/audits/2026-09-21.md
+tasks_artifact: docs/audits/2026-09-21.md
 ---
 
-# What We're Focused On
+# Current Work
 
-**Stabilize F014, then resume the reduced F015 scope in a new context.**
+The owner merged P1-P5, including #741, then authorized repair of the five
+readiness blockers, scoped live controls, commit/push and a PR into beta.
+Work remains in the isolated worktree; preserve the original dirty beta worktree.
+No main promotion/merge, release, deployment or tool upgrade is authorized.
+Locked Python restoration was separately approved after the missing-env failure.
 
-## Current Status
+## Authoritative pointers
 
-- F014 execution-frame and Deep Analysis notes regressions were repaired and
-  pushed in `8ac2b1e9`.
-- Coin Copilot checkpoint compaction now emits the exact Go-compatible bounded
-  result envelope.
-- Deep Analysis handoff frames and checkpoints accept the same deterministic
-  bounded fallback.
-- Collector notes now reach vision hypothesis generation and final synthesis as
-  untrusted evidence.
-- F015 T001-T011 were completed and pushed in `f0f3e807`.
-- F015 T012-T034 are intentionally paused.
+- [Repair PR #742](https://github.com/briandenicola/Aurearia/pull/742): current
+  candidate, hosted checks and owner acceptance.
+- [Supporting receipt](../../docs/audits/2026-09-21.md): five-blocker
+  disposition, reviewed identities, evidence and unresolved conditions.
+- [Original action plan](../../docs/agentic-delivery-improvement-plan.md).
+- [Constitution](../../.specify/memory/constitution.md), sections 17-22, and
+  [accepted ADR 0019](../../docs/adr/0019-evidence-based-agentic-delivery.md).
+- [Active decisions](../decisions.md): lifecycle evidence and unresolved review
+  records, including exact reviewer ownership and grandfathered restrictions.
+- [Preservation inventory](../artifacts/context-curation-2026-09-21.json):
+  original content identities and archive locations.
+- [P3 handoff](../log/2026-09-21-delivery-validation-closeout.md):
+  review, validation, owner acceptance and filename-preservation evidence.
 
-## Verified Gates
+## Product / Release State
 
-- Agent: 632 tests passed; Ruff passed.
-- Go: `go vet ./...` and `go test ./...` passed.
-- Web: type-check, lint, production build, and full Vitest suite passed.
-- OpenAPI was regenerated and its route contract gate passed.
-- New frame and notes guards were tamper-tested.
+Features 359, 362 and reduced 363 were included in owner-merged
+[#732](https://github.com/briandenicola/Aurearia/pull/732).
+Do not resume F015 at T012: the old pointer was stale. Consult each feature's
+tasks/evidence before selecting work.
 
-## Binding Scope
+Feature 363 T044 (combined F014/F015 audit) and #732's final release checklist
+remain unclosed in the inspected evidence. No deployment claim is made.
+Current successor dispositions and remaining historical conditions are linked in
+active decisions. Scoped CLEAR is not a combined-release or physical-device PASS.
 
-Reduced F015 remains limited to:
+## Next Action
 
-1. Private lightweight collector profile/context.
-2. Read-only curator guidance using existing collection tools.
-3. Existing UI-owned Add to Wishlist for verified available dealer results.
-
-Do not change the auction subsystem or add wishlist-action endpoints, action
-tables, audit workflows, watchlist ranking, or provenance-risk workflows.
-
-## Next Context
-
-1. Let the user retest Coin Search and Deep Analysis with detailed attribution
-   notes.
-2. Correct Deep Analysis so it reuses the collection-grade obverse/reverse AI
-   analysis pipeline with supplied notes before provider verification. Quick
-   Lookup remains a separate fast combined-image pass and prioritizes an NGC
-   certification number when present.
-3. Re-read the constitution, Feature 363 spec/plan/tasks, and this handoff.
-4. Resume at T012 only when the user explicitly restarts F015.
-5. Run the combined F014/F015 engineering audit before any beta-to-main v4.2
-   release PR.
+The successor cleared R357 architecture and passed the owner-approved publishing
+policy on tree `8b07947f`. Finish repair PR #742 into beta with exact hosted
+results and remaining conditions. The owner wants main promotion today; prioritize
+only release-critical evidence, without inferring clearance or publishing approval.
+Enabled environment admin bypass is accepted, but actual owner approval and all
+exact-candidate publishing checks remain mandatory. Follow the acceptance
+receipt rather than restarting completed repairs. T044 and other manual/reviewer
+conditions remain open. SpecKit adoption stays deferred.

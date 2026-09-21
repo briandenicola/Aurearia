@@ -5228,7 +5228,7 @@ info:
     image uploads, AI-powered analysis, user management, auction tracking, and admin
     features.
   title: Aurearia API
-  version: 4.0.0
+  version: 4.3.0
 paths:
   /admin/api-keys/notify-rotation:
     post:

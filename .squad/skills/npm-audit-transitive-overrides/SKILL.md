@@ -1,19 +1,5 @@
-# Skill: npm audit transitive override remediation (frontend)
+# Relocated skill
 
-## When to use
+Use the [canonical native skill](../../../.github/skills/npm-audit-transitive-overrides/SKILL.md). This compatibility pointer contains no separate policy.
 
-Use this when `npm audit` fails in `src/web` on high-severity transitive vulnerabilities and `npm audit fix --force` proposes breaking/downgrade changes.
-
-## Procedure
-
-1. Run `npm audit` and identify the exact transitive chain.
-2. Prefer targeted `overrides` in `package.json` to patch transitive packages without changing top-level dependency intent.
-3. Run `npm install` to regenerate `package-lock.json`.
-4. Re-run `npm audit`.
-5. Run `npm run type-check` to verify frontend build parity.
-
-## PR #531 example
-
-- Override `@vue/test-utils -> js-beautify` to `2.0.3`
-- Override `jake` to `12.10.1`
-- Validate with `npm audit` (0 vulnerabilities) + `npm run type-check` (pass)
+The [original recipe](https://github.com/briandenicola/Aurearia/blob/7df826fc2504ce1154c05bc8b5d11a818ef7014b/.squad/skills/npm-audit-transitive-overrides/SKILL.md) remains available as historical reference, not current instructions.

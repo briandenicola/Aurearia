@@ -33,6 +33,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Execution Steps
 
+Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
+via PR #734; constitution 4.0.0 governs. Explicitly select the spec,
+never from `beta` or the newest directory. Set `$env:SPECIFY_FEATURE` to its exact
+directory name in the same process as the prerequisite command.
+Checklist completion is requirements evidence, not implementation acceptance.
+
 1. **Setup**: Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
    - All file paths must be absolute.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").

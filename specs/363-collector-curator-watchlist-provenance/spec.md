@@ -3,7 +3,9 @@
 **Feature Branch**: `beta` (existing worktree; no feature branch created)
 **Created**: 2026-09-18
 **Rewritten**: 2026-09-19
-**Status**: Draft — user-approved SMALL F015 scope
+**Status**: User-approved SMALL F015 scope implemented through T043; included in owner-merged PR #732; combined release audit T044 remains open
+**Lifecycle evidence**: [D05 reconciliation](../../.squad/decisions.md#d05-lifecycle-reconciliation) and [quickstart evidence](quickstart-evidence.md), reconciled 2026-09-21.
+**Scoped amendment, owner authorized 2026-09-21**: "Keep partial/unknown results saveable; authorize a scoped spec amendment with visible uncertainty and explicit user confirmation." This changes only dealer-result eligibility and uncertainty confirmation (US1, FR-012/013/014/023, SC-004 and matching descriptions). It does not change URL intake, auction exclusions, field provenance, or AI write authority. Earlier validation records remain historical, not proof of this amendment.
 **Input**: Extend the shipped Coin Copilot harness with lightweight private
 collector context, read-only curator guidance, restoration of the existing
 dealer-result **Add to Wishlist** behavior, and native wishlist capture from a
@@ -19,7 +21,7 @@ capabilities. It adds:
 2. read-only curator guidance composed from the existing collection summary,
    portfolio review, and gap-analysis capabilities; and
 3. the existing **Add to Wishlist** action on typed Coin Copilot cards for
-   verified dealer listings that are currently available; and
+   verified or partially verified dealer listings whose availability is available or unknown, with uncertainty shown and confirmed; and
 4. a native **Add to Wishlist by URL** intake that replaces the external n8n
    workflow with bounded listing retrieval, structured extraction, owner
    review, duplicate prevention, and canonical wishlist creation.
@@ -46,8 +48,8 @@ minimum private context and read-only guidance needed to support them.
 
 ### User Story 1 - Save an available dealer result to the wishlist (Priority: P1)
 
-As a collector reviewing Coin Copilot search results, I want to add a verified,
-currently available dealer listing to my wishlist so I can retain a coin I may
+As a collector reviewing Coin Copilot search results, I want to add an eligible
+dealer listing to my wishlist, acknowledging any uncertainty, so I can retain a coin I may
 want to buy.
 
 **Why this priority**: This restores the concrete acquisition-discovery
@@ -69,7 +71,7 @@ the existing coin creation flow.
 3. **Given** Coin Copilot displays or recommends a dealer result, **When** the
    owner does not select **Add to Wishlist**, **Then** no coin, wishlist item,
    collection item, or draft is created or changed.
-4. **Given** a dealer result is unverified, unavailable, sold, withdrawn,
+4. **Given** a dealer result has missing or invalid verification, or is unavailable, sold, withdrawn,
    malformed, or lacks the minimum data required by the existing creation
    flow, **When** the card is displayed, **Then** **Add to Wishlist** is not
    offered.
@@ -285,13 +287,18 @@ redirect to a private address, and extraction failure.
 #### Dealer-only Add to Wishlist
 
 - **FR-012**: **Add to Wishlist** MUST be available only on a typed Coin
-  Copilot specialist card whose source is a dealer listing, whose evidence is
-  verified, and whose listing is currently available.
-- **FR-013**: Auction results and all unverified, partially verified, unknown,
-  unavailable, sold, ended, or withdrawn results MUST NOT expose or invoke the
-  restored wishlist action.
+  Copilot `market_search` card whose source is a `dealer_listing`, whose evidence
+  is `verified` or `partial`, and whose availability is `available` or `unknown`.
+  Title and source URL MUST be non-empty.
+- **FR-013**: Auction results, missing/invalid verification or availability,
+  and unavailable, sold, ended, or withdrawn results MUST NOT expose or invoke
+  the restored wishlist action. Partial verification and unknown availability
+  MUST be displayed as uncertainty, never promoted to verified/available facts.
 - **FR-014**: The AI MUST remain read-only. Only the authenticated owner's
   explicit selection of **Add to Wishlist** in the UI MAY initiate creation.
+  A partially verified result or one with unknown availability MUST additionally
+  receive explicit uncertainty confirmation before canonical creation; cancellation
+  creates nothing. Eligibility MUST be checked again after confirmation.
   Conversational text, tool output, card rendering, replay, or automatic agent
   behavior MUST NOT initiate a write.
 - **FR-015**: The action MUST reuse the existing canonical wishlist coin
@@ -324,9 +331,15 @@ redirect to a private address, and extraction failure.
   image after wishlist creation. Image failure MUST NOT roll back a successful
   coin creation, populate another field, or trigger creation of a replacement
   coin.
+9. **Given** an eligible result is partially verified or has unknown availability,
+  **When** the owner selects **Add to Wishlist**, **Then** the UI identifies that
+  listing's uncertainty and requires explicit confirmation before creation.
+  Cancellation, stale/ineligible evidence, and repeated pending clicks create
+  no additional coin.
 - **FR-023**: The owner MUST receive clear feedback when creation succeeds,
   confirmation is cancelled, the result is ineligible, a duplicate is
-  prevented, or optional image attachment fails.
+  prevented, or optional image attachment fails. Uncertainty MUST identify the
+  affected listing before confirmation.
 
 #### Add to Wishlist by URL
 
@@ -391,7 +404,7 @@ redirect to a private address, and extraction failure.
 - **Curator Guidance**: A transient, read-only response composed from existing
   owner-scoped collection analysis and optional profile context.
 - **Eligible Dealer Result**: An existing typed Coin Copilot specialist result
-  that represents a verified, currently available dealer listing. It is the
+  that satisfies FR-012, with uncertainty confirmation when required. It is the
   only result type eligible for the restored action.
 - **Wishlist Coin**: The existing canonical coin record created with wishlist
   status. It remains distinct from an owned collection coin and from a
@@ -458,10 +471,11 @@ redirect to a private address, and extraction failure.
   existing collection summary, portfolio review, gap-analysis output, and
   optional profile context; all identified limitations are visible and zero
   data writes occur.
-- **SC-004**: Across result-card eligibility tests, 100% of verified,
-  currently available dealer results expose **Add to Wishlist**, while 0% of
-  auction, unverified, partially verified, unknown, or unavailable results
-  expose the action.
+- **SC-004**: Across result-card eligibility tests, 100% of typed dealer results
+  satisfying FR-012 expose **Add to Wishlist**; 0% of auction, missing/invalid
+  verification, sold, or otherwise ineligible results expose it. Every partial
+  verification/unknown-availability case shows uncertainty and creates zero
+  coins without explicit confirmation, including cancellation and repeat clicks.
 - **SC-005**: At least 95% of test users can add an eligible dealer result to
   the wishlist on their first attempt in under 60 seconds, excluding time
   spent browsing the external dealer page.
@@ -494,7 +508,7 @@ redirect to a private address, and extraction failure.
 
 - The target user is an authenticated collection owner. Invited friends and
   public visitors do not manage collector context or create wishlist coins.
-- “Verified” and “currently available” are supplied by the existing typed Coin
+- Verification and availability states are supplied by the existing typed Coin
   Copilot dealer-result contract; Feature 363 does not create another
   verification or availability mechanism.
 - Collector profile context is advisory and is supplied to the existing

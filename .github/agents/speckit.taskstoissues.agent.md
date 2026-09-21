@@ -13,6 +13,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
+Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
+via PR #734; constitution 4.0.0 governs. Select the work explicitly;
+set `$env:SPECIFY_FEATURE` to its exact directory name in the same process as the
+prerequisite command. Never infer a feature from `beta` or the newest spec.
+Preview the bounded issue list and obtain approval for GitHub writes before
+creation. Do not duplicate existing issues or treat task counts as acceptance.
+
 1. Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 1. From the executed script, extract the path to **tasks**.
 1. Get the Git remote by running:

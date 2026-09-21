@@ -1,18 +1,19 @@
 # Ceremonies
 
-> Team meetings that happen before or after work. Each squad configures their own.
+> Risk-based coordination under constitution sections 18 and 20.
+> ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 
 ## Design Review
 
 | Field | Value |
 |-------|-------|
-| **Trigger** | auto |
+| **Trigger** | risk-based within approved work |
 | **When** | before |
-| **Condition** | multi-agent task involving 2+ agents modifying shared systems |
+| **Condition** | material shared contract, architecture, migration, or delivery-control decision |
 | **Facilitator** | lead |
-| **Participants** | all-relevant |
-| **Time budget** | focused |
-| **Enabled** | ✅ yes |
+| **Participants** | implementation owner and one independent reviewer; others only if needed |
+| **Time budget** | explicit bounded lease; stop at decision or blocker |
+| **Enabled** | yes |
 
 **Agenda:**
 1. Review the task and requirements
@@ -26,16 +27,30 @@
 
 | Field | Value |
 |-------|-------|
-| **Trigger** | auto |
+| **Trigger** | repeated/systemic failure or owner request |
 | **When** | after |
-| **Condition** | build failure, test failure, or reviewer rejection |
+| **Condition** | recurring failure or incident requiring a process change; not every failed test |
 | **Facilitator** | lead |
-| **Participants** | all-involved |
-| **Time budget** | focused |
-| **Enabled** | ✅ yes |
+| **Participants** | smallest group needed for the concrete cause |
+| **Time budget** | explicit bounded lease |
+| **Enabled** | yes |
 
 **Agenda:**
 1. What happened? (facts only)
 2. Root cause analysis
 3. What should change?
 4. Action items for next iteration
+
+## Audits and closeout
+
+- Software QC: major/high-risk work and release readiness, scoped to the candidate.
+- Agentic delivery: after every owner-designated major release; track prior actions.
+- Explicitly invoke and record the audit at release closeout. A skill is not a trigger.
+- Audits are read-only unless report/issue writes are authorized.
+- Preserve per-release SBOM/threat-model and scheduled product/dependency/restore reviews.
+- Record corrective-action evidence; a retrospective alone does not close a finding.
+- The implementation owner records the handoff or delegates to Scribe and waits.
+- No ceremony authorizes scope expansion, commits, installs, deployments, or release.
+- Use the [assignment/return contract](routing.md#delegation-and-return-contract)
+  for any delegated review or recording. A ceremony does not bypass the native
+  reviewer's read/search-only capabilities or extend its approved lease.

@@ -4,7 +4,7 @@ import { join } from 'path'
 
 const REPO_ROOT = join(__dirname, '..', '..', '..', '..')
 const SRC_DIR = join(REPO_ROOT, 'src', 'web', 'src')
-const COPILOT_INSTRUCTIONS = join(REPO_ROOT, '.github', 'copilot-instructions.md')
+const WEB_INSTRUCTIONS = join(REPO_ROOT, '.github', 'instructions', 'web.instructions.md')
 
 function readRepoFile(pathFromSrc: string): string {
   return readFileSync(join(SRC_DIR, pathFromSrc), 'utf-8')
@@ -12,7 +12,7 @@ function readRepoFile(pathFromSrc: string): string {
 
 describe('UI pattern recipes', () => {
   it('documents reusable UI recipes for future agents', () => {
-    const instructions = readFileSync(COPILOT_INSTRUCTIONS, 'utf-8')
+    const instructions = readFileSync(WEB_INSTRUCTIONS, 'utf-8')
 
     expect(instructions).toContain('#### UI Pattern Recipes')
     expect(instructions).toContain('identify the closest existing page or component pattern')
@@ -72,6 +72,54 @@ describe('UI pattern recipes', () => {
     expect(lookupPage).not.toContain('Take Photo')
     expect(lookupPage).not.toContain('Upload Image')
     expect(lookupPage).not.toContain('title="Back"')
+  })
+
+  it('gives the installed PWA the full-bleed capture shell from the mockup', () => {
+    const instructions = readFileSync(WEB_INSTRUCTIONS, 'utf-8')
+    const wizard = readRepoFile(join('components', 'coin-lookup', 'CoinLookupCaptureWizard.vue'))
+    const shell = readRepoFile(join('components', 'coin-lookup', 'PwaCaptureShell.vue'))
+    const variables = readRepoFile(join('assets', 'styles', 'variables.css'))
+    const app = readRepoFile('App.vue')
+
+    expect(instructions).toContain('| Immersive PWA capture |')
+
+    // The wizard picks the presentation; both pages keep passing through it.
+    expect(wizard).toContain('<PwaCaptureShell')
+    expect(wizard).toContain("v-if=\"isPwa\"")
+    expect(wizard).toContain('v-else class="capture-wizard"')
+
+    // Shell chrome: close, Add/Identify segments, Quick Capture, rail, stage,
+    // and a Library / shutter / Manual-or-Deep bottom bar.
+    expect(shell).toContain('aria-label="Close capture"')
+    expect(shell).toContain('aria-label="Capture mode"')
+    expect(shell).toContain('aria-label="Quick Capture"')
+    expect(shell).toContain('class="capture-rail"')
+    expect(shell).toContain('class="capture-stage"')
+    expect(shell).toContain('class="guide-ring"')
+    expect(shell).toContain('aria-label="Choose from library"')
+    expect(shell).toContain('class="shutter"')
+    expect(shell).toContain('aria-label="Use manual entry"')
+    expect(shell).toContain('aria-label="Deep Analysis"')
+    expect(shell).toContain('useImmersiveShellClaim()')
+
+    // The shell takes its color from the selected theme like every other
+    // page: no private palette, no literal colors, only shared tokens.
+    expect(variables).not.toContain('--capture-')
+    const shellStyles = shell.slice(shell.indexOf('<style'))
+    expect(shellStyles).not.toMatch(/#[0-9a-fA-F]{3,8}/)
+    expect(shellStyles).not.toMatch(/rgba?\(/)
+    for (const token of [
+      '--bg-primary', '--bg-card', '--bg-input', '--border-subtle',
+      '--accent-gold', '--text-primary', '--text-secondary', '--text-muted',
+    ]) {
+      expect(shellStyles).toContain(`var(${token})`)
+    }
+    // Gold fills use the same gradient as .btn-primary.
+    expect(shellStyles).toContain('linear-gradient(135deg, var(--accent-gold), var(--accent-bronze))')
+
+    // App chrome steps aside while a shell is mounted.
+    expect(app).toContain("auth.isAuthenticated && !immersive")
+    expect(app).toContain('useImmersiveShell')
   })
 
   it('keeps PWA timeline and set coin actions compact', () => {

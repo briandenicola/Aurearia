@@ -166,12 +166,17 @@ describe('CopilotRunProgress collector wishlist action', () => {
   })
 
   it('shows the action for a listing whose availability the page did not state', () => {
-    expect(mountProgress(evidence({ availability: 'unknown' })).find('button').exists()).toBe(true)
+    const wrapper = mountProgress(evidence({ availability: 'unknown' }))
+    expect(wrapper.find('button').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="dealer-uncertainty"]').text()).toContain('Availability is unknown')
+    expect(wrapper.get('[data-testid="dealer-uncertainty"]').text()).toContain('Domitian')
   })
 
   it('shows the action for a partially verified listing read from search results', () => {
     const item = evidence({ verificationState: 'partial', confidence: 'medium', availability: 'unknown' })
-    expect(mountProgress(item).find('button').exists()).toBe(true)
+    const wrapper = mountProgress(item)
+    expect(wrapper.find('button').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="dealer-uncertainty"]').text()).toContain('only partially verified')
   })
 
   it.each([
