@@ -53,11 +53,6 @@
             @analyze="generateDraft"
             @manual="switchToManualMode"
           />
-          <!-- PWA reaches manual entry from the capture shell's Manual button. -->
-          <button v-if="!isPwa" type="button" class="btn btn-ghost justify-self-start" @click="switchToManualMode">
-            Use manual mode instead
-          </button>
-
           <form v-if="draft" class="rounded-md border border-border-subtle bg-card p-4 pb-5" @submit.prevent="confirmDraft">
             <p v-if="intakeWarning" role="status" class="mb-3 text-sm text-warning">{{ intakeWarning }}</p>
             <div class="mb-3 flex items-center justify-between gap-3">

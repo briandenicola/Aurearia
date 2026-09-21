@@ -52,6 +52,8 @@ for (const mode of ['pwa', 'desktop'] as const) {
     if (mode === 'desktop') {
       await expect(page.getByRole('button', { name: 'Add to Collection' })).toBeVisible()
       await page.getByRole('button', { name: 'AI Assist Mode' }).click()
+      await expect(page.getByRole('button', { name: 'Use manual mode instead', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Manual Mode', exact: true })).toBeVisible()
     }
     await expect(page.getByRole('heading', { name: 'Add the obverse' })).toBeVisible()
     await expect(page.getByRole('list', { name: 'Coin intake progress' }).locator('li')).toHaveText([
