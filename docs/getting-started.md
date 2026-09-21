@@ -67,6 +67,23 @@ After saving, you can upload images (obverse, reverse, detail) from the coin det
 
 ## Adding Coins
 
+### Assisted Capture
+
+Add Coin's **AI Assist Mode** uses the same step-by-step capture layout as
+**Identify Coin**: **Obverse**, **Reverse**, then **Card**. Only the obverse is
+required; generate an intake draft immediately or continue to the optional
+reverse and coin-card steps. Skipping the reverse never treats a card as a
+reverse image.
+
+The PWA opens this wizard by default. Camera access starts only when you tap
+**Start Camera**; library uploads remain available if access is denied.
+Desktop keeps **Manual Mode** as its default, with **AI Assist Mode** available
+above the form. **Use manual mode instead** also remains available in the PWA,
+including for PDF coin cards.
+
+**Generate Intake Draft** prepares editable suggestions; it does not add a coin
+to your collection. Review the draft, then explicitly **Confirm and Save Coin**.
+
 ### Required Fields
 
 | Field | Description |

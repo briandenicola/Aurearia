@@ -122,4 +122,27 @@ describe('CoinLookupCaptureWizard', () => {
     const analyze = wrapper.findAll('button').find(button => button.text().includes('Preparing image...'))
     expect(analyze?.attributes('disabled')).toBeDefined()
   })
+
+  it('uses intake-specific card guidance without changing identification defaults', async () => {
+    const wrapper = mountWizard({ purpose: 'intake', obverse: image('obverse.jpg') })
+    expect(wrapper.get('ol[aria-label="Coin intake progress"]').text()).toContain('Card')
+    expect(wrapper.text()).toContain('Generate Intake Draft')
+    expect(wrapper.text()).not.toContain('Analyze Photos')
+    expect(wrapper.text()).not.toContain('Deep Analysis')
+
+    await wrapper.get('[aria-label="Add reverse image"]').trigger('click')
+    expect(wrapper.text()).toContain('Optional. Legends and designs')
+    await wrapper.get('[aria-label="Add coin card"]').trigger('click')
+    expect(wrapper.text()).toContain('Step 3 of 3')
+    expect(wrapper.text()).toContain('Add a coin card')
+    expect(wrapper.text()).toContain('For a PDF card, use manual mode.')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    const file = image('card.jpg').file
+    const input = wrapper.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file] })
+    await input.trigger('change')
+    expect(wrapper.emitted('selected')).toEqual([['notes', file]])
+    expect((input.element as HTMLInputElement).value).toBe('')
+  })
 })

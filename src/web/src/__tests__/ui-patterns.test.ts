@@ -51,7 +51,7 @@ describe('UI pattern recipes', () => {
     expect(museumTray).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))')
   })
 
-  it('keeps Identify Coin camera-first with Add Coin upload icon pattern', () => {
+  it('shares the camera-first wizard between Identify Coin and Add Coin', () => {
     const lookupPage = readRepoFile(join('pages', 'CoinLookupPage.vue'))
     const addCoinPage = readRepoFile(join('pages', 'AddCoinPage.vue'))
     const lookupWizard = readRepoFile(join('components', 'coin-lookup', 'CoinLookupCaptureWizard.vue'))
@@ -59,7 +59,8 @@ describe('UI pattern recipes', () => {
 
     expect(lookupPage).toContain('CoinLookupCaptureWizard')
     expect(lookupWizard).toContain('InlineCameraCapturePanel')
-    expect(addCoinPage).toContain('InlineCameraCapturePanel')
+    expect(addCoinPage).toContain('CoinLookupCaptureWizard')
+    expect(addCoinPage).toContain('purpose="intake"')
     expect(inlineCameraPanel).toContain('ref="cameraVideo"')
     expect(inlineCameraPanel).toContain('Start Camera')
     expect(inlineCameraPanel).toContain('@click="startCamera"')

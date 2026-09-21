@@ -1,11 +1,11 @@
 <template>
   <div class="container">
-    <div class="form-wrapper">
-      <div class="page-header">
+    <div class="mx-auto min-w-0 max-w-[900px]">
+      <header class="page-header">
         <h1>Add Coin</h1>
-      </div>
+      </header>
 
-      <fieldset :disabled="saving || committingDraft || savedCoinId !== null" class="min-w-0 border-0 p-0">
+      <fieldset :disabled="saving || committingDraft || intakeLoading || preparingImage || savedCoinId !== null" class="min-w-0 border-0 p-0">
         <div v-if="!isPwa" class="mb-4 flex gap-[0.35rem]">
           <button
             type="button"
@@ -36,122 +36,24 @@
             </div>
           </div>
 
-          <InlineCameraCapturePanel
-            v-if="isPwa"
-            ref="cameraPanel"
-            :filename-prefix="nextCaptureTarget"
+          <CoinLookupCaptureWizard
+            ref="captureWizard"
+            purpose="intake"
+            :obverse="captureImages.obverse"
+            :reverse="captureImages.reverse"
+            :notes-image="captureImages.notes"
+            notes=""
+            :submitting="intakeLoading"
+            :preparing-image="preparingImage"
+            :upload-error="intakeError"
             @captured="handleCameraCapture"
-            @upload="triggerFileInput(nextCaptureTarget)"
-          >
-            <template #before-actions>
-              <div class="grid grid-cols-3 gap-2">
-                <div
-                  class="relative min-h-20 overflow-hidden rounded-md border border-border-subtle bg-card transition-colors"
-                  :class="{
-                    'min-h-24': obverseFile,
-                    'border-gold bg-gold-glow': nextCaptureTarget === 'obverse',
-                  }"
-                >
-                  <div v-if="obverseFile" class="relative min-h-24 h-full w-full bg-cover bg-center" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
-                    <button type="button" class="absolute top-[0.35rem] right-[0.35rem] z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-overlay text-[1.2rem] leading-none text-white transition-colors hover:bg-error-bg" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
-                  </div>
-                  <div v-else class="flex min-h-20 h-full w-full flex-col items-center justify-center gap-[0.35rem]">
-                    <span class="block h-2 w-2 rounded-full transition-colors" :class="nextCaptureTarget === 'obverse' ? 'bg-gold' : 'bg-text-muted'"></span>
-                    <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Obverse</span>
-                  </div>
-                </div>
-
-                <div
-                  class="relative min-h-20 overflow-hidden rounded-md border border-border-subtle bg-card transition-colors"
-                  :class="{
-                    'min-h-24': reverseFile,
-                    'border-gold bg-gold-glow': nextCaptureTarget === 'reverse',
-                  }"
-                >
-                  <div v-if="reverseFile" class="relative min-h-24 h-full w-full bg-cover bg-center" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
-                    <button type="button" class="absolute top-[0.35rem] right-[0.35rem] z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-overlay text-[1.2rem] leading-none text-white transition-colors hover:bg-error-bg" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
-                  </div>
-                  <div v-else class="flex min-h-20 h-full w-full flex-col items-center justify-center gap-[0.35rem]">
-                    <span class="block h-2 w-2 rounded-full transition-colors" :class="nextCaptureTarget === 'reverse' ? 'bg-gold' : 'bg-text-muted'"></span>
-                    <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Reverse</span>
-                  </div>
-                </div>
-
-                <div
-                  class="relative min-h-20 overflow-hidden rounded-md border border-border-subtle bg-card transition-colors"
-                  :class="{
-                    'min-h-24': cardFile,
-                    'border-gold bg-gold-glow': nextCaptureTarget === 'card',
-                  }"
-                >
-                  <span class="absolute top-1 right-1 z-[2] rounded-sm bg-input px-[0.4rem] py-[0.15rem] text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Opt</span>
-                  <div v-if="cardFile" class="relative min-h-24 h-full w-full bg-cover bg-center" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
-                    <button type="button" class="absolute top-[0.35rem] right-[0.35rem] z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-overlay text-[1.2rem] leading-none text-white transition-colors hover:bg-error-bg" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
-                  </div>
-                  <div v-else class="flex min-h-20 h-full w-full flex-col items-center justify-center gap-[0.35rem]">
-                    <span class="block h-2 w-2 rounded-full transition-colors" :class="nextCaptureTarget === 'card' ? 'bg-gold' : 'bg-text-muted'"></span>
-                    <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Card</span>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <template #footer>
-              <div class="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  class="btn btn-primary w-full"
-                  :disabled="intakeLoading || observationImages.length === 0"
-                  @click="generateDraft"
-                >
-                  Generate Intake Draft
-                </button>
-                <button
-                  type="button"
-                  class="cursor-pointer border-0 bg-transparent px-0 py-1 text-chip text-text-muted transition-colors hover:text-text-secondary"
-                  @click="switchToManualMode"
-                >
-                  Use manual mode instead
-                </button>
-              </div>
-            </template>
-            <p v-if="intakeError" class="mt-[0.6rem] text-chip text-warning">{{ intakeError }}</p>
-          </InlineCameraCapturePanel>
-
-          <div v-else class="rounded-md border border-border-subtle bg-card p-4">
-            <h2 class="font-display text-xl font-medium text-heading">Upload Photos</h2>
-            <p class="mb-3 text-body text-text-secondary">
-              Add obverse and reverse photos to generate an intake draft you can review before saving.
-            </p>
-            <div class="grid gap-3 md:grid-cols-2">
-              <label class="grid gap-[0.35rem]">
-                <span class="section-label">Obverse Image</span>
-                <input class="w-full rounded-sm border border-border-subtle bg-input text-base text-text-primary file:mr-3 file:border-0 file:bg-gold-glow file:px-3 file:py-[0.55rem] file:text-base file:font-medium file:text-text-primary" type="file" accept="image/*" @change="onObservationFile('obverse', $event)">
-                <span class="text-sm text-text-secondary">{{ obverseFile?.name ?? 'Not selected' }}</span>
-              </label>
-              <label class="grid gap-[0.35rem]">
-                <span class="section-label">Reverse Image</span>
-                <input class="w-full rounded-sm border border-border-subtle bg-input text-base text-text-primary file:mr-3 file:border-0 file:bg-gold-glow file:px-3 file:py-[0.55rem] file:text-base file:font-medium file:text-text-primary" type="file" accept="image/*" @change="onObservationFile('reverse', $event)">
-                <span class="text-sm text-text-secondary">{{ reverseFile?.name ?? 'Not selected' }}</span>
-              </label>
-              <label class="grid gap-[0.35rem] md:col-span-2">
-                <span class="section-label">Coin Card (Optional)</span>
-                <input class="w-full rounded-sm border border-border-subtle bg-input text-base text-text-primary file:mr-3 file:border-0 file:bg-gold-glow file:px-3 file:py-[0.55rem] file:text-base file:font-medium file:text-text-primary" type="file" accept="image/*,.pdf" @change="onCardFile($event)">
-                <span class="text-sm text-text-secondary">{{ cardFile?.name ?? 'Not selected' }}</span>
-              </label>
-            </div>
-            <div class="mt-3">
-              <button
-                type="button"
-                class="btn btn-primary"
-                :disabled="intakeLoading || observationImages.length === 0"
-                @click="generateDraft"
-              >
-                {{ intakeLoading ? 'Generating Draft...' : 'Generate Intake Draft' }}
-              </button>
-            </div>
-            <p v-if="intakeError" class="mt-[0.6rem] text-chip text-warning">{{ intakeError }}</p>
-          </div>
+            @selected="handleGallerySelection"
+            @remove="clearCapturedImage"
+            @analyze="generateDraft"
+          />
+          <button type="button" class="btn btn-ghost justify-self-start" @click="switchToManualMode">
+            Use manual mode instead
+          </button>
 
           <form v-if="draft" class="rounded-md border border-border-subtle bg-card p-4 pb-5" @submit.prevent="confirmDraft">
             <p v-if="intakeWarning" role="status" class="mb-3 text-sm text-warning">{{ intakeWarning }}</p>
@@ -283,7 +185,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { Category, Coin, CoinMutationPayload, IntakeDraft, Material } from '@/types'
+import type { Category, Coin, CoinLookupImageRole, CoinMutationPayload, IntakeDraft, Material } from '@/types'
 import {
   commitIntakeDraft,
   createIntakeDraft,
@@ -296,10 +198,10 @@ import CoinForm from '@/components/CoinForm.vue'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
-import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
+import CoinLookupCaptureWizard from '@/components/coin-lookup/CoinLookupCaptureWizard.vue'
+import { normalizeGalleryImage } from '@/utils/galleryImage'
 
 type EntryMode = 'manual' | 'agentic'
-type CaptureTarget = 'obverse' | 'reverse' | 'card'
 
 const route = useRoute()
 const router = useRouter()
@@ -331,8 +233,12 @@ const cardFile = ref<File | null>(null)
 const obverseFromCamera = ref(false)
 const reverseFromCamera = ref(false)
 
-const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
-const nextCaptureTarget = ref<CaptureTarget>('obverse')
+const captureWizard = ref<InstanceType<typeof CoinLookupCaptureWizard> | null>(null)
+const preparingImage = ref(false)
+let imageGeneration = 0
+const captureImages = reactive<Record<CoinLookupImageRole, { file: File; preview: string } | null>>({
+  obverse: null, reverse: null, notes: null,
+})
 
 const draft = ref<IntakeDraft | null>(null)
 
@@ -385,10 +291,6 @@ const confidenceClass = computed(() => {
   const level = draft.value?.confidenceSummary?.overall ?? 'low'
   return `confidence-${level}`
 })
-
-function getFileUrl(file: File | null): string {
-  return file ? URL.createObjectURL(file) : ''
-}
 
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object') return {}
@@ -531,72 +433,46 @@ function apiErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
-function handleCameraCapture(file: File) {
-  const actualTarget = nextCaptureTarget.value
-
-  if (actualTarget === 'obverse') {
+function setCapturedImage(role: CoinLookupImageRole, file: File | null, fromCamera = false) {
+  const previous = captureImages[role]
+  if (previous) URL.revokeObjectURL(previous.preview)
+  captureImages[role] = file ? { file, preview: URL.createObjectURL(file) } : null
+  if (role === 'obverse') {
     obverseFile.value = file
-    obverseFromCamera.value = true
+    obverseFromCamera.value = fromCamera
   }
-  if (actualTarget === 'reverse') {
+  if (role === 'reverse') {
     reverseFile.value = file
-    reverseFromCamera.value = true
+    reverseFromCamera.value = fromCamera
   }
-  if (actualTarget === 'card') {
-    cardFile.value = file
-  }
-
-  updateNextCaptureTarget()
+  if (role === 'notes') cardFile.value = file
 }
 
-function updateNextCaptureTarget() {
-  if (!obverseFile.value) {
-    nextCaptureTarget.value = 'obverse'
-  } else if (!reverseFile.value) {
-    nextCaptureTarget.value = 'reverse'
-  } else {
-    nextCaptureTarget.value = 'card'
+function handleCameraCapture(role: CoinLookupImageRole, file: File) {
+  imageGeneration += 1
+  preparingImage.value = false
+  intakeError.value = ''
+  setCapturedImage(role, file, true)
+}
+
+async function handleGallerySelection(role: CoinLookupImageRole, file: File) {
+  const generation = ++imageGeneration
+  preparingImage.value = true
+  intakeError.value = ''
+  try {
+    const normalized = await normalizeGalleryImage(file)
+    if (generation === imageGeneration) setCapturedImage(role, normalized)
+  } catch (error) {
+    if (generation === imageGeneration) intakeError.value = apiErrorMessage(error, 'Unable to prepare this image. Try a JPEG or PNG.')
+  } finally {
+    if (generation === imageGeneration) preparingImage.value = false
   }
 }
 
-function onObservationFile(target: CaptureTarget, event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0] ?? null
-  if (target === 'obverse') {
-    obverseFile.value = file
-    obverseFromCamera.value = false // Manual upload, not camera
-  }
-  if (target === 'reverse') {
-    reverseFile.value = file
-    reverseFromCamera.value = false // Manual upload, not camera
-  }
-  if (target === 'card') cardFile.value = file
-  updateNextCaptureTarget()
-}
-
-function onCardFile(event: Event) {
-  cardFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
-  updateNextCaptureTarget()
-}
-
-function triggerFileInput(target: CaptureTarget) {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.onchange = (e) => onObservationFile(target, e)
-  input.click()
-}
-
-function clearCapturedImage(target: CaptureTarget) {
-  if (target === 'obverse') {
-    obverseFile.value = null
-    obverseFromCamera.value = false
-  }
-  if (target === 'reverse') {
-    reverseFile.value = null
-    reverseFromCamera.value = false
-  }
-  if (target === 'card') cardFile.value = null
-  updateNextCaptureTarget()
+function clearCapturedImage(role: CoinLookupImageRole) {
+  imageGeneration += 1
+  preparingImage.value = false
+  setCapturedImage(role, null)
 }
 
 function switchToManualMode() {
@@ -607,12 +483,14 @@ function switchToManualMode() {
 }
 
 async function generateDraft() {
-  if (observationImages.value.length === 0) {
-    intakeError.value = 'Add at least one coin image to continue.'
+  if (intakeLoading.value || preparingImage.value) return
+  if (!obverseFile.value) {
+    intakeError.value = 'Add an obverse image to continue.'
     return
   }
   intakeLoading.value = true
   intakeError.value = ''
+  captureWizard.value?.stopCamera()
   try {
     const response = await createIntakeDraft(observationImages.value, cardFile.value ?? undefined)
     draft.value = response.data
@@ -717,21 +595,19 @@ async function retrySavedCoin() {
 }
 
 watch(entryMode, (mode) => {
-  if (!isPwa || mode !== 'agentic') cameraPanel.value?.stopCamera()
-})
-
-watch([obverseFile, reverseFile, cardFile], () => {
-  updateNextCaptureTarget()
+  if (mode !== 'agentic') captureWizard.value?.stopCamera()
 })
 
 onMounted(async () => {
   // Load coin property options from settings
   await loadOptions()
-  
-  updateNextCaptureTarget()
 })
 
 onBeforeUnmount(() => {
-  cameraPanel.value?.stopCamera()
+  imageGeneration += 1
+  captureWizard.value?.stopCamera()
+  for (const image of Object.values(captureImages)) {
+    if (image) URL.revokeObjectURL(image.preview)
+  }
 })
 </script>
