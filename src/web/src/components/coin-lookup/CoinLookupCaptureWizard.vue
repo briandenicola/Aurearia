@@ -2,7 +2,7 @@
   <section class="capture-wizard" aria-labelledby="capture-wizard-title">
     <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
 
-    <ol class="capture-progress" aria-label="Identification progress">
+    <ol class="capture-progress" :aria-label="purpose === 'intake' ? 'Coin intake progress' : 'Identification progress'">
       <li
         v-for="(wizardStep, index) in steps"
         :key="wizardStep.role"
@@ -45,7 +45,7 @@
           </button>
         </div>
 
-        <label v-if="currentStep.role === 'notes'" class="form-group">
+        <label v-if="currentStep.role === 'notes' && purpose === 'identify'" class="form-group">
           <span class="section-label">Identification notes</span>
           <textarea
             :value="notes"
@@ -89,6 +89,7 @@
           ref="fileInput"
           type="file"
           accept="image/*"
+          :disabled="submitting || preparingImage"
           class="hidden"
           @change="handleFileSelection"
         />
@@ -126,7 +127,7 @@
             <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
             <span v-else-if="preparingImage" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
             <Search v-else :size="19" class="hidden sm:block" />
-            {{ submitting ? 'Analyzing...' : preparingImage ? 'Preparing image...' : 'Analyze Photos' }}
+            {{ submitting ? 'Analyzing...' : preparingImage ? 'Preparing image...' : purpose === 'intake' ? 'Generate Intake Draft' : 'Analyze Photos' }}
           </button>
 
           <button
@@ -146,11 +147,11 @@
             type="button"
             class="btn btn-secondary ml-auto min-h-11 shrink-0 justify-center"
             :disabled="!obverse || preparingImage"
-            :title="step === 0 ? 'Add reverse image' : 'Add notes'"
-            :aria-label="step === 0 ? 'Add reverse image' : 'Add notes'"
+            :title="step === 0 ? 'Add reverse image' : purpose === 'intake' ? 'Add coin card' : 'Add notes'"
+            :aria-label="step === 0 ? 'Add reverse image' : purpose === 'intake' ? 'Add coin card' : 'Add notes'"
             @click="step += 1"
           >
-            <span class="hidden sm:inline">{{ step === 0 ? 'Next: Reverse' : 'Next: Notes' }}</span>
+            <span class="hidden sm:inline">{{ step === 0 ? 'Next: Reverse' : purpose === 'intake' ? 'Next: Card' : 'Next: Notes' }}</span>
             <ChevronRight :size="20" aria-hidden="true" />
           </button>
         </div>
@@ -179,6 +180,7 @@ const props = withDefaults(defineProps<{
   preparingImage: boolean
   uploadError: string
   deepAnalysisEnabled?: boolean
+  purpose?: 'identify' | 'intake'
   /**
    * True when the user is already at the Deep Analysis `MaxActivePerUser`
    * limit (T088/F6) - disables the control instead of letting the click
@@ -188,6 +190,7 @@ const props = withDefaults(defineProps<{
   deepAnalysisDisabledTitle?: string
 }>(), {
   deepAnalysisEnabled: false,
+  purpose: 'identify',
   deepAnalysisDisabled: false,
   deepAnalysisDisabledTitle: undefined,
 })
@@ -201,7 +204,7 @@ const emit = defineEmits<{
   'update:notes': [value: string]
 }>()
 
-const steps = [
+const steps = computed(() => [
   {
     role: 'obverse' as const,
     label: 'Obverse',
@@ -215,27 +218,31 @@ const steps = [
     label: 'Reverse',
     required: false,
     title: 'Add the reverse',
-    description: 'Optional for quick analysis and required for Deep Analysis. Legends and designs significantly improve attribution.',
+    description: props.purpose === 'intake'
+      ? 'Optional. Legends and designs on the back help prepare a more complete draft.'
+      : 'Optional for quick analysis and required for Deep Analysis. Legends and designs significantly improve attribution.',
     instruction: 'Center the reverse in the circle',
   },
   {
     role: 'notes' as const,
-    label: 'Notes',
+    label: props.purpose === 'intake' ? 'Card' : 'Notes',
     required: false,
-    title: 'Add supporting evidence',
-    description: 'Provide any additional evidence that may help identify the coin.',
+    title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
+    description: props.purpose === 'intake'
+      ? 'Optional. Photograph or upload a coin card or label. For a PDF card, use manual mode.'
+      : 'Provide any additional evidence that may help identify the coin.',
     instruction: 'Capture a label, edge, measurement, or other detail',
   },
-] as const
+] as const)
 
 const step = ref(0)
 const deepRequirementError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 const currentStep = computed(() => {
-  if (step.value === 1) return steps[1]
-  if (step.value === 2) return steps[2]
-  return steps[0]
+  if (step.value === 1) return steps.value[1]
+  if (step.value === 2) return steps.value[2]
+  return steps.value[0]
 })
 const currentImage = computed(() => {
   if (currentStep.value.role === 'obverse') return props.obverse
