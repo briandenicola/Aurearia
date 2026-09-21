@@ -1,6 +1,6 @@
 # Maximus — Lead
 
-ADR 0019 consumer draft: prospective process changes await section 22 acceptance.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 Constitution sections 0, 17, 18, and 21 govern; this charter cannot override them.
 
 > The one who sees the whole board before making a move.

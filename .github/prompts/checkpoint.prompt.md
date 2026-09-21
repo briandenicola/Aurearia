@@ -1,5 +1,5 @@
 Capture an authorized mid-session checkpoint under constitution section 18.5.
-ADR 0019 consumer edits remain Proposed until section 22 acceptance.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 
 1. Re-ground in the selected issue/spec/process plan and acceptance criteria.
    Stop on unauthorized scope drift.

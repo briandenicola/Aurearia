@@ -1,7 +1,7 @@
 # Ceremonies
 
 > Risk-based coordination under constitution sections 18 and 20.
-> ADR 0019 consumer changes are Proposed, not activated by local preparation.
+> ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 
 ## Design Review
 

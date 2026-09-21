@@ -1,5 +1,5 @@
 Run the explicitly selected audit under constitution section 20.
-ADR 0019 cadence changes remain Proposed until section 22 acceptance.
+ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs the cadence.
 
 1. Confirm the audit type and boundary:
    - Software QC for major/high-risk work or release readiness: exact base/head,

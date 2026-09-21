@@ -16,12 +16,10 @@ Aurearia is a full-stack PWA for managing a personal coin collection, with deep 
 
 ## Document Hierarchy
 
-All decisions respect `.specify/memory/constitution.md` §0. ADR 0019 and these
-consumer edits are a proposed amendment: local preparation is authorized, but
-acceptance/publication remain gated by §22. The accepted baseline is 3.1.0 until
-that PR is approved and merged.
+All decisions respect `.specify/memory/constitution.md` §0. ADR 0019 was accepted
+through owner-approved PR #734 on 2026-09-21; constitution 4.0.0 governs.
 
-The proposed hierarchy is **Constitution → PRD → applicable accepted ADRs →
+The hierarchy is **Constitution → PRD → applicable accepted ADRs →
 active spec → plan → tasks → backlog → active decisions → agent judgment**.
 Frameworks, templates, charters, and session state cannot override project policy.
 

@@ -12207,3 +12207,23 @@ legacy pinned Sets projection, and crowded PWA headers. Plan D15-D19 and tasks
 T065-T096 provide the required mitigations and gates.
 
 **Merged from:** `.squad/decisions/inbox/maximus-quick-access-frontend.md` on 2026-09-18T13:54:37Z.
+
+---
+
+## 2026-09-21: Constitution 4.0.0 / ADR 0019 Accepted
+
+**Status:** Accepted
+**Authority:** Constitution section 22; owner-approved PR #734
+**Merge:** `ca85f7830349a4472cb5409c082b9485e7e34c44` into `beta`
+**Record:** `docs/adr/0019-evidence-based-agentic-delivery.md`
+
+The owner approved and merged the evidence-based agentic-delivery amendment.
+Constitution 4.0.0 and its synchronized consumers now govern new work: project
+authority takes precedence over frameworks; work uses proportional lanes,
+bounded ownership, independent review, and evidence-backed completion.
+
+Existing review blocks and author restrictions retain their original terms.
+This announcement neither resolves D05's historical lifecycle questions nor
+authorizes P2 archival, installations, deployments, release, or further merges.
+P3-P5 executable/tooling/live-enforcement work remains separately scoped.
+The metadata-only closeout records acceptance; it introduces no new policy.

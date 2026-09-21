@@ -2,9 +2,9 @@
 
 Guidelines for contributing to the Aurearia application.
 
-Read the constitution and applicable accepted ADRs first. ADR 0019 and its
-consumer changes are a proposed amendment; local preparation does not activate
-new policy or authorize publication.
+Read constitution 4.0.0 and applicable accepted ADRs first. ADR 0019 was accepted
+via owner-approved PR #734. Policy acceptance does not itself authorize execution,
+publication, or release.
 
 ## Getting Started
 

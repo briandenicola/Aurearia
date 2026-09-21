@@ -1,6 +1,6 @@
 Load the minimum context for the explicitly selected work under constitution
-sections 0 and 18. ADR 0019 consumer edits remain Proposed until section 22
-acceptance; do not activate archival or prospective review rules prematurely.
+sections 0 and 18. ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+Archival execution still requires authorization; historical blocks remain intact.
 
 1. Read `.specify/memory/constitution.md` and repository instructions.
 2. Identify the owner-named issue/spec/process plan. Check

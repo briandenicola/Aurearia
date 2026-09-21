@@ -6,8 +6,8 @@
 **Lane**: [feature / high risk]
 **Owner**: [implementation owner] | **Reviewer**: [independent reviewer]
 
-Subordinate to the constitution. ADR 0019 consumer changes remain Proposed until
-section 22 acceptance. Small repairs can use a bounded issue rather than this
+Subordinate to constitution 4.0.0 / ADR 0019, accepted via PR #734.
+Small repairs can use a bounded issue rather than this
 full template. Use `.github/agents/speckit.plan.agent.md` for planning guidance.
 
 ## Summary and Scope
