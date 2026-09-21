@@ -23,9 +23,17 @@ function fixture(t) {
   put('docs/work.md', '# Authorized process work\n');
   put('.squad/identity/now.md', '---\nupdated_at: 2026-09-21\nfocus_area: Testing\nowner: Maintainer\nwork_artifact: docs/work.md\ntasks_artifact: docs/work.md\n---\n');
   put('.github/skills/example/SKILL.md', '---\nname: example\ndescription: A bounded example skill\n---\n');
+  put('.github/agents/aurearia-reviewer.agent.md', '---\nname: aurearia-reviewer\ndescription: Read-only review\ntools: ["read", "search"]\n---\n');
   return { root, put };
 }
 const cases = [
+  ['INSTRUCTION', 'missing applyTo', f => f.put('.github/instructions/example.instructions.md', '---\ndescription: Missing scope\n---\n')],
+  ['INSTRUCTION', 'invalid applyTo', f => f.put('.github/instructions/example.instructions.md', '---\napplyTo: ["src/**"]\n---\n')],
+  ['INSTRUCTION', 'escaping applyTo', f => f.put('.github/instructions/example.instructions.md', '---\napplyTo: "../outside/**"\n---\n')],
+  ['INSTRUCTION', 'empty applyTo pattern', f => f.put('.github/instructions/example.instructions.md', '---\napplyTo: "src/**,"\n---\n')],
+  ['REVIEWER', 'omitted reviewer tools', f => f.put('.github/agents/aurearia-reviewer.agent.md', '---\nname: aurearia-reviewer\ndescription: Review\n---\n')],
+  ['REVIEWER', 'write-capable reviewer', f => f.put('.github/agents/aurearia-reviewer.agent.md', '---\nname: aurearia-reviewer\ndescription: Review\ntools: ["read", "search", "edit"]\n---\n')],
+  ['REVIEWER', 'reviewer model override', f => f.put('.github/agents/aurearia-reviewer.agent.md', '---\nname: aurearia-reviewer\ndescription: Review\ntools: ["read", "search"]\nmodel: override\n---\n')],
   ['FILE', 'missing active file', f => rmSync(join(f.root, 'CONTRIBUTING.md'))],
   ['PRINCIPLE', 'obsolete identifier', f => f.put('CONTRIBUTING.md', 'Apply Principle XI.\n')],
   ['PRINCIPLE', 'obsolete identifier in a list', f => f.put('CONTRIBUTING.md', 'Principles I, XIV and IX apply.\n')],
@@ -131,7 +139,7 @@ test('checker is deterministic, read-only, and has correct CLI exit statuses', t
 });
 test('each blocking rule is load-bearing: disabling its diagnostic breaks its fixture assertion', async t => {
   const source = readFileSync(checker, 'utf8');
-  for (const code of ['FILE', 'PRINCIPLE', 'REFERENCE', 'ADR', 'STATE', 'SKILL']) {
+  for (const code of ['FILE', 'PRINCIPLE', 'REFERENCE', 'ADR', 'STATE', 'SKILL', 'INSTRUCTION', 'REVIEWER']) {
     const f = fixture(t);
     cases.find(item => item[0] === code)[2](f);
     const contract = implementation => assert.ok(implementation(f.root).some(item => item.code === code && item.severity === 'error'), code);

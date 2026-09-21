@@ -211,6 +211,9 @@ Blocking rules check concrete Markdown link targets (including reference-style
 definitions), principle identifiers against the constitution, ADR header/index
 status/target agreement, current-work structure/targets, and required native
 skill `name`/`description` metadata under `.github/skills` and `.agents/skills`.
+P4 also validates path-scoped `applyTo` metadata (the repository's literal,
+`*` and `**` subset), and the restricted reviewer's exact read/search tool list
+with no model override or extra capability metadata.
 Backticked examples/optional runtime paths and placeholder templates are not
 treated as file links. Remote URLs are not fetched. Sparse-excluded tracked
 reference targets are reported as warnings; an ordinary missing target is an
@@ -230,14 +233,21 @@ Size limits and Proposed ADR lifecycle questions start as warnings. New malforme
 status/index links remain errors; there is no blanket waiver for new drift.
 The checker cannot establish prose correctness, owner authorization, historical
 review clearance, native tool discovery, independence or release acceptance.
-Those remain evidence-backed human/reviewer decisions. P4 still owns native
-skill migration; this phase installs no skill packages.
+Those remain evidence-backed human/reviewer decisions. The
+[native integration guide](agentic-native-integration.md) documents migration,
+fresh-client discovery, capability probes and SpecKit's deferred upgrade.
+No personal skill or installed tool is changed by the repository migration.
 
 Fixtures deliberately remove targets, corrupt state/status/metadata, introduce
 obsolete principles and disable blocking diagnostics. Real Task invocations
 exercise lint failure propagation and missing-script failure without installing
 dependencies. The SpecKit regression runs explicit selections and a throwaway
 copy restoring the original stdout/Boolean bug; it never mutates a real feature.
+Native integration fixtures cover representative matching/nonmatching paths,
+all 20 legacy-to-19-native mappings, broken pointers, duplicate recipes and
+broadened reviewer tools. Disabling the new blocking diagnostics breaks their
+assertions. These deterministic checks are not an LLM behavior simulation;
+runtime discovery and refusal evidence must come from the actual client.
 
 ## 7. Coverage philosophy
 

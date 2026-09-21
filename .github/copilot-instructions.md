@@ -1,328 +1,86 @@
-# Copilot Instructions
-
-> Repository-level instructions for GitHub Copilot (IDE, CLI, and code review).
-> This file is automatically read by Copilot on every interaction.
-
-## Project Overview
-
-Aurearia is a full-stack PWA for managing a personal coin collection, with deep support for ancient and historical coins. Go/Gin API backend with Vue 3/TypeScript frontend, SQLite database, and a Python LangGraph multi-agent service for AI features.
-
-| Layer | Tech | Path |
-|---|---|---|
-| Backend | Go 1.26.6, Gin, GORM, SQLite | `src/api/` |
-| Frontend | Vue 3, TypeScript, Pinia, Vite, PWA | `src/web/` |
-| Agent | Python 3.12, FastAPI, LangGraph, LangChain | `src/agent/` |
-| Build | Multi-stage Docker (2 containers) | `Dockerfile`, `src/agent/Dockerfile` |
-
-## Document Hierarchy
-
-All decisions respect `.specify/memory/constitution.md` §0. ADR 0019 was accepted
-through owner-approved PR #734 on 2026-09-21; constitution 4.0.0 governs.
-
-The hierarchy is **Constitution → PRD → applicable accepted ADRs →
-active spec → plan → tasks → backlog → active decisions → agent judgment**.
-Frameworks, templates, charters, and session state cannot override project policy.
-
-Resolution rule: when two sources disagree, the higher-ranked one wins, and the lower-ranked source must be updated to match (or an amendment proposed per §22).
-
-## Session Protocol
-
-Operational rules for every AI agent (Copilot CLI, Coding Agent, Squad). Full text in `.specify/memory/constitution.md` §18.
-
-### Always
-- Read the constitution, relevant active decisions, and explicitly selected work
-  artifact before editing. Load charter/history only for a role you are acting in.
-- After ADR 0019 acceptance, use the bug/small-change, feature, or high-risk lane
-  in §18.1. Ordinary work stays on `beta`; never guess the feature from the branch
-  or newest spec. Use an approved issue/process plan where appropriate.
-- Until native migration, inspect relevant `.squad/skills/`; repository-native
-  skills/scoped instructions remain a P4 deliverable.
-- Quote spec section IDs (e.g., `§17`, Principle I) in commit messages and PR descriptions.
-- Record applicable §17 verification and the exact tested commit/tree before
-  claiming verified work. Missing or unauthorized execution remains incomplete.
-- Follow Principle IV: choose the simplest complete proportional change.
-
-### Never
-- Invent file paths, package names, APIs, or facts — re-read or grep first.
-- Retroactively modify a locked file (constitution, landed spec, merged ADR) without an amendment per §22.
-- Bypass a reviewer rejection or its author restrictions. Existing blocks retain
-  their terms; prospective author-revision rules activate only on ADR 0019
-  acceptance. Reassignment is never clearance.
-- Ship a hopeful patch that only fixes the first observed failure, or a clever rewrite for a small bug, without proving the broader root cause.
-
-### Session Handoff
-- After ADR 0019 acceptance, the implementation owner persists the handoff in
-  `.squad/log/` and the current-work pointer; Scribe is optional help.
-  Wait for required recording to finish. Do not stage unrelated files or
-  automatically commit, stash, push, or release.
-- Current views may be curated only under the accepted archival policy, with
-  preserved originals and review blocks. P2 archival was accepted through PR #736;
-  use the current views and their preservation inventory, not full archives.
-- **Do NOT introduce `SESSION-NOTES.md` or `.copilot-state.md`** — constitution §18 forbids these. The `.squad/log/` + `decisions.md` pair is the canonical handoff surface.
-
-## Build, Test, and Lint
-
-Use [docs/testing.md §6](../docs/testing.md#6-running-tests-locally-vs-ci) for
-current CI-aligned commands and Windows invocation. Frontend completion includes
-`npm run lint` with `--max-warnings 0`, strict type-check, full tests, and build.
-Do not substitute `--quiet` or `vue-tsc --noEmit` for required gates.
-
-[Taskfile](../Taskfile.yml) provides the CI-shared `check:go`, `check:web`,
-`check:agent`, `check:openapi`, and `check:delivery` completion targets.
-Use all applicable targets; runner-only race/security/compatibility/release
-checks remain additional. OpenAPI regeneration writes files. Dependency setup
-uses separate authorized `setup:*` targets; missing tooling fails rather than
-silently installing or skipping validation.
-
-## Architecture
-
-See `docs/ARCHITECTURE.md` for full details. For binding project principles, see the **Project Constitution** at `.specify/memory/constitution.md`.
-
-### Go API — Layered Architecture
-
-```
-Handler → Service → Repository → Database
-```
-
-The full rule set lives in constitution **Principle I (Clear Layered Architecture)** and is enforced by `architecture_test.go` per **Principle IX**. Quick reference table below for the import rules.
-
-**Package import rules:**
-
-| Package | May import |
-|---|---|
-| `handlers/` | `services/`, `repository/`, `models/` |
-| `services/` | `repository/`, `models/` |
-| `repository/` | `models/`, `gorm.io/gorm` |
-| `models/` | Standard library only |
-| `middleware/` | `models/`, `gorm.io/gorm` |
-
-**DI wiring in `main.go`:** `config.Load()` → `database.Connect()` → construct repos → construct services → construct handlers → register routes. Three route groups: `api` (public auth), `protected` (JWT required), `admin` (JWT + admin role).
-
-### Multi-Agent Architecture (Python)
-
-```
-Vue SPA → Go API (8080) → Python Agent Service (8081)
-```
-
-The Python agent is a **stateless** FastAPI service — no database access. All configuration (API keys, models, prompts, user context) is passed per-request from the Go API. SSE streams flow Python → Go → Vue (Go proxies the byte stream via `services/agent_proxy.go`).
-
-**Team pipelines:**
-
-| Team | Pipeline |
-|---|---|
-| Coin Search | Search → Fetch dealer pages → Format |
-| Coin Shows | Search → Verify dates are future → Format |
-| Coin Analysis | Vision model analysis → Format |
-| Portfolio Review | Read holdings → Valuate → Analyze |
-| Availability Check | Check URLs → Analyze results → Verdict |
-
-**Key design rules:**
-- Search agents pass only tool-returned data downstream — never invented details
-- Verification agents confirm every URL is live and every date is in the future
-- All worker agent outputs conform to a defined Pydantic schema — no free-form text
-- Top-level supervisor (`app/supervisor.py`) enforces max iteration count to prevent loops
-
-### AI Provider Configuration
-
-Users choose one provider in Admin Settings (`AIProvider` key):
-
-- **Anthropic** — Claude models. Web search uses Claude's built-in `web_search_20250305` tool.
-- **Ollama** — Self-hosted models. Web search uses a `create_react_agent` with SearXNG tool.
-
-**Important:** Anthropic's `web_search` is NOT available by default on `ChatAnthropic`. Use `get_search_model()` from `app/llm/provider.py` (which calls `bind_tools`) for any agent node that needs web search. Use `get_chat_model()` for nodes that don't search.
-
-## Code Conventions
-
-### Simple Complete Changes
-
-Principle IV means: keep fixes simple, complete, and proportional. Fix the real workflow, check directly related sibling paths, prefer typed and obvious code, and avoid hidden mutation or clever abstractions unless they are clearly justified.
-
-### Go
-- Constructor injection for all dependencies (`NewXxxHandler(repo, service)` pattern)
-- Sentinel errors in services (e.g., `ErrNotFound`, `ErrInvalidCredentials`)
-- Use GORM scopes from `repository/scopes.go` (`OwnedBy`, `OwnedByID`, `ActiveCollection`, `PublicCoins`, `ByCoinID`) instead of repeating `.Where()` clauses
-- Swagger annotations on all public handler methods
-- Settings use key-value `AppSetting` model; constants and defaults live in `services/settings_service.go`
-
-### Python (Agent)
-- Pydantic models for all request/response schemas (in `app/models/`)
-- LangGraph `StateGraph` for team pipelines
-- `create_react_agent()` for tool-using agents
-- Structured logging via `app/logging_config.py` (ring buffer + stdout)
-
-### TypeScript / Vue
-- `<script setup lang="ts">` with Composition API
-- **Docker builds use stricter TS checking than local `vue-tsc`.** Always use optional chaining (`?.`) and nullish coalescing (`??`) on array index access. When passing nullable props (`string | null | undefined`) to a child component that expects non-nullable types (`string`), use `?? ''` (strings) or `?? 0` (numbers) at the call site. Local `vue-tsc --noEmit` may pass but Docker's `vue-tsc --build` will reject the mismatch.
-- All API calls go through `src/web/src/api/client.ts` (Axios with JWT interceptor and 401 refresh queue)
-- Agent chat streaming uses `fetch` + manual SSE parsing, not Axios
-- `sanitizeCoin()` in the API client normalizes `''`/`undefined` → `null` before sending
-- CSS variables: `--accent-gold`, `--bg-card`, `--border-subtle`, `--text-primary`
-- Icons: `lucide-vue-next`
-
-### UI / UX
-- No emojis in UI text, prompts, or AI responses
-- Dark theme is default
-- PWA-compatible — test on mobile viewports
-
-### Design System
-
-All CSS values **must** use design tokens from `variables.css` and global classes from `main.css`. Never hardcode raw values when a token exists.
-
-#### Design Tokens (variables.css)
-
-| Token | Value | Use for |
-|---|---|---|
-| `--radius-sm` | `8px` | Cards, inputs, buttons |
-| `--radius-md` | `12px` | Larger containers, modals |
-| `--radius-lg` | `16px` | Hero sections |
-| `--radius-full` | `9999px` | Pills, chips, badges |
-| `--border-subtle` | gold 15% | Default borders |
-| `--border-accent` | gold 40% | Hover/active borders |
-| `--accent-gold` | `#c9a84c` | Primary accent, active states, links |
-| `--accent-bronze` | `#b08d57` | Secondary accent |
-| `--accent-gold-dim` | gold 30% | Active chip/pill backgrounds |
-| `--accent-gold-glow` | gold 15% | Focus rings, subtle backgrounds |
-| `--bg-card` | `#16213e` | Card backgrounds |
-| `--bg-card-hover` | `#1a2747` | Card hover state |
-| `--bg-input` | `#1e2a4a` | Input/textarea backgrounds |
-| `--text-primary` | `#e8e0d0` | Body text |
-| `--text-secondary` | `#a09880` | Secondary text, descriptions |
-| `--text-muted` | `#706858` | Labels, hints, placeholders |
-| `--text-heading` | `#d4b96a` | Headings (h1–h4) |
-| `--cat-roman` | `#9b59b6` | Roman category |
-| `--cat-greek` | `#6b8e23` | Greek category |
-| `--cat-byzantine` | `#c0392b` | Byzantine category |
-| `--cat-modern` | `#4682b4` | Modern category |
-| `--mat-gold/silver/bronze` | metal colors | Material indicators |
-| `--shadow-card` | box-shadow | Card elevation |
-| `--shadow-glow` | gold glow | Hover/focus glow effect |
-| `--transition-fast` | `0.2s ease` | Hover, focus |
-| `--transition-med` | `0.3s ease` | Layout changes |
-
-#### Typography Scale
-
-| Element | Font | Size | Weight |
-|---|---|---|---|
-| h1 | Cinzel | `2rem` | 600 |
-| h2 | Cinzel | `1.5rem` | 500 |
-| h3 | Cinzel | `1.2rem` | 500 |
-| h4 | Cinzel | `0.9rem` | 500 |
-| Body | Inter | `0.9rem` | 400 |
-| Secondary | Inter | `0.85rem` | 400 |
-| Small | Inter | `0.8rem` | 400 |
-| Tiny | Inter | `0.75rem` | 500 |
-
-#### Uppercase Labels
-
-All uppercase labels (section headers, info-card labels, sub-headings) use:
-```css
-font-size: 0.7rem;
-font-weight: 600;
-text-transform: uppercase;
-letter-spacing: 0.08em;
-color: var(--text-muted);
-```
-Use the global `.section-label` class or `.info-label` in detail grids.
-
-#### Chip / Pill Hierarchy (global classes in main.css)
-
-| Class | Use | Size | Padding |
-|---|---|---|---|
-| `.chip` | Interactive filter pills (face, category) | `0.8rem` | `0.35rem 0.85rem` |
-| `.chip-sm` | Static tag/label pills | `0.75rem` | `0.15rem 0.5rem` |
-| `.badge` | Category badges (Roman, Greek, etc.) | `0.75rem` | `0.2rem 0.7rem` |
-
-All chips use `border-radius: var(--radius-full)`. Active state: `background: var(--accent-gold-dim); border-color: var(--accent-gold); color: var(--accent-gold)`.
-
-#### Button Hierarchy (global classes in main.css)
-
-| Class | Use | Padding | Font size |
-|---|---|---|---|
-| `.btn` | Standard button | `0.6rem 1.2rem` | `0.9rem` |
-| `.btn-sm` | Compact button | `0.4rem 0.8rem` | `0.8rem` |
-| `.btn-xs` | Inline/tiny actions | `0.25rem 0.6rem` | `0.75rem` |
-| `.btn-primary` | Gold gradient CTA | — | — |
-| `.btn-secondary` | Bordered neutral | — | — |
-| `.btn-ghost` | Transparent, subtle border | — | — |
-| `.btn-danger` | Red destructive | — | — |
-
-#### Spacing Rhythm
-
-- Section gaps: `1.5rem` between major sections (inscriptions, tags, info-grid, descriptions, notes)
-- Sub-item gaps: `0.75rem` within sections
-- Chip/tag gaps: `0.35rem`
-- Card internal padding: `0.75rem` (info cards), `1rem` (feature cards), `1.5rem` (page cards)
-
-#### UI Pattern Recipes
-
-Before implementing UI, identify the closest existing page or component pattern and reuse it unless the user explicitly approves a new pattern. Do not fall back to generic layouts when a local pattern exists.
-
-| Pattern | Use | Required shape |
-|---|---|---|
-| Page header | Standalone feature pages | `header.page-header` row with the title on the left and any back action as a compact icon/link on the right. Avoid long intro copy unless the page truly needs explanation. |
-| Sidebar submenus | Related alternate views under one domain | Keep the parent item expandable/collapsible and start collapsed. Put related views under the parent as subitems instead of adding extra top-level menu items. |
-| Summary metric row | A page has one primary count/value | Use one compact horizontal label/value row, e.g. `Mapped Coins:` left and value right. Do not create a large card or stacked label/value block for a single metric. |
-| Pagination controls | Previous/next navigation | Keep controls in one row: `< Previous` then current label then `Next >`. Do not stack Previous and Next on mobile unless the viewport is too narrow to preserve usable tap targets. |
-| Stats subviews | Health, value trends, timeline, map | Each subview is its own route/page under the Stats submenu; the Stats landing page stays summary-card focused. |
-| Collection subviews | Gallery and Tray | Keep Gallery and Tray under the Collection submenu; the Collection parent starts collapsed like Stats. |
-| Immersive PWA capture | Camera-first flows in an installed PWA (Add Coin, Identify Coin) | Use `PwaCaptureShell`: fixed full-bleed shell claiming `useImmersiveShellClaim()` so App.vue drops the nav bar and agent button. Close / Add-Identify segments / Quick Capture on top, a three-segment progress rail, one rounded stage with the guide ring, then Library + shutter + Manual (intake) or Deep (identify). Takes all color from the active theme's shared tokens (`--bg-primary`, `--bg-card`, `--bg-input`, `--accent-gold`, `--text-*`, `--border-subtle`) - no private palette and no literal colors. |
-
-#### Rules for New UI Components
-
-1. **Never hardcode** `border-radius`, colors, or spacing — always use tokens
-2. **Never duplicate** chip/button CSS — use the global classes
-3. **Never invent** a new font-size — pick from the typography scale
-4. **All interactive pills** use `.chip` or extend it
-5. **All static tags** use `.chip-sm` sizing (`0.75rem`, `0.15rem 0.5rem`)
-6. **All uppercase labels** use `letter-spacing: 0.08em` — no other value
-7. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
-8. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
-
-### Adding a New API Feature
-
-1. Model in `src/api/models/` → add to `AutoMigrate` in `database/database.go`
-2. Repository in `src/api/repository/*_repository.go`
-3. Service (if business logic needed) in `src/api/services/*_service.go`
-4. Thin handler in `src/api/handlers/` with `NewXxxHandler()` constructor
-5. Wire in `src/api/main.go` (create repo → service → handler, register routes under correct group)
-6. Run `go test ./...` to verify architecture rules pass
-
-### Notable Endpoints & Features
-
-- **AI Provider Status:** `GET /ai-status` returns `{ provider, available, model, message }`. Frontend uses this provider-agnostic check before AI analysis instead of legacy `/ollama-status`.
-- **Random Gallery Sort:** Collection list accepts `?sort=random&seed=N` where `N` is an integer (validated via `strconv.Atoi`). Order is `((id * seed) + seed) % 2147483647` for SQL-safe deterministic shuffle. Frontend persists the seed in `sessionStorage` under `coins:randomSeed` for stable pagination within a session.
-- **Coin of the Day:** Daily scheduler picks one coin per enrolled user, sends in-app notification + Pushover. Clicking the notification opens `FeaturedCoinModal` (not a route).
-  - Admin settings: `CoinOfDayEnabled`, `CoinOfDayStartTime` (24h `HH:MM`)
-  - Per-user opt-in field: `User.CoinOfDayEnabled` (default `true`) — surfaced as toggle in Settings → Account
-  - Endpoints:
-    - `GET /featured-coins/latest` — most recent for the current user
-    - `GET /featured-coins/:id` — fetch one (user-scoped); preloads `Coin.Images`
-    - `POST /admin/coin-of-day/run` — admin manual trigger; returns `{ picked, skipped, errors }`
-  - Notification type: `coin_of_day`; `referenceId` is the `FeaturedCoin.ID` (NOT a coin id).
-  - Selection algorithm (`PickNextCoinID`): cycles through every owned, non-wishlist, non-sold coin via LEFT JOIN on `featured_coins` (`ORDER BY (last_shown IS NULL) DESC, last_shown ASC, c.id ASC`); each coin appears once before any repeats.
-  - Dual idempotency: in-memory `map[userID]string` + DB check `HasBeenFeaturedToday` — safe across process restarts on the same day.
-  - Summary is cached at pick time (`buildCoinSummary` fallback chain: `AIAnalysis` → `Obverse + Reverse` → structured fields → bare name) so the modal renders cached prose without an extra AI call.
-
-## Commit Convention
-
-Conventional Commits and the `Co-authored-by: Copilot` trailer are gated by constitution **§17 Quality Gate** and **Principle VII**. Prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`. Trailer (required on every AI-assisted commit):
-
-```
+# Aurearia: Universal Copilot Instructions
+
+Aurearia is a self-hosted coin-collection PWA: Go API (`src/api`), Vue/TypeScript
+SPA (`src/web`), and stateless Python agent service (`src/agent`).
+
+## Authority and work selection
+
+Read the [constitution](../.specify/memory/constitution.md), relevant
+[active decisions](../.squad/decisions.md), and the explicitly selected
+issue/spec/process plan before editing. Constitution 4.0.0 / ADR 0019 governs.
+Authority is Constitution > PRD > applicable accepted ADRs > active spec > plan >
+tasks > backlog > active decisions > agent judgment. Frameworks cannot override it.
+
+Use [current work](../.squad/identity/now.md) as a pointer, not a competing ledger.
+Never infer work from the newest spec or branch name. Ordinary work stays on
+`beta`; branches/worktrees need applicable owner authorization. Load a role's
+charter/history only when acting in that role. Preserve unrelated dirty files.
+
+Choose the smallest complete lane under section 18.1. Delivery controls, auth,
+migrations, data semantics and service boundaries require high-risk review.
+Keep scope/non-goals, acceptance criteria and sibling workflows explicit.
+Do not change locked policy, accepted ADR/spec bodies or archived evidence
+without the required authority. Stop on conflicting authority or scope expansion.
+
+## On-demand guidance
+
+Path-scoped rules live in [instructions](instructions). Load only matching
+`applyTo` guidance; if the client provides only its path/glob index, read the
+matching file explicitly. Do not eagerly load every language/design recipe.
+Reusable workflows live in [native skills](skills/README.md).
+Legacy `.squad/skills` entries are compatibility links, not separate authority.
+If native discovery is unavailable, read the relevant canonical file explicitly
+and report that fallback; do not claim the client discovered it.
+
+Preserve Go -> Python service boundaries, layered data access, typed contracts,
+ownership/auth/privacy rules and PWA behavior from the constitution.
+No emojis in UI text, prompts or AI responses. Use local design patterns/tokens.
+Verify paths, symbols and actual source before relying on a recipe.
+
+## Execution and review
+
+Default to one implementation owner. Squad is optional for genuinely separable
+work, not routine fan-out. Every delegation needs objective, authority, allowed
+paths, non-goals, evidence, an approved effort/checkpoint lease and stop condition.
+No nested delegation or silent expensive-model fallback. Use configured models.
+
+Required review must be independent. The
+[read-only reviewer](agents/aurearia-reviewer.agent.md) cannot implement fixes.
+Use `task review:read-only`; plain profile selection alone does not exclude the
+installed client's session SQL and skill-loading tools.
+For new reviews, the author may repair unless an independent reviser is required;
+only the blocking reviewer or an owner-appointed independent successor can clear
+the block. Preserve historical author restrictions. Assignment, changed files,
+empty responses and green CI are not review clearance or completion evidence.
+
+## Verification and persistence
+
+Use [testing section 6](../docs/testing.md#6-running-tests-locally-vs-ci) and
+applicable shared `task check:*` targets. Fast feedback is not completion.
+Missing tools or unauthorized checks remain incomplete. Setup/installations,
+builds, containers and publishing require their applicable owner authorization.
+Never install implicitly, skip missing lint, use `--quiet` to hide warnings,
+or replace strict `vue-tsc --build` with `--noEmit`. OpenAPI generation writes files.
+Runner-only race/security/browser/compatibility checks remain additional.
+
+Bind results and reviewer verdicts to the exact tested commit/tree. Distinguish
+implemented, verified, accepted and released. Main/release/deployment requires
+separate explicit owner approval; a beta push is not release authorization.
+
+The implementation owner persists completed/incomplete work, evidence, decisions,
+blocks and next action in `.squad/log/` and the current-work pointer, then verifies
+the write completed. Scribe is optional and may write only named artifacts.
+Record cross-cutting decisions in `.squad/decisions/inbox/` and reconcile active
+decisions without erasing history. Never use `SESSION-NOTES.md` or `.copilot-state.md`.
+Do not automatically stage, stash, commit, push or deploy as a handoff side effect.
+
+When authorized to commit, stage only approved paths, use Conventional Commits,
+cite applicable Principles/sections, and include:
+
+```text
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-## Binding Baselines
-
-These rules are normative in the constitution — do not restate them, comply with them:
-
-- **Principle V (Security, Auth, and Privacy by Default)** — input validation, secret handling, token policy, account lifecycle, and access control.
-- **Principle VI (Consistent User Experience)** — PWA/mobile interaction rules and service worker boundaries.
-
-Any deviation requires an ADR (§22) before merge.
-
-## Constitution Compliance
-
-Every PR cites affected **Principles** and **operational sections**, applicable
-§17 evidence, reviewer disposition, and the reviewed commit/tree. Use
-`.github/pull_request_template.md` for §21. Written requirements are not proof of
-live GitHub enforcement. Main/release actions need separate owner authorization.
+Use the [PR checklist](pull_request_template.md) for sections 17/21.
+Software QC and post-major-release delivery audits are separate; invoke the
+appropriate audit explicitly under section 20. A skill is not a scheduled trigger.

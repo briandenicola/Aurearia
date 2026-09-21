@@ -1,0 +1,105 @@
+{
+  "baseline_commit": "7df826fc2504ce1154c05bc8b5d11a818ef7014b",
+  "entries": [
+    {
+      "old_path": ".squad/skills/adding-admin-schedule/SKILL.md",
+      "native_path": ".github/skills/adding-admin-schedule/SKILL.md",
+      "original_blob": "d2011ebd346daedd330cbc497926b7afad111ba3"
+    },
+    {
+      "old_path": ".squad/skills/adding-scheduled-job/SKILL.md",
+      "native_path": ".github/skills/adding-scheduled-job/SKILL.md",
+      "original_blob": "e3de0a3b4e5abdff534933ac804b2eaa201e7132"
+    },
+    {
+      "old_path": ".squad/skills/contextual-share-cards/SKILL.md",
+      "native_path": ".github/skills/contextual-share-cards/SKILL.md",
+      "original_blob": "10208775cc35b008936600d7b4623ff54be133f4"
+    },
+    {
+      "old_path": ".squad/skills/external-service-scraping-with-fixtures/SKILL.md",
+      "native_path": ".github/skills/external-service-scraping-with-fixtures/SKILL.md",
+      "original_blob": "36aa7c150514408e804a42f1a5dc47954a535c21"
+    },
+    {
+      "old_path": ".squad/skills/go-sqlite-test-isolation/SKILL.md",
+      "native_path": ".github/skills/go-sqlite-test-isolation/SKILL.md",
+      "original_blob": "6728c6358bd86396e9d35aead8ff8bf9c096b6e5"
+    },
+    {
+      "old_path": ".squad/skills/legacy-set-type-normalization/SKILL.md",
+      "native_path": ".github/skills/legacy-set-type-normalization/SKILL.md",
+      "original_blob": "aad06f0bd0378cf8a430f7b13695bacec0d0a62d"
+    },
+    {
+      "old_path": ".squad/skills/module-level-state-management.md",
+      "native_path": ".github/skills/module-level-state-management/SKILL.md",
+      "original_blob": "55dfb2c2ac7edf30f31d82e8c452eaa9d4dee21d"
+    },
+    {
+      "old_path": ".squad/skills/museum-tray-reuse/SKILL.md",
+      "native_path": ".github/skills/museum-tray-reuse/SKILL.md",
+      "original_blob": "848aee9609380be264ce9cb9e9f6f2441aa5e118"
+    },
+    {
+      "old_path": ".squad/skills/npm-audit-transitive-overrides/SKILL.md",
+      "native_path": ".github/skills/npm-audit-transitive-overrides/SKILL.md",
+      "original_blob": "ac0287fd62484f8102d50d480fdc17adb6fbc52e"
+    },
+    {
+      "old_path": ".squad/skills/post-major-work-qc-audit/SKILL.md",
+      "native_path": ".github/skills/aurearia-software-qc-audit/SKILL.md",
+      "original_blob": "0d1d9914aadf2ee923e46a7ae2b636b133871ac7"
+    },
+    {
+      "old_path": ".squad/skills/python-locking/SKILL.md",
+      "native_path": ".github/skills/python-locking/SKILL.md",
+      "original_blob": "edb585b4bc26feb00bc2e596272d7666bf3b542f"
+    },
+    {
+      "old_path": ".squad/skills/route-openapi-drift-test/SKILL.md",
+      "native_path": ".github/skills/route-openapi-drift-test/SKILL.md",
+      "original_blob": "e03a7cea9dce16cd3c29b572079611df468f4b37"
+    },
+    {
+      "old_path": ".squad/skills/svg-chart-patterns/SKILL.md",
+      "native_path": ".github/skills/svg-chart-patterns/SKILL.md",
+      "original_blob": "8e1b311ec40208719b5d1fd55117740d298ea918"
+    },
+    {
+      "old_path": ".squad/skills/testing-coin-detail-section-pages.md",
+      "native_path": ".github/skills/testing-coin-detail-section-pages/SKILL.md",
+      "original_blob": "453d387229ab43bf357ec1fd84ac383a70508350"
+    },
+    {
+      "old_path": ".squad/skills/testing-gorm-many-to-many-custom-timestamps/SKILL.md",
+      "native_path": ".github/skills/testing-gorm-many-to-many-custom-timestamps/SKILL.md",
+      "original_blob": "48c415ad123978b5eb5e93d1efb0a7d638fd94ec"
+    },
+    {
+      "old_path": ".squad/skills/toolchain-pinning/SKILL.md",
+      "native_path": ".github/skills/toolchain-pinning/SKILL.md",
+      "original_blob": "968c87da3a4e37a507f88005714c021aaa74e5d7"
+    },
+    {
+      "old_path": ".squad/skills/user-initiated-camera/SKILL.md",
+      "native_path": ".github/skills/user-initiated-camera/SKILL.md",
+      "original_blob": "89f2fb24008fbfbdecc05fcda34ddcdb976012cd"
+    },
+    {
+      "old_path": ".squad/skills/vue-router-parent-child-navigation/SKILL.md",
+      "native_path": ".github/skills/vue-router-parent-child-navigation/SKILL.md",
+      "original_blob": "2edbf7bb180fadc8c4dac072252b82f8ad29977d"
+    },
+    {
+      "old_path": ".squad/skills/webauthn-contract-tests/SKILL.md",
+      "native_path": ".github/skills/webauthn-contract-tests/SKILL.md",
+      "original_blob": "3934ed87c83dfc427e74c1e08aecaec6d00c1536"
+    },
+    {
+      "old_path": ".squad/skills/npm-audit-transitive-override/SKILL.md",
+      "native_path": ".github/skills/npm-audit-transitive-overrides/SKILL.md",
+      "original_blob": "c4cc8c625a0b7baf46ad1482e982db7e1ee69dea"
+    }
+  ]
+}

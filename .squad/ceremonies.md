@@ -13,7 +13,7 @@
 | **Facilitator** | lead |
 | **Participants** | implementation owner and one independent reviewer; others only if needed |
 | **Time budget** | explicit bounded lease; stop at decision or blocker |
-| **Enabled** | ✅ yes |
+| **Enabled** | yes |
 
 **Agenda:**
 1. Review the task and requirements
@@ -33,7 +33,7 @@
 | **Facilitator** | lead |
 | **Participants** | smallest group needed for the concrete cause |
 | **Time budget** | explicit bounded lease |
-| **Enabled** | ✅ yes |
+| **Enabled** | yes |
 
 **Agenda:**
 1. What happened? (facts only)
@@ -51,3 +51,6 @@
 - Record corrective-action evidence; a retrospective alone does not close a finding.
 - The implementation owner records the handoff or delegates to Scribe and waits.
 - No ceremony authorizes scope expansion, commits, installs, deployments, or release.
+- Use the [assignment/return contract](routing.md#delegation-and-return-contract)
+  for any delegated review or recording. A ceremony does not bypass the native
+  reviewer's read/search-only capabilities or extend its approved lease.

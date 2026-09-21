@@ -103,6 +103,12 @@ Obtain required authorization before setup, builds, or containers; missing
 execution is incomplete rather than passed. Race, security, browser,
 compatibility and release checks remain additional where applicable.
 
+Native Copilot domain instructions and skills are documented in
+[the integration guide](docs/agentic-native-integration.md). Start a fresh client
+session after instruction changes; static fixtures do not prove runtime
+discovery. Squad is optional. Required independent review uses the read/search-only
+profile with supplied diffs/evidence and an owner-approved bounded lease.
+
 Keep pure-document review proportional, but exercise executable policy/prompts
 and workflows with relevant behavior/fixtures. Independent review and explicit
 owner release approval cannot be replaced by task checkboxes.
