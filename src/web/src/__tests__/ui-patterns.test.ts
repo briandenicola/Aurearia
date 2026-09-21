@@ -4,7 +4,7 @@ import { join } from 'path'
 
 const REPO_ROOT = join(__dirname, '..', '..', '..', '..')
 const SRC_DIR = join(REPO_ROOT, 'src', 'web', 'src')
-const COPILOT_INSTRUCTIONS = join(REPO_ROOT, '.github', 'copilot-instructions.md')
+const WEB_INSTRUCTIONS = join(REPO_ROOT, '.github', 'instructions', 'web.instructions.md')
 
 function readRepoFile(pathFromSrc: string): string {
   return readFileSync(join(SRC_DIR, pathFromSrc), 'utf-8')
@@ -12,7 +12,7 @@ function readRepoFile(pathFromSrc: string): string {
 
 describe('UI pattern recipes', () => {
   it('documents reusable UI recipes for future agents', () => {
-    const instructions = readFileSync(COPILOT_INSTRUCTIONS, 'utf-8')
+    const instructions = readFileSync(WEB_INSTRUCTIONS, 'utf-8')
 
     expect(instructions).toContain('#### UI Pattern Recipes')
     expect(instructions).toContain('identify the closest existing page or component pattern')
@@ -75,7 +75,7 @@ describe('UI pattern recipes', () => {
   })
 
   it('gives the installed PWA the full-bleed capture shell from the mockup', () => {
-    const instructions = readFileSync(COPILOT_INSTRUCTIONS, 'utf-8')
+    const instructions = readFileSync(WEB_INSTRUCTIONS, 'utf-8')
     const wizard = readRepoFile(join('components', 'coin-lookup', 'CoinLookupCaptureWizard.vue'))
     const shell = readRepoFile(join('components', 'coin-lookup', 'PwaCaptureShell.vue'))
     const variables = readRepoFile(join('assets', 'styles', 'variables.css'))

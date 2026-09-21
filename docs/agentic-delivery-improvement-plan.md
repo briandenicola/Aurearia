@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** P3 accepted via #737 and closeout #738; P4 authorized and in progress; P5-P6 not started
+**Status:** P4 merged via #739; corrective UI-guidance contract verification in progress; P5-P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -452,8 +452,25 @@ PowerShell regression/negative control, and zero governance errors. Native probe
 findings were explicitly cleared by their original reviewer. The
 [canonical handoff](../.squad/log/2026-09-21-delivery-native-integration.md)
 records provenance, restrictions and the metadata-only closeout boundary.
-Hosted PR evidence and owner acceptance are separate pending conditions;
-checked D11-D13 tasks do not authorize merge, release or P5.
+The owner merged #739 as `e08c4fd52181476654de02bbb3b33d6872cfef52`;
+its tree exactly matches the final locally tested candidate. Hosted delivery
+checks passed on Windows/Linux, but Vue Web exposed two documentation-consumer
+failures: `ui-patterns.test.ts` still read the old universal instruction file.
+The owner approved a narrow follow-up preserving every assertion, web/delivery
+gates, bounded re-review, and locked dependency restoration in the isolated
+worktree. No application behavior or installed tool version changes.
+
+- [x] **P4 corrective closeout:** Point the two UI guidance reads at canonical
+  `web.instructions.md`, prove the original path still fails, obtain full web
+  and delivery evidence plus independent re-review, and publish a follow-up PR.
+  Follow-up acceptance and hosted verification remain distinct from #739's merge.
+  Do not begin P5 or release on the strength of the original task checkboxes.
+
+Corrective implementation/local gates and independent re-review passed; the
+[corrective handoff](../.squad/log/2026-09-21-delivery-ui-guidance-correction.md)
+records exact source identities, the real negative control and setup/version
+limitations. Hosted follow-up evidence and owner acceptance remain pending at
+publication; the checked item records the implementation, not a green remote run.
 
 Every delegated assignment must include:
 

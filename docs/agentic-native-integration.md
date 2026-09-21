@@ -69,6 +69,9 @@ the matching canonical guidance explicitly and report that fallback.
 Run the authorized `task check:delivery` for offline metadata, links, migration
 and negative-control fixtures. Static matching examples document the intended
 scope; they are not a replacement Copilot resolver or proof of runtime discovery.
+Search code/test consumers before relocating guidance. The frontend
+`src/web/src/__tests__/ui-patterns.test.ts` reads the canonical web instruction
+file; those contracts require `task check:web`, not only the delivery gate.
 The conservative initial-context budget includes the immutable constitution and
 active decisions; any excess must be recorded, not hidden by truncating policy.
 
