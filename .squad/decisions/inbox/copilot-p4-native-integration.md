@@ -3,7 +3,7 @@
 Date: 2026-09-21
 ID: GOV-005
 Scope: Owner-authorized delivery plan D11-D13
-Status: Implemented, locally verified and independently reviewed; hosted evidence and owner acceptance pending
+Status: Owner-merged via #739; subsequent UI-guidance contract correction tracked in the action plan/current pointer
 Authority: Constitution Principles IV/VII/IX; sections 17-18/21; ADR 0019
 
 Universal guidance is short and links five scoped native instruction files.
@@ -41,3 +41,11 @@ approved read calls. Full delivery validation then reran successfully on that
 exact tree. The [handoff](../../log/2026-09-21-delivery-native-integration.md)
 records remaining publication/acceptance conditions. This record is reconciled
 into active decision GOV-005; no pending application restriction is removed.
+
+Subsequent evidence: owner merge `e08c4fd52181476654de02bbb3b33d6872cfef52`
+preserved the final candidate tree. Hosted Vue Web failed because two
+documentation assertions still loaded the previous universal file. Delivery
+Windows/Linux and other configured checks passed. The owner authorized a
+path-only test repair, full web/delivery validation, a bounded four-read/five-minute
+re-review, and locked frontend dependency restoration in the isolated worktree.
+The original handoff remains immutable; the current plan/pointer tracks closure.

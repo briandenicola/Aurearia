@@ -1,18 +1,20 @@
 ---
 updated_at: 2026-09-21
-focus_area: P4 native Copilot integration and bounded collaboration
+focus_area: P4 corrective UI-guidance contract verification
 owner: Copilot CLI implementation owner; repository owner approves merge
-work_branch: docs/delivery-native-integration
-baseline_commit: 7df826fc2504ce1154c05bc8b5d11a818ef7014b
+work_branch: fix/delivery-ui-guidance-contract
+baseline_commit: e08c4fd52181476654de02bbb3b33d6872cfef52
 work_artifact: docs/agentic-delivery-improvement-plan.md
 tasks_artifact: docs/agentic-delivery-improvement-plan.md
 ---
 
 # Current Work
 
-The owner accepted P3 through #737, merged closeout #738, and authorized
-**P4 (D11-D13)** on an isolated branch with a PR into beta. No merge, tool
-installation/upgrade, deployment, application repair or P5/P6 work is authorized.
+The owner merged P4 through #739, then approved a narrow follow-up for two UI
+documentation assertions still reading the relocated guidance's old path.
+Authorization includes web/delivery gates, bounded re-review and locked frontend
+dependency restoration in this isolated worktree. No tool-version upgrade,
+merge, deployment, application behavior change or P5/P6 work is authorized.
 Preserve the original dirty beta worktree. #738's app-container job failed
 downloading Syft with HTTP 504; do not misreport that run as fully green.
 
@@ -47,8 +49,11 @@ governance batch does not repair or clear them.
 The [P4 integration record](../../docs/agentic-native-integration.md) records
 native discovery, explicit instruction loading, the restricted launcher and
 the original probe reviewer's clearance. SpecKit adoption is deferred.
-Independent candidate review passed. The
+Original P4 candidate review passed. The
 [P4 handoff](../log/2026-09-21-delivery-native-integration.md) records the exact
-reviewed source and verification. Obtain hosted results and owner acceptance
-for the bounded PR into beta; do not merge or begin P5 without authorization.
+reviewed source and original verification; it is not retroactively rewritten.
+The corrective contract's independent re-review passed; the
+[corrective handoff](../log/2026-09-21-delivery-ui-guidance-correction.md) records
+local gates and remaining conditions. Obtain hosted follow-up results and owner
+acceptance for the PR into beta. Do not merge or begin P5 without authorization.
 No application review restriction is cleared by delivery-tooling work.

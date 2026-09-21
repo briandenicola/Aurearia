@@ -40,13 +40,15 @@ archive routinely.
 | AI-002 | Identification / Accepted | Deep Analysis reuses separate collection-grade face analysis and optional notes before provider verification, retaining evidence, disagreements, confidence and narrative. Quick Lookup remains the fast combined-image NGC-first path. [ADR 0018](../docs/adr/0018-role-specific-deep-analysis.md) supersedes ONLY ADR 0012's single-vision-call constraint. |
 | AI-003 | Reduced F015 / Owner-approved scope, implementation recorded | [Feature 363](../specs/363-collector-curator-watchlist-provenance/spec.md) authorizes private collector context, read-only curator guidance, existing UI-owned Add to Wishlist, and native listing-URL intake. It does not authorize an auction rewrite, wishlist-action platform, action/audit tables, watchlist ranking or provenance-risk workflow. The archived T011 pause is superseded by the later task/evidence records; do not restart completed work. |
 
-**GOV-005 - P4 native integration (independently reviewed candidate):** Scoped instructions and canonical
+**GOV-005 - P4 native integration (owner-merged #739; corrective verification pending):** Scoped instructions and canonical
 native skills replace eager/duplicate guidance. Use `task review:read-only` for
 required independent review; installed-client limitations require explicit tool
 exclusions and matching-file loads. SpecKit upgrade is deferred, not installed.
 See [bounded decision/evidence](decisions/inbox/copilot-p4-native-integration.md).
-Full P4 review passed; hosted evidence and owner acceptance remain separate
-conditions. Historical blocks are unchanged.
+Original P4 review passed. Hosted Vue Web found two stale documentation-reader
+paths after the move; the owner-approved corrective closeout is tracked in the
+action plan/current pointer. #739's merge does not certify that failing gate.
+Historical application blocks are unchanged.
 
 ## D05 lifecycle reconciliation
 
