@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** D05/P2 accepted via PR #736; P3 implemented with local evidence, independent review and hosted CI pending; P4-P6 not started
+**Status:** D05/P2 accepted via PR #736; P3 verified and accepted via PR #737; P4-P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -322,17 +322,17 @@ No application build/test result or release acceptance is claimed by this batch.
 **Proposed new surface:** minimal process-check scripts and their fixture tests
 under `scripts/delivery/`; do not add a separate service or framework.
 
-- [ ] **D08 - Extract shared validation entry points.** Reuse existing commands
+- [x] **D08 - Extract shared validation entry points.** Reuse existing commands
   through Taskfile targets; make local instructions and CI call the same targets.
   Cover Go build/vet/tests, frontend lint/type-check/tests/build, Python locked
   environment lint/tests, and OpenAPI consistency. Preserve CI race and security
   coverage. Keep dependency installation separate from validation.
-- [ ] **D09 - Add a deterministic governance check.** Start with active-file
+- [x] **D09 - Add a deterministic governance check.** Start with active-file
   references, supported principle identifiers, ADR header/index agreement,
   valid current-work targets, native skill metadata, and context-size warnings.
   Define the active surface explicitly so archived history is not policed as
   current instructions. Emit file/line diagnostics and nonzero exit on errors.
-- [ ] **D10 - Prove the checks detect violations.** Add fixture tests containing
+- [x] **D10 - Prove the checks detect violations.** Add fixture tests containing
   obsolete principle references, invalid ADR status links, a missing spec,
   malformed state, and invalid skill metadata. Deliberately break each blocking
   guard, prove the expected failure, and restore it. Verify documented validation
@@ -386,15 +386,24 @@ unchanged. This is not approval for broader archive cleanup.
   detection; real feature artifacts are never mutated.
 - Local Windows delivery fixtures, actual `task check:go` (build/vet/full tests),
   and actual `task check:openapi` pass using existing tools/cached dependencies.
-  Full web/Python application execution and Linux behavior await the hosted jobs;
-  fake command fixtures are not presented as application test results.
+  Hosted Windows/Linux delivery, full web/Python application gates and Go/race/
+  OpenAPI checks passed on the final source candidate; fake command fixtures
+  are not presented as application test results.
 - Shared OpenAPI generation exposed existing version drift. The `main.go`
   annotation and four generated snapshots are synchronized from 4.0.0 to the
   canonical VERSION 4.3.0; these five single-value changes do not change endpoints.
   Swagger's displayed banner still says v1.16.4 for module v1.16.6, so the tool
   pin is checked against Go build information rather than that stale banner.
-- Independent review and matching hosted evidence are required before marking
-  D08-D10 complete. Owner merge/release approval remains separate.
+- Independent review passed tree `d555f132dc56b130e1ab8f22ec633876b99323b1`,
+  committed as `6920914484bb6d81ee69778fa47042d84a52162f`. All 20 PR checks
+  passed, including both delivery platforms and the race detector.
+- The owner merged [#737](https://github.com/briandenicola/Aurearia/pull/737)
+  into beta at `c36387275ce6b34ed012a29c2a861a2b5dd17f02` on
+  2026-09-21T15:09:11Z. Its tree exactly matches the reviewed/tested candidate.
+  D08-D10 are complete and accepted; release/deployment approval remains separate.
+  [Final handoff](../.squad/log/2026-09-21-delivery-validation-closeout.md)
+  records evidence and boundaries. The owner separately authorized a
+  documentation-only closeout PR; that is not authorization to start P4.
 
 ### P4. Align Copilot tooling and make Squad optional
 

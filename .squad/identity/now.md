@@ -1,19 +1,20 @@
 ---
 updated_at: 2026-09-21
-focus_area: Agentic delivery P3 executable validation and governance drift checks
+focus_area: Accepted P3 validation; documentation-only closeout
 owner: Copilot CLI implementation owner; repository owner approves merge
-work_branch: docs/delivery-validation
-baseline_commit: af2ac2488cf38cd4ce82a33cdd7de986d3fe8045
+work_branch: docs/delivery-validation-closeout
+baseline_commit: c36387275ce6b34ed012a29c2a861a2b5dd17f02
 work_artifact: docs/agentic-delivery-improvement-plan.md
 tasks_artifact: docs/agentic-delivery-improvement-plan.md
 ---
 
 # Current Work
 
-The owner accepted D05/P2 through merged PR #736 and authorized **P3 (D08-D10)**.
-Continue on an isolated branch with a PR into beta. No merge, local tool
-installation, deployment, application repair or P4-P6 work is authorized by this
-batch. Preserve the original dirty beta worktree.
+The owner accepted **P3 (D08-D10)** through merged PR #737. All 20 candidate
+checks passed; the merge tree matches the reviewed/tested source. The current
+authorized work is its documentation-only closeout PR into beta. No merge,
+local tool installation, deployment, application repair or P4-P6 work is
+authorized by this batch. Preserve the original dirty beta worktree.
 
 ## Authoritative pointers
 
@@ -25,6 +26,8 @@ batch. Preserve the original dirty beta worktree.
   records, including exact reviewer ownership and grandfathered restrictions.
 - [Preservation inventory](../artifacts/context-curation-2026-09-21.json):
   original content identities and archive locations.
+- [P3 handoff](../log/2026-09-21-delivery-validation-closeout.md):
+  review, validation, owner acceptance and filename-preservation evidence.
 
 ## Product / Release State
 
@@ -41,7 +44,7 @@ governance batch does not repair or clear them.
 
 ## Next Action
 
-Complete P3's shared recipes, offline checker and negative fixtures; obtain
-independent review and matching Windows/Linux evidence. Publish the P3 PR into
-beta for owner approval. D05/P2 is accepted, not pending a second approval.
-No application review restriction is cleared by delivery-tooling work.
+Present the documentation-only closeout PR for owner merge. P3 itself is
+accepted, not pending a second implementation approval. Do not start P4 until
+the owner authorizes it. No application review restriction is cleared by
+delivery-tooling work.
