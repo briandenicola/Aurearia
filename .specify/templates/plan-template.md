@@ -1,104 +1,68 @@
 # Implementation Plan: [FEATURE]
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Work ID / spec directory**: `[###-feature-name]`
+**Working branch**: `beta` unless explicitly approved otherwise
+**Date**: [DATE] | **Spec**: [approved path]
+**Lane**: [feature / high risk]
+**Owner**: [implementation owner] | **Reviewer**: [independent reviewer]
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+Subordinate to the constitution. ADR 0019 consumer changes remain Proposed until
+section 22 acceptance. Small repairs can use a bounded issue rather than this
+full template. Use `.github/agents/speckit.plan.agent.md` for planning guidance.
 
-## Summary
+## Summary and Scope
 
-[Extract from feature spec: primary requirement + technical approach from research]
+[Approved outcome, acceptance criterion IDs, non-goals, and stop conditions.]
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+[Read actual manifests and existing workflows. Record only relevant languages,
+dependencies, storage, target environment, constraints, and unresolved questions.
+Do not infer new platforms, cloud deployment, dependencies, or configuration.]
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*Before research and after design:*
 
-[Gates determined based on constitution file]
+- [Applicable Principles I-IX and sections 0, 17-22]
+- [Authorizing artifact, applicable accepted ADRs, and any required amendment]
+- [Exact affected user workflows, contracts, configuration, and sibling paths]
+- [Validation tiers and authorized machine/GitHub operations]
+- [Review restrictions, independent reviewer, and owner approval boundaries]
 
-## Project Structure
+Unapproved violations block work. Recording a justification does not waive policy.
 
-### Documentation (this feature)
+### Complexity Tracking
 
-```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit.plan command output)
-├── research.md          # Phase 0 output (/speckit.plan command)
-├── data-model.md        # Phase 1 output (/speckit.plan command)
-├── quickstart.md        # Phase 1 output (/speckit.plan command)
-├── contracts/           # Phase 1 output (/speckit.plan command)
-└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
-```
+| Required exception | Why necessary / simpler option rejected | Amendment and approval evidence |
+|--------------------|------------------------------------------|---------------------------------|
+| [Rule or N/A] | [Reason] | [Accepted authority or blocked pending approval] |
 
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
+## Existing Structure and Reuse
 
-```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+[Verified paths to code, tests, and existing helpers; smallest complete change.
+Do not generate new project scaffolding or copy an unrelated example tree.]
 
-tests/
-├── contract/
-├── integration/
-└── unit/
+## Implementation Slices
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
+[Bounded, usable slices with dependencies and criterion-level evidence.
+Default to one implementation owner. Any delegation names paths, lease,
+checkpoint, required result, and stop condition.]
 
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
+## Verification and Recovery
 
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
+[Exact-path regressions, failure cases, producer/consumer and sibling workflows,
+applicable `docs/testing.md` §6 commands, CI-only evidence, and manual exceptions.
+High-risk changes include compatibility, representative-data upgrade and recovery
+evidence as applicable. Missing tools/permission mean pending, not passed.]
 
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
-```
+## Supporting Artifacts
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+[Create research.md, data-model.md, contracts/, or quickstart.md only when each
+answers an actual need; otherwise record N/A with a reason here. Do not generate
+a document set just to satisfy a template.]
 
-## Complexity Tracking
+## Lifecycle Evidence
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+[Implemented / verified / accepted / released status, exact commit/tree,
+reviewer disposition, and required owner approvals. No automatic publication.]

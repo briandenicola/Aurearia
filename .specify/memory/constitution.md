@@ -1,20 +1,28 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 3.0.0 → 3.1.0 (MINOR — expanded operational gates)
-  Modified principles: None
+  Version change: 3.1.0 → 4.0.0 (PROPOSED MAJOR — ADR 0019)
+  Activation: drafting, review, governance checks, and PR into beta authorized;
+    merge and acceptance require separate owner approval under section 22.
+  Modified principles: IX (gate applicability references section 17)
   Added sections: None
   Removed sections: None
   Modified operational sections:
-    - §17 Quality Gate: added workflow-contract/regression coverage check
-    - §21 Definition of Done: added blast-radius and exact-path regression requirements
-  Templates requiring updates:
-    - ✅ .github/pull_request_template.md — adds workflow-contract and blast-radius checks
-    - ✅ .specify/templates/plan-template.md — compatible
-    - ✅ .specify/templates/spec-template.md — compatible
-    - ✅ .specify/templates/tasks-template.md — compatible
-    - ✅ .specify/templates/agent-file-template.md — compatible
-  Follow-up TODOs: None
+    - §0: accepted ADR authority and explicit work selection
+    - §17–§21: proportional validation, current views, bounded agents,
+      evidence-backed acceptance, and separate software/delivery audits
+    - §22–§23: amendment activation and proposed revision record
+  Synchronized consumers:
+    - .github/copilot-instructions.md and .github/pull_request_template.md
+    - .github/agents/ and .github/prompts/
+    - .specify/templates/
+    - .squad/routing.md, ceremonies.md, and agent charters
+    - CONTRIBUTING.md, docs/testing.md, docs/adr/README.md
+  Follow-up TODOs:
+    - Independent review clearance and owner-approved amendment merge into beta
+    - P2 archival, P3 executable checks, P4 native integration, P5 live controls
+    - Historical review/spec lifecycle reconciliation remains evidence-gated
+    - See ADR 0019's P1 consumer inventory and explicit context-budget exceptions
 -->
 
 # Ancient Coins Constitution
@@ -24,9 +32,19 @@
 > Deviations require an explicit, documented waiver (ADR) under §22.
 
 **Project**: Ancient Coins (self-hosted personal collection PWA)
-**Version**: 3.1.0
+**Version**: 4.0.0 (proposed; accepted baseline remains 3.1.0)
 **Ratified**: 2026-04-28
 **Last Amended**: 2026-06-11
+**Amendment Prepared**: 2026-09-21 — ADR 0019
+
+> **Activation pending:** The owner authorized drafting, independent review,
+> governance-only checks, and a temporary governance-only PR into `beta`.
+> Merge, installation, deployment, and acceptance are not authorized.
+> Until the section 22 PR is approved and
+> merged, 3.1.0 remains the accepted contract. In particular, no archival,
+> historical-block clearance, or release is authorized by this draft.
+> The unchanged accepted text is available from baseline commit
+> `cacc177c2ecd85d62899507413184cfc395a7f6a` at this path.
 
 ## §0. Hierarchy of Authority
 
@@ -38,17 +56,30 @@ Ordered list of governing artifacts, highest authority first:
 
 1. **This Constitution** — `.specify/memory/constitution.md`
 2. **Product Requirements** — `docs/prd.md`
-3. **Active Feature Spec** — `specs/NNN-*/spec.md`
-4. **Active Implementation Plan** — `specs/NNN-*/plan.md`
-5. **Active Task List** — `specs/NNN-*/tasks.md`
-6. **Backlog Card** — `specs/_backlog/F0NN-*.md`
-7. **Project Decisions Ledger** — `.squad/decisions.md`
-8. **Agent Judgment** (lowest) — MUST be voiced in the PR description or in
+3. **Applicable Accepted ADRs** — `docs/adr/`; bounded by their recorded scope
+4. **Active Feature Spec** — `specs/NNN-*/spec.md`
+5. **Active Implementation Plan** — `specs/NNN-*/plan.md`
+6. **Active Task List** — `specs/NNN-*/tasks.md`
+7. **Backlog Card** — `specs/_backlog/F0NN-*.md`
+8. **Active Decisions** — `.squad/decisions.md`
+9. **Agent Judgment** (lowest) — MUST be voiced in the PR description or in
    `.squad/decisions/inbox/`; never silently assumed.
 
 If a lower document contradicts a higher one, stop and raise it through the
 Amendment Process (§22) or — for non-constitutional artifacts — via
 `.squad/decisions/inbox/`.
+
+Framework instructions, charters, templates, skills, and session state implement
+this hierarchy; none may override it. An ADR changes the constitution only
+through §22. Conflicting peer ADRs require explicit supersession or owner
+resolution, not a newest-file rule. Proposed records are not accepted policy.
+
+Select work explicitly from the owner's request or a validated current-work
+pointer. Ordinary development stays on `beta`; do not infer a feature from the
+branch or highest-numbered spec. A bounded issue or approved process plan may
+authorize a small repair or governance change without a new feature spec.
+Owner-approved scope changes must update the authorizing artifact before work;
+they do not implicitly waive architecture, security, or validation requirements.
 
 ## Core Principles
 
@@ -248,7 +279,8 @@ Rules that can be enforced automatically SHOULD be enforced by tests, type
 checks, linters, schemas, or CI.
 
 - `architecture_test.go` validates Go package import rules.
-- `go test ./...` MUST pass before any PR is merged.
+- Applicable Go changes MUST pass `go test ./...` before acceptance or merge;
+  validation scope and release checks are defined in §17.
 - `ruff check` and `pytest` MUST pass for agent changes.
 - Manual review should focus on judgment calls such as proportionality,
   clarity, and whether the real workflow was tested.
@@ -288,54 +320,47 @@ reviewers should spend attention on decisions automation cannot judge.
 
 ### Build & Test Commands
 
-```bash
-# Go API (from src/api/)
-go build ./...               # compile
-go vet ./...                 # lint
-go test -v ./...             # all tests
-
-# Vue frontend (from src/web/)
-npm run build                # production build (type-check + vite)
-
-# Python agent (from src/agent/)
-ruff check app/ tests/       # lint
-pytest tests/ -v             # all tests
-
-# Task runner (from repo root)
-task build                   # build API + web
-task test                    # Go tests
-task up-all                  # all dev servers
-```
+See `docs/testing.md` §6 for the current CI-aligned recipes and Windows
+invocation notes. Existing Taskfile targets are conveniences, not proof that
+every gate ran. Shared executable gate targets are a pending P3 deliverable;
+do not invoke a proposed command or silently skip a missing tool.
 
 ## §17. Quality Gate
 
-Every PR MUST pass the following checklist before merge. Items marked
-"Phase 3" are not yet configured in CI — they become blocking when the
-relevant tooling lands.
+Use three validation tiers:
 
-- [ ] `go vet ./...` clean
-- [ ] `go test ./...` green (includes `architecture_test.go` from
-      Principles I and IX)
-- [ ] `vue-tsc --build` clean (Docker-equivalent strictness — see
-      Principle III)
-- [ ] `npm run build` green
-- [ ] `ruff check app/ tests/` clean (when agent code is touched)
-- [ ] `pytest tests/ -v` green (when agent code is touched)
-- [ ] `gitleaks` scan clean *(Phase 3 — once `.gitleaks.toml` lands)*
-- [ ] `trivy` container scan: no High/Critical
-      *(Phase 3 — once `security-scan.yml` lands)*
-- [ ] Conventional Commits format (see Principle VII)
-- [ ] `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
-      trailer present when AI-assisted
-- [ ] Constitution self-check noted in PR description — cite the
-      relevant Principle or section
-- [ ] Definition of Done checklist (§21) checked in the PR
-- [ ] Principle IV self-check: change is simple, complete, and
-      proportional
-- [ ] Workflow-contract check: PR identifies user workflow(s), shared
-      contracts/configuration touched, and targeted regression or contract
-      tests for the exact failing path. If not automatable, the PR MUST
-      document the manual verification path and why automation is deferred.
+1. **Fast feedback:** targeted checks while implementing.
+2. **Completion:** all checks applicable to the affected layers, shared contracts,
+   and sibling workflows, with exact-path regression evidence.
+3. **CI/release:** all applicable configured jobs and full release checks on the
+   candidate commit, including runner-only checks.
+
+| Change surface | Required completion evidence |
+|----------------|------------------------------|
+| Go API | Build, vet, full package tests including architecture; contract/OpenAPI consistency when applicable |
+| Vue | Zero-warning lint, strict type check, full tests, production build; affected browser/mobile workflows |
+| Python agent | Locked-environment Ruff and full tests; affected cross-service contracts |
+| Shared contracts/migrations | Producer/consumer compatibility, sibling workflows, and representative upgrade/recovery evidence |
+| Pure documentation | Document/link/consistency review and existing documentation checks; no application builds |
+| Executable prompts/policy/workflows/checks | Relevant behavior or fixture evidence; not automatically docs-only because the file is Markdown |
+
+Current executable recipes are in `docs/testing.md` §6 and the workflow/package
+definitions it cites. P3 will consolidate shared entry points without weakening
+coverage. Preserve Go race detection, security scans, container checks, and
+compatibility jobs. A runner-only check stays pending until its matching CI
+evidence exists.
+
+Every change MUST identify its lane (§18.1), acceptance criteria, affected
+workflows, applicable checks, and any approved exceptions. Missing tools,
+unauthorized execution, or unavailable evidence mean **incomplete**, not passed.
+Dependency setup, builds, containers, and other machine operations require the
+owner authorization applicable to the session; do not install implicitly.
+
+Before acceptance, verify conventional commit hygiene, required AI co-author
+trailers, absence of secrets, constitution citations, and §21. Test results must
+identify the tested commit or dirty-tree identity. Changed implementation
+invalidates applicable prior verification and review. Green CI does not prove a
+workflow it never exercised, and a beta validation push is not release approval.
 
 **Signed commits are NOT required.** This is a single-developer hobby
 project; the Conventional Commits format and Co-authored-by trailer are
@@ -345,35 +370,48 @@ the workflow signals we rely on.
 
 ### 18.1 Always
 
-- Read this constitution at session start.
-- Check `.squad/decisions.md` for recent project-wide decisions.
-- Check the active feature spec (`specs/NNN-*/spec.md`,
-  `plan.md`, `tasks.md`) before writing code.
-- Read your own agent charter (`.squad/agents/<name>/charter.md`) and
-  recent `history.md` entries.
-- Check `.copilot/skills/` for any skill that matches the task.
-- Cite this constitution by Principle or section when making a design
-  decision.
-- Run the full Quality Gate (§17) before declaring a task done.
-- Apply Principle IV: choose the simplest complete proportional change.
+- Read this constitution, relevant active decisions, and the explicit work
+  artifact. Load a charter/history only when acting in that role.
+- Choose the smallest sufficient lane:
+  - **Bug/small change:** reproduction, cause, expected outcome, non-goals,
+    sibling paths, regression evidence, and review.
+  - **Feature:** approved outcome/non-goals, criteria, short plan, bounded tasks,
+    usable-slice evidence, and review.
+  - **High risk:** either lane plus the required ADR, compatibility/recovery
+    evidence, independent review, and explicit owner approval.
+- Treat auth, data semantics, migrations, service boundaries, external providers,
+  and delivery-control changes as high risk regardless of diff size.
+- Discover relevant skills in the supported native locations; until P4 migration,
+  also inspect applicable `.squad/skills/` entries. Do not claim native discovery
+  of a wrapper-specific skill.
+- Cite the governing Principle/section; apply §17 before claiming verification.
+- Default to one implementation owner. Any delegated work needs a bounded
+  objective, allowed paths, evidence, checkpoint/effort lease, and stop condition.
+  No speculative fan-out or nested delegation without approval.
+- Keep mandatory review independent of the implementation author.
 
 ### 18.2 Never
 
 - Invent facts, file paths, package names, APIs, or library symbols.
   When uncertain, read the file or run a search.
-- Modify locked files: agent charters (`.squad/agents/*/charter.md`),
-  append-only logs retroactively (`.squad/log/**`,
-  `.squad/agents/*/history.md`, `.squad/decisions.md`,
-  `.squad/orchestration-log/**`).
-- Bypass a reviewer rejection (Strict Lockout — see
-  `.squad/agents/brutus/charter.md`). A rejected PR is rejected until
-  the reviewer explicitly clears it.
+- Change the constitution, locked charters, or landed specifications without
+  explicit amendment authority. Accepted ADR bodies, session logs, orchestration
+  logs, and archived evidence are immutable.
+- Bypass a reviewer rejection. For new reviews after ADR 0019 acceptance, the
+  original author may normally repair rejected work; the reviewer may require an
+  independent revision owner. Only that reviewer clears the block. If unavailable,
+  the owner may explicitly appoint an independent successor, who must re-review.
+  Reassignment is not clearance. Existing blocks and author restrictions retain
+  their original terms until explicitly resolved.
 - Disable lint rules, weaken tests, or use `any` / `@ts-ignore` /
   `nolint` without an inline justification comment.
 - Ship a hopeful patch that fixes only the first observed failure.
 - Add clever abstractions or oversized rewrites for small bugs without
   proving a broader root cause.
 - Commit secrets, `.env` files, or generated build artifacts.
+- Treat changed files, an empty agent response, or checked tasks as success.
+- Automatically stage unrelated files, commit, stash, push, install, or deploy
+  as a side effect of a handoff or audit.
 
 ### 18.3 Context Discipline
 
@@ -386,35 +424,55 @@ the workflow signals we rely on.
 - Prefer `grep` / `glob` over reading whole files when looking for a
   symbol.
 
+After ADR 0019 acceptance, current decisions/history views may be curated by the
+owner or an explicitly delegated maintainer. First preserve original material
+in append-only archives with an inventory and checksum evidence; link the
+current decision to its source/supersession. Do not delete a pending block or
+change the meaning of historical evidence while summarizing.
+
+Maintenance warning budgets: 150 lines of automatic repository instructions,
+20 KiB active decisions, 12 KiB per-agent history, 100 lines of current-work
+pointer, and 6,000 words of initial policy/context reading excluding selected
+feature artifacts. Consolidate or record an exception; never truncate binding
+constraints to meet a budget.
+
+Use `.squad/identity/now.md` as a pointer to the authoritative issue/spec/tasks,
+review blocks, evidence, and next action, not a duplicate task ledger.
+
 ### 18.4 Drift Recovery
 
 If work begins to diverge from the active spec:
 
 1. **Stop** — do not silently re-scope.
-2. Commit any working code as a WIP commit on the feature branch.
-3. Write a current-state note to `.squad/decisions/inbox/` describing
+2. Preserve unrelated work and report the affected files; do not automatically
+   commit or stash.
+3. Write an authorized current-state note to `.squad/decisions/inbox/` describing
    the drift and your proposed adjustment.
-4. Wait for Lead (Maximus) acknowledgment before continuing.
+4. Wait for owner-approved scope/authority changes before continuing. An agent
+   lead may advise but cannot invent product authorization.
 
 ### 18.5 Session Handoff
 
-Session handoff is owned by **Scribe** via `.squad/log/` and per-agent
-`.squad/agents/<name>/history.md`. Agents MUST NOT introduce
+The implementation owner is responsible for persisting handoff evidence via
+`.squad/log/` and the current-work pointer; Scribe is optional delegated help.
+Record completed/incomplete work, relevant evidence identity, decisions,
+unresolved blocks, and the exact next action. Wait for required recording to
+finish before declaring the batch complete. Commit only explicitly approved
+paths when authorized. Agents MUST NOT introduce
 `SESSION-NOTES.md`, `.copilot-state.md`, or any other flat session-log
-file — that pattern is explicitly superseded by the Squad ceremony
-system documented in `.squad/ceremonies.md`.
+file as an alternative source of task state.
 
 ## §19. Documentation Requirements
 
 The following documents constitute the canonical documentation surface.
-✅ exists today; ⏳ Phase 3 = scheduled deliverable, not yet present.
+Keep current metadata accurate; do not rewrite accepted historical bodies.
 
 | Document | Path | Status | Owner |
 |----------|------|--------|-------|
-| Product Requirements (PRD) | `docs/prd.md` | ⏳ Phase 3 | Lead |
+| Product Requirements (PRD) | `docs/prd.md` | ✅ exists | Lead |
 | Architecture overview | `docs/ARCHITECTURE.md` | ✅ exists | Lead |
 | Software Design Document | `docs/SDD.md` | ✅ exists | Lead |
-| Architecture Decision Records | `docs/adr/NNNN-*.md` | ✅ exists (0001–0005) | Lead |
+| Architecture Decision Records | `docs/adr/NNNN-*.md` | See `docs/adr/README.md` | Lead |
 | Security principles | `docs/security-principles.md` | ✅ exists | Lead |
 | Threat model | `docs/threat-model.md` | ✅ exists | Lead |
 | Incident response playbook | `docs/incident-response.md` | ✅ exists | Lead |
@@ -425,22 +483,24 @@ The following documents constitute the canonical documentation surface.
 | Deployment runbook | `docs/deployment.md` | ✅ exists | Lead |
 | Getting started / onboarding | `docs/getting-started.md` | ✅ exists | Lead |
 | Feature surface | `docs/features.md` | ✅ exists | Product |
-| Testing strategy | `docs/testing.md` | ⏳ Phase 3 (extracted from copilot-instructions) | Lead |
-| References / prior art | `docs/references.md` | ⏳ Phase 3 | Lead |
 | Changelog | `docs/CHANGELOG.md` | ✅ exists | Lead |
-| Operational runbooks | `docs/runbooks/` | ⏳ Phase 3 stretch | Lead |
 
 ADRs use the Nygard format (Context / Decision / Status / Consequences).
-ADR `0001` will retroactively record this constitution as the governing
-contract when Phase 3 begins.
+ADR 0001 records the decision lifecycle. An index mirrors source status; a
+merged implementation or completed task list cannot silently promote a Proposed
+ADR. Document unresolved lifecycle conflicts without inferring acceptance.
 
 ## §20. Audit & Continuous Improvement
 
 ### 20.1 Cadence
 
-- **Weekly**: run `/audit` (the `speckit.analyze` prompt). Maximus
-  drives the analysis; Brutus reviews findings. File issues for any
-  High/Critical drift between constitution and code.
+- **Major/high-risk work and release readiness**: run the software quality audit
+  against the exact changeset and approved requirements.
+- **After each owner-designated major release**: run the separate agentic-delivery
+  audit, including the disposition of previous findings. Record invocation and
+  evidence in release closeout; a skill definition alone is not an automatic trigger.
+- **On detected drift or recurring failure**: investigate the concrete issue.
+  Use deterministic CI checks rather than mandatory weekly broad agent ceremonies.
 - **Per-release**: regenerate SBOM, re-review the threat model.
 - **Quarterly**: PRD review — verify what we are building still matches
   the documented product intent.
@@ -452,22 +512,33 @@ contract when Phase 3 begins.
   (create the folder when the first audit runs).
 - ADRs are preserved indefinitely in `docs/adr/`.
 - Squad ceremony logs in `.squad/log/` provide institutional memory.
+- Audits are read-only by default; save reports or create issues only when
+  authorized. A finding closes with corrective-action evidence, not a written
+  retrospective alone. An audit verdict is not release authorization.
 
 ## §21. Definition of Done
 
-A task is **done** only when every item below is true. Mirror this
-checklist in the PR description.
+A task is **done** only when applicable evidence below is present. Mark an item
+N/A only with a reason; missing execution is not N/A. Mirror the disposition in
+the PR or approved work record.
 
-1. **Code compiles**: `go build ./...`, `npm run build`, and
-   `pip install -e ".[dev]"` succeed.
-2. **Architecture tests green**: `go test -run TestArchitecture ./...`
-   passes (Principles I and IX).
-3. **Unit tests pass**: `go test ./...` and `pytest tests/` pass for
-   any touched module.
+| State | Meaning |
+|-------|---------|
+| Implemented | Scoped work exists; verification may be pending |
+| Verified | Applicable gates and acceptance paths have evidence |
+| Accepted | Independent review blocks are cleared and required owner approval exists |
+| Released | The owner-authorized candidate was promoted/published; deployment is recorded separately |
+
+1. **Scope and builds**: approved lane/non-goals are recorded and applicable
+   builds pass per §17. Installing dependencies is not a compilation check.
+2. **Architecture tests green**: applicable architecture/contract tests pass;
+   use actual test names, not an assumed selector that might run zero tests.
+3. **Tests pass**: applicable Go, full web package, and locked-environment agent
+   suites pass using the recipes in `docs/testing.md` §6.
 4. **Type checks pass**: `vue-tsc --build` and Go's compiler are clean
    (Principle III).
-5. **Linters clean**: `go vet ./...` and `ruff check app/ tests/` are
-   clean.
+5. **Linters clean**: applicable Go vet, zero-warning frontend lint, and
+   locked-environment Ruff are clean.
 6. **Regression coverage**: every bug fix includes a targeted regression
    test for the exact failing user path or a documented reason automation
    is deferred.
@@ -482,12 +553,12 @@ checklist in the PR description.
 9. **Test coverage**: every new service method has ≥ 1 unit test.
 10. **Swagger**: every new or modified public handler has Swagger
    annotations (Principle III).
-11. **API contract sync**: if the API surface changed, `swag` is
-   regenerated AND the root `openapi.yaml` is updated (Phase 3).
+11. **API contract sync**: if the API surface changed, generated Go Swagger
+   artifacts and `docs/openapi.json` are synchronized using `task openapi`.
 12. **ADR**: if a material design choice was made, an ADR is added in
    `docs/adr/`.
-13. **Tasks checked off**: the active `specs/NNN-*/tasks.md` items for
-    this work are checked off.
+13. **Task state reconciled**: the active task list/issue reflects implemented,
+    verified, accepted, and deferred work without treating checkboxes as proof.
 14. **Decisions captured**: any cross-cutting decision is written to
     `.squad/decisions/inbox/`.
 15. **Simple Complete Changes**: the change is simple, complete, and
@@ -496,8 +567,10 @@ checklist in the PR description.
     diff.
 17. **Commit hygiene**: Conventional Commit prefix and (when
     AI-assisted) `Co-authored-by: Copilot` trailer present.
-18. **PR self-check**: PR description cites the relevant Constitution
-    Principle(s) and lists this DoD as a checklist.
+18. **Acceptance and release evidence**: the PR/work record cites the relevant
+    Principles and DoD, tested/reviewed commit or tree, unresolved exceptions,
+    and reviewer verdict. Main/release actions need explicit owner authorization
+    for the candidate; successful CI or an agent-authored checkbox is insufficient.
 
 ## §22. Amendment Process
 
@@ -523,6 +596,13 @@ changes follow a deliberate, auditable process.
 6. **Announce** — On merge, announce the change in `.squad/decisions.md`.
 7. **ADR status** — Transition the ADR from `PROPOSED` to `ACCEPTED`.
 
+Owner approval to prepare local changes is not approval to publish or accept
+them. Keep the amendment marked Proposed until the required PR is approved and
+merged. Apply prospective operational changes only after acceptance; preserve
+existing reviewer restrictions. Synchronize active instruction consumers in the
+same amendment, and record separately staged automation as pending rather than
+claiming it already enforces policy.
+
 Automated enforcement (`architecture_test.go`, linters, type checkers)
 is always preferred over manual review. Deviations from any Principle
 MUST be explicitly justified in the PR description and tracked in the
@@ -537,5 +617,6 @@ plan's Complexity Tracking table.
 | 2.0.0 | 2026-05-28 | Maximus (approved by Brian) | Added §0 Hierarchy of Authority, §17 Quality Gate, §18 AI Agent Operating Rules, §19 Documentation Requirements, §20 Audit & Continuous Improvement, §21 Definition of Done, §22 Amendment Process, §23 Revision History. All 16 Principles (I–XVI) preserved verbatim. | ADR 0001 (to be added in Phase 3) |
 | 3.0.0 | 2026-06-09 | Brian | Consolidated 17 principles into 9 streamlined principles and made Simple Complete Changes Principle IV. | ADR 0005 |
 | 3.1.0 | 2026-06-11 | Brian | Added workflow-contract, blast-radius, configurable-value, and exact regression coverage gates to reduce repeated user-flow regressions. | ADR 0006 |
+| 4.0.0 (Proposed) | 2026-09-21 | Copilot; owner authorized draft, review, governance checks, and PR into beta | Reconciles authority, proportional gates, current views, bounded agents, review restrictions, evidence-backed completion, and audit cadence. Merge/acceptance pending separate owner approval under section 22. | ADR 0019 |
 
-**Version**: 3.1.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-06-11
+**Version**: 4.0.0 (Proposed) | **Accepted baseline**: 3.1.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-06-11

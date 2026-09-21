@@ -16,6 +16,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
+Respect constitution section 0 and applicable accepted ADRs. ADR 0019 consumer
+changes remain Proposed until section 22 acceptance. Explicitly select the spec;
+do not infer it from `beta` or the newest directory. Set `$env:SPECIFY_FEATURE`
+to its exact directory name in the same process as the prerequisite command.
+Do not retroactively edit a landed spec without amendment authority.
+
 Goal: Detect and reduce ambiguity or missing decision points in the active feature specification and record the clarifications directly in the spec file.
 
 Note: This clarification workflow is expected to run (and be completed) BEFORE invoking `/speckit.plan`. If the user explicitly states they are skipping clarification (e.g., exploratory spike), you may proceed, but must warn that downstream rework risk increases.
@@ -26,7 +32,12 @@ Execution steps:
    - `FEATURE_DIR`
    - `FEATURE_SPEC`
    - (Optionally capture `IMPL_PLAN`, `TASKS` for future chained flows.)
-   - If JSON parsing fails, abort and instruct user to re-run `/speckit.specify` or verify feature branch environment.
+   - If parsing fails, stop and verify explicit feature selection and prerequisite
+     output; do not create another spec or branch as a fallback.
+   - Before using returned paths, verify the selected directory exists under this
+     worktree's `specs/`, `FEATURE_DIR` and `FEATURE_SPEC` match that selection,
+     and the required spec exists. `-PathsOnly` resolves paths, not validation
+     of selection or prerequisites. Stop on mismatch or missing artifacts.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. Load the current spec file. Perform a structured ambiguity & coverage scan using this taxonomy. For each category, mark status: Clear / Partial / Missing. Produce an internal coverage map used for prioritization (do not output raw map unless no questions will be asked).
