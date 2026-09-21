@@ -1,7 +1,9 @@
 # ADR 0011: Persisted Deep Agentic Coin Identification
 
 Date: 2026-08-16
-Status: Proposed
+Status: Accepted
+Acceptance evidence: Owner-merged [PR #626](https://github.com/briandenicola/Aurearia/pull/626), 2026-08-16, merge `c7e11ac82e61ed43cb6ad5db3020480cc67301ed`; header reconciled 2026-09-21. Body unchanged.
+Amendment: Identification hypothesis flow amended by [ADR 0012](0012-vision-first-deep-identification.md); persistence and write boundaries remain applicable.
 
 ## Context
 

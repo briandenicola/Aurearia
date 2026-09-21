@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** ADR 0019 accepted via PR #734; D05 lifecycle reconciliation open; P2-P6 not started
+**Status:** ADR 0019 accepted via PR #734; D05/P2 implemented and independently verified, owner acceptance pending; P3-P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -166,7 +166,7 @@ build, deployment, or live GitHub setting was changed during P0.
   that conflict with project policy. Remove obsolete Phase 3 placeholders and
   divergent gate recipes. Define the three lanes below, including proportionate
   docs-only validation and platform-specific gate responsibilities.
-- [ ] **D05 - Reconcile ADR and spec lifecycle metadata.** Check approval evidence
+- [x] **D05 - Reconcile ADR and spec lifecycle metadata.** Check approval evidence
   before updating status; never accept an ADR simply because code exists. Align
   the ADR index with source headers. Reconcile currently relevant feature statuses
   and record supersession links without rewriting accepted historical bodies.
@@ -240,13 +240,13 @@ automated fixtures and end-to-end prompt evaluation.
 **Primary surfaces:** `.squad/decisions.md`, `.squad/decisions-archive.md`,
 `.squad/agents/*/history.md`, `.squad/identity/now.md`, session prompts.
 
-- [ ] **D06 - Curate active decisions and histories.** Inventory entries before
+- [x] **D06 - Curate active decisions and histories.** Inventory entries before
   moving anything. Retain current, cross-cutting decisions with stable identifiers,
   scope, status, and source links. Move historical reports to the approved archive
   surface without changing their meaning. Preserve unresolved rejections and
   acceptance evidence. Have the reviewer verify an inventory/checksum record of
   preserved original material.
-- [ ] **D07 - Establish one current-work pointer.** Reuse `identity/now.md` rather
+- [x] **D07 - Establish one current-work pointer.** Reuse `identity/now.md` rather
   than adding a competing session-state file. Keep the issue/spec, task pointer,
   owner, blockers, evidence links, and next action. Detailed task state remains in
   the task list; the pointer must not duplicate every task or test result.
@@ -271,6 +271,49 @@ stop with a clear diagnostic.
 **Acceptance:** A fresh session can identify current work, authority, unresolved
 blocks, and the next action without scanning archives. Completed work does not
 appear paused or ready to start. Archival preserves original evidence.
+
+**D05/P2 execution evidence (2026-09-21):** Owner authorized the isolated
+`docs/delivery-lifecycle-context` branch and a PR into beta, with no merge,
+installation, deployment or later-phase work. D05/D06/D07 checkmarks mean their artifacts are authored and independently
+verified, not owner acceptance of this PR.
+
+**Independent review: PASS**, candidate tree
+`7c0427831ef7c3c508e38de05a78681b75cf9f91`, against baseline
+`e6ab8313346b971dce4b288804036222f7d4c95d`. The independent reviewer recomputed
+all original bytes/sections, checked 38 local links against the Git tree,
+fetched PR merge/file evidence, and confirmed preservation of reviewer terms
+and immutable bodies. No historical application block was cleared.
+Final handoff: [.squad/log/2026-09-21-delivery-context-review.md](../.squad/log/2026-09-21-delivery-context-review.md).
+
+The [active decisions](../.squad/decisions.md) contain lifecycle dispositions,
+stable decision IDs and unresolved reviewer records. Actual owner-merged PRs
+#248, #626 and #732 include the previously Proposed ADR files; their headers and
+index are reconciled. ADR bodies and landed spec requirement bodies are unchanged.
+Feature 357's T093 acceptance claim is unchecked against its recorded REJECT.
+Features 359/362/363 no longer appear ready to start or paused after T011.
+The still-open combined F014/F015 audit is not silently certified by #732's merge.
+
+The [preservation inventory](../.squad/artifacts/context-curation-2026-09-21.json)
+indexes 2,795 original sections covering 2,040,296 canonical Git-blob bytes,
+including the untouched existing archive and two unchanged small histories.
+Snapshots precede curation; byte equality, full/section SHA-256, contiguous
+coverage and line mappings pass. Twenty-eight negative controls reject changed
+bytes, truncated originals, wrong offsets and missing inventory sections.
+Current decision/history/now.md budgets and newly authored local links pass.
+
+**Explicit maintenance exception:** In the reviewed candidate, a conservative full initial load of automatic
+instructions + constitution + active decisions + now.md is 9,169 words, above the
+6,000-word warning. Automatic instructions remain 324 lines versus the 150-line
+warning. P4's approved on-demand instruction extraction remains the next place
+to address those budgets; this batch does not truncate binding policy to pass.
+Roles and selected historical evidence remain on-demand.
+
+**Preservation whitespace exception:** Archive snapshots deliberately retain
+original whitespace. The decision snapshot includes an existing whitespace-only
+line (original decisions.md:9733, appended archive:22763). Byte preservation is
+the archive check; ordinary diff-whitespace checks apply to newly authored current
+views and lifecycle metadata. This is not permission to normalize old evidence.
+No application build/test result or release acceptance is claimed by this batch.
 
 ### P3. Make validation executable and detect governance drift
 

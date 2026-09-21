@@ -1,7 +1,8 @@
 # 5. Streamline Constitution Principles
 
 Date: 2026-06-09
-Status: Proposed
+Status: Accepted
+Acceptance evidence: Owner-merged [PR #248](https://github.com/briandenicola/Aurearia/pull/248), 2026-06-09, merge `00c7403fef85f6c420ee7dcce7cb6cf87a26bccb`; header reconciled 2026-09-21. Body unchanged.
 
 ## Context
 
