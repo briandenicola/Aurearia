@@ -33,6 +33,13 @@ failures and acceptance gaps; do not list generic checklists as findings. Cover
 sibling paths and meaningful negative cases without auditing unrelated history.
 Do not accept changed files, checked tasks, an empty response or green CI as proof
 of unexercised behavior. Review results only apply to the identified candidate.
+Use the completion record in `docs/agentic-acceptance-controls.md`: criterion,
+workflow, result, evidence link, and exact tested/reviewed identity. A stale PASS,
+unknown candidate delta, open block or missing owner decision prevents an
+accepted/release-ready finding. Report missing proof as INCOMPLETE. A factual
+receipt-only delta may retain prior evidence only with an explicit scoped diff
+and applicability statement; changed implementation requires applicable re-review.
+Agent-authored checkboxes/comments cannot supply owner authorization.
 
 Return:
 

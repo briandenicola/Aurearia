@@ -1,26 +1,24 @@
 ---
 updated_at: 2026-09-21
-focus_area: P4 corrective UI-guidance contract verification
+focus_area: P5 completion evidence and proposed release controls
 owner: Copilot CLI implementation owner; repository owner approves merge
-work_branch: fix/delivery-ui-guidance-contract
-baseline_commit: e08c4fd52181476654de02bbb3b33d6872cfef52
+work_branch: docs/delivery-acceptance-controls
+baseline_commit: 7706bb633146fa733e0ed2494d7f2f871416e999
 work_artifact: docs/agentic-delivery-improvement-plan.md
 tasks_artifact: docs/agentic-delivery-improvement-plan.md
 ---
 
 # Current Work
 
-The owner merged P4 through #739, then approved a narrow follow-up for two UI
-documentation assertions still reading the relocated guidance's old path.
-Authorization includes web/delivery gates, bounded re-review and locked frontend
-dependency restoration in this isolated worktree. No tool-version upgrade,
-merge, deployment, application behavior change or P5/P6 work is authorized.
-Preserve the original dirty beta worktree. #738's app-container job failed
-downloading Syft with HTTP 504; do not misreport that run as fully green.
+The owner merged P4 and corrective #740; its PR and post-merge checks passed.
+The owner explicitly selected P5 and approved drafting the recommended controls.
+Work remains in the isolated worktree; preserve the original dirty beta worktree.
+No live settings change, merge, release, deployment, tool installation/upgrade,
+historical block clearance or P6 work is authorized by this drafting approval.
 
 ## Authoritative pointers
 
-- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D11/D12/D13 are
+- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D14/D15 are
   the task ledger; this pointer deliberately does not duplicate their checklist.
 - [Constitution](../../.specify/memory/constitution.md), sections 17-22, and
   [accepted ADR 0019](../../docs/adr/0019-evidence-based-agentic-delivery.md).
@@ -46,14 +44,13 @@ governance batch does not repair or clear them.
 
 ## Next Action
 
-The [P4 integration record](../../docs/agentic-native-integration.md) records
-native discovery, explicit instruction loading, the restricted launcher and
-the original probe reviewer's clearance. SpecKit adoption is deferred.
-Original P4 candidate review passed. The
-[P4 handoff](../log/2026-09-21-delivery-native-integration.md) records the exact
-reviewed source and original verification; it is not retroactively rewritten.
-The corrective contract's independent re-review passed; the
-[corrective handoff](../log/2026-09-21-delivery-ui-guidance-correction.md) records
-local gates and remaining conditions. Obtain hosted follow-up results and owner
-acceptance for the PR into beta. Do not merge or begin P5 without authorization.
+The [P5 draft](../../docs/agentic-acceptance-controls.md) passed independent
+review and the five-case acceptance probe. Its PR into beta owns current hosted
+and owner-acceptance evidence; the action plan records the preparation checkpoint.
+The [P5 handoff](../log/2026-09-21-delivery-acceptance-controls.md) preserves the
+reviewed source identity. Owner acceptance and live-settings approval remain
+separate; do not apply settings from drafting authority. D15 needs readback and
+live approval-path evidence; offline fixtures are not live proof.
+P4's original and corrective handoffs remain immutable; the plan links later
+owner acceptance and hosted evidence. SpecKit adoption stays deferred.
 No application review restriction is cleared by delivery-tooling work.

@@ -5,6 +5,11 @@ ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
    Stop on unauthorized scope drift.
 2. Record changed paths, implemented versus verified work, exact commit/tree,
    checks actually run, unavailable evidence, and unresolved reviewer restrictions.
+   Update/link the canonical completion record in the PR or approved issue/plan
+   per `docs/agentic-acceptance-controls.md`; keep raw output linked, not copied.
+   Compare the current candidate with every cited verification/review identity.
+   Changed implementation makes applicable earlier proof stale; unknown deltas,
+   open blocks or missing owner decisions cannot yield accepted/release-ready.
 3. Persist approved decisions in `.squad/decisions/inbox/` and a concise
    checkpoint in `.squad/log/`. Preserve historical records.
 4. Point `.squad/identity/now.md` to the authoritative work state when authorized;

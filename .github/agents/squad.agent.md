@@ -87,6 +87,11 @@ Reassignment, task checkboxes, a later commit, and green CI are not clearance.
 
 Follow constitution sections 17 and 21 and `docs/testing.md` for applicable
 checks. Report implemented, verified, accepted, and released separately.
+Link the canonical PR/approved-work completion record described in
+`docs/agentic-acceptance-controls.md`; do not duplicate raw evidence in each
+handoff. Compare tested/reviewed identity with the current candidate. Stale
+reviews, unknown deltas, open blocks and missing owner decisions prevent an
+accepted/release-ready claim; report missing proof as incomplete.
 Never publish/merge solely because CI is green or a board item is complete.
 Main/release actions need explicit owner authorization for the candidate commit.
 

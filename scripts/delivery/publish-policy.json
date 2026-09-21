@@ -1,0 +1,26 @@
+{
+  "branch": "main",
+  "environment": "release",
+  "checks": [
+    { "context": "Go API", "app_id": 15368 },
+    { "context": "Vue Web", "app_id": 15368 },
+    { "context": "Python Agent", "app_id": 15368 },
+    { "context": "Gitleaks", "app_id": 15368 },
+    { "context": "Govulncheck", "app_id": 15368 },
+    { "context": "npm audit", "app_id": 15368 },
+    { "context": "pip-audit", "app_id": 15368 },
+    { "context": "Go API (race detector)", "app_id": 15368 },
+    { "context": "Delivery governance (ubuntu-latest)", "app_id": 15368 },
+    { "context": "Delivery governance (windows-latest)", "app_id": 15368 },
+    { "context": "Container security (app)", "app_id": 15368 },
+    { "context": "Container security (agent)", "app_id": 15368 },
+    { "context": "Agent image — no pip in runtime", "app_id": 15368 },
+    { "context": "Release A guard", "app_id": 15368 },
+    { "context": "Coin Copilot browser acceptance", "app_id": 15368 },
+    { "context": "Analyze (actions)", "app_id": 15368 },
+    { "context": "Analyze (go)", "app_id": 15368 },
+    { "context": "Analyze (javascript-typescript)", "app_id": 15368 },
+    { "context": "Analyze (python)", "app_id": 15368 },
+    { "context": "CodeQL", "app_id": 57789, "required_for_publish": false }
+  ]
+}

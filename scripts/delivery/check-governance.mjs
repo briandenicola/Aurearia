@@ -8,6 +8,7 @@ export const activeFiles = [
   'CONTRIBUTING.md', 'docs/testing.md', '.squad/routing.md',
   '.squad/ceremonies.md', '.squad/decisions.md', '.squad/identity/now.md',
   '.github/agents/aurearia-reviewer.agent.md', 'docs/agentic-native-integration.md',
+  'docs/agentic-acceptance-controls.md',
 ];
 const activeDirectories = ['.github/agents', '.github/prompts', '.github/instructions', '.specify/templates'];
 const skillDirectories = ['.github/skills', '.agents/skills'];

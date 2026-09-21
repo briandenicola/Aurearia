@@ -10,18 +10,57 @@ env:
   IMAGE_APP: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins
   IMAGE_AGENT: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins-agent
 
+concurrency:
+  group: main-publish
+  cancel-in-progress: false
+
 jobs:
+  approve-release:
+    name: Authorize main publish ${{ github.event.workflow_run.head_sha }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    environment:
+      name: release
+      url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Checkout checked candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24.15.0
+      - name: Verify candidate checks and owner approval
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/delivery/verify-main-publish.mjs
+
   build-and-push-app:
+    needs: approve-release
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
+      checks: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24.15.0
+      - name: Recheck publication evidence including partial reruns
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/delivery/verify-main-publish.mjs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
@@ -57,16 +96,27 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-and-push-agent:
+    needs: approve-release
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
+      checks: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24.15.0
+      - name: Recheck publication evidence including partial reruns
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/delivery/verify-main-publish.mjs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
