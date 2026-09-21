@@ -433,7 +433,7 @@ func TestCoinCopilotWorkerRejectsReplayedSpecialistCallID(t *testing.T) {
 func TestCoinCopilotWorkerHeartbeatsAndLeavesShutdownForRecovery(t *testing.T) {
 	db, service := newCopilotServiceTest(t)
 	oldInterval := copilotHeartbeatInterval
-	copilotHeartbeatInterval = 10 * time.Millisecond
+	copilotHeartbeatInterval = 100 * time.Millisecond
 	t.Cleanup(func() { copilotHeartbeatInterval = oldInterval })
 	requestStarted := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -458,23 +458,51 @@ func TestCoinCopilotWorkerHeartbeatsAndLeavesShutdownForRecovery(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("worker did not stop during cleanup")
+			server.CloseClientConnections()
+		}
+	}()
 	go func() {
 		service.runExecution(ctx, run)
 		close(done)
 	}()
-	<-requestStarted
-	time.Sleep(35 * time.Millisecond)
-	beforeCancel, err := repo.GetRun(run.ID, 7)
-	if err != nil {
-		t.Fatal(err)
+	select {
+	case <-requestStarted:
+	case <-done:
+		t.Fatal("worker exited before starting the agent request")
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker did not start the agent request")
 	}
-	if beforeCancel.HeartbeatAt == nil {
-		t.Fatal("worker did not persist a heartbeat")
+	heartbeatDeadline := time.NewTimer(5 * time.Second)
+	defer heartbeatDeadline.Stop()
+	heartbeatPoll := time.NewTicker(10 * time.Millisecond)
+	defer heartbeatPoll.Stop()
+waitingForHeartbeat:
+	for {
+		select {
+		case <-done:
+			t.Fatal("worker exited before persisting a heartbeat")
+		case <-heartbeatDeadline.C:
+			t.Fatal("worker did not persist a heartbeat")
+		case <-heartbeatPoll.C:
+			beforeCancel, err := repo.GetRun(run.ID, 7)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if beforeCancel.HeartbeatAt != nil {
+				break waitingForHeartbeat
+			}
+		}
 	}
 	cancel()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("worker did not stop after shutdown")
 	}
 	stored, err := repo.GetRun(run.ID, 7)
