@@ -146,6 +146,30 @@ describe('AuctionsPage', () => {
       expect(modal.props('lot')).toMatchObject({ id: 42, title: 'Julia Domna AR Denarius' })
     })
 
+    it('keeps a directly selected card when an older route fetch resolves', async () => {
+      const selected = makeLot({ id: 7, status: 'bidding', title: 'Selected listing' })
+      vi.mocked(getAuctionLots).mockResolvedValue({
+        data: { lots: [selected], total: 1, page: 1, limit: 50 },
+      } as Awaited<ReturnType<typeof getAuctionLots>>)
+      let resolveRoute!: (response: Awaited<ReturnType<typeof getAuctionLot>>) => void
+      vi.mocked(getAuctionLot).mockReturnValue(new Promise(resolve => { resolveRoute = resolve }))
+      route.query = { lot: '42' }
+      const wrapper = mountPage()
+      try {
+        await flushPromises()
+        expect(getAuctionLot).toHaveBeenCalledWith(42)
+        expect(wrapper.findComponent({ name: 'AuctionLotDetailModal' }).exists()).toBe(false)
+        wrapper.getComponent({ name: 'AuctionLotCard' }).vm.$emit('select', selected)
+        await flushPromises()
+        expect(wrapper.getComponent({ name: 'AuctionLotDetailModal' }).props('lot')).toMatchObject({ id: 7 })
+        resolveRoute({ data: makeLot({ id: 42 }) } as Awaited<ReturnType<typeof getAuctionLot>>)
+        await flushPromises()
+        expect(wrapper.getComponent({ name: 'AuctionLotDetailModal' }).props('lot')).toMatchObject({ id: 7 })
+      } finally {
+        wrapper.unmount()
+      }
+    })
+
     it('leaves the page on the list when the linked lot can no longer be loaded', async () => {
       vi.mocked(getAuctionLot).mockRejectedValue(new Error('not found'))
       route.query = { lot: '42' }
