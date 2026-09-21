@@ -1,24 +1,24 @@
 ---
 updated_at: 2026-09-21
-focus_area: Accepted P3 validation; documentation-only closeout
+focus_area: P4 native Copilot integration and bounded collaboration
 owner: Copilot CLI implementation owner; repository owner approves merge
-work_branch: docs/delivery-validation-closeout
-baseline_commit: c36387275ce6b34ed012a29c2a861a2b5dd17f02
+work_branch: docs/delivery-native-integration
+baseline_commit: 7df826fc2504ce1154c05bc8b5d11a818ef7014b
 work_artifact: docs/agentic-delivery-improvement-plan.md
 tasks_artifact: docs/agentic-delivery-improvement-plan.md
 ---
 
 # Current Work
 
-The owner accepted **P3 (D08-D10)** through merged PR #737. All 20 candidate
-checks passed; the merge tree matches the reviewed/tested source. The current
-authorized work is its documentation-only closeout PR into beta. No merge,
-local tool installation, deployment, application repair or P4-P6 work is
-authorized by this batch. Preserve the original dirty beta worktree.
+The owner accepted P3 through #737, merged closeout #738, and authorized
+**P4 (D11-D13)** on an isolated branch with a PR into beta. No merge, tool
+installation/upgrade, deployment, application repair or P5/P6 work is authorized.
+Preserve the original dirty beta worktree. #738's app-container job failed
+downloading Syft with HTTP 504; do not misreport that run as fully green.
 
 ## Authoritative pointers
 
-- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D08/D09/D10 are
+- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D11/D12/D13 are
   the task ledger; this pointer deliberately does not duplicate their checklist.
 - [Constitution](../../.specify/memory/constitution.md), sections 17-22, and
   [accepted ADR 0019](../../docs/adr/0019-evidence-based-agentic-delivery.md).
@@ -44,7 +44,11 @@ governance batch does not repair or clear them.
 
 ## Next Action
 
-Present the documentation-only closeout PR for owner merge. P3 itself is
-accepted, not pending a second implementation approval. Do not start P4 until
-the owner authorizes it. No application review restriction is cleared by
-delivery-tooling work.
+The [P4 integration record](../../docs/agentic-native-integration.md) records
+native discovery, explicit instruction loading, the restricted launcher and
+the original probe reviewer's clearance. SpecKit adoption is deferred.
+Independent candidate review passed. The
+[P4 handoff](../log/2026-09-21-delivery-native-integration.md) records the exact
+reviewed source and verification. Obtain hosted results and owner acceptance
+for the bounded PR into beta; do not merge or begin P5 without authorization.
+No application review restriction is cleared by delivery-tooling work.

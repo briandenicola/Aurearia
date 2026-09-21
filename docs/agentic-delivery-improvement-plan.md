@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** D05/P2 accepted via PR #736; P3 verified and accepted via PR #737; P4-P6 not started
+**Status:** P3 accepted via #737 and closeout #738; P4 authorized and in progress; P5-P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -407,25 +407,53 @@ unchanged. This is not approval for broader archive cleanup.
 
 ### P4. Align Copilot tooling and make Squad optional
 
+**Execution authorization (2026-09-21):** The owner merged #738 and requested
+"Continue to P4 please". Work uses the isolated `docs/delivery-native-integration`
+branch from `7df826fc2504ce1154c05bc8b5d11a818ef7014b`, with a PR into beta.
+No tool installation/upgrade, merge, deployment, live protection change or P5/P6
+execution is authorized. D12 evaluates a pinned release before adoption.
+D11 covers all 20 legacy skill entry points, consolidating the duplicate npm
+recipe into 19 native packages with compatibility links and original identities.
+Correct obsolete policy/validation examples during migration; do not change
+application behavior, immutable evidence, or user-level skills.
+
+The owner also approved bounded read-only runtime verification (8 calls/5 minutes)
+and independent P4 review (12 calls/10 minutes). The first runtime probe exposed
+extra session tools and index-only instruction discovery. The owner approved
+an explicit tool-exclusion launcher and matching-file loads, then renewed the
+8-call/5-minute probe lease. The original reviewer cleared those two findings.
+See the [integration/evaluation record](agentic-native-integration.md); full
+candidate review and hosted evidence remain separate.
+
 **Primary surfaces:** `.github/copilot-instructions.md`, `.github/agents/`,
 `.github/prompts/`, `.specify/`, `.squad/routing.md`, `.squad/ceremonies.md`.
 **Proposed native surfaces:** `.github/instructions/` and `.github/skills/`.
 
-- [ ] **D11 - Use native instruction and skill discovery.** Keep universal rules
+- [x] **D11 - Use native instruction and skill discovery.** Keep universal rules
   short. Put Go, Vue, Python, and workflow-specific guidance in path-scoped
   instructions. Migrate relevant reusable skills to valid native skill packages;
   resolve duplicate skills and leave links rather than duplicate authoritative
   copies. Confirm discovery in a fresh Copilot session.
-- [ ] **D12 - Evaluate a pinned SpecKit upgrade.** Compare the current installed
+- [x] **D12 - Evaluate a pinned SpecKit upgrade.** Compare the current installed
   and checked-in versions with an explicitly selected release. Review generated
   file changes before adoption. Evaluate the bug workflow and convergence review,
   retaining mandatory test policy and direct-`beta` compatibility through supported
   project customization. Do not force-reinitialize over customized files.
-- [ ] **D13 - Bound collaboration and handoff.** Default to one implementation
+- [x] **D13 - Bound collaboration and handoff.** Default to one implementation
   owner. Use an independent read-only reviewer with restricted tools. Use Squad
   only for work that benefits from separate contexts and disjoint ownership.
   Remove automatic success inference from changed files and wait for final
   handoff persistence before reporting completion.
+
+**P4 evidence:** Implementation and local verification complete; independent
+review PASS for source tree `de19c2dbec1bc708767396ae9837e34dcbc12911`.
+Full `task check:delivery` reran successfully on that exact tree: 46 Node tests,
+PowerShell regression/negative control, and zero governance errors. Native probe
+findings were explicitly cleared by their original reviewer. The
+[canonical handoff](../.squad/log/2026-09-21-delivery-native-integration.md)
+records provenance, restrictions and the metadata-only closeout boundary.
+Hosted PR evidence and owner acceptance are separate pending conditions;
+checked D11-D13 tasks do not authorize merge, release or P5.
 
 Every delegated assignment must include:
 

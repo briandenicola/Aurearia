@@ -102,9 +102,14 @@ tasks:
   check:delivery:
     desc: Delivery guard fixtures, SpecKit regression, and offline governance check
     cmds:
-      - node --test scripts/delivery/governance.test.mjs scripts/delivery/validation.test.mjs
+      - node --test scripts/delivery/governance.test.mjs scripts/delivery/validation.test.mjs scripts/delivery/native-integration.test.mjs
       - pwsh -NoProfile -File scripts/delivery/specify.test.ps1
       - task: check:governance
+
+  review:read-only:
+    desc: Start the restricted native reviewer; requires an owner-approved scope and lease
+    cmds:
+      - copilot --agent aurearia-reviewer --excluded-tools sql skill {{.CLI_ARGS}}
 
   build-web:
     desc: Build the Vue frontend

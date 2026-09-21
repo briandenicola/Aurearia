@@ -22,8 +22,9 @@ not itself authorize archival execution, tool installation, deployment, or relea
 This profile is for an existing Aurearia team. Do not initialize/recast the
 team, install plugins, rewrite policy, or scaffold another framework implicitly.
 Generic `.squad/templates/` examples are references, not execution authority.
-Tool refresh, native skills, model configuration, and mechanical enforcement
-remain separately reviewed P3-P5 work.
+Native instructions/skills and the restricted reviewer are repository-local
+integration surfaces. Their presence does not authorize a framework upgrade,
+model change, or live protection change.
 
 ## Select and bound work
 
@@ -51,6 +52,10 @@ Every delegated assignment must include:
 - A requested final result: changed paths, verification identity/results,
   incomplete work, and blockers.
 
+Use the concrete assignment/return contract in
+[routing](../../.squad/routing.md#delegation-and-return-contract). No implicit
+lease or authority may be supplied by a role name.
+
 Do not spawn speculative downstream work or treat "team" as unlimited fan-out.
 Use the minimum agents needed; do not delegate a short read or a single trace
 merely to create parallelism. Independent tasks may run concurrently only with
@@ -65,7 +70,12 @@ An empty response is incomplete until the agent's work and evidence are recovere
 
 ## Review and acceptance
 
-Use an independent reviewer for required review. A reviewer returns a scoped
+Use [aurearia-reviewer](aurearia-reviewer.agent.md) for required independent
+review through `task review:read-only`, which also excludes the installed
+client's extra session SQL and skill-loading tools. Supply the diff and verification evidence;
+do not grant shell/edit/delegation tools to make the review convenient. If the
+client cannot enforce that profile, stop for an approved alternative.
+A reviewer returns a scoped
 verdict against the exact commit/tree and criteria; an author cannot self-clear.
 Record missing evidence as incomplete, not passed.
 

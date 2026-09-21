@@ -7,6 +7,7 @@ export const activeFiles = [
   '.github/copilot-instructions.md', '.github/pull_request_template.md',
   'CONTRIBUTING.md', 'docs/testing.md', '.squad/routing.md',
   '.squad/ceremonies.md', '.squad/decisions.md', '.squad/identity/now.md',
+  '.github/agents/aurearia-reviewer.agent.md', 'docs/agentic-native-integration.md',
 ];
 const activeDirectories = ['.github/agents', '.github/prompts', '.github/instructions', '.specify/templates'];
 const skillDirectories = ['.github/skills', '.agents/skills'];
@@ -53,6 +54,30 @@ export function metadata(text, required) {
     values[key] = value;
   }
   return values;
+}
+
+export function instructionPatterns(text) {
+  const patterns = metadata(text, ['applyTo']).applyTo.split(',').map(value => value.trim());
+  if (new Set(patterns).size !== patterns.length || patterns.some(pattern =>
+    !/^[a-zA-Z0-9_.*-]+(?:\/[a-zA-Z0-9_.*-]+)*$/.test(pattern) ||
+    pattern.split('/').some(part => part === '.' || part === '..'))) {
+    throw new Error('applyTo must contain unique repository-relative globs using the supported literal/*/** subset');
+  }
+  return patterns;
+}
+
+export function checkReviewer(text) {
+  const values = metadata(text, ['name', 'description']);
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const header = lines.slice(1, lines.indexOf('---', 1)).filter(line => line.trim());
+  if (values.name !== 'aurearia-reviewer' || header.length !== 3 ||
+      header.some(line => !/^(?:name|description|tools):\s/.test(line))) {
+    throw new Error('Reviewer permits only name, description and tools metadata; no model or additional capabilities');
+  }
+  const tools = JSON.parse(header.find(line => line.startsWith('tools:'))?.slice(6).trim() ?? 'null');
+  if (!Array.isArray(tools) || tools.length !== 2 || !tools.includes('read') || !tools.includes('search')) {
+    throw new Error('Reviewer tools must be exactly ["read", "search"]');
+  }
 }
 
 export function checkGovernance(root) {
@@ -128,6 +153,14 @@ export function checkGovernance(root) {
   for (const file of files) {
     const text = read(file);
     contents.set(file, text);
+    if (file.startsWith('.github/instructions/') && file.endsWith('.instructions.md')) {
+      try { instructionPatterns(text); }
+      catch (error) { report(file, 1, 'INSTRUCTION', error.message); }
+    }
+    if (file === '.github/agents/aurearia-reviewer.agent.md') {
+      try { checkReviewer(text); }
+      catch (error) { report(file, 1, 'REVIEWER', error.message); }
+    }
     let fence;
     text.split(/\r?\n/).forEach((line, index) => {
       const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/);
