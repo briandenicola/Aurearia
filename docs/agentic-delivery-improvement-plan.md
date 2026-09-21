@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** P4/#740 accepted; P5 repository draft independently reviewed; D15 live activation unapproved; P6 not started
+**Status:** P1-P5 repository work owner-accepted through #741; D15 settings applied under the owner's later bypass-policy amendment, protected publishing proof pending; P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -511,7 +511,7 @@ preserve the approved policy and can be reverted independently.
 
 ### P5. Tie acceptance and release to evidence
 
-**Execution authorization (2026-09-21):** The owner clarified "Start P5"
+**Original execution authorization (2026-09-21):** The owner clarified "Start P5"
 ("sorry p5") and selected "Draft the recommended controls": all twenty current
 checks on main, PR required without an unavailable second human approver, admin
 enforcement, and exact-candidate owner approval before main publication.
@@ -524,6 +524,15 @@ The [before/after proposal and restoration plan](agentic-acceptance-controls.md)
 are draft repository configuration, not authority to apply live settings.
 Beta publishing stays unchanged; Ralph stays disabled. No merge, release,
 deployment, installation, historical block clearance or P6 is authorized.
+
+**Later owner acceptance and remediation authorization (2026-09-21):** The owner
+merged #741, then separately authorized main/environment settings, application
+repairs and bounded successor review. The owner subsequently permitted enabled
+environment admin bypass while retaining actual owner approval and every
+exact-candidate publishing check. The [current receipt](audits/2026-09-21.md)
+supersedes this section's original pending-approval state, not its historical
+evidence. D15 remains open for real protected publishing-path evidence;
+main promotion, publication and deployment remain separately unauthorized.
 
 **Primary surfaces:** PR template, handoff/checkpoint prompts, GitHub protections,
 publishing workflows, and optional repository hooks.
@@ -540,7 +549,7 @@ publishing workflows, and optional repository hooks.
   and how admin bypass is treated. Document Ralph as intentionally disabled unless
   the owner explicitly approves enabling it.
 
-**Pre-publication completion receipt:** After publication, the P5 PR from
+**Historical pre-publication completion receipt:** After publication, the P5 PR from
 `docs/delivery-acceptance-controls` owns current hosted/owner evidence; this
 table is the preparation checkpoint, not another independently maintained ledger.
 
@@ -561,7 +570,8 @@ updates with explicit applicability and a final gate, not executable changes.
 The [handoff](../.squad/log/2026-09-21-delivery-acceptance-controls.md) records
 raw evidence identities and remaining boundaries. Initial-context warning
 (7,372 words) retains the P4 maintenance exception for owner review; binding
-constraints were not truncated. Current state is not owner-accepted or released.
+constraints were not truncated. At that checkpoint it was not yet owner-accepted
+or released; later acceptance is recorded above.
 
 | State | Meaning |
 |-------|---------|

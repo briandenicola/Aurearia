@@ -79,8 +79,9 @@
             ref="cameraPanel"
             immersive
             :filename-prefix="`${purpose}-${currentStep.role}`"
+            :image-role="currentStep.role"
             :instruction="currentStep.hint"
-            @captured="$emit('captured', currentStep.role, $event)"
+            @captured="(file, role) => $emit('captured', role, file)"
             @upload="pickFromLibrary"
           />
 

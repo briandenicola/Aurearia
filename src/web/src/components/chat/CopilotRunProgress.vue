@@ -93,12 +93,15 @@
             </ul>
           </section>
 
-          <p
-            v-if="dealerSuggestions(tool).length && hasPartialDealerEvidence(tool)"
-            class="mb-0 text-xs text-text-muted"
-          >
-            Some listings were read from search results and are only partially verified.
-          </p>
+          <template v-for="item in eligibleDealerItems(tool)" :key="item.sourceUrl">
+            <p
+              v-if="copilotDealerListingUncertainty(item)"
+              class="mb-0 text-xs text-text-muted"
+              data-testid="dealer-uncertainty"
+            >
+              {{ item.title }}: {{ copilotDealerListingUncertainty(item) }}
+            </p>
+          </template>
 
           <CoinSuggestionGrid
             v-if="dealerSuggestions(tool).length"
@@ -296,6 +299,7 @@ import type { CoinCopilotToolProgress } from '@/composables/useCoinCopilot'
 import {
   copilotDealerListingKey,
   copilotDealerListingToSuggestion,
+  copilotDealerListingUncertainty,
   isEligibleCopilotDealerListing,
 } from '@/utils/copilotWishlist'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
@@ -328,10 +332,6 @@ function eligibleDealerItems(tool: CoinCopilotToolProgress) {
   if (!capability) return []
   return (tool.specialistResult?.items ?? []).filter(item =>
     isEligibleCopilotDealerListing(capability, item))
-}
-
-function hasPartialDealerEvidence(tool: CoinCopilotToolProgress) {
-  return eligibleDealerItems(tool).some(item => item.verificationState === 'partial')
 }
 
 function dealerSuggestions(tool: CoinCopilotToolProgress) {

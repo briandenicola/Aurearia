@@ -591,6 +591,87 @@ def test_price_trends_result_preserves_comparable_typed_summary():
 @pytest.mark.parametrize(
     ("field", "value"),
     [
+        ("low", 1),
+        ("median", 2),
+        ("high", 3),
+        ("date_from", "2020-01-01"),
+        ("date_to", "2020-12-31"),
+        ("sample_size", 2),
+        ("currency", "EUR"),
+        ("price_basis", "realized_including_premium"),
+        ("state", "declining"),
+        ("confidence", "low"),
+        ("supporting_source_ids", []),
+        ("supporting_source_ids", ["https://www.numisbids.com/unrelated"]),
+    ],
+)
+def test_price_trend_rejects_summary_only_tampering(field, value):
+    payload = _load_specialist("price_trends_complete.json")
+    payload["trend"][field] = value
+    with pytest.raises(ValidationError, match="trend"):
+        SpecialistResult.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("currency", "EUR"), ("price_basis", "realized_including_premium"),
+     ("verification_state", "partial"), ("sale_date", "2026-08-01")],
+)
+def test_price_trend_rejects_summary_after_evidence_changes(field, value):
+    payload = _load_specialist("price_trends_complete.json")
+    payload["items"][0][field] = value
+    with pytest.raises(ValidationError, match="trend"):
+        SpecialistResult.model_validate(payload)
+
+
+@pytest.mark.parametrize("container", ["checkpoint", "frame"])
+@pytest.mark.parametrize("tampered", [False, True])
+def test_price_trend_json_boundary_checks_evidence_consistency(container, tampered):
+    result = _load_specialist("price_trends_complete.json")
+    for item, amount in zip(result["items"], [210.25, 260.5, 325.75], strict=True):
+        item["amount"] = amount
+    result["trend"].update(low=210.25, median=1 if tampered else 260.5, high=325.75)
+    if container == "checkpoint":
+        payload = _load("valid_execute_request.json")
+        payload["allowed_tools"].append("price_trends")
+        payload["checkpoint"]["completed_tools"] = [{
+            "tool_call_id": "call_price",
+            "tool_name": "price_trends",
+            "result": result,
+            "truncated": False,
+        }]
+        payload["checkpoint"]["counters"]["tool_calls"] = 1
+        model = CopilotExecuteRequest
+    else:
+        payload = _load("valid_tool_completed_frame.json")
+        payload["payload"]["tool_name"] = "price_trends"
+        payload["payload"]["result"] = result
+        model = CopilotExecutionFrame
+    if tampered:
+        with pytest.raises(ValidationError):
+            model.model_validate_json(json.dumps(payload))
+    else:
+        parsed = model.model_validate_json(json.dumps(payload))
+        assert model.model_validate_json(parsed.model_dump_json(exclude_unset=True)) == parsed
+
+
+def test_price_trend_requires_a_summary_for_sales():
+    payload = _load_specialist("price_trends_complete.json")
+    payload["trend"] = None
+    with pytest.raises(ValidationError, match="trend"):
+        SpecialistResult.model_validate(payload)
+
+
+def test_price_trend_unknown_requires_a_visible_limitation():
+    payload = _load_specialist("price_trends_partial.json")
+    payload["trend"]["limitations"] = []
+    with pytest.raises(ValidationError, match="trend"):
+        SpecialistResult.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
         ("limitations", ["limitation"] * 11),
         ("limitations", ["x" * 501]),
         ("sample_size", 11),

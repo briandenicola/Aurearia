@@ -40,7 +40,12 @@ const failures = [
   ['stale upstream API result', f => { f.upstream.head_sha = 'b'.repeat(40); }],
   ['candidate no longer main tip', f => { f.main.object.sha = 'b'.repeat(40); }],
   ['unconfigured auto-created environment', f => { f.environment.protection_rules = []; }],
-  ['environment admin bypass', f => { f.environment.can_admins_bypass = true; }],
+  ['missing admin-bypass evidence', f => { delete f.environment.can_admins_bypass; }],
+  ['malformed admin-bypass evidence', f => { f.environment.can_admins_bypass = 'true'; }],
+  ['admin bypass without owner approval', f => { f.environment.can_admins_bypass = true; f.approvals = []; }],
+  ['admin bypass with non-owner approval', f => { f.environment.can_admins_bypass = true; f.approvals[0].user.id = 8; }],
+  ['admin bypass with failed checks', f => { f.environment.can_admins_bypass = true; f.checks[0].conclusion = 'failure'; }],
+  ['admin bypass with stale candidate', f => { f.environment.can_admins_bypass = true; f.main.object.sha = 'b'.repeat(40); }],
   ['unavailable second human', f => { f.environment.protection_rules[0].prevent_self_review = true; }],
   ['wrong required reviewer', f => { f.environment.protection_rules[0].reviewers[0].reviewer.id = 8; }],
   ['wildcard environment branch', f => { f.branches[0].name = '*'; }],
@@ -74,6 +79,13 @@ test('accepts only exact-candidate success with GitHub owner approval', () => {
   const withAggregate = evidence();
   withAggregate.checks.push({ name: 'CodeQL', app: { id: 57789 }, head_sha: sha, status: 'completed', conclusion: 'success' });
   assert.equal(assertPublishEvidence(withAggregate), sha);
+});
+test('owner permits admin-bypass availability, not publishing without approval', () => {
+  for (const enabled of [false, true]) {
+    const fixture = evidence();
+    fixture.environment.can_admins_bypass = enabled;
+    assert.equal(assertPublishEvidence(fixture), sha);
+  }
 });
 for (const [name, mutate] of failures) {
   test(`publication rejects ${name}`, () => {

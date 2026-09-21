@@ -67,7 +67,7 @@
 
 ## Phase 3: Restore Dealer-Only Add to Wishlist (US1) 🎯 MVP Workflow
 
-**Goal**: Restore the existing UI-owned wishlist action only for typed, verified, currently available `dealer_listing` evidence returned by `market_search`.
+**Goal**: Restore the existing UI-owned wishlist action for typed `market_search` / `dealer_listing` evidence satisfying amended FR-012 (verified/partial and available/unknown). The 2026-09-21 owner-authorized amendment requires visible uncertainty and explicit confirmation for partial/unknown results; historical checked tasks do not certify that later amendment.
 
 **Independent Test**: An explicit click on an eligible card creates exactly one owner-scoped wishlist coin through canonical `POST /api/coins`; all ineligible or tampered cards, passive rendering/replay, cancelled confirmation, repeated clicks, and duplicate URLs create nothing.
 

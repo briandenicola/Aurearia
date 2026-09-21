@@ -36,10 +36,10 @@ export function assertPublishEvidence({ event, repository, upstream, main, envir
   requireEvidence(Array.isArray(environment?.protection_rules), 'Environment protection evidence is missing');
   const rules = environment.protection_rules.filter(rule => rule.type === 'required_reviewers');
   const reviewers = rules?.[0]?.reviewers;
-  requireEvidence(environment?.name === policy.environment && environment.can_admins_bypass === false &&
+  requireEvidence(environment?.name === policy.environment && typeof environment.can_admins_bypass === 'boolean' &&
     rules?.length === 1 && rules[0].prevent_self_review === false && reviewers?.length === 1 &&
     reviewers[0].type === 'User' && reviewers[0].reviewer?.id === owner,
-  'Release environment must require the owner, allow solo self-review, and disallow admin bypass');
+  'Release environment must require the owner, allow solo self-review, and report admin-bypass availability');
   requireEvidence(environment.deployment_branch_policy?.protected_branches === false &&
     environment.deployment_branch_policy.custom_branch_policies === true &&
     branches?.length === 1 && branches[0].name === policy.branch && branches[0].type === 'branch',

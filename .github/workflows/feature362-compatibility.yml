@@ -35,8 +35,8 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run Coin Copilot and Deep Analysis workflows
-        run: npx playwright test "coin-copilot-deep-analysis|deep-analysis" --project=chromium
+      - name: Run Coin Copilot, Deep Analysis and capture workflows
+        run: npx playwright test "coin-copilot-deep-analysis|deep-analysis|add-coin-capture" --project=chromium
 
   guard-release:
     name: Release A guard

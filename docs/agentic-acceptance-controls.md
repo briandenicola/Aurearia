@@ -1,12 +1,19 @@
 # Acceptance and Release Controls
 
 P5 D14-D15 under Constitution sections 17-18/21 and accepted ADR 0019.
-**Status: owner-approved design draft, not live-settings approval.**
-The owner requested P5 and selected "Draft the recommended controls".
-After inspecting real PR/push check results, the owner approved "20 PR checks
-and 19 publishing checks": the CodeQL aggregate is not emitted on push commits.
-No protections, environments, workflow enablement, secrets or live releases have
-been changed by this draft. P6 and application repairs remain out of scope.
+**Status: repository controls accepted in #741; live activation incomplete.**
+The owner subsequently approved the scoped main-protection and release-environment
+changes during release-readiness remediation. Main's twenty check/App pairs,
+strict mode, PR requirement and admin enforcement are applied and read back.
+The owner-reviewed `release` environment and main-only branch rule exist.
+On 2026-09-21 the owner explicitly chose to leave `can_admins_bypass: true`
+and authorized verifier alignment while retaining actual owner approval and
+all exact-candidate checks. This supersedes only the original no-bypass-setting
+requirement; an administrative environment bypass does NOT authorize publishing.
+See the
+[activation receipt](audits/2026-09-21.md#live-control-receipt).
+Beta and Ralph remain unchanged. No publishing, deployment or main promotion
+was performed. The first real protected approval path remains separately pending.
 
 ## One completion record, not another tracker
 
@@ -45,7 +52,8 @@ does not authorize a deployment to the local server.
 
 ## D15 before/after proposal
 
-Read-only baseline inspected 2026-09-21. No repository rulesets were returned;
+Historical read-only baseline inspected 2026-09-21, before the later approved
+activation attempt. No repository rulesets were returned;
 classic branch protections apply. The live main/beta publisher blobs match the
 baseline checked-in files. Only the unprotected `copilot` environment exists.
 
@@ -59,7 +67,7 @@ baseline checked-in files. Only the unprotected `copilot` environment exists.
 | Beta | Direct pushes; zero required checks; admin enforcement off; force push/delete allowed | Unchanged; preserve the integration workflow |
 | Main publication | Automatic after successful Quality Gate push; exact checked SHA | Prepare automatically, pause for explicit owner approval, then verify nineteen push checks and approval for that candidate before either image job |
 | Beta publication | Automatic checked-SHA `beta` images | Unchanged; validation images, not a main release |
-| New `release` environment | Absent | Required reviewer: repository owner; self-review allowed for this solo workflow; admin bypass disabled; only branch `main`, no tags/wildcards |
+| New `release` environment | Absent | Required reviewer: repository owner; self-review allowed; admin-bypass availability permitted by the 2026-09-21 owner amendment, but actual owner approval still mandatory to publish; only branch `main`, no tags/wildcards |
 | Ralph | `disabled_manually` | Intentionally disabled; enabling needs separate approval |
 | Other settings | Auto-merge off; default workflow token read; Actions cannot approve PRs | Unchanged |
 
@@ -101,7 +109,7 @@ After GitHub's environment approval, the
    `.github/workflows/ci.yml` push on main, in this repository, for a full SHA.
 2. The candidate is still the main tip at the approval check.
 3. The live environment has the single owner reviewer, permits solo self-review,
-   forbids admin bypass, and allows only the main branch.
+   reports a Boolean admin-bypass setting, and allows only the main branch.
 4. Every required publishing check has exactly one matching latest result from its expected
    App, for the same SHA, completed successfully. Missing, failed, pending,
    neutral, skipped, stale or ambiguous results block publication.
@@ -113,6 +121,9 @@ The verifier only performs GET requests. It cannot approve a job, change setting
 publish an image or deploy. It rejects missing permission, malformed responses
 and incomplete pagination rather than substituting a default. A profile, PR
 checkbox or unprotected automatically created environment cannot satisfy it.
+Admin-bypass availability may be enabled or disabled. Bypassing the environment
+without GitHub-recorded owner approval for this publishing run still fails step 5;
+it does not waive a failed check, stale candidate or malformed evidence.
 It targets the current GitHub.com, individual-owner repository; an organization
 transfer or GitHub Enterprise move requires a reviewed policy change.
 
@@ -137,11 +148,10 @@ the completion record and unresolved application/release blocks.
 3. Record the fresh baseline. Apply only the proposed main protection fields
    and new release environment, including its main-only branch policy. Keep
    beta, other environments, secrets, token defaults and Ralph unchanged.
-   For the bypass control, use Settings > Environments > release: deselect
-   **Allow administrators to bypass configured protection rules**, then
-   **Save protection rules**. This documented UI operation is preferred over
-   guessing an undocumented environment-write API field; read back
-   `can_admins_bypass: false`. Leave **Prevent self-review** unchecked and set
+   The owner amended the original no-bypass requirement on 2026-09-21: leave
+   **Allow administrators to bypass configured protection rules** enabled and
+   record the actual Boolean readback. Do not guess undocumented write fields.
+   Leave **Prevent self-review** unchecked and set
    **Selected branches and tags** to one Branch rule named `main`.
 4. Read back every changed setting and compare exact check/App pairs. Record
    approval source, operator, timestamp, before/after values and restoration

@@ -22,6 +22,13 @@ export function copilotDealerListingKey(toolCallId: string, sourceUrl: string): 
   return `copilot:${toolCallId}:${sourceUrl}`
 }
 
+export function copilotDealerListingUncertainty(item: CoinCopilotSpecialistEvidence): string {
+  return [
+    item.verificationState === 'partial' ? 'This listing is only partially verified.' : '',
+    item.availability === 'unknown' ? 'Availability is unknown.' : '',
+  ].filter(Boolean).join(' ')
+}
+
 export function copilotDealerListingToSuggestion(
   item: CoinCopilotSpecialistEvidence,
 ): CoinSuggestion {

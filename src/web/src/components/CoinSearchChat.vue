@@ -203,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type {
   CoinCopilotSpecialistCapability,
   CoinCopilotSpecialistEvidence,
@@ -224,6 +224,7 @@ import CopilotRunProgress from '@/components/chat/CopilotRunProgress.vue'
 import CopilotClarificationCard from '@/components/chat/CopilotClarificationCard.vue'
 import {
   copilotDealerListingToSuggestion,
+  copilotDealerListingUncertainty,
   isEligibleCopilotDealerListing,
 } from '@/utils/copilotWishlist'
 
@@ -240,7 +241,10 @@ const emit = defineEmits<{
 const messagesEl = ref<HTMLElement>()
 const inputBarEl = ref<InstanceType<typeof ChatInputBar>>()
 const sentInitialPrompts = new Set<string>()
-const { showAlert } = useDialog()
+const { showAlert, showConfirm } = useDialog()
+let dealerActionPending = false
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 // A finished Coin Copilot conversation is savable like a legacy one; only an
 // in-flight run hides the action.
 const copilotBusy = computed(() =>
@@ -305,13 +309,33 @@ async function handleNewChat() {
   noteDraft.value = { title: '', body: '' }
 }
 
-function addCopilotDealerToWishlist(
+async function addCopilotDealerToWishlist(
   capability: CoinCopilotSpecialistCapability,
   item: CoinCopilotSpecialistEvidence,
   key: string,
 ) {
-  if (!isEligibleCopilotDealerListing(capability, item)) return
-  void addToWishlist(copilotDealerListingToSuggestion(item), key)
+  if (disposed || dealerActionPending) return
+  if (!isEligibleCopilotDealerListing(capability, item)) {
+    await showAlert('This listing is no longer eligible for Add to Wishlist.')
+    return
+  }
+  const runId = copilotRun.value?.id
+  const uncertainty = copilotDealerListingUncertainty(item)
+  dealerActionPending = true
+  try {
+    if (uncertainty && !await showConfirm(`${item.title}: ${uncertainty} Save it to your wishlist anyway?`, {
+      title: 'Confirm uncertain listing',
+      confirmLabel: 'Add to Wishlist',
+    })) return
+    if (disposed || copilotRun.value?.id !== runId) return
+    if (!isEligibleCopilotDealerListing(capability, item)) {
+      await showAlert('This listing is no longer eligible for Add to Wishlist.')
+      return
+    }
+    await addToWishlist(copilotDealerListingToSuggestion(item), key)
+  } finally {
+    dealerActionPending = false
+  }
 }
 
 function sendInitialPrompt(prompt?: string | null) {

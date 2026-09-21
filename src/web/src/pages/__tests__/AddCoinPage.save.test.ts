@@ -52,7 +52,7 @@ async function click(wrapper: ReturnType<typeof render>, text: string) {
   await flushPromises()
 }
 async function draft(wrapper: ReturnType<typeof render>) {
-  wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo)
+  wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo, 'obverse')
   await flushPromises()
   await click(wrapper, 'Generate Intake Draft')
 }
@@ -136,10 +136,10 @@ describe('Add Coin save workflow', () => {
   it('does not repeat a successful obverse upload when the reverse fails', async () => {
     const wrapper = render()
     const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
-    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo)
+    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo, 'obverse')
     await flushPromises()
     await wrapper.get('[aria-label="Add reverse image"]').trigger('click')
-    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', reverse)
+    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', reverse, 'reverse')
     await flushPromises()
     await click(wrapper, 'Generate Intake Draft')
     mocks.upload.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('Reverse interrupted'))
@@ -182,7 +182,7 @@ describe('Add Coin save workflow', () => {
   it('keeps an optional card separate when the reverse step is skipped', async () => {
     const wrapper = render()
     const card = new File(['card'], 'card.jpg', { type: 'image/jpeg' })
-    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo)
+    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo, 'obverse')
     await flushPromises()
     await wrapper.get('[aria-label="Add reverse image"]').trigger('click')
     await wrapper.get('[aria-label="Add coin card"]').trigger('click')
@@ -207,7 +207,7 @@ describe('Add Coin save workflow', () => {
     expect(mocks.normalize).toHaveBeenCalledWith(heic)
     await wrapper.get('[aria-label="Add reverse image"]').trigger('click')
     const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
-    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', reverse)
+    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', reverse, 'reverse')
     await flushPromises()
     await click(wrapper, 'Generate Intake Draft')
     expect(mocks.draft).toHaveBeenCalledWith([photo, reverse], undefined)

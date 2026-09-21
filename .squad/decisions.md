@@ -52,14 +52,19 @@ preserved; all PR and post-merge checks passed. #739's merge does not
 retroactively certify its failing gate.
 Historical application blocks are unchanged.
 
-**GOV-006 - P5 acceptance/release controls (draft reviewed; owner/live approval pending):**
+**GOV-006 - P5 acceptance/release controls (owner-merged #741; live activation incomplete):**
 Use one criterion/evidence/candidate completion record in the PR or approved work
 artifact; handoffs link it and record deltas. Main protections and platform-owned
-approval are proposed in the [control guide](../docs/agentic-acceptance-controls.md)
+approval are specified in the [control guide](../docs/agentic-acceptance-controls.md)
 and [bounded decision](decisions/inbox/copilot-p5-acceptance-controls.md).
 Beta publishing and Ralph remain unchanged. Stale proof, unresolved review blocks
-and missing owner approval cannot support acceptance. No live settings,
-publication, deployment or historical application clearance is inferred.
+and missing owner approval cannot support acceptance. Later owner-authorized main
+protections and release reviewer/branch policy were applied and read back. The
+owner explicitly authorized leaving environment admin bypass enabled and aligning
+the verifier while retaining actual owner approval and all exact-candidate checks.
+Runtime approval proof is pending. See the
+[release-remediation receipt](../docs/audits/2026-09-21.md). No main promotion,
+publication, deployment or blanket historical clearance is inferred.
 
 ## D05 lifecycle reconciliation
 
@@ -93,9 +98,6 @@ Older author restrictions are retained even though new reviews use ADR 0019.
 
 | ID | Scope / recorded restriction | Owner and next evidence needed |
 |---|---|---|
-| R357-QA | Quick Access frontend: [Brutus REJECT and re-review][quick-access-qa]. Aurelia and Livia are excluded from the next revision; Brutus cannot author that revision. | Brutus explicit CLEAR/APPROVE after an eligible independent revision; no clearance located. Marcus was assigned in the architecture record, not declared successful. |
-| R357-ARCH | Quick Access frontend: [Maximus final REJECT][quick-access-arch], including unproven task claims, lifecycle/image refresh and mobile coverage. | Brutus clearance first, then Maximus re-review. T093 unchecked; T095/T096 remain open. No application repair is authorized by D05/P2. |
-| R361 | Specialist Python contracts T002/T003/T004/T006/T008: [Brutus REJECT][specialist-block]. Cassius excluded; Livia assigned independent revision. | Locate Brutus's explicit clearance or request authorized re-review. Later implementation/merge and an assignment are insufficient. |
 | R352 | Structured results Phases 3/4: [independent revision notes][structured-block] call themselves cleared but explicitly request Brutus re-review. | Brutus clearance evidence not established in this reconciliation. Preserve original independent-revision restrictions; do not accept author self-clearance. |
 | R353 | Availability-run spec/plan/tasks: [Cassius revision record][availability-block] reports three Brutus findings repaired under strict lockout. | Locate original Brutus approval, not merely the reviser's "approved" label. Until then preserve the original-author restriction for that rejected scope. |
 | R-SWIPE | [Maximus conditional approval][swipe]: B2-B5 and round-one lockout cleared. B1 converts automatically only on the specified green ubuntu Vue job with the guard passing; owner iOS/Android PWA checks remain release conditions. | Link the exact qualifying runner result and device acceptance. Do NOT invent a continuing blanket lockout: Aurelia/Brutus become ineligible again only if the stated B1 failure condition fires; Livia owns that revision. |
@@ -112,6 +114,9 @@ touched, inspect its indexed review chain; absent clearance remains unresolved.
 
 | Scope | Evidence and limitation |
 |---|---|
+| R357-ARCH Quick Access frontend | Owner-appointed successor explicitly CLEAR on tree `8b07947f`, after QA clearance, mounted race/follower tests, mutation proof and exact-tree web gate. T095 review complete; T093 broader layout/device evidence and T096 final PR reconciliation remain qualified/pending. Original [rejection][quick-access-arch] preserved; [current receipt](../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). |
+| R361 specialist contracts | Owner-appointed independent successor explicitly CLEAR on tree `910fa92e` (`531f35d7`), after reviewing all four [original criteria][specialist-block] and the serialized-summary repair. Owner authorized Copilot's narrow revision; Cassius exclusion retained. [Receipt](../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). |
+| R357-QA Quick Access frontend | Same successor explicitly CLEAR on tree `910fa92e` for original and re-review [QA findings][quick-access-qa]. This does not clear R357-ARCH or certify missing physical-device acceptance. [Receipt](../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). |
 | External tools #218 | Original Maximus block in archive, explicitly cleared by Maximus at [archive lines 5659 onward][external-clear]. |
 | Private media #313 / outbound #310 / public hardening / security gates #323 | Brutus's explicit scoped approvals at [archive lines 9813-10119][security-clear]. #323's historical settings evidence is not a claim about today's live protection configuration; P5 must check it anew. |
 | Feature 341 / ADR 0008 | [Maximus final release clearance][feature341-clear] resolves the earlier plan/closure restrictions. |
