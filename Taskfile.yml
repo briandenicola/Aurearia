@@ -102,7 +102,7 @@ tasks:
   check:delivery:
     desc: Delivery guard fixtures, SpecKit regression, and offline governance check
     cmds:
-      - node --test scripts/delivery/governance.test.mjs scripts/delivery/validation.test.mjs scripts/delivery/native-integration.test.mjs
+      - node --test scripts/delivery/governance.test.mjs scripts/delivery/validation.test.mjs scripts/delivery/native-integration.test.mjs scripts/delivery/publish.test.mjs
       - pwsh -NoProfile -File scripts/delivery/specify.test.ps1
       - task: check:governance
 

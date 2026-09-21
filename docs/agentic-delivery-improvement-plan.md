@@ -1,7 +1,7 @@
 # Agentic Delivery Improvement Plan
 
 **Date:** 2026-09-21
-**Status:** P4 merged via #739; corrective UI-guidance contract verification in progress; P5-P6 not started
+**Status:** P4/#740 accepted; P5 repository draft independently reviewed; D15 live activation unapproved; P6 not started
 **Sponsor and approval owner:** Repository owner
 **Scope:** AI-assisted development workflow, not application runtime behavior
 **Authority:** Constitution Principles IV, VII, VIII, IX; sections 0, 17-22
@@ -469,8 +469,15 @@ worktree. No application behavior or installed tool version changes.
 Corrective implementation/local gates and independent re-review passed; the
 [corrective handoff](../.squad/log/2026-09-21-delivery-ui-guidance-correction.md)
 records exact source identities, the real negative control and setup/version
-limitations. Hosted follow-up evidence and owner acceptance remain pending at
-publication; the checked item records the implementation, not a green remote run.
+limitations. The owner merged corrective [#740](https://github.com/briandenicola/Aurearia/pull/740)
+at `7706bb633146fa733e0ed2494d7f2f871416e999` on 2026-09-21T17:51:27Z,
+preserving tested tree `a909321617ea0a5f0217d63a89614b7ebec7bd83`.
+All twenty PR checks passed. Post-merge
+[Quality Gate](https://github.com/briandenicola/Aurearia/actions/runs/35634658878),
+[Security Scan](https://github.com/briandenicola/Aurearia/actions/runs/35634658880),
+[Compatibility](https://github.com/briandenicola/Aurearia/actions/runs/35634658985)
+and [CodeQL](https://github.com/briandenicola/Aurearia/actions/runs/35634658722)
+also passed. This closes the P4 regression, not historical application blocks.
 
 Every delegated assignment must include:
 
@@ -504,10 +511,24 @@ preserve the approved policy and can be reverted independently.
 
 ### P5. Tie acceptance and release to evidence
 
+**Execution authorization (2026-09-21):** The owner clarified "Start P5"
+("sorry p5") and selected "Draft the recommended controls": all twenty current
+checks on main, PR required without an unavailable second human approver, admin
+enforcement, and exact-candidate owner approval before main publication.
+The owner subsequently approved the API-evidenced split of twenty main PR checks
+and nineteen push checks: the CodeQL aggregate is PR-only; all four actual
+CodeQL analysis jobs still gate publication.
+Use the isolated `docs/delivery-acceptance-controls` branch from accepted
+`7706bb633146fa733e0ed2494d7f2f871416e999`; preserve the original dirty worktree.
+The [before/after proposal and restoration plan](agentic-acceptance-controls.md)
+are draft repository configuration, not authority to apply live settings.
+Beta publishing stays unchanged; Ralph stays disabled. No merge, release,
+deployment, installation, historical block clearance or P6 is authorized.
+
 **Primary surfaces:** PR template, handoff/checkpoint prompts, GitHub protections,
 publishing workflows, and optional repository hooks.
 
-- [ ] **D14 - Define an evidence-backed completion record.** Reuse task/PR/handoff
+- [x] **D14 - Define an evidence-backed completion record.** Reuse task/PR/handoff
   surfaces, linking raw output rather than copying it into every history. Record
   acceptance criteria, affected workflows, verification results, reviewer verdict,
   unresolved exceptions, and the reviewed commit. For dirty-tree validation,
@@ -518,6 +539,29 @@ publishing workflows, and optional repository hooks.
   before main/release actions. Decide which additional CI contexts are mandatory
   and how admin bypass is treated. Document Ralph as intentionally disabled unless
   the owner explicitly approves enabling it.
+
+**Pre-publication completion receipt:** After publication, the P5 PR from
+`docs/delivery-acceptance-controls` owns current hosted/owner evidence; this
+table is the preparation checkpoint, not another independently maintained ledger.
+
+| Criterion / workflow | Implementation and evidence | Remaining |
+|---|---|---|
+| D14 completion / handoff / checkpoint / reviewer / optional coordinator | Shared record contract; independent PASS and all five synthetic acceptance cases correctly classified on source tree below | Owner acceptance; current hosted status belongs in the P5 PR |
+| D15 main publishing | Exact-SHA owner/check verifier, protected prerequisite and per-publisher retry rechecks; full delivery gate passed (83 Node tests and PowerShell regression/negative control) | Final factual-receipt gate and hosted candidate evidence recorded in the P5 PR |
+| D15 beta / settings / Ralph | Beta workflow unchanged; read-only live baseline and exact restoration procedure recorded | Separate owner approval, settings readback and live approval-path evidence; D15 cannot yet be checked complete |
+| Existing review/release restrictions | Preserved in active decisions | Not authorized for repair or clearance by P5 |
+
+Independent native reviewer `4f05f96c-2545-45b0-978c-0c046934c60e` returned PASS
+without findings on source tree `8e4187d920164f6cfc3bce72f7560bc82938b1a2`.
+Its owner-approved lease was sixteen reads/ten minutes; the supervised run used
+eleven reads/105 seconds and correctly rejected stale, blocked, checkbox-only
+and missing-evidence acceptance, while accepting a valid beta-only decision
+without inventing release permission. The reviewer allowed factual-only receipt
+updates with explicit applicability and a final gate, not executable changes.
+The [handoff](../.squad/log/2026-09-21-delivery-acceptance-controls.md) records
+raw evidence identities and remaining boundaries. Initial-context warning
+(7,372 words) retains the P4 maintenance exception for owner review; binding
+constraints were not truncated. Current state is not owner-accepted or released.
 
 | State | Meaning |
 |-------|---------|

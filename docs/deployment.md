@@ -523,7 +523,9 @@ Pushover, uptime monitors, a lightweight log scraper, or the host provider's ale
 
 ## CI/CD
 
-GitHub Actions publish Docker images only after the release branch Quality Gate succeeds for the exact commit SHA being published.
+GitHub Actions publish Docker images from the exact SHA whose branch Quality
+Gate succeeded. Beta images are integration artifacts, not owner approval for a
+main release or local-server deployment.
 
 **Triggers:**
 - `.github/workflows/ci.yml` (`Quality Gate`) runs on pull requests and pushes to `main` and `beta`.
@@ -533,12 +535,21 @@ GitHub Actions publish Docker images only after the release branch Quality Gate 
 
 Manual Docker publishing is intentionally disabled so `latest` and `beta` tags cannot bypass the Quality Gate.
 
-**Required GitHub repository settings:**
-- Protect `main` and `beta`.
-- Require pull requests before merging unless an explicit emergency release process is approved.
-- Require the `Quality Gate` workflow jobs (`Go API`, `Vue Web`, `Python Agent`) for both release branches.
-- Require the desired `Security Scan` checks when the repository is ready to make scan findings blocking.
-- Block force pushes and branch deletion on both release branches.
+**Live settings versus proposed controls:** The 2026-09-21 inspection found
+seven strict required checks on main, admin enforcement off and no required PR
+review configuration. Beta permits direct validation pushes with no required
+contexts. The `release` environment does not yet exist.
+
+The [P5 control proposal](agentic-acceptance-controls.md) adds twenty trusted
+main check contexts, a PR requirement without a second human approver, admin
+enforcement and an owner-protected main publication job. Its workflow draft
+verifies the exact candidate and GitHub-recorded owner approval before either
+image job, including partial retries. Missing configuration fails closed.
+Live changes require separate owner approval and recorded readback; merging
+the draft into beta does not activate a default-branch `workflow_run` definition.
+Follow the proposal's activation/restoration sequence rather than assuming
+written requirements are already enforced. Beta publishing and Ralph's
+intentionally disabled state remain unchanged.
 
 **Image Tags:**
 | Tag | Example |
@@ -574,7 +585,13 @@ The `.github/workflows/security-scan.yml` workflow runs on pull requests to `mai
 | `npm audit` | Any high or critical npm advisory (`npm audit --audit-level=high`) |
 | `pip-audit` | Any Python vulnerability; this is stricter than high/critical because `pip-audit` does not provide a portable severity threshold |
 
-Temporary exceptions must be narrow, reviewed, and documented with an owner and expiration date in the scanner configuration or the linked threat-model finding. Because Docker image publish workflows run only after pushes to protected branches, these blocking PR checks are the release gate for `latest` and `beta` images.
+Temporary exceptions must be narrow, reviewed, and documented with an owner and
+expiration date in the scanner configuration or linked threat-model finding.
+Do not infer these checks are required on beta: its automatic publisher waits
+for Quality Gate, not every separately scheduled scan. The proposed main guard
+checks all nineteen push contexts (including four CodeQL analyses) and owner
+approval; the extra CodeQL aggregate remains required on main PRs. Until its activation is evidenced,
+the existing live main publisher still follows the original automatic trigger.
 
 ---
 

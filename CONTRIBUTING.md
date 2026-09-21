@@ -113,6 +113,13 @@ Keep pure-document review proportional, but exercise executable policy/prompts
 and workflows with relevant behavior/fixtures. Independent review and explicit
 owner release approval cannot be replaced by task checkboxes.
 
+Use the PR template's canonical completion record to bind each criterion and
+affected workflow to its result, evidence link and tested commit/tree. Handoffs
+link it and record only their delta. Stale reviews and unresolved blocks cannot
+support acceptance. See [acceptance and release controls](docs/agentic-acceptance-controls.md)
+for the proposed main protections, exact-candidate approval and activation status.
+Beta validation/publishing is not main release or local-server deployment approval.
+
 ## Commit Messages
 
 Use conventional commits:

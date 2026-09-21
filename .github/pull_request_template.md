@@ -15,9 +15,25 @@
 - Authorizing spec / issue / process plan:
 - Lane and non-goals:
 - Task/evidence source: <!-- do not infer acceptance from checked tasks -->
-- Tested/reviewed commit or dirty-tree identity:
-- State: <!-- implemented / verified / accepted / released -->
-- Outstanding reviewer blocks and required owner approvals:
+
+## Completion evidence (canonical record)
+<!-- Keep one record here; before a PR exists use the approved issue/plan.
+     Handoffs link this record and add only their delta. Never paste full logs into each history.
+     See docs/agentic-acceptance-controls.md. Empty/missing evidence is pending, not N/A. -->
+- Candidate head commit and tree: <!-- dirty validation needs a reproducible tree/manifest -->
+- State: <!-- implemented / verified / accepted / released; do not conflate them -->
+
+| Acceptance criterion / affected workflow | Result and exact regression or negative case | Evidence link | Tested commit/tree |
+|---|---|---|---|
+| <!-- Include sibling paths and code/test consumers of changed guidance --> | <!-- pass / fail / pending / N/A with reason --> | <!-- raw output/run --> | |
+
+- Independent review: <!-- reviewer, verdict, evidence link, exact reviewed commit/tree -->
+- Changes since review: <!-- none, or scoped diff and applicability/re-review disposition -->
+- Open review blocks and exceptions: <!-- owner, clearance/expiry evidence; never infer none -->
+- Owner acceptance: <!-- pending, or actual owner decision/source and exact candidate -->
+<!-- Changed implementation invalidates applicable old proof. A different SHA with only
+     factual receipt changes needs an explicit delta, not an assumed equivalent tree.
+     An agent-authored checkbox/comment is not an owner decision. -->
 
 ## Definition of Done (§21)
 <!-- Use docs/testing.md section 6. N/A needs a reason; unavailable evidence is pending. -->
@@ -42,10 +58,11 @@
 - [ ] 18. Independent review evidence, block clearance, and required owner approval bound to the candidate
 
 ## Verification and release boundary
-- Commands / results / CI evidence:
-- Exact acceptance and sibling workflow evidence:
-- Unavailable checks / manual exceptions:
+- Completion-record link: <!-- this PR section; no duplicate result ledger -->
+- Unavailable checks / manual exceptions: <!-- reference the rows above -->
 - Owner authorization for main/release: <!-- pending unless explicitly granted for this candidate -->
+- Main publishing approval/run: <!-- GitHub release-environment owner approval for the exact candidate -->
+- Publication/deployment result: <!-- image digests/run if published; local-server deployment is separate -->
 
 <!-- Race/security/compatibility/container requirements remain applicable.
      Green CI, beta pushes, and this checklist are not release approval. -->
