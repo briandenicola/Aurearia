@@ -2,7 +2,8 @@
 
 **Feature Branch**: `beta` (existing working branch; no feature branch created)
 **Created**: 2026-09-18
-**Status**: Draft - Ready for Planning
+**Status**: Implemented; feature-specific QC PASS recorded; included in owner-merged PR #732
+**Lifecycle evidence**: [D05 reconciliation](../../.squad/decisions.md#d05-lifecycle-reconciliation) and [quickstart evidence](quickstart-evidence.md), reconciled 2026-09-21. Combined F014/F015 audit remains separate; requirement body unchanged.
 **Input**: Promote backlog card F014 using the product-owner-selected
 `copilot_integration` direction: add attribution and reference assistance to
 Coin Copilot by reusing the existing Deep Analysis workflow.

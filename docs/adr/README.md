@@ -62,20 +62,20 @@ ADR 0001 for the full list.
 | 0002 | [Three-Service Architecture](0002-three-service-architecture.md)   | 2026-05-28 | Accepted |
 | 0003 | [JWT Auth with Refresh and WebAuthn](0003-jwt-with-refresh-and-webauthn.md) | 2026-05-28 | Accepted |
 | 0004 | [Design Token System](0004-design-token-system.md)                 | 2026-05-28 | Accepted |
-| 0005 | [Streamline Constitution Principles](0005-streamline-constitution-principles.md) | 2026-06-09 | Proposed |
+| 0005 | [Streamline Constitution Principles](0005-streamline-constitution-principles.md) | 2026-06-09 | Accepted (PR #248) |
 | 0006 | [Workflow Contract Regression Gates](0006-workflow-contract-regression-gates.md) | — | Accepted |
 | 0007 | [Shared Numista Lookup Boundary](0007-shared-numista-lookup.md)       | 2026-08-11 | Accepted |
 | 0008 | [Feature 341 Immutable Public-History Waiver](0008-feature-341-immutable-public-history-waiver.md) | 2026-08-11 | Accepted |
 | 0009 | [Nomisma.org Authority Linking for Global Mint Locations](0009-nomisma-authority-linking.md) | 2026-08-14 | Accepted |
 | 0010 | [OCRE ODbL 1.0 Automated Coin-Type Provider (Nomisma SPARQL)](0010-ocre-odbl-provider.md) | 2026-08-15 | Accepted |
-| 0011 | [Persisted Deep Agentic Coin Identification](0011-deep-agentic-coin-identification.md) | 2026-08-16 | Proposed (amended by 0012) |
-| 0012 | [Vision-First Deep Identification (Image Hypothesis as Primary Claim Source)](0012-vision-first-deep-identification.md) | 2026-08-16 | Accepted |
+| 0011 | [Persisted Deep Agentic Coin Identification](0011-deep-agentic-coin-identification.md) | 2026-08-16 | Accepted (PR #626; amended by 0012) |
+| 0012 | [Vision-First Deep Identification (Image Hypothesis as Primary Claim Source)](0012-vision-first-deep-identification.md) | 2026-08-16 | Accepted (single-vision-call constraint superseded by 0018) |
 | 0013 | [Wishlist Coins May Hold Catalog References](0013-wishlist-coins-may-hold-catalog-references.md) | 2026-08-17 | Accepted (amends Feature 351) |
 | 0014 | [Scoped-Worker CSP Isolation for Background-Removal `unsafe-eval`](0014-background-removal-worker-csp-isolation.md) | 2026-08-24 | Accepted |
 | 0015 | [Lock Background-Removal Build Assets](0015-lock-background-removal-build-assets.md) | 2026-08-31 | Accepted |
-| 0016 | [Go-Owned Durable Coin Copilot State](0016-go-owned-durable-coin-copilot-state.md) | 2026-09-17 | Proposed |
+| 0016 | [Go-Owned Durable Coin Copilot State](0016-go-owned-durable-coin-copilot-state.md) | 2026-09-17 | Accepted (PR #732) |
 | 0017 | [Coin Copilot Deep Analysis Handoff](0017-coin-copilot-deep-analysis-handoff.md) | 2026-09-18 | Accepted |
-| 0018 | [Role-Specific Deep Analysis](0018-role-specific-deep-analysis.md) | 2026-09-19 | Proposed |
+| 0018 | [Role-Specific Deep Analysis](0018-role-specific-deep-analysis.md) | 2026-09-19 | Accepted (PR #732) |
 | 0019 | [Evidence-Based Agentic Delivery](0019-evidence-based-agentic-delivery.md) | 2026-09-21 | Accepted (PR #734) |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

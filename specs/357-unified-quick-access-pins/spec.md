@@ -2,7 +2,8 @@
 
 **Feature Branch**: `357-unified-quick-access-pins`
 **Created**: 2026-09-10
-**Status**: Active — backend complete; frontend implementation approved
+**Status**: Backend complete; frontend implemented; QA/architecture acceptance unresolved
+**Lifecycle evidence**: [D05 reconciliation and review registry](../../.squad/decisions.md#unresolved-review-and-release-evidence), 2026-09-21. Brutus/Maximus rejection records lack located clearance; requirement body unchanged.
 **Owner**: Maximus (Lead / Architect)
 **Requested by**: Brian DeNicola
 **Input**: Unify existing pinned Coin Sets with pinnable coins, auction lots, and manual calendar events behind one authenticated Quick Access contract.

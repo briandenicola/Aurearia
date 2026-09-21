@@ -3,7 +3,8 @@
 **Feature Branch**: `beta` (existing worktree; no feature branch created)
 **Created**: 2026-09-18
 **Rewritten**: 2026-09-19
-**Status**: Draft — user-approved SMALL F015 scope
+**Status**: User-approved SMALL F015 scope implemented through T043; included in owner-merged PR #732; combined release audit T044 remains open
+**Lifecycle evidence**: [D05 reconciliation](../../.squad/decisions.md#d05-lifecycle-reconciliation) and [quickstart evidence](quickstart-evidence.md), reconciled 2026-09-21. Requirement body unchanged.
 **Input**: Extend the shipped Coin Copilot harness with lightweight private
 collector context, read-only curator guidance, restoration of the existing
 dealer-result **Add to Wishlist** behavior, and native wishlist capture from a

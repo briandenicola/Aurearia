@@ -1,6 +1,7 @@
 # ADR 0018: Role-Specific Deep Analysis
 
-- **Status:** Proposed
+- **Status:** Accepted
+- **Acceptance evidence:** This ADR was added in owner-merged [PR #732](https://github.com/briandenicola/Aurearia/pull/732), 2026-09-20, merge `b03ac3a2c146936952e11b69bfd8dae57c8f744e`; header reconciled 2026-09-21. Body unchanged. Document acceptance does not certify the PR's still-unclosed release audit.
 - **Date:** 2026-09-19
 - **Supersedes:** The single-vision-call constraint in ADR 0012
 - **Related:** ADR 0011, ADR 0012, ADR 0017, Feature 351

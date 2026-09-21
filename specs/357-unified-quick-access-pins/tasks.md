@@ -277,7 +277,7 @@ Superseded by the repository owner's explicit frontend authorization on 2026-09-
 ## Phase 17: Frontend Quality Gate and Review
 
 - [x] **T092** [X] [Aurelia] Run from `src/web`: `npm run type-check`, targeted Vitest files, `npm test`, `npm run lint`, and `npm run build`; record exact results.
-- [x] **T093** [X] [Brutus] Independently verify FR-037-FR-054 and SC-008-SC-012, including keyboard/accessible names, 375px PWA layout, deep-link history behavior, lifecycle freshness, logout race safety, and existing pinned Sets regression.
+- [ ] **T093** [X] [Brutus] Independently verify FR-037-FR-054 and SC-008-SC-012, including keyboard/accessible names, 375px PWA layout, deep-link history behavior, lifecycle freshness, logout race safety, and existing pinned Sets regression. D05 reconciliation (2026-09-21): review was performed with REJECT; acceptance remains incomplete until the [recorded reviewer block](../../.squad/decisions.md#unresolved-review-and-release-evidence) is explicitly cleared.
 - [x] **T094** [X] [Brutus] Inspect `git diff --name-only` and BLOCK if any `src/api/` file changed or any completed backend task was reopened.
 - [ ] **T095** [X] [Maximus] Perform post-implementation architecture review against D13-D19, module-level lifecycle rules, router parent/query patterns, Principle III/IV/V/VI/IX, §17, and §21.
 - [ ] **T096** [X] [Maximus] Reconcile frontend task checkboxes and require the PR description to cite backend dependency `4d3b6a06`, spec FR-037-FR-054, Constitution Principles II/III/IV/V/VI/IX, §17, and §21.

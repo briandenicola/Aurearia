@@ -1,58 +1,46 @@
 ---
-updated_at: 2026-09-19T12:19:13Z
-focus_area: F014 stabilization complete; F015 paused after private profile foundation
-active_issues:
-  - User retest pending for Coin Copilot execution frames and Deep Analysis notes
-  - Deep Analysis must be aligned with the collection obverse/reverse AI analysis pipeline
-  - F015 T012-T034 intentionally paused for a new context
-handoff_commit: f0f3e807
+updated_at: 2026-09-21
+focus_area: Agentic delivery D05 and P2 lifecycle/context curation
+owner: Copilot CLI implementation owner; repository owner approves merge
+work_branch: docs/delivery-lifecycle-context
+baseline_commit: e6ab8313346b971dce4b288804036222f7d4c95d
 ---
 
-# What We're Focused On
+# Current Work
 
-**Stabilize F014, then resume the reduced F015 scope in a new context.**
+The owner authorized **D05 and P2 only**, on an isolated branch with a PR into
+beta. No merge, tool installation, deployment, application repair or P3-P6 work
+is authorized by this batch. Preserve the original dirty beta worktree.
 
-## Current Status
+## Authoritative pointers
 
-- F014 execution-frame and Deep Analysis notes regressions were repaired and
-  pushed in `8ac2b1e9`.
-- Coin Copilot checkpoint compaction now emits the exact Go-compatible bounded
-  result envelope.
-- Deep Analysis handoff frames and checkpoints accept the same deterministic
-  bounded fallback.
-- Collector notes now reach vision hypothesis generation and final synthesis as
-  untrusted evidence.
-- F015 T001-T011 were completed and pushed in `f0f3e807`.
-- F015 T012-T034 are intentionally paused.
+- [Action plan](../../docs/agentic-delivery-improvement-plan.md): D05/D06/D07 are
+  the task ledger; this pointer deliberately does not duplicate their checklist.
+- [Constitution](../../.specify/memory/constitution.md), sections 17-22, and
+  [accepted ADR 0019](../../docs/adr/0019-evidence-based-agentic-delivery.md).
+- [Active decisions](../decisions.md): lifecycle evidence and unresolved review
+  records, including exact reviewer ownership and grandfathered restrictions.
+- [Preservation inventory](../artifacts/context-curation-2026-09-21.json):
+  original content identities and archive locations.
 
-## Verified Gates
+## Product / Release State
 
-- Agent: 632 tests passed; Ruff passed.
-- Go: `go vet ./...` and `go test ./...` passed.
-- Web: type-check, lint, production build, and full Vitest suite passed.
-- OpenAPI was regenerated and its route contract gate passed.
-- New frame and notes guards were tamper-tested.
+Features 359, 362 and reduced 363 were included in owner-merged
+[#732](https://github.com/briandenicola/Aurearia/pull/732).
+Do not resume F015 at T012: the old pointer was stale. Consult each feature's
+tasks/evidence before selecting work.
 
-## Binding Scope
+Feature 363 T044 (combined F014/F015 audit) and #732's final release checklist
+remain unclosed in the inspected evidence. No deployment claim is made.
+Historical review records R357-QA/R357-ARCH, R361, R352/R353, R225/R320, R337
+and the conditional R-SWIPE evidence are linked in active decisions; this
+governance batch does not repair or clear them.
 
-Reduced F015 remains limited to:
+## Next Action
 
-1. Private lightweight collector profile/context.
-2. Read-only curator guidance using existing collection tools.
-3. Existing UI-owned Add to Wishlist for verified available dealer results.
-
-Do not change the auction subsystem or add wishlist-action endpoints, action
-tables, audit workflows, watchlist ranking, or provenance-risk workflows.
-
-## Next Context
-
-1. Let the user retest Coin Search and Deep Analysis with detailed attribution
-   notes.
-2. Correct Deep Analysis so it reuses the collection-grade obverse/reverse AI
-   analysis pipeline with supplied notes before provider verification. Quick
-   Lookup remains a separate fast combined-image pass and prioritizes an NGC
-   certification number when present.
-3. Re-read the constitution, Feature 363 spec/plan/tasks, and this handoff.
-4. Resume at T012 only when the user explicitly restarts F015.
-5. Run the combined F014/F015 engineering audit before any beta-to-main v4.2
-   release PR.
+Independent preservation/governance review passed for the candidate recorded in
+the [final handoff](../log/2026-09-21-delivery-context-review.md).
+The D05/P2 PR from `docs/delivery-lifecycle-context` into beta now requires owner
+review and merge approval. Do not merge automatically. The PR is the
+acceptance/evidence surface; after owner merge, request selection of the next
+plan phase instead of automatically starting P3.
