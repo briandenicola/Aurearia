@@ -102,10 +102,20 @@ describe('UI pattern recipes', () => {
     expect(shell).toContain('aria-label="Deep Analysis"')
     expect(shell).toContain('useImmersiveShellClaim()')
 
-    // Viewfinder colors are theme-independent, so they live in :root only.
-    expect(variables).toContain('--capture-bg: #0b0a08;')
-    expect(variables).toContain('--capture-gold: #e8b94a;')
-    expect(variables.split('[data-theme=')[1] ?? '').not.toContain('--capture-')
+    // The shell takes its color from the selected theme like every other
+    // page: no private palette, no literal colors, only shared tokens.
+    expect(variables).not.toContain('--capture-')
+    const shellStyles = shell.slice(shell.indexOf('<style'))
+    expect(shellStyles).not.toMatch(/#[0-9a-fA-F]{3,8}/)
+    expect(shellStyles).not.toMatch(/rgba?\(/)
+    for (const token of [
+      '--bg-primary', '--bg-card', '--bg-input', '--border-subtle',
+      '--accent-gold', '--text-primary', '--text-secondary', '--text-muted',
+    ]) {
+      expect(shellStyles).toContain(`var(${token})`)
+    }
+    // Gold fills use the same gradient as .btn-primary.
+    expect(shellStyles).toContain('linear-gradient(135deg, var(--accent-gold), var(--accent-bronze))')
 
     // App chrome steps aside while a shell is mounted.
     expect(app).toContain("auth.isAuthenticated && !immersive")

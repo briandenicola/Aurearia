@@ -91,8 +91,9 @@ viewfinder:
   *Analyze Photos* — appears at the bottom of the stage.
 
 In a browser tab the same two pages keep the two-column wizard, which is built for a
-mouse and a wide window. The viewfinder's colors stay dark in every theme so a coin's
-tone is always judged against the same background.
+mouse and a wide window. The capture screen follows whichever theme you picked in
+**Settings → Appearance** (Dark, Light, British Museum, Louvre, Capitoline, Byzantine,
+Modern Greek), exactly like the rest of the app.
 
 ### Biometric Login (Face ID / Touch ID / Fingerprint)
 

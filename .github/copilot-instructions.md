@@ -262,7 +262,7 @@ Before implementing UI, identify the closest existing page or component pattern 
 | Pagination controls | Previous/next navigation | Keep controls in one row: `< Previous` then current label then `Next >`. Do not stack Previous and Next on mobile unless the viewport is too narrow to preserve usable tap targets. |
 | Stats subviews | Health, value trends, timeline, map | Each subview is its own route/page under the Stats submenu; the Stats landing page stays summary-card focused. |
 | Collection subviews | Gallery and Tray | Keep Gallery and Tray under the Collection submenu; the Collection parent starts collapsed like Stats. |
-| Immersive PWA capture | Camera-first flows in an installed PWA (Add Coin, Identify Coin) | Use `PwaCaptureShell`: fixed full-bleed shell claiming `useImmersiveShellClaim()` so App.vue drops the nav bar and agent button. Close / Add-Identify segments / Quick Capture on top, a three-segment progress rail, one rounded stage with the guide ring, then Library + shutter + Manual (intake) or Deep (identify). Colors come from the `--capture-*` tokens, which stay dark in every theme. |
+| Immersive PWA capture | Camera-first flows in an installed PWA (Add Coin, Identify Coin) | Use `PwaCaptureShell`: fixed full-bleed shell claiming `useImmersiveShellClaim()` so App.vue drops the nav bar and agent button. Close / Add-Identify segments / Quick Capture on top, a three-segment progress rail, one rounded stage with the guide ring, then Library + shutter + Manual (intake) or Deep (identify). Takes all color from the active theme's shared tokens (`--bg-primary`, `--bg-card`, `--bg-input`, `--accent-gold`, `--text-*`, `--border-subtle`) - no private palette and no literal colors. |
 
 #### Rules for New UI Components
 

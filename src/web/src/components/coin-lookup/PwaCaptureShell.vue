@@ -58,6 +58,7 @@
         <label v-if="showNotesField" class="stage-notes">
           <span class="sr-only">Identification notes</span>
           <textarea
+            class="form-input"
             :value="notes"
             maxlength="2000"
             placeholder="Weight, diameter, provenance, visible text, suspected ruler&hellip;"
@@ -84,8 +85,8 @@
           />
 
           <svg v-if="!currentImage && showGuideRing" class="guide-ring" viewBox="0 0 272 272" aria-hidden="true" focusable="false">
-            <circle cx="136" cy="136" r="135" />
-            <circle cx="136" cy="136" r="118.5" class="guide-ring-inner" />
+            <circle cx="136" cy="136" r="135" stroke-opacity="0.65" />
+            <circle cx="136" cy="136" r="118.5" class="guide-ring-inner" stroke-opacity="0.3" />
           </svg>
         </div>
 
@@ -106,7 +107,7 @@
 
         <div class="stage-foot">
           <p v-if="stageError" class="stage-error" role="alert">
-            <AlertCircle :size="16" aria-hidden="true" />
+            <AlertCircle :size="16" class="stage-error-icon" aria-hidden="true" />
             <span>{{ stageError }}</span>
           </p>
           <p v-else class="stage-hint">{{ hintText }}</p>
@@ -391,8 +392,8 @@ defineExpose({ stopCamera })
   z-index: 500;
   display: flex;
   flex-direction: column;
-  background: var(--capture-bg);
-  color: var(--capture-text);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   /* Mockup puts the header 62px down on a device with a 47px top inset. */
   padding-top: calc(max(env(safe-area-inset-top), 12px) + 15px);
   /* The shutter overhangs the 58px tool row, so the home-indicator inset is
@@ -432,16 +433,16 @@ defineExpose({ stopCamera })
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--capture-surface-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  background: var(--capture-surface);
-  color: var(--capture-text);
+  background: var(--bg-input);
+  color: var(--text-primary);
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
 .icon-round:active {
-  background: var(--capture-surface-border);
+  background: var(--border-subtle);
 }
 
 .segmented {
@@ -450,9 +451,9 @@ defineExpose({ stopCamera })
   width: 200px;
   height: 46px;
   padding: 4px;
-  border: 1px solid var(--capture-surface-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  background: var(--capture-surface);
+  background: var(--bg-input);
 }
 
 .segment {
@@ -460,7 +461,7 @@ defineExpose({ stopCamera })
   border: 0;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--capture-text-dim);
+  color: var(--text-secondary);
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -468,8 +469,8 @@ defineExpose({ stopCamera })
 }
 
 .segment.is-active {
-  background: var(--capture-gold);
-  color: var(--capture-on-gold);
+  background: var(--accent-gold);
+  color: var(--bg-primary);
   font-weight: 600;
 }
 
@@ -501,24 +502,24 @@ defineExpose({ stopCamera })
 .rail-bar {
   height: 3px;
   border-radius: var(--radius-full);
-  background: var(--capture-rail-idle);
+  background: var(--bg-input);
   transition: background var(--transition-fast);
 }
 
 .rail-step.is-active .rail-bar,
 .rail-step.is-complete .rail-bar {
-  background: var(--capture-gold);
+  background: var(--accent-gold);
 }
 
 .rail-label {
   font-size: 12px;
   line-height: 17px;
-  color: var(--capture-rail-label);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .rail-step.is-active .rail-label {
-  color: var(--capture-gold);
+  color: var(--accent-gold);
   font-weight: 500;
 }
 
@@ -531,9 +532,9 @@ defineExpose({ stopCamera })
   flex: 1;
   min-height: 0;
   margin: 11px 12px 0;
-  border: 1px solid var(--capture-stage-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
-  background: var(--capture-stage);
+  background: var(--bg-card);
   overflow: hidden;
 }
 
@@ -568,13 +569,12 @@ defineExpose({ stopCamera })
 
 .guide-ring circle {
   fill: none;
-  stroke: var(--capture-ring);
+  stroke: var(--accent-gold);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
 .guide-ring .guide-ring-inner {
-  stroke: var(--capture-ring-inner);
   stroke-width: 1.5;
   stroke-dasharray: 3 3;
 }
@@ -588,10 +588,10 @@ defineExpose({ stopCamera })
   gap: 8px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid var(--capture-surface-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  background: var(--capture-surface);
-  color: var(--capture-text);
+  background: var(--bg-input);
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 500;
 }
@@ -600,7 +600,7 @@ defineExpose({ stopCamera })
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);
-  background: var(--capture-gold);
+  background: var(--accent-gold);
 }
 
 .stage-chip-dot.is-met {
@@ -616,10 +616,10 @@ defineExpose({ stopCamera })
   justify-content: center;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--capture-surface-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  background: var(--capture-surface);
-  color: var(--capture-text);
+  background: var(--bg-input);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -640,7 +640,7 @@ defineExpose({ stopCamera })
 }
 
 .stage-hint {
-  color: var(--capture-text-hint);
+  color: var(--text-secondary);
 }
 
 .stage-error {
@@ -648,10 +648,16 @@ defineExpose({ stopCamera })
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
+  border: 1px solid var(--border-accent);
   border-radius: var(--radius-md);
-  background: var(--capture-surface);
-  color: var(--capture-danger);
+  background: var(--bg-input);
+  color: var(--text-primary);
   pointer-events: auto;
+}
+
+.stage-error-icon {
+  flex-shrink: 0;
+  color: var(--cat-byzantine);
 }
 
 .stage-action {
@@ -663,8 +669,8 @@ defineExpose({ stopCamera })
   padding: 0 24px;
   border: 0;
   border-radius: var(--radius-full);
-  background: var(--capture-gold);
-  color: var(--capture-on-gold);
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+  color: var(--bg-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -679,7 +685,7 @@ defineExpose({ stopCamera })
 .stage-action-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid var(--capture-on-gold);
+  border: 2px solid var(--bg-primary);
   border-top-color: transparent;
   border-radius: var(--radius-full);
   animation: spin 0.8s linear infinite;
@@ -695,26 +701,15 @@ defineExpose({ stopCamera })
 }
 
 .stage-notes textarea {
-  width: 100%;
   height: 116px;
-  padding: 10px 12px;
-  border: 1px solid var(--capture-surface-border);
-  border-radius: var(--radius-md);
-  background: var(--capture-surface);
-  color: var(--capture-text);
-  font: inherit;
   font-size: 13px;
   resize: none;
-}
-
-.stage-notes textarea::placeholder {
-  color: var(--capture-text-dim);
 }
 
 .stage-notes-count {
   justify-self: end;
   font-size: 10px;
-  color: var(--capture-text-dim);
+  color: var(--text-secondary);
 }
 
 /* ── Bottom bar: Library, shutter, Manual/Deep ───────────────────────────── */
@@ -738,10 +733,10 @@ defineExpose({ stopCamera })
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 1px solid var(--capture-surface-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  background: var(--capture-surface);
-  color: var(--capture-text);
+  background: var(--bg-input);
+  color: var(--text-primary);
   font-size: 10px;
   line-height: 1.2;
   cursor: pointer;
@@ -758,7 +753,7 @@ defineExpose({ stopCamera })
   width: 78px;
   height: 78px;
   padding: 5px;
-  border: 3px solid var(--capture-text);
+  border: 3px solid var(--text-primary);
   border-radius: var(--radius-full);
   background: transparent;
   cursor: pointer;
@@ -773,7 +768,7 @@ defineExpose({ stopCamera })
   width: 100%;
   height: 100%;
   border-radius: var(--radius-full);
-  background: var(--capture-gold);
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
   transition: transform var(--transition-fast);
 }
 

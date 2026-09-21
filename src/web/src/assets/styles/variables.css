@@ -91,26 +91,6 @@
   --radius-xl: 24px;
   --radius-full: 9999px;
 
-  /* Immersive PWA capture shell (Add Coin / Identify Coin viewfinder).
-     Deliberately declared only here and never re-declared per theme: a
-     viewfinder has to surround the coin with the same neutral dark field in
-     every theme, otherwise the operator judges tone and exposure against a
-     moving reference. Values come from the approved capture mockup. */
-  --capture-bg: #0b0a08;
-  --capture-stage: #060405;
-  --capture-stage-border: #1e1915;
-  --capture-surface: #17120c;
-  --capture-surface-border: #2a211a;
-  --capture-rail-idle: #25201a;
-  --capture-gold: #e8b94a;
-  --capture-on-gold: #17120c;
-  --capture-text: #efe8dc;
-  --capture-text-dim: #bcb2a6;
-  --capture-rail-label: #908979;
-  --capture-text-hint: #bfb3a8;
-  --capture-ring: rgba(232, 185, 74, 0.65);
-  --capture-ring-inner: rgba(232, 185, 74, 0.28);
-  --capture-danger: #e08d8d;
 
   /* Transitions */
   --transition-fast: 0.2s ease;
