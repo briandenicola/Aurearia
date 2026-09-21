@@ -365,6 +365,15 @@ and historical-lifecycle findings as warnings; do not blanket-waive new defects.
 worktree. No local installation, merge or deployment is authorized or performed.
 P4-P6 and live required-context changes remain outside this batch.
 
+**Bounded portability approval:** Hosted Windows checkout exposed 33 historical
+log filenames containing colons. Sparse exclusions did not avoid Git's NTFS
+protection check. The owner explicitly approved a filename-only fix, preserving
+contents and recording old/new paths. The
+[path map](../.squad/artifacts/windows-log-path-mapping-2026-09-21.json)
+records each unchanged Git blob identity. Both hosted jobs use full checkout with
+NTFS protection enabled; local Git configuration and historical bodies remain
+unchanged. This is not approval for broader archive cleanup.
+
 - D08 shared `check:*` targets are wired into Quality Gate; setup is separate,
   npm lint is unconditional, Python uses locked/offline/no-sync validation,
   and the race/security/browser/compatibility surfaces remain present.

@@ -148,12 +148,14 @@ The delivery scripts themselves need only Node built-ins; their fixture suite
 also needs Task, Git, npm and PowerShell 7 (`pwsh`). No dependency installation
 occurs in completion recipes.
 
-The Windows delivery job omits only `.squad/log/` and
-`.squad/orchestration-log/` through non-cone sparse checkout: historical
-timestamp filenames contain colons that Windows cannot check out. The Linux
-delivery job retains the complete checkout. Archives are not renamed or deleted;
-the checker reports sparse-excluded reference targets as warnings, not verified
-file contents.
+Both delivery jobs use a full checkout with Git NTFS protection explicitly
+enabled. The owner authorized a filename-only portability fix for 33 historical
+logs whose timestamp colons prevented Windows checkout even with sparse
+exclusions. [The path map](../.squad/artifacts/windows-log-path-mapping-2026-09-21.json)
+records old/new names and unchanged Git blob identities. Historical contents
+and references are not rewritten; use the map or its baseline commit to resolve
+old paths. Regression tests verify preservation and reject new invalid filename
+characters. No local Git protection setting is changed.
 
 Authorized setup targets are `task setup:go` (`go mod download` using the installed
 toolchain), `task setup:web` (`npm ci`), `task setup:agent`

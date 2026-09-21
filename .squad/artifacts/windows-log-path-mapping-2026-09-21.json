@@ -1,0 +1,173 @@
+{
+  "date": "2026-09-21",
+  "baseline_commit": "0b16a55b79938d0c4fd7375f19f52625e689bf8e",
+  "authorization": "Approve a filename-only archive portability fix, preserving contents and recording old-to-new paths",
+  "scope": "Replace timestamp colons with hyphens in 33 historical log paths. Git blob identities and all contents are unchanged. Historical references retain their original spelling; resolve them using this map or the baseline commit.",
+  "entries": [
+    {
+      "old_path": ".squad/log/2026-05-28T22:55:44Z-tech-inventory-alignment-phase1.md",
+      "new_path": ".squad/log/2026-05-28T22-55-44Z-tech-inventory-alignment-phase1.md",
+      "object_id": "14314b3758a30257ee287fd38dd85a8d4bde4211"
+    },
+    {
+      "old_path": ".squad/log/2026-05-28T23:06:42Z-tech-inventory-alignment-phase2.md",
+      "new_path": ".squad/log/2026-05-28T23-06-42Z-tech-inventory-alignment-phase2.md",
+      "object_id": "3c2d9ed7c25fd9c5c9b842d89bb265d890464e03"
+    },
+    {
+      "old_path": ".squad/log/2026-05-28T23:18:50Z-tech-inventory-alignment-phase3a.md",
+      "new_path": ".squad/log/2026-05-28T23-18-50Z-tech-inventory-alignment-phase3a.md",
+      "object_id": "11e3a686d531d28a7ad652db9099d85a79971fb8"
+    },
+    {
+      "old_path": ".squad/log/2026-05-31T21:43:55Z-session-handoff.md",
+      "new_path": ".squad/log/2026-05-31T21-43-55Z-session-handoff.md",
+      "object_id": "ecc81eb1df32fe8cda6350cde60b1c66daad2346"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T14:47:43Z-coin-detail-tags-section.md",
+      "new_path": ".squad/log/2026-06-01T14-47-43Z-coin-detail-tags-section.md",
+      "object_id": "ab786db3bc4740447338127afdc5a5ab412197ab"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T18:44:28Z-coin-detail-purchase-row.md",
+      "new_path": ".squad/log/2026-06-01T18-44-28Z-coin-detail-purchase-row.md",
+      "object_id": "04cd657e5e7bcf109481aeab4d5f1bf321b9c506"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T20:14:08Z-storage-location-design.md",
+      "new_path": ".squad/log/2026-06-01T20-14-08Z-storage-location-design.md",
+      "object_id": "7bcc593cdfe9c6dfe9f4f7c393b9c5c3d87ee8f9"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T20:26:20Z-storage-location-and-settings.md",
+      "new_path": ".squad/log/2026-06-01T20-26-20Z-storage-location-and-settings.md",
+      "object_id": "3466a033def531b909bd90c746488cf88000a5cd"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T21:04:33Z-ric-removal-health-subpage.md",
+      "new_path": ".squad/log/2026-06-01T21-04-33Z-ric-removal-health-subpage.md",
+      "object_id": "a9a059098447db934947b34571358991c51eb9f9"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T21:24:38Z-legacy-reference-migration.md",
+      "new_path": ".squad/log/2026-06-01T21-24-38Z-legacy-reference-migration.md",
+      "object_id": "15f85fe8604a4206a4e144be233fd266c1aad1dd"
+    },
+    {
+      "old_path": ".squad/log/2026-06-01T23:13:58Z-catalog-admin-ui-fix.md",
+      "new_path": ".squad/log/2026-06-01T23-13-58Z-catalog-admin-ui-fix.md",
+      "object_id": "bbadeb436fe44f5887ee768021afbf6a1fe79150"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T22:55:44Z-maximus-constitution-v2.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T22-55-44Z-maximus-constitution-v2.md",
+      "object_id": "204da9d5e29c2dee66b454b2be111afac5e64e8e"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T22:55:44Z-maximus-round2-instructions-pr.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T22-55-44Z-maximus-round2-instructions-pr.md",
+      "object_id": "8957693d89a4f91533b2bddc51b88fc4494fb705"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T22:55:44Z-scribe-phase1-scaffolding.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T22-55-44Z-scribe-phase1-scaffolding.md",
+      "object_id": "9d7ca85f2079b776dacf79ddaaab09d5932e7f2a"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T23:06:42Z-maximus-retro-foundation.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T23-06-42Z-maximus-retro-foundation.md",
+      "object_id": "2c0faa78e9bfae5563694111c27c43a150b14bc3"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T23:06:42Z-maximus-specs-scaffold.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T23-06-42Z-maximus-specs-scaffold.md",
+      "object_id": "6ed6ed7333f9804be579dade1342d749644089e4"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T23:06:42Z-scribe-backlog-seed.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T23-06-42Z-scribe-backlog-seed.md",
+      "object_id": "76eeff7e3e7fab511b608b16e4d0cc4f0b675b97"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T23:18:50Z-maximus-adrs.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T23-18-50Z-maximus-adrs.md",
+      "object_id": "47183ed95a9662b4cbdb40d45c062cc0f246f164"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T23:18:50Z-maximus-readme-trim.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T23-18-50Z-maximus-readme-trim.md",
+      "object_id": "28f79207179c73bbe6f2f0adc81d71a78aa5ef33"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-28T23:18:50Z-scribe-prd-draft.md",
+      "new_path": ".squad/orchestration-log/2026-05-28T23-18-50Z-scribe-prd-draft.md",
+      "object_id": "c88e6d610c27a6b6bc7e9f2bebb030a225344676"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-31T21:43:55Z-aurelia.md",
+      "new_path": ".squad/orchestration-log/2026-05-31T21-43-55Z-aurelia.md",
+      "object_id": "f02e20b98115fd0ba9238d0be35aa4c1dc1bdeb6"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-05-31T21:43:55Z-cassius.md",
+      "new_path": ".squad/orchestration-log/2026-05-31T21-43-55Z-cassius.md",
+      "object_id": "f9fc46dc8b8df9a7d4acaafc446ef8a4a189f7ff"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T14:47:43Z-aurelia.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T14-47-43Z-aurelia.md",
+      "object_id": "2e1f7c129339a22f0e0b3a5e8da779b5b540df7a"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T18:44:28Z-aurelia.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T18-44-28Z-aurelia.md",
+      "object_id": "95981854fede4e17a91e235cb4a68dc44b96a2bb"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T20:14:08Z-maximus.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T20-14-08Z-maximus.md",
+      "object_id": "71931797095046987eb789a6d1ee16bc01026aa4"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T20:26:20Z-aurelia-settings.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T20-26-20Z-aurelia-settings.md",
+      "object_id": "0a4bb541a8121721827e77b2fd0bc44692c8bb0b"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T20:26:20Z-aurelia.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T20-26-20Z-aurelia.md",
+      "object_id": "195980f2c1f1ea40aa6612c186e293f4344992b1"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T20:26:20Z-cassius.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T20-26-20Z-cassius.md",
+      "object_id": "321a71f72abab692477ed4dabcb64b565a86a638"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T21:04:33Z-aurelia.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T21-04-33Z-aurelia.md",
+      "object_id": "3c9a726c97ac79e62cf93812ef17800160501324"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T21:04:33Z-cassius.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T21-04-33Z-cassius.md",
+      "object_id": "b1063b6dde7c74de6b1990309c73f496300c299a"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T21:04:33Z-coordinator.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T21-04-33Z-coordinator.md",
+      "object_id": "23ccc4a284bf5db00acfab73bcb30c172c16b162"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T21:24:38Z-aurelia.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T21-24-38Z-aurelia.md",
+      "object_id": "39ef6bc6d8da0ad9c1269147ce49f8439ae86e62"
+    },
+    {
+      "old_path": ".squad/orchestration-log/2026-06-01T21:24:38Z-cassius.md",
+      "new_path": ".squad/orchestration-log/2026-06-01T21-24-38Z-cassius.md",
+      "object_id": "470497f606a7acc9acade6c0f57c25f9d7f778f1"
+    }
+  ]
+}
