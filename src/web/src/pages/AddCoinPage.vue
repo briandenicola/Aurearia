@@ -1,29 +1,28 @@
 <template>
   <div class="container">
     <div class="mx-auto min-w-0 max-w-[900px]">
-      <header class="page-header">
-        <h1>Add Coin</h1>
-      </header>
-
       <fieldset :disabled="saving || committingDraft || intakeLoading || preparingImage || savedCoinId !== null" class="min-w-0 border-0 p-0">
-        <div v-if="!isPwa" class="mb-4 flex gap-[0.35rem]">
-          <button
-            type="button"
-            class="chip border border-border-subtle"
-            :class="{ 'border-gold': entryMode === 'manual' }"
-            @click="entryMode = 'manual'"
-          >
-            Manual Mode
-          </button>
-          <button
-            type="button"
-            class="chip border border-border-subtle"
-            :class="{ 'border-gold': entryMode === 'agentic' }"
-            @click="entryMode = 'agentic'"
-          >
-            AI Assist Mode
-          </button>
-        </div>
+        <header class="page-header">
+          <h1>Add Coin</h1>
+          <div v-if="!isPwa" class="ml-auto flex shrink-0 gap-[0.35rem]">
+            <button
+              type="button"
+              class="chip border border-border-subtle"
+              :class="{ 'border-gold': entryMode === 'manual' }"
+              @click="entryMode = 'manual'"
+            >
+              Manual Mode
+            </button>
+            <button
+              type="button"
+              class="chip border border-border-subtle"
+              :class="{ 'border-gold': entryMode === 'agentic' }"
+              @click="entryMode = 'agentic'"
+            >
+              AI Assist Mode
+            </button>
+          </div>
+        </header>
 
         <section v-if="entryMode === 'agentic'" class="relative grid gap-4">
           <!-- Loading overlay for AI analysis -->
