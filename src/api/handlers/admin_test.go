@@ -194,3 +194,37 @@ func assertAdminHandlerError(t *testing.T, w *httptest.ResponseRecorder, expecte
 		t.Fatalf("expected error %q, got %q", expected, resp["error"])
 	}
 }
+
+func TestUpdateSettingsRejectsUnknownCoinOfDayTimezone(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatal(err)
+	}
+	settingsSvc := services.NewSettingsService(repository.NewSettingsRepository(db))
+	handler := NewAdminHandler("", nil, nil, nil, settingsSvc, services.NewLogger(10))
+	router := gin.New()
+	router.PUT("/admin/settings", handler.UpdateSettings)
+
+	put := func(value string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal([]map[string]string{{"key": services.SettingCoinOfDayTimezone, "value": value}})
+		req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	if rec := put("Not/AZone"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown zone: expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec := put("America/Chicago"); rec.Code != http.StatusOK {
+		t.Fatalf("valid zone: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := settingsSvc.GetSetting(services.SettingCoinOfDayTimezone); got != "America/Chicago" {
+		t.Fatalf("stored zone = %q", got)
+	}
+}

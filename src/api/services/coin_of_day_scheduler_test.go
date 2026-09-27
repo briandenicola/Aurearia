@@ -505,3 +505,100 @@ func TestBuildCoinSummaryHandlesNilCoin(t *testing.T) {
 		t.Fatalf("buildCoinSummary(nil) = %q, want empty string", got)
 	}
 }
+
+func TestCoinOfDaySchedulerNextRunUsesConfiguredTimezone(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, false)
+	scheduler := newCoinOfDaySchedulerForTest(db)
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayStartTime, "12:00"); err != nil {
+		t.Fatal(err)
+	}
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayTimezone, "America/Chicago"); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2026-09-28 08:00 UTC is 03:00 CDT, so noon Chicago is 17:00 UTC today.
+	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
+	got := scheduler.nextRunAfter(now)
+	want := time.Date(2026, 9, 28, 17, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("nextRunAfter = %s, want %s", got.UTC(), want)
+	}
+
+	// Just after today's run it rolls to noon Chicago tomorrow.
+	got = scheduler.nextRunAfter(want)
+	if !got.Equal(want.Add(24 * time.Hour)) {
+		t.Fatalf("nextRunAfter(anchor) = %s, want next day", got.UTC())
+	}
+}
+
+func TestCoinOfDaySchedulerNextRunKeepsWallClockAcrossDST(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, false)
+	scheduler := newCoinOfDaySchedulerForTest(db)
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayStartTime, "12:00"); err != nil {
+		t.Fatal(err)
+	}
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayTimezone, "America/Chicago"); err != nil {
+		t.Fatal(err)
+	}
+
+	// US DST ends 2026-11-01. After Saturday's noon CDT run (17:00 UTC), the
+	// next run must be noon CST (18:00 UTC), not 17:00 UTC.
+	saturdayRun := time.Date(2026, 10, 31, 17, 0, 0, 0, time.UTC)
+	got := scheduler.nextRunAfter(saturdayRun)
+	want := time.Date(2026, 11, 1, 18, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("nextRunAfter across DST = %s, want %s", got.UTC(), want)
+	}
+}
+
+func TestCoinOfDaySchedulerNextRunReflectsSettingChangesImmediately(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, false)
+	scheduler := newCoinOfDaySchedulerForTest(db)
+	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
+
+	// Default 07:00 server time; then an admin moves it to noon Chicago.
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayTimezone, "UTC"); err != nil {
+		t.Fatal(err)
+	}
+	if got := scheduler.nextRunAfter(now); !got.Equal(time.Date(2026, 9, 29, 7, 0, 0, 0, time.UTC)) {
+		t.Fatalf("default next run = %s", got.UTC())
+	}
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayStartTime, "12:00"); err != nil {
+		t.Fatal(err)
+	}
+	if err := scheduler.settingsSvc.SetSetting(SettingCoinOfDayTimezone, "America/Chicago"); err != nil {
+		t.Fatal(err)
+	}
+	if got := scheduler.nextRunAfter(now); !got.Equal(time.Date(2026, 9, 28, 17, 0, 0, 0, time.UTC)) {
+		t.Fatalf("next run after change = %s, want 17:00 UTC today", got.UTC())
+	}
+	if coinOfDayRecheckInterval > time.Minute {
+		t.Fatalf("recheck interval %s is too long for setting changes to apply promptly", coinOfDayRecheckInterval)
+	}
+}
+
+func TestCoinOfDaySchedulerEmptyTimezoneUsesServerTime(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, false)
+	scheduler := newCoinOfDaySchedulerForTest(db)
+	if loc := scheduler.location(); loc != time.Local {
+		t.Fatalf("location() = %s, want server local", loc)
+	}
+}
+
+func TestSetSettingValidatesCoinOfDayTimezone(t *testing.T) {
+	db := setupCoinOfDaySchedulerDB(t, false)
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(db))
+
+	if err := settingsSvc.SetSetting(SettingCoinOfDayTimezone, "Mars/Olympus_Mons"); err == nil {
+		t.Fatal("expected unknown time zone to be rejected")
+	}
+	if err := settingsSvc.SetSetting(SettingCoinOfDayTimezone, "  America/Chicago  "); err != nil {
+		t.Fatalf("valid zone rejected: %v", err)
+	}
+	if got := settingsSvc.GetSetting(SettingCoinOfDayTimezone); got != "America/Chicago" {
+		t.Fatalf("stored zone = %q, want trimmed America/Chicago", got)
+	}
+	if err := settingsSvc.SetSetting(SettingCoinOfDayTimezone, ""); err != nil {
+		t.Fatalf("empty (server time) rejected: %v", err)
+	}
+}
