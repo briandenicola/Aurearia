@@ -66,13 +66,12 @@
 
         <template v-if="currentStep.role === 'notes' && purpose === 'identify'">
           <label class="form-group">
-            <span class="section-label">Identification notes (required)</span>
+            <span class="section-label">Identification notes (optional)</span>
             <textarea
               :value="notes"
               class="form-input min-h-[120px] resize-y"
               maxlength="2000"
-              required
-              placeholder="Add weight, diameter, provenance, visible text, suspected ruler, denomination, or anything else that may help."
+              placeholder="Optional: add anything you know that could help the AI, like weight, diameter, or ruler (if known). Leave blank and the AI will work from the photos alone."
               @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             ></textarea>
             <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
@@ -135,11 +134,6 @@
           <span>{{ uploadError }}</span>
         </div>
 
-        <div v-if="notesRequirementError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
-          <AlertCircle :size="20" class="shrink-0 text-byzantine" />
-          <span>{{ notesRequirementError }}</span>
-        </div>
-
         <div v-if="deepRequirementError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
           <AlertCircle :size="20" class="shrink-0 text-byzantine" />
           <span>{{ deepRequirementError }}</span>
@@ -163,7 +157,7 @@
             type="button"
             class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
             :disabled="submitting || preparingImage"
-            @click="requestAnalyze"
+            @click="$emit('analyze')"
           >
             <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
             <span v-else-if="preparingImage" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
@@ -282,14 +276,13 @@ const steps = computed(() => [
     title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
     description: props.purpose === 'intake'
       ? 'Optional. Photograph or upload a coin card or label. For a PDF card, use manual mode.'
-      : 'Notes are required. Anything helps: weight, size, where you got it, or your best guess. A supporting photo is optional.',
+      : 'Optional. Anything you know about the coin helps the AI; a supporting photo is optional too.',
     instruction: 'Capture a label, edge, measurement, or other detail',
   },
 ] as const)
 
 const step = ref(0)
 const deepRequirementError = ref('')
-const notesRequirementError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 const currentStep = computed(() => {
@@ -318,16 +311,6 @@ function handleFileSelection(event: Event) {
   input.value = ''
 }
 
-function requestAnalyze() {
-  notesRequirementError.value = ''
-  if (props.purpose === 'identify' && !props.notes.trim()) {
-    step.value = 2
-    notesRequirementError.value = 'Add a few identification notes before analyzing.'
-    return
-  }
-  emit('analyze')
-}
-
 function startDeepAnalysis() {
   deepRequirementError.value = ''
   if (!props.reverse) {
@@ -340,10 +323,6 @@ function startDeepAnalysis() {
 
 watch(() => props.reverse, (reverse) => {
   if (reverse) deepRequirementError.value = ''
-})
-
-watch(() => props.notes, (notes) => {
-  if (notes.trim()) notesRequirementError.value = ''
 })
 
 function stopCamera() {

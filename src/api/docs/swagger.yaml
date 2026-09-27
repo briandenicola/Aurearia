@@ -11294,11 +11294,10 @@ paths:
           type: string
         name: imageRoles
         type: array
-      - description: Collector-provided identification context (required, max 2000
+      - description: Optional collector-provided identification context (max 2000
           characters)
         in: formData
         name: notes
-        required: true
         type: string
       - description: Ask the AI for a rough, unverified price range
         in: formData

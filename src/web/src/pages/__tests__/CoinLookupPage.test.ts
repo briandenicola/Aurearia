@@ -53,17 +53,6 @@ function findAnalyzeButton(wrapper: ReturnType<typeof mount>) {
   )
 }
 
-// Notes are required for quick identification: the first Analyze click jumps
-// to the notes step, so type something and submit again.
-async function submitIdentification(wrapper: ReturnType<typeof mount>, notes = 'Silver, 3.2 g') {
-  const textarea = wrapper.find('textarea')
-  if (!textarea.exists() || !(textarea.element as HTMLTextAreaElement).value.trim()) {
-    await findAnalyzeButton(wrapper)!.trigger('click')
-    await wrapper.find('textarea').setValue(notes)
-  }
-  await findAnalyzeButton(wrapper)!.trigger('click')
-}
-
 // The results-state action row (Retake Photo / Cancel / Save as Draft) no longer
 // carries a `.result-actions` wrapper class after the Tailwind refactor — match by
 // the buttons' visible labels instead, preserving DOM order (Retake, Cancel, Save).
@@ -123,11 +112,11 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
     await flushPromises()
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(normalizeGalleryImage).toHaveBeenCalledWith(galleryFile)
-    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile], 'Silver, 3.2 g', ['obverse'], false)
+    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile], '', ['obverse'], false)
   })
 
   it('sends and saves typed notes and a supporting image without treating it as the reverse', async () => {
@@ -182,21 +171,6 @@ describe('CoinLookupPage', () => {
     }))
   })
 
-  it('does not call the lookup API until identification notes are entered', async () => {
-    const file = new File(['jpeg'], 'coin.jpg', { type: 'image/jpeg' })
-
-    const wrapper = mount(CoinLookupPage)
-    const input = wrapper.find('input[type="file"]')
-    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
-    await input.trigger('change')
-    await flushPromises()
-    await findAnalyzeButton(wrapper)!.trigger('click')
-    await flushPromises()
-
-    expect(lookupCoin).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Add a few identification notes before analyzing.')
-  })
-
   it('requests and shows an opt-in price range and carries it into the draft notes', async () => {
     const file = new File(['jpeg'], 'coin.jpg', { type: 'image/jpeg' })
     vi.mocked(lookupCoin).mockResolvedValue({
@@ -216,7 +190,8 @@ describe('CoinLookupPage', () => {
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
     await input.trigger('change')
     await flushPromises()
-    await findAnalyzeButton(wrapper)!.trigger('click')
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
     await wrapper.find('textarea').setValue('Silver, 3.2 g')
     await wrapper.find('input[type="checkbox"]').setValue(true)
     await findAnalyzeButton(wrapper)!.trigger('click')
@@ -251,7 +226,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
     await flushPromises()
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Invalid image upload')
@@ -369,7 +344,7 @@ describe('CoinLookupPage', () => {
 
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     // No NGC cert, so should show editable review form
@@ -444,7 +419,7 @@ describe('CoinLookupPage', () => {
     await input.trigger('change')
 
     expect(findAnalyzeButton(wrapper)?.text()).toBe('Analyze Photos')
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(findActionButtons(wrapper).map(button => button.text())).toContain('Save as Draft')
@@ -473,7 +448,7 @@ describe('CoinLookupPage', () => {
     expect(deepAnalysisButton).toBeTruthy()
 
     // Fast lookup submit continues to call lookupCoin only, never the deep-identification API.
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(lookupCoin).toHaveBeenCalledTimes(1)
@@ -638,7 +613,7 @@ describe('CoinLookupPage', () => {
     const input = wrapper.find('input[type="file"]')
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
     await input.trigger('change')
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('NGC Certification: 1234567001')
@@ -723,7 +698,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('AI Observations')
@@ -805,7 +780,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const nameInput = wrapper.find('input[type="text"]')
@@ -870,7 +845,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const nameInput = wrapper.find('input[type="text"]')
@@ -925,7 +900,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const cancel = wrapper.findAll('button').find(button => button.text().includes('Cancel'))
@@ -990,7 +965,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     // NGC path should keep the review form editable while preserving certification details.
@@ -1074,7 +1049,7 @@ describe('CoinLookupPage', () => {
     const input = wrapper.find('input[type="file"]')
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
     await input.trigger('change')
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(lookupNumista).not.toHaveBeenCalled()
@@ -1137,7 +1112,7 @@ describe('CoinLookupPage', () => {
     const input = wrapper.find('input[type="file"]')
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
     await input.trigger('change')
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(lookupNumista).not.toHaveBeenCalled()
@@ -1182,7 +1157,7 @@ describe('CoinLookupPage', () => {
       configurable: true,
     })
     await input.trigger('change')
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.card.min-w-0.overflow-hidden').exists()).toBe(true)
@@ -1240,7 +1215,7 @@ describe('CoinLookupPage', () => {
       })
       await input.trigger('change')
 
-      await submitIdentification(wrapper)
+      await findAnalyzeButton(wrapper)!.trigger('click')
       await flushPromises()
 
       const textInputs = wrapper.findAll('input[type="text"]')
@@ -1313,7 +1288,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await submitIdentification(wrapper)
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const links = wrapper.findAll('a').filter((link) => link.text().includes('View on Numista'))

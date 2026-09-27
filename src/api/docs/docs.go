@@ -6963,10 +6963,9 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Collector-provided identification context (required, max 2000 characters)",
+                        "description": "Optional collector-provided identification context (max 2000 characters)",
                         "name": "notes",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
                     },
                     {
                         "type": "boolean",

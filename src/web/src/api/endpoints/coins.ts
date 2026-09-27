@@ -265,7 +265,7 @@ export const enrichNumista = (request: NumistaEnrichmentRequest, signal?: AbortS
 // Coin Lookup
 export async function lookupCoin(
   images: File[],
-  notes: string,
+  notes = '',
   imageRoles: CoinLookupImageRole[] = [],
   includePriceEstimate = false,
 ) {
@@ -275,7 +275,9 @@ export async function lookupCoin(
     const role = imageRoles[index]
     if (role) formData.append('imageRoles', role)
   }
-  formData.append('notes', notes.trim())
+  if (notes.trim()) {
+    formData.append('notes', notes.trim())
+  }
   if (includePriceEstimate) {
     formData.append('includePriceEstimate', 'true')
   }

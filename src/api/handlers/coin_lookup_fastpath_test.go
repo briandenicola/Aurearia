@@ -166,43 +166,6 @@ func TestCoinLookupRejectsNotesOverCharacterLimit(t *testing.T) {
 	}
 }
 
-func TestCoinLookupRequiresNotes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	handler := NewCoinLookupHandler(nil, services.NewLogger(10))
-	router := gin.New()
-	router.POST("/api/coins/lookup", handler.Lookup)
-
-	for _, notes := range []string{"", "   "} {
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		part, err := writer.CreateFormFile("images", "coin.png")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := part.Write(deepTestPNGBytes(t)); err != nil {
-			t.Fatal(err)
-		}
-		if err := writer.WriteField("notes", notes); err != nil {
-			t.Fatal(err)
-		}
-		if err := writer.Close(); err != nil {
-			t.Fatal(err)
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/coins/lookup", &body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("notes %q: expected 400, got %d: %s", notes, rec.Code, rec.Body.String())
-		}
-		if !strings.Contains(rec.Body.String(), "Identification notes are required") {
-			t.Fatalf("notes %q: unexpected response: %s", notes, rec.Body.String())
-		}
-	}
-}
-
 func TestCoinLookupRejectsInvalidImageRoles(t *testing.T) {
 	for _, test := range []struct {
 		name      string

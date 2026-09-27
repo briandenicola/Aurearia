@@ -57,13 +57,12 @@
       <section class="capture-stage">
         <div v-if="showNotesField" class="stage-notes">
           <label>
-            <span class="sr-only">Identification notes (required)</span>
+            <span class="sr-only">Identification notes (optional)</span>
             <textarea
               class="form-input"
               :value="notes"
               maxlength="2000"
-              required
-              placeholder="Required: weight, diameter, provenance, visible text, suspected ruler&hellip;"
+              placeholder="Optional: weight, diameter, ruler (if known)&hellip; Leave blank to use photos only."
               @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             ></textarea>
           </label>
@@ -131,7 +130,7 @@
             type="button"
             class="stage-action"
             :disabled="submitting || preparingImage"
-            @click="requestAnalyze"
+            @click="$emit('analyze')"
           >
             <span v-if="busy" class="stage-action-spinner" aria-hidden="true"></span>
             {{ actionLabel }}
@@ -250,7 +249,6 @@ useImmersiveShellClaim()
 
 const step = ref(0)
 const deepRequirementError = ref('')
-const notesRequirementError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 
@@ -276,7 +274,7 @@ const steps = computed(() => [
     label: 'Details',
     navLabel: props.purpose === 'intake' ? 'Add coin card' : 'Add notes',
     title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
-    chip: props.purpose === 'intake' ? 'Card · optional' : 'Notes · required',
+    chip: props.purpose === 'intake' ? 'Card · optional' : 'Details · optional',
     hint: props.purpose === 'intake'
       ? 'Frame the coin card or label'
       : 'Capture a label, edge, or measurement',
@@ -288,7 +286,7 @@ const currentImage = computed(() => stepImage(currentStep.value.role))
 const showNotesField = computed(() => props.purpose === 'identify' && currentStep.value.role === 'notes')
 const showGuideRing = computed(() => currentStep.value.role !== 'notes')
 const busy = computed(() => props.submitting || props.preparingImage)
-const stageError = computed(() => notesRequirementError.value || deepRequirementError.value || props.uploadError)
+const stageError = computed(() => deepRequirementError.value || props.uploadError)
 
 const actionLabel = computed(() => {
   if (props.submitting) return 'Analyzing...'
@@ -378,16 +376,6 @@ function handleFileSelection(event: Event) {
   input.value = ''
 }
 
-function requestAnalyze() {
-  notesRequirementError.value = ''
-  if (props.purpose === 'identify' && !props.notes.trim()) {
-    step.value = 2
-    notesRequirementError.value = 'Add a few identification notes before analyzing.'
-    return
-  }
-  emit('analyze')
-}
-
 function startDeepAnalysis() {
   deepRequirementError.value = ''
   if (!props.reverse) {
@@ -400,10 +388,6 @@ function startDeepAnalysis() {
 
 watch(() => props.reverse, (reverse) => {
   if (reverse) deepRequirementError.value = ''
-})
-
-watch(() => props.notes, (notes) => {
-  if (notes.trim()) notesRequirementError.value = ''
 })
 
 function stopCamera() {

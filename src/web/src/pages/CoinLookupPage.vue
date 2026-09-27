@@ -469,7 +469,7 @@ function removeCapturedImage(role: CoinLookupImageRole) {
 }
 
 async function handleSubmit() {
-  if (!obverseImage.value || preparingImage.value || !captureNotes.value.trim()) return
+  if (!obverseImage.value || preparingImage.value) return
 
   submitting.value = true
   error.value = ''
