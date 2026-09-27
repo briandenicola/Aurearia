@@ -171,11 +171,20 @@ describe('Add Coin save workflow', () => {
     const wrapper = render()
     expect(wrapper.findComponent(CoinLookupCaptureWizard).exists()).toBe(false)
     expect(wrapper.text()).toContain('Save manual')
+    expect(wrapper.get('header.page-header').findAll('button').map(button => button.text()))
+      .toEqual(['Manual Mode', 'AI Assist Mode'])
 
     await click(wrapper, 'AI Assist Mode')
     expect(wrapper.getComponent(CoinLookupCaptureWizard).props('purpose')).toBe('intake')
     expect(wrapper.text()).toContain('Add the obverse')
+    expect(wrapper.text()).not.toContain('Use manual mode instead')
+
+    await click(wrapper, 'Manual Mode')
+    expect(wrapper.findComponent(CoinLookupCaptureWizard).exists()).toBe(false)
+    expect(wrapper.text()).toContain('Save manual')
     expect(mocks.draft).not.toHaveBeenCalled()
+    expect(mocks.commit).not.toHaveBeenCalled()
+    expect(mocks.add).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
