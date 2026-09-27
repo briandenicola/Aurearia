@@ -68,6 +68,40 @@ describe('CoinLookupCaptureWizard', () => {
     expect(wrapper.find('textarea').attributes('maxlength')).toBe('2000')
   })
 
+  it('keeps notes optional and explains what helps in the placeholder', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg') })
+
+    const analyze = wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))
+    await analyze?.trigger('click')
+    expect(wrapper.emitted('analyze')).toHaveLength(1)
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    const textarea = wrapper.get('textarea')
+    expect(textarea.attributes('required')).toBeUndefined()
+    expect(textarea.attributes('placeholder')).toContain('weight, diameter, or ruler (if known)')
+    expect(textarea.attributes('placeholder')).toContain('Leave blank')
+  })
+
+  it('offers an opt-in price range toggle on the identify notes step only', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg') })
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    const toggle = wrapper.get('input[type="checkbox"]')
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+    expect(wrapper.text()).toContain('Include an estimated price range')
+
+    await toggle.setValue(true)
+    expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
+
+    const intake = mountWizard({ obverse: image('obverse.jpg'), purpose: 'intake' })
+    await intake.find('[aria-label="Add reverse image"]').trigger('click')
+    await intake.find('[aria-label="Add coin card"]').trigger('click')
+    expect(intake.find('input[type="checkbox"]').exists()).toBe(false)
+  })
+
   it('hides each camera after that step has an image', async () => {
     const wrapper = mountWizard({
       obverse: image('obverse.jpg'),

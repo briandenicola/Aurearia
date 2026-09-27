@@ -15,6 +15,7 @@
     @deep-analyze="emit('deepAnalyze')"
     @manual="emit('manual')"
     @update:notes="value => emit('update:notes', value)"
+    @update:include-price-estimate="value => emit('update:includePriceEstimate', value)"
   />
 
   <section v-else class="capture-wizard" aria-labelledby="capture-wizard-title">
@@ -63,17 +64,32 @@
           </button>
         </div>
 
-        <label v-if="currentStep.role === 'notes' && purpose === 'identify'" class="form-group">
-          <span class="section-label">Identification notes</span>
-          <textarea
-            :value="notes"
-            class="form-input min-h-[120px] resize-y"
-            maxlength="2000"
-            placeholder="Add weight, diameter, provenance, visible text, suspected ruler, denomination, or anything else that may help."
-            @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
-          <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
-        </label>
+        <template v-if="currentStep.role === 'notes' && purpose === 'identify'">
+          <label class="form-group">
+            <span class="section-label">Identification notes (optional)</span>
+            <textarea
+              :value="notes"
+              class="form-input min-h-[120px] resize-y"
+              maxlength="2000"
+              placeholder="Optional: add anything you know that could help the AI, like weight, diameter, or ruler (if known). Leave blank and the AI will work from the photos alone."
+              @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
+            ></textarea>
+            <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
+          </label>
+
+          <label class="flex cursor-pointer items-start gap-2 text-small text-text-secondary">
+            <input
+              type="checkbox"
+              class="mt-1"
+              :checked="includePriceEstimate"
+              @change="$emit('update:includePriceEstimate', ($event.target as HTMLInputElement).checked)"
+            />
+            <span>
+              <span class="block text-text-primary">Include an estimated price range</span>
+              <span class="block text-tiny text-text-muted">Rough AI guess from general market knowledge, not live auction results.</span>
+            </span>
+          </label>
+        </template>
       </aside>
 
       <div class="capture-stage">
@@ -209,8 +225,11 @@ const props = withDefaults(defineProps<{
    */
   deepAnalysisDisabled?: boolean
   deepAnalysisDisabledTitle?: string
+  /** Identify only: ask the quick lookup for a rough price range. */
+  includePriceEstimate?: boolean
 }>(), {
   deepAnalysisEnabled: false,
+  includePriceEstimate: false,
   purpose: 'identify',
   deepAnalysisDisabled: false,
   deepAnalysisDisabledTitle: undefined,
@@ -225,6 +244,7 @@ const emit = defineEmits<{
   /** Intake only: leave assisted capture for the manual coin form. */
   manual: []
   'update:notes': [value: string]
+  'update:includePriceEstimate': [value: boolean]
 }>()
 
 const { isPwa } = usePwa()
@@ -256,7 +276,7 @@ const steps = computed(() => [
     title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
     description: props.purpose === 'intake'
       ? 'Optional. Photograph or upload a coin card or label. For a PDF card, use manual mode.'
-      : 'Provide any additional evidence that may help identify the coin.',
+      : 'Optional. Anything you know about the coin helps the AI; a supporting photo is optional too.',
     instruction: 'Capture a label, edge, measurement, or other detail',
   },
 ] as const)

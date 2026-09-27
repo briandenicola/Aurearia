@@ -117,6 +117,20 @@ describe('PwaCaptureShell', () => {
     intake.unmount()
   })
 
+  it('analyzes without notes and offers the price toggle on the details step', async () => {
+    const wrapper = render({ purpose: 'identify', obverse: photo })
+
+    await wrapper.get('.stage-action').trigger('click')
+    expect(wrapper.emitted('analyze')).toHaveLength(1)
+
+    await wrapper.get('[aria-label="Add notes"]').trigger('click')
+    expect(wrapper.text()).toContain('Details · optional')
+    expect(wrapper.get('textarea').attributes('placeholder')).toContain('Leave blank')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
+    wrapper.unmount()
+  })
+
   it('confirms before a tab switch or close would discard captured photos', async () => {
     const wrapper = render({ purpose: 'intake', obverse: photo })
 

@@ -263,7 +263,12 @@ export const enrichNumista = (request: NumistaEnrichmentRequest, signal?: AbortS
   api.post<NumistaLookupOutcome>('/numista/enrich', request, { signal })
 
 // Coin Lookup
-export async function lookupCoin(images: File[], notes = '', imageRoles: CoinLookupImageRole[] = []) {
+export async function lookupCoin(
+  images: File[],
+  notes = '',
+  imageRoles: CoinLookupImageRole[] = [],
+  includePriceEstimate = false,
+) {
   const formData = new FormData()
   for (const [index, image] of images.entries()) {
     formData.append('images', image)
@@ -272,6 +277,9 @@ export async function lookupCoin(images: File[], notes = '', imageRoles: CoinLoo
   }
   if (notes.trim()) {
     formData.append('notes', notes.trim())
+  }
+  if (includePriceEstimate) {
+    formData.append('includePriceEstimate', 'true')
   }
   return api.post<CoinLookupResponse>('/coins/lookup', formData)
 }

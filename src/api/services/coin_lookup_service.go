@@ -42,6 +42,17 @@ type CoinLookupRequest struct {
 	Images     []string `json:"images"` // Data URIs
 	ImageRoles []string `json:"imageRoles,omitempty"`
 	Notes      string   `json:"notes,omitempty"`
+	// IncludePriceEstimate asks the vision model for a rough price range.
+	IncludePriceEstimate bool `json:"includePriceEstimate,omitempty"`
+}
+
+// LookupPriceEstimate is the model's unverified price range for the coin. It
+// comes from the vision model's training data, not live market comparables.
+type LookupPriceEstimate struct {
+	Low      float64 `json:"low"`
+	High     float64 `json:"high"`
+	Currency string  `json:"currency"`
+	Basis    string  `json:"basis,omitempty"`
 }
 
 // LookupExtractedData represents extracted data from vision analysis.
@@ -81,6 +92,7 @@ type CoinLookupResponse struct {
 	NumistaLookup        *models.NumistaLookupOutcome `json:"numistaLookup"`
 	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
 	CandidateReferences  []CandidateReferenceProxy    `json:"candidateReferences,omitempty"`
+	PriceEstimate        *LookupPriceEstimate         `json:"priceEstimate,omitempty"`
 }
 
 var (
@@ -100,7 +112,7 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 	}
 
 	// 1. Vision analysis to extract NGC cert, label text, and coin fields
-	extractedData, err := s.extractDataFromImages(ctx, req.Images, req.ImageRoles, req.Notes)
+	extractedData, err := s.extractDataFromImages(ctx, req.Images, req.ImageRoles, req.Notes, req.IncludePriceEstimate)
 	if err != nil {
 		logger.Error("coin-lookup", "Vision analysis failed: %v", err)
 		return nil, fmt.Errorf("vision analysis failed: %w", err)
@@ -122,6 +134,11 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 	// 4. Deprecated aliases retain NGC compatibility but never expose unselected Numista results.
 	candidateReferences := s.buildCandidateReferences(extractedData, nil)
 
+	var priceEstimate *LookupPriceEstimate
+	if req.IncludePriceEstimate {
+		priceEstimate = extractPriceEstimate(extractedData.RawAnalysis)
+	}
+
 	return &CoinLookupResponse{
 		ExtractedData:        *extractedData,
 		NumistaCandidates:    numistaCandidates,
@@ -130,11 +147,12 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 		NumistaLookup:        nil,
 		PrefilledDraft:       prefilledDraft,
 		CandidateReferences:  candidateReferences,
+		PriceEstimate:        priceEstimate,
 	}, nil
 }
 
 // extractDataFromImages uses vision analysis to extract NGC cert, label text, and coin fields.
-func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images, imageRoles []string, notes string) (*LookupExtractedData, error) {
+func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images, imageRoles []string, notes string, includePriceEstimate bool) (*LookupExtractedData, error) {
 	logger := s.logger
 
 	// Resolve LLM config
@@ -144,7 +162,7 @@ func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images, i
 	}
 
 	// Build vision analysis prompt
-	prompt := s.buildVisionPrompt(imageRoles)
+	prompt := s.buildVisionPrompt(imageRoles, includePriceEstimate)
 
 	// Call agent proxy for vision analysis
 	formatOutput := false
@@ -202,7 +220,7 @@ func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images, i
 }
 
 // buildVisionPrompt creates a specialized prompt for quick coin lookup vision analysis.
-func (s *CoinLookupService) buildVisionPrompt(imageRoles []string) string {
+func (s *CoinLookupService) buildVisionPrompt(imageRoles []string, includePriceEstimate bool) string {
 	prompt := `You are analyzing a coin or coin slab photo for a quick capture draft. Be fast and conservative. Extract only details visible or strongly inferable from the image.
 
 1. NGC Certification: If this is an NGC slab/holder or the image shows an NGC certification number, extract the NGC certification number (format: XXXXXXX-XXX, e.g., 823160-093 or 1234567-001). Also extract the grade (e.g., "Ch AU", "NGC AU", etc.) and any description text on the label.
@@ -247,6 +265,9 @@ Return your response in this EXACT JSON format (no markdown, no extra text):
 }
 
 Be precise. If uncertain, use null. Do not include long history, market analysis, catalog references, or broad commentary. Prefer NGC cert extraction when a slab/cert is present; otherwise return the smallest useful draft.`
+	if includePriceEstimate {
+		prompt += priceEstimatePromptSection
+	}
 	if len(imageRoles) == 0 {
 		return prompt
 	}
@@ -256,6 +277,39 @@ Be precise. If uncertain, use null. Do not include long history, market analysis
 		roles = append(roles, fmt.Sprintf("image %d is %s", index+1, role))
 	}
 	return prompt + "\n\nImage roles: " + strings.Join(roles, "; ") + "."
+}
+
+// priceEstimatePromptSection is appended only when the collector opts in. It
+// overrides the base prompt's "no market analysis" rule for these fields only.
+const priceEstimatePromptSection = `
+
+Price estimate (the collector explicitly requested this): add these fields to the same JSON object:
+  "priceEstimateLow": number or null,
+  "priceEstimateHigh": number or null,
+  "priceEstimateCurrency": "USD",
+  "priceEstimateBasis": "one short sentence on what drives the range (type, grade, rarity) or null"
+Give a typical retail range in USD for this type in the apparent grade, based on your general knowledge of the market. Use null for both numbers if you cannot identify the coin well enough to price it. Do not claim to have checked current listings or auction results.`
+
+// extractPriceEstimate parses the optional price range from the vision JSON.
+// It returns nil unless both bounds are positive and ordered.
+func extractPriceEstimate(analysis string) *LookupPriceEstimate {
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(analysis), &parsed); err != nil {
+		return nil
+	}
+	low, lowOK := parsed["priceEstimateLow"].(float64)
+	high, highOK := parsed["priceEstimateHigh"].(float64)
+	if !lowOK || !highOK || low <= 0 || high < low {
+		return nil
+	}
+	estimate := &LookupPriceEstimate{Low: low, High: high, Currency: "USD"}
+	if currency, ok := parsed["priceEstimateCurrency"].(string); ok && len(strings.TrimSpace(currency)) == 3 {
+		estimate.Currency = strings.ToUpper(strings.TrimSpace(currency))
+	}
+	if basis, ok := parsed["priceEstimateBasis"].(string); ok {
+		estimate.Basis = boundedEvidenceField(basis, 300)
+	}
+	return estimate
 }
 
 // extractNGCCert parses NGC certification data from analysis text.
