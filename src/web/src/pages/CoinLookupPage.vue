@@ -18,6 +18,7 @@
           :reverse="reverseImage"
           :notes-image="notesImage"
           :notes="captureNotes"
+          :include-price-estimate="includePriceEstimate"
           :submitting="submitting"
           :preparing-image="preparingImage"
           :upload-error="uploadError"
@@ -28,6 +29,7 @@
           @selected="handleGallerySelection"
           @remove="removeCapturedImage"
           @update:notes="captureNotes = $event"
+          @update:include-price-estimate="includePriceEstimate = $event"
           @analyze="handleSubmit"
           @deep-analyze="showDeepAnalysisModal = true"
         />
@@ -184,6 +186,14 @@
             </div>
           </form>
 
+          <section v-if="results.priceEstimate" class="card min-w-0 overflow-hidden" aria-labelledby="lookup-price-estimate-title">
+            <h3 id="lookup-price-estimate-title" class="section-label mb-2 block">Estimated Price Range</h3>
+            <p class="text-lg text-gold">{{ priceEstimateText }}</p>
+            <p v-if="results.priceEstimate.basis" class="mt-1 text-body leading-6 text-text-secondary">{{ results.priceEstimate.basis }}</p>
+            <p class="mt-2 text-tiny text-text-muted">AI estimate from general market knowledge, not live auction or dealer data. Use Estimate Value on a saved coin for a comparables-based figure.</p>
+          </section>
+          <p v-else-if="requestedPriceEstimate" class="text-small text-text-muted">The AI could not identify this coin confidently enough to suggest a price range.</p>
+
           <div v-if="ngcCertNumber" class="card min-w-0 overflow-hidden">
             <button
               type="button"
@@ -276,6 +286,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, getApiErrorMessage, lookupCoin } from '@/api/client'
 import type { CoinLookupImageRole, CoinLookupResponse, CoinMutationPayload, CreateDeepIdentificationJobInput, NumistaCandidate, NumistaEvidence } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
+import { formatCurrency } from '@/utils/format'
 import { appendUniqueObservation, deriveAiObservations, normalizedEra, normalizeLookupDraft } from '@/utils/coinLookupDraft'
 import {
   X,
@@ -313,6 +324,9 @@ const state = ref<LookupState>('capture')
 const capturedImages = ref<CapturedImage[]>([])
 const captureWizard = ref<InstanceType<typeof CoinLookupCaptureWizard> | null>(null)
 const captureNotes = ref('')
+const includePriceEstimate = ref(false)
+/** Snapshot of the opt-in at submit time, so the results copy matches the request. */
+const requestedPriceEstimate = ref(false)
 const submitting = ref(false)
 const preparingImage = ref(false)
 const saving = ref(false)
@@ -379,6 +393,11 @@ const hasPhotoNumistaProposalContract = computed(() => {
 })
 const photoNumistaEvidence = computed<NumistaEvidence>(() => results.value?.numistaEvidence ?? {})
 const renderedAiObservations = computed(() => renderSafeMarkdown(aiObservations.value))
+const priceEstimateText = computed(() => {
+  const estimate = results.value?.priceEstimate
+  if (!estimate) return ''
+  return `${formatCurrency(estimate.low, estimate.currency)} – ${formatCurrency(estimate.high, estimate.currency)}`
+})
 
 async function toggleNgcNumista() {
   ngcNumistaExpanded.value = !ngcNumistaExpanded.value
@@ -450,10 +469,11 @@ function removeCapturedImage(role: CoinLookupImageRole) {
 }
 
 async function handleSubmit() {
-  if (!obverseImage.value || preparingImage.value) return
+  if (!obverseImage.value || preparingImage.value || !captureNotes.value.trim()) return
 
   submitting.value = true
   error.value = ''
+  requestedPriceEstimate.value = includePriceEstimate.value
   state.value = 'analyzing'
   captureWizard.value?.stopCamera()
 
@@ -464,6 +484,7 @@ async function handleSubmit() {
       selectedImages.map(image => image.file),
       captureNotes.value,
       selectedImages.map(image => image.role),
+      includePriceEstimate.value,
     )
     const normalizedDraft = normalizeLookupDraft(lookup.data)
     results.value = lookup.data
@@ -513,6 +534,9 @@ function handleCancel() {
 function buildDraftNotes() {
   const parts: string[] = []
   appendUniqueObservation(parts, captureNotes.value, 'Collector notes')
+  if (priceEstimateText.value) {
+    appendUniqueObservation(parts, `${priceEstimateText.value} (unverified AI estimate)`, 'AI price range')
+  }
   const extractedFields = [
     reviewForm.ruler ? `Ruler: ${reviewForm.ruler}` : '',
     reviewForm.denomination ? `Denomination: ${reviewForm.denomination}` : '',

@@ -158,7 +158,11 @@ describe('Numista status workflow retention', () => {
     const fileInput = wrapper.find('input[type="file"]')
     Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
     await fileInput.trigger('change')
-    await wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))!.trigger('click')
+    const analyze = () => wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))!
+    // Notes are required: the first click opens the notes step.
+    await analyze().trigger('click')
+    await wrapper.find('textarea').setValue('Silver, 3.2 g')
+    await analyze().trigger('click')
     await flushPromises()
 
     const query = wrapper.find('#numista-query')

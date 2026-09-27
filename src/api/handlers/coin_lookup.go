@@ -30,7 +30,8 @@ func NewCoinLookupHandler(service *services.CoinLookupService, logger *services.
 //	@Produce		json
 //	@Param			images	formData	file	true	"Coin or slab images (use multiple files)"
 //	@Param			imageRoles	formData	[]string	false	"Semantic role for each image: obverse, reverse, or notes"	collectionFormat(multi)
-//	@Param			notes	formData	string	false	"Collector-provided identification context (max 2000 characters)"
+//	@Param			notes	formData	string	true	"Collector-provided identification context (required, max 2000 characters)"
+//	@Param			includePriceEstimate	formData	bool	false	"Ask the AI for a rough, unverified price range"
 //	@Success		200	{object}	CoinLookupSwaggerResponse
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		401	{object}	ErrorResponse
@@ -79,6 +80,10 @@ func (h *CoinLookupHandler) Lookup(c *gin.Context) {
 	}
 
 	notes := strings.TrimSpace(c.PostForm("notes"))
+	if notes == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Identification notes are required"})
+		return
+	}
 	if utf8.RuneCountInString(notes) > 2000 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Notes must be 2000 characters or fewer"})
 		return
@@ -87,9 +92,10 @@ func (h *CoinLookupHandler) Lookup(c *gin.Context) {
 	logger.Info("coin-lookup-handler", "Processing %d images for lookup", len(images))
 
 	result, err := h.service.Lookup(c.Request.Context(), userID, services.CoinLookupRequest{
-		Images:     images,
-		ImageRoles: imageRoles,
-		Notes:      notes,
+		Images:               images,
+		ImageRoles:           imageRoles,
+		Notes:                notes,
+		IncludePriceEstimate: c.PostForm("includePriceEstimate") == "true",
 	})
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "Coin lookup failed", err)

@@ -117,6 +117,31 @@ describe('PwaCaptureShell', () => {
     intake.unmount()
   })
 
+  it('sends identify back to the notes step until notes are entered', async () => {
+    const wrapper = render({ purpose: 'identify', obverse: photo })
+
+    await wrapper.get('.stage-action').trigger('click')
+    expect(wrapper.emitted('analyze')).toBeUndefined()
+    expect(wrapper.find('textarea').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Notes · required')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Add a few identification notes')
+
+    await wrapper.setProps({ notes: 'Bronze, 20mm' })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    await wrapper.get('.stage-action').trigger('click')
+    expect(wrapper.emitted('analyze')).toHaveLength(1)
+
+    const toggle = wrapper.get('input[type="checkbox"]')
+    await toggle.setValue(true)
+    expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
+    wrapper.unmount()
+
+    const intake = render({ purpose: 'intake', obverse: photo })
+    await intake.get('.stage-action').trigger('click')
+    expect(intake.emitted('analyze')).toHaveLength(1)
+    intake.unmount()
+  })
+
   it('confirms before a tab switch or close would discard captured photos', async () => {
     const wrapper = render({ purpose: 'intake', obverse: photo })
 

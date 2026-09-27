@@ -48,7 +48,7 @@ describe('CoinLookupCaptureWizard', () => {
   })
 
   it('offers immediate analysis and compact progression after the obverse', async () => {
-    const wrapper = mountWizard({ obverse: image('obverse.jpg') })
+    const wrapper = mountWizard({ obverse: image('obverse.jpg'), notes: 'Silver, 3.2 g' })
 
     expect(wrapper.find('.camera-stub').exists()).toBe(false)
     const analyze = wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))
@@ -66,6 +66,50 @@ describe('CoinLookupCaptureWizard', () => {
     expect(wrapper.text()).toContain('Add supporting evidence')
     expect(wrapper.find('textarea').exists()).toBe(true)
     expect(wrapper.find('textarea').attributes('maxlength')).toBe('2000')
+  })
+
+  it('requires identification notes before emitting analyze', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg'), notes: '   ' })
+
+    const analyze = wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))
+    await analyze?.trigger('click')
+
+    expect(wrapper.emitted('analyze')).toBeUndefined()
+    expect(wrapper.text()).toContain('Step 3 of 3')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Add a few identification notes before analyzing.')
+
+    await wrapper.setProps({ notes: 'Found in a dealer tray' })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    await analyze?.trigger('click')
+    expect(wrapper.emitted('analyze')).toHaveLength(1)
+  })
+
+  it('does not require notes for intake', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg'), purpose: 'intake' })
+
+    const analyze = wrapper.findAll('button').find(button => button.text().includes('Generate Intake Draft'))
+    await analyze?.trigger('click')
+
+    expect(wrapper.emitted('analyze')).toHaveLength(1)
+  })
+
+  it('offers an opt-in price range toggle on the identify notes step only', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg') })
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    const toggle = wrapper.get('input[type="checkbox"]')
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+    expect(wrapper.text()).toContain('Include an estimated price range')
+
+    await toggle.setValue(true)
+    expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
+
+    const intake = mountWizard({ obverse: image('obverse.jpg'), purpose: 'intake' })
+    await intake.find('[aria-label="Add reverse image"]').trigger('click')
+    await intake.find('[aria-label="Add coin card"]').trigger('click')
+    expect(intake.find('input[type="checkbox"]').exists()).toBe(false)
   })
 
   it('hides each camera after that step has an image', async () => {

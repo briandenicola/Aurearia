@@ -55,17 +55,30 @@
       </ol>
 
       <section class="capture-stage">
-        <label v-if="showNotesField" class="stage-notes">
-          <span class="sr-only">Identification notes</span>
-          <textarea
-            class="form-input"
-            :value="notes"
-            maxlength="2000"
-            placeholder="Weight, diameter, provenance, visible text, suspected ruler&hellip;"
-            @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
-          <span class="stage-notes-count">{{ notes.length }} / 2000</span>
-        </label>
+        <div v-if="showNotesField" class="stage-notes">
+          <label>
+            <span class="sr-only">Identification notes (required)</span>
+            <textarea
+              class="form-input"
+              :value="notes"
+              maxlength="2000"
+              required
+              placeholder="Required: weight, diameter, provenance, visible text, suspected ruler&hellip;"
+              @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
+            ></textarea>
+          </label>
+          <div class="stage-notes-row">
+            <label class="stage-price-toggle">
+              <input
+                type="checkbox"
+                :checked="includePriceEstimate"
+                @change="$emit('update:includePriceEstimate', ($event.target as HTMLInputElement).checked)"
+              />
+              <span>Include rough price range</span>
+            </label>
+            <span class="stage-notes-count">{{ notes.length }} / 2000</span>
+          </div>
+        </div>
 
         <div class="stage-view">
           <img
@@ -118,7 +131,7 @@
             type="button"
             class="stage-action"
             :disabled="submitting || preparingImage"
-            @click="$emit('analyze')"
+            @click="requestAnalyze"
           >
             <span v-if="busy" class="stage-action-spinner" aria-hidden="true"></span>
             {{ actionLabel }}
@@ -211,8 +224,10 @@ const props = withDefaults(defineProps<{
   purpose?: 'identify' | 'intake'
   deepAnalysisDisabled?: boolean
   deepAnalysisDisabledTitle?: string
+  includePriceEstimate?: boolean
 }>(), {
   deepAnalysisEnabled: false,
+  includePriceEstimate: false,
   purpose: 'identify',
   deepAnalysisDisabled: false,
   deepAnalysisDisabledTitle: undefined,
@@ -226,6 +241,7 @@ const emit = defineEmits<{
   deepAnalyze: []
   manual: []
   'update:notes': [value: string]
+  'update:includePriceEstimate': [value: boolean]
 }>()
 
 const router = useRouter()
@@ -234,6 +250,7 @@ useImmersiveShellClaim()
 
 const step = ref(0)
 const deepRequirementError = ref('')
+const notesRequirementError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 
@@ -259,7 +276,7 @@ const steps = computed(() => [
     label: 'Details',
     navLabel: props.purpose === 'intake' ? 'Add coin card' : 'Add notes',
     title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
-    chip: props.purpose === 'intake' ? 'Card · optional' : 'Details · optional',
+    chip: props.purpose === 'intake' ? 'Card · optional' : 'Notes · required',
     hint: props.purpose === 'intake'
       ? 'Frame the coin card or label'
       : 'Capture a label, edge, or measurement',
@@ -271,7 +288,7 @@ const currentImage = computed(() => stepImage(currentStep.value.role))
 const showNotesField = computed(() => props.purpose === 'identify' && currentStep.value.role === 'notes')
 const showGuideRing = computed(() => currentStep.value.role !== 'notes')
 const busy = computed(() => props.submitting || props.preparingImage)
-const stageError = computed(() => deepRequirementError.value || props.uploadError)
+const stageError = computed(() => notesRequirementError.value || deepRequirementError.value || props.uploadError)
 
 const actionLabel = computed(() => {
   if (props.submitting) return 'Analyzing...'
@@ -361,6 +378,16 @@ function handleFileSelection(event: Event) {
   input.value = ''
 }
 
+function requestAnalyze() {
+  notesRequirementError.value = ''
+  if (props.purpose === 'identify' && !props.notes.trim()) {
+    step.value = 2
+    notesRequirementError.value = 'Add a few identification notes before analyzing.'
+    return
+  }
+  emit('analyze')
+}
+
 function startDeepAnalysis() {
   deepRequirementError.value = ''
   if (!props.reverse) {
@@ -373,6 +400,10 @@ function startDeepAnalysis() {
 
 watch(() => props.reverse, (reverse) => {
   if (reverse) deepRequirementError.value = ''
+})
+
+watch(() => props.notes, (notes) => {
+  if (notes.trim()) notesRequirementError.value = ''
 })
 
 function stopCamera() {
@@ -702,13 +733,30 @@ defineExpose({ stopCamera })
 }
 
 .stage-notes textarea {
+  width: 100%;
   height: 116px;
   font-size: 13px;
   resize: none;
 }
 
+.stage-notes-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stage-price-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 .stage-notes-count {
-  justify-self: end;
   font-size: 10px;
   color: var(--text-secondary);
 }
