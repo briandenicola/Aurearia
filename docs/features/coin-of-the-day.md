@@ -10,7 +10,7 @@ Coin of the Day surfaces a featured coin each day, helping you rediscover coins 
 
 ### Daily Selection
 - **Automated Scheduler** — Picks one coin per day from your collection
-- **Configurable Time** — Set when daily selection occurs (default: morning)
+- **Configurable Time and Time Zone** — Set when daily selection occurs and in which time zone (default: 07:00 server time)
 - **Cycling Algorithm** — Cycles through every owned, non-wishlist, non-sold coin once before repeating
 - **Idempotent** — Safe across process restarts on same day
 
@@ -75,7 +75,8 @@ LIMIT 1
 **Admin → Coin of the Day:**
 
 - **Enable/Disable** — Toggle feature on/off globally
-- **Daily Execution Time** — When to run scheduler (default: 06:00 AM)
+- **Daily Execution Time** — When to run scheduler (default: 07:00)
+- **Time Zone** — IANA zone the execution time is read in (for example `America/Chicago`); blank means server time, which is UTC in the default Docker image. Daylight saving is handled, and changes apply within a minute of saving without a restart
 - **Manual Trigger** — Button to run immediately
 - **Run History** — View past runs:
   - Timestamp
@@ -90,8 +91,9 @@ LIMIT 1
 
 | Setting | Default | Description |
 |---------|---------|---|
-| `CoinOfDayEnabled` | true | Feature enabled/disabled |
-| `CoinOfDayStartTime` | "06:00" | Daily execution time (24h format) |
+| `CoinOfDayEnabled` | "false" | Feature enabled/disabled |
+| `CoinOfDayStartTime` | "07:00" | Daily execution time (24h format) |
+| `CoinOfDayTimezone` | "" | IANA time zone for `CoinOfDayStartTime`; empty uses server local time. Unknown zones are rejected on save |
 
 ### Environment Variables
 
