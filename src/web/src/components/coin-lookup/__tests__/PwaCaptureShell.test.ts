@@ -124,8 +124,12 @@ describe('PwaCaptureShell', () => {
     expect(wrapper.emitted('analyze')).toHaveLength(1)
 
     await wrapper.get('[aria-label="Add notes"]').trigger('click')
-    expect(wrapper.text()).toContain('Details · optional')
+    expect(wrapper.text()).toContain('Notes are optional')
     expect(wrapper.get('textarea').attributes('placeholder')).toContain('Leave blank')
+    expect(wrapper.find('.camera-stub').isVisible()).toBe(false)
+    expect(wrapper.find('.shutter').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Choose from library"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('rough price')
     await wrapper.get('input[type="checkbox"]').setValue(true)
     expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
     wrapper.unmount()
