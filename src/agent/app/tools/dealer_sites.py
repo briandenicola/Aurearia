@@ -173,8 +173,10 @@ def parse_mashops_results(page: str, base_url: str = MASHOPS_SEARCH_URL) -> list
     """
     listings: list[SiteListing] = []
     for row in re.findall(r"<TR><TD class='spxThumbTd'.*?</TR>", page, re.S | re.I):
-        # A "New!" badge span can precede the title link.
-        title = re.search(r'spx-title">(?:\s*<span[^>]*>.*?</span>)*\s*<A HREF="([^"]+)">(.*?)</A>', row, re.S | re.I)
+        # Take the title cell first, then its first link: a "New!" badge span can
+        # precede the link. Two linear searches avoid a nested, backtracking pattern.
+        title_cell = re.search(r'spx-title">(.*?)</TD>', row, re.S | re.I)
+        title = re.search(r'<A HREF="([^"]+)">(.*?)</A>', title_cell.group(1), re.S | re.I) if title_cell else None
         if not title:
             continue
         cell = re.search(r'spx-price[^>]*>(.*?)</TD>', row, re.S | re.I)

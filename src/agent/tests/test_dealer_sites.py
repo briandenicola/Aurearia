@@ -9,6 +9,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -54,15 +55,16 @@ class FixtureDealerHttp:
 
     async def get_text(self, url: str, params: dict[str, str]) -> str:
         self.gets.append((url, dict(params)))
-        if "vcoins.com" in url:
+        host = urlsplit(url).hostname
+        if host == "www.vcoins.com":
             return fixture_text("vcoins_search_caligula.html")
-        if "ma-shops.com" in url:
+        if host == "www.ma-shops.com":
             return fixture_text("mashops_search_caligula.html")
         raise AssertionError(f"unexpected GET {url}")
 
     async def post_json(self, url: str, body: dict[str, Any]) -> Any:
         self.posts.append((url, dict(body)))
-        assert "hjbltd.com" in url
+        assert urlsplit(url).hostname == "www.hjbltd.com"
         return self.hjb_payload
 
 
