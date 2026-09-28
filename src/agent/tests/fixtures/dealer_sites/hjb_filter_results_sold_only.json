@@ -1,0 +1,60 @@
+{
+ "status": "ok",
+ "data": {
+  "totalItemsCount": 2,
+  "items": [
+   {
+    "InventoryGroup": "cc",
+    "InventoryNumber": 118011,
+    "Title": "Caligula. Sestertius",
+    "EscapedTitle": "Caligula. Sestertius",
+    "Image": "https://images.hjbltd.com/ancient-coins/cc118011a.jpg",
+    "Images": [
+     "https://images.hjbltd.com/ancient-coins/cc118011.jpg",
+     "https://images.hjbltd.com/ancient-coins/cc118011a.jpg",
+     "https://images.hjbltd.com/ancient-coins/cc118011b.jpg"
+    ],
+    "Quantity": 0,
+    "Price": 750,
+    "Reserve": 500,
+    "LotNumber": 567,
+    "PointOfSale": "Buy Or Bid Sale",
+    "PointOfSaleID": 2,
+    "isSelect": false,
+    "isMobility": false,
+    "isBuyOrBid": true,
+    "isCurrentBBS": "1",
+    "VideoUrl": "https://player.vimeo.com/video/1202247841",
+    "VideoOnly": 0,
+    "ImageA": "https://images.hjbltd.com/ancient-coins/cc118011a.jpg",
+    "ImageB": "https://images.hjbltd.com/ancient-coins/cc118011b.jpg"
+   },
+   {
+    "InventoryGroup": "cc",
+    "InventoryNumber": 117743,
+    "Title": "Caligula. AE 19-20",
+    "EscapedTitle": "Caligula. AE 19-20",
+    "Image": "https://images.hjbltd.com/ancient-coins/cc117743a.jpg",
+    "Images": [
+     "https://images.hjbltd.com/ancient-coins/cc117743.jpg",
+     "https://images.hjbltd.com/ancient-coins/cc117743a.jpg",
+     "https://images.hjbltd.com/ancient-coins/cc117743b.jpg"
+    ],
+    "Quantity": 0,
+    "Price": 975,
+    "Reserve": 325,
+    "LotNumber": 635,
+    "PointOfSale": "Buy Or Bid Sale",
+    "PointOfSaleID": 2,
+    "isSelect": false,
+    "isMobility": false,
+    "isBuyOrBid": true,
+    "isCurrentBBS": "1",
+    "VideoUrl": "https://player.vimeo.com/video/1202249802",
+    "VideoOnly": 0,
+    "ImageA": "https://images.hjbltd.com/ancient-coins/cc117743a.jpg",
+    "ImageB": "https://images.hjbltd.com/ancient-coins/cc117743b.jpg"
+   }
+  ]
+ }
+}

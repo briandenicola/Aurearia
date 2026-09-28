@@ -220,7 +220,10 @@ def canonical_source_identity(url: str) -> str:
     host = (parsed.hostname or "").rstrip(".").lower()
     port = parsed.port
     netloc = host if port in {None, 443} else f"{host}:{port}"
-    return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, ""))
+    # A "#!" fragment is a hash-routed page address (e.g. HJB item pages), not
+    # an in-page anchor, so it has to stay part of the identity.
+    fragment = parsed.fragment if parsed.fragment.startswith("!") else ""
+    return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, fragment))
 
 
 def validate_registered_source_url(
@@ -242,6 +245,19 @@ def validate_registered_source_url(
 class SpecialistQuery(StrictSpecialistModel):
     query: Annotated[str, StringConstraints(min_length=1, max_length=500)]
     limit: int = Field(default=5, ge=1, le=MAX_ITEMS)
+
+
+class MarketSearchQuery(SpecialistQuery):
+    """Dealer search input; the optional fields are parsed from query when omitted."""
+
+    search_terms: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = Field(
+        default=None,
+        description="Keywords for dealer search boxes, e.g. 'Caligula' or 'Athens tetradrachm'.",
+    )
+    max_price: Decimal | None = Field(
+        default=None, gt=0, description="Highest acceptable listed price, e.g. 500 for 'under $500'."
+    )
+    currency: Currency | None = Field(default=None, description="ISO currency of max_price, e.g. USD.")
 
 
 class ProviderAttempt(StrictSpecialistModel):
@@ -460,6 +476,10 @@ def _parse_currency(value: object) -> str | None:
     for token in ("USD", "EUR", "GBP", "CHF"):
         if token in text:
             return token
+    if "€" in text:
+        return "EUR"
+    if "£" in text:
+        return "GBP"
     if "$" in text:
         return "USD"
     return None
@@ -699,6 +719,19 @@ def _deduplicate_items(items: Sequence[EvidenceItem]) -> tuple[list[EvidenceItem
         merged[item.canonical_source_id] = _merge_duplicate(existing, item)
         warnings.append("Conflicting duplicate observations of one source were merged.")
     return list(merged.values()), warnings[:1]
+
+
+def _interleave_by_provider(items: Sequence[EvidenceItem]) -> list[EvidenceItem]:
+    """Round-robin items across providers, keeping each provider's own order."""
+    queues: dict[str, list[EvidenceItem]] = {}
+    for item in items:
+        queues.setdefault(item.provider, []).append(item)
+    ordered: list[EvidenceItem] = []
+    while any(queues.values()):
+        for queue in queues.values():
+            if queue:
+                ordered.append(queue.pop(0))
+    return ordered
 
 
 def _sale_strength(item: SaleObservation) -> tuple[int, int]:
@@ -1019,6 +1052,9 @@ async def run_provider_search(
 
     deduplicated, duplicate_warnings = _deduplicate_items(accepted)
     warnings.extend(duplicate_warnings)
+    if capability == "market_search":
+        # Each dealer contributes in turn so the first source can't fill the limit alone.
+        deduplicated = _interleave_by_provider(deduplicated)
     limit = min(parsed_query.limit, MAX_ITEMS)
     items = deduplicated[:limit]
     degraded = any(attempt.status in _DEGRADED_PROVIDER_STATUSES for attempt in attempts)
