@@ -22,7 +22,7 @@ from app.models.responses import (
     validate_deep_analysis_handoff_persisted_result_envelope,
 )
 from app.outbound import validate_outbound_url
-from app.teams.specialist_contracts import SpecialistQuery, SpecialistResult
+from app.teams.specialist_contracts import MarketSearchQuery, SpecialistQuery, SpecialistResult
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ ARG_MODELS: dict[str, type[BaseModel]] = {
     "top_coins_by_value": TopCoinsByValueArgs,
     "portfolio_review": PortfolioReviewArgs,
     "gap_analysis": GapAnalysisArgs,
-    "market_search": SpecialistQuery,
+    "market_search": MarketSearchQuery,
     "auction_search": SpecialistQuery,
     "price_trends": SpecialistQuery,
     "similar_lots": SpecialistQuery,
@@ -435,12 +435,17 @@ def build_copilot_tool_definitions(
         "market_search": (
             "Search the administrator-configured dealer sources for current listings. "
             "Use for requests to find coins for sale or to buy, "
-            "without requiring collection ownership or additional confirmation."
+            "without requiring collection ownership or additional confirmation. "
+            "Pass query as the owner's request; also pass search_terms as short dealer-search keywords "
+            "(for example 'Caligula' or 'Athens tetradrachm') and, when the owner states a budget, "
+            "max_price with its ISO currency (for example 500 and USD for 'under $500'). "
+            "Leave limit unset for the default of 5 listings; use up to 10 only when the owner asks for more."
         ),
         "auction_search": (
             "Search the administrator-configured auction sources for relevant lots. "
             "Use for explicit auction searches, "
-            "without requiring collection ownership or additional confirmation."
+            "without requiring collection ownership or additional confirmation. "
+            "Leave limit unset for the default of 5 lots; use up to 10 only when the owner asks for more."
         ),
         "price_trends": "Analyze source-backed completed-sale observations.",
         "similar_lots": "Find and rank source-backed similar auction lots.",

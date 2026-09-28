@@ -209,6 +209,9 @@ async def test_shopping_policy_reaches_model_with_unmodified_natural_language(go
     assert "use auction_search for an explicit auction request" in prompt
     assert "Do not ask for permission to perform an already-requested read-only search" in prompt
     assert "Budget, denomination, and condition are optional filters, not prerequisites" in prompt
+    assert "return 5 listings by default" in prompt
+    assert "never request more than 10" in prompt
+    assert "say how many more matched and offer to show more, up to 10 in total" in prompt
     assert "Correct prior assistant claims that shopping is outside your scope" in prompt
     assert "Never call or propose generic web browsing, write, approval" in prompt
     assert [(message.type, message.content) for message in messages[1:]] == [

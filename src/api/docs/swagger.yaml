@@ -352,6 +352,8 @@ definitions:
       prefilledDraft:
         additionalProperties: {}
         type: object
+      priceEstimate:
+        $ref: '#/definitions/handlers.LookupPriceEstimateSwagger'
       proposedNumistaQuery:
         type: string
     type: object
@@ -862,6 +864,21 @@ definitions:
       rawAnalysis:
         example: Vision analysis text...
         type: string
+    type: object
+  handlers.LookupPriceEstimateSwagger:
+    properties:
+      basis:
+        example: Common type in VF
+        type: string
+      currency:
+        example: USD
+        type: string
+      high:
+        example: 250
+        type: number
+      low:
+        example: 120
+        type: number
     type: object
   handlers.MatchCategoryEraRequest:
     properties:
@@ -11277,10 +11294,15 @@ paths:
           type: string
         name: imageRoles
         type: array
-      - description: Collector-provided identification context (max 2000 characters)
+      - description: Optional collector-provided identification context (max 2000
+          characters)
         in: formData
         name: notes
         type: string
+      - description: Ask the AI for a rough, unverified price range
+        in: formData
+        name: includePriceEstimate
+        type: boolean
       produces:
       - application/json
       responses:

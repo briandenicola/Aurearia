@@ -38,6 +38,9 @@ const (
 	coinOfDayRunQueueSize  = 100
 	coinOfDayRunTimeout    = 30 * time.Minute
 	wishlistSummaryTimeout = 10 * time.Second
+	// coinOfDayRecheckInterval bounds each sleep so a changed start time or
+	// time zone takes effect within a minute instead of after the old anchor.
+	coinOfDayRecheckInterval = time.Minute
 )
 
 // NewCoinOfDayScheduler creates a new scheduler.
@@ -95,9 +98,20 @@ func (s *CoinOfDayScheduler) Start() {
 		return
 	}
 
+	var announced time.Time
 	for {
-		wait := s.timeUntilNextRun()
-		s.logger.Info("scheduler", "Next coin-of-the-day pick in %s", wait)
+		now := time.Now()
+		next := s.nextRunAfter(now)
+		if !next.Equal(announced) {
+			s.logger.Info("scheduler", "Next coin-of-the-day pick at %s (in %s)", next.Format(time.RFC3339), next.Sub(now).Round(time.Second))
+			announced = next
+		}
+
+		wait := next.Sub(now)
+		due := wait <= coinOfDayRecheckInterval
+		if !due {
+			wait = coinOfDayRecheckInterval
+		}
 
 		select {
 		case <-time.After(wait):
@@ -106,7 +120,9 @@ func (s *CoinOfDayScheduler) Start() {
 			return
 		}
 
-		s.runCycle()
+		if due {
+			s.runCycle()
+		}
 	}
 }
 
@@ -118,14 +134,35 @@ func (s *CoinOfDayScheduler) Stop() {
 // timeUntilNextRun returns the duration until the next daily anchor (HH:MM).
 func (s *CoinOfDayScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
+	return s.nextRunAfter(now).Sub(now)
+}
+
+// nextRunAfter returns the first HH:MM anchor strictly after now, evaluated in
+// the configured time zone. Tomorrow's anchor is built from the calendar date
+// rather than now+24h so it stays at the same wall-clock time across DST.
+func (s *CoinOfDayScheduler) nextRunAfter(now time.Time) time.Time {
 	h, m := s.getStartTime()
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, now.Location())
+	local := now.In(s.location())
+	anchor := time.Date(local.Year(), local.Month(), local.Day(), h, m, 0, 0, local.Location())
 	if anchor.After(now) {
-		return anchor.Sub(now)
+		return anchor
 	}
-	// Past today's anchor — schedule for tomorrow
-	tomorrow := anchor.Add(24 * time.Hour)
-	return tomorrow.Sub(now)
+	return time.Date(local.Year(), local.Month(), local.Day()+1, h, m, 0, 0, local.Location())
+}
+
+// location resolves the CoinOfDayTimezone setting, falling back to the
+// server's local zone when it is empty or unknown.
+func (s *CoinOfDayScheduler) location() *time.Location {
+	name := strings.TrimSpace(s.settingsSvc.GetSetting(SettingCoinOfDayTimezone))
+	if name == "" {
+		return time.Local
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		s.logger.Warn("scheduler", "Unknown coin-of-the-day time zone %q, using server time", name)
+		return time.Local
+	}
+	return loc
 }
 
 // getStartTime parses HH:MM, defaults to 07:00.
