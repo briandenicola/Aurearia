@@ -34,6 +34,24 @@ The agent uses specialized teams for different tasks:
 - Fetches listing pages and extracts coin metadata
 - Returns: name, denomination, ruler, era, material, estimated price, source link
 
+**Direct dealer search.** For dealers with a site adapter (currently vCoins,
+MA-Shops and Harlan J. Berk, when they are in the configured dealer sources),
+Coin Copilot queries the dealer's own search instead of a web search engine.
+A dealer's search returns only what it currently has for sale, so old listing
+pages for coins that sold long ago no longer appear; Harlan J. Berk results are
+additionally limited to items with stock on hand. Requests are reduced to
+keywords ("Find me any Caligula coins under $500" searches for "Caligula"), and
+a stated budget is enforced on the parsed listing price. Currencies are never
+converted: listings priced in a different currency from the budget are left
+out, and the result says how many. Results take turns across dealers so one
+site can't fill the list, and listings whose title names the search terms come
+first. Dealers without an adapter still use web search, now restricted to their
+domains by the search provider itself rather than only by prompt instructions.
+Dealers can still refuse automated requests: vCoins uses AWS WAF bot protection
+and may answer with a browser challenge after repeated searches. That dealer is
+then reported as unavailable while the others' results are still shown; the
+challenge is never worked around.
+
 Coin Copilot's market specialist uses structured model output rather than
 relying on a markdown JSON response. If a dealer blocks direct access, or a
 fetched results page yields no listings, it can use source-backed search

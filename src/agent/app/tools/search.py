@@ -16,6 +16,7 @@ from langchain_core.tools import tool
 
 from app.config import settings
 from app.outbound import safe_get, validate_outbound_url, validate_public_outbound_url
+from app.tools.dealer_sites import SiteListing, parse_mashops_results, parse_vcoins_results
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,60 @@ _BROWSER_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
+
+
+_DEALER_SITE_TIMEOUT = httpx.Timeout(15.0, connect=5.0, read=10.0)
+
+
+class RegisteredDealerHttp:
+    """DealerHttp for site adapters, confined to the administrator-configured hosts."""
+
+    def __init__(self, allowed_hosts: set[str]):
+        self._allowed_hosts = set(allowed_hosts)
+
+    @staticmethod
+    def _raise_for_status(response: httpx.Response) -> None:
+        if response.status_code == 200:
+            return
+        # Bot protection (e.g. vCoins' AWS WAF) answers 202 with a JavaScript
+        # challenge. It is reported as a failed source, never worked around.
+        challenged = response.headers.get("x-amzn-waf-action") == "challenge" or response.status_code == 202
+        logger.warning(
+            "Dealer site search refused host=%s status_code=%d bot_challenge=%s",
+            response.url.host,
+            response.status_code,
+            challenged,
+        )
+        raise httpx.TransportError("dealer search returned a non-success status")
+
+    def _validate(self, url: str) -> str:
+        return validate_search_source_url(url, self._allowed_hosts)
+
+    async def get_text(self, url: str, params: dict[str, str]) -> str:
+        response = await safe_registered_get(
+            url,
+            validator=self._validate,
+            field_name="dealer search URL",
+            headers=_BROWSER_HEADERS,
+            params=dict(params),
+            timeout=_DEALER_SITE_TIMEOUT,
+        )
+        self._raise_for_status(response)
+        return response.text
+
+    async def post_json(self, url: str, body: dict) -> object:
+        # POSTs are never redirected: a redirect would need re-validation and a
+        # changed method, and none of the supported search APIs redirect.
+        validated = self._validate(validate_public_outbound_url(url, "dealer search URL"))
+        origin = f"https://{urlsplit(validated).hostname}/"
+        async with httpx.AsyncClient(timeout=_DEALER_SITE_TIMEOUT, follow_redirects=False) as client:
+            response = await client.post(
+                validated,
+                json=body,
+                headers={**_BROWSER_HEADERS, "Accept": "application/json", "Referer": origin},
+            )
+        self._raise_for_status(response)
+        return response.json()
 
 
 @tool
@@ -309,87 +364,33 @@ def _image_section(html: str, base_url: str) -> str:
     return f"Images found on page:\n{listed}\n\n"
 
 
-def _parse_vcoins(html: str, base_url: str) -> str:
-    """Parse VCoins search results or listing page."""
-    listings = []
-
-    # VCoins listing pages have product links with prices
-    # Look for individual item patterns in HTML
-    # VCoins uses ViewItem.aspx?UniqueID= for individual listings
-    item_pattern = re.compile(
-        r'<a[^>]*href="([^"]*ViewItem[^"]*)"[^>]*>(.*?)</a>',
-        re.IGNORECASE | re.DOTALL,
-    )
-    for match in item_pattern.finditer(html):
-        link = match.group(1)
-        text = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-        if text and len(text) > 10:
-            # Make absolute URL
-            if link.startswith("/"):
-                link = "https://www.vcoins.com" + link
-            listings.append({"title": text[:200], "url": link})
-
-    # Extract prices — VCoins shows prices near listings
-    price_pattern = re.compile(r'(?:US\s*)?\$[\d,]+(?:\.\d{2})?')
-    prices = price_pattern.findall(html)
-
-    # Match prices to listings
-    for i, listing in enumerate(listings):
-        if i < len(prices):
-            listing["price"] = prices[i]
-        else:
-            listing["price"] = "See listing"
-
-    if not listings:
-        # Fallback: extract any useful text
-        return _parse_generic(html, base_url)
-
+def _format_site_listings(html: str, base_url: str, site: str, listings: list[SiteListing]) -> str:
     result = f"Availability signal: {_listing_availability_signal(html)}\n"
     result += _image_section(html, base_url)
-    result += f"Found {len(listings)} listings on VCoins:\n\n"
+    result += f"Found {len(listings)} listings on {site}:\n\n"
     for i, item in enumerate(listings[:10], 1):
-        result += f"{i}. {item['title']}\n"
-        result += f"   Price: {item.get('price', 'See listing')}\n"
-        result += f"   URL: {item['url']}\n\n"
+        price = f"{item.price:,.2f} {item.currency}" if item.price is not None and item.currency else "See listing"
+        result += f"{i}. {item.title[:200]}\n"
+        result += f"   Dealer: {item.dealer}\n"
+        result += f"   Price: {price}\n"
+        result += f"   URL: {item.url}\n\n"
     return result
+
+
+def _parse_vcoins(html: str, base_url: str) -> str:
+    """Parse a VCoins search results page; single product pages use the generic parser."""
+    listings = parse_vcoins_results(html, base_url)
+    if not listings:
+        return _parse_generic(html, base_url)
+    return _format_site_listings(html, base_url, "VCoins", listings)
 
 
 def _parse_mashops(html: str, base_url: str) -> str:
-    """Parse MA-Shops search results or listing page."""
-    listings = []
-
-    # MA-Shops uses product links with item descriptions
-    item_pattern = re.compile(
-        r'<a[^>]*href="(https?://www\.ma-shops\.com/[^"]*item\d+[^"]*)"[^>]*>'
-        r'(.*?)</a>',
-        re.IGNORECASE | re.DOTALL,
-    )
-    for match in item_pattern.finditer(html):
-        link = match.group(1)
-        text = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-        if text and len(text) > 10:
-            listings.append({"title": text[:200], "url": link})
-
-    # Extract prices
-    price_pattern = re.compile(r'(?:EUR|USD|US\$|\$)\s*[\d,]+(?:\.\d{2})?')
-    prices = price_pattern.findall(html)
-    for i, listing in enumerate(listings):
-        if i < len(prices):
-            listing["price"] = prices[i]
-        else:
-            listing["price"] = "See listing"
-
+    """Parse an MA-Shops search results page; single item pages use the generic parser."""
+    listings = parse_mashops_results(html, base_url)
     if not listings:
         return _parse_generic(html, base_url)
-
-    result = f"Availability signal: {_listing_availability_signal(html)}\n"
-    result += _image_section(html, base_url)
-    result += f"Found {len(listings)} listings on MA-Shops:\n\n"
-    for i, item in enumerate(listings[:10], 1):
-        result += f"{i}. {item['title']}\n"
-        result += f"   Price: {item.get('price', 'See listing')}\n"
-        result += f"   URL: {item['url']}\n\n"
-    return result
+    return _format_site_listings(html, base_url, "MA-Shops", listings)
 
 
 def _parse_generic(html: str, base_url: str) -> str:
