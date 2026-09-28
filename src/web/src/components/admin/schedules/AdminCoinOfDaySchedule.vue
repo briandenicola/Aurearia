@@ -25,6 +25,27 @@
       />
       <span class="form-hint">Time of day when the daily featured coin is picked for each enrolled user.</span>
     </div>
+    <div class="form-group">
+      <label class="form-label" for="coin-of-day-timezone">Time Zone</label>
+      <select
+        id="coin-of-day-timezone"
+        class="form-input w-full max-w-[320px]"
+        :value="settings.CoinOfDayTimezone ?? ''"
+        @change="settings.CoinOfDayTimezone = ($event.target as HTMLSelectElement).value"
+      >
+        <option value="">Server time (usually UTC in Docker)</option>
+        <option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</option>
+      </select>
+      <span class="form-hint">{{ scheduleSummary }} Changes apply within a minute of saving; no restart needed.</span>
+      <button
+        v-if="browserTimezone && settings.CoinOfDayTimezone !== browserTimezone"
+        type="button"
+        class="mt-1 self-start bg-transparent p-0 text-sm text-gold underline"
+        @click="settings.CoinOfDayTimezone = browserTimezone"
+      >
+        Use my time zone ({{ browserTimezone }})
+      </button>
+    </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
         {{ settingsSaving ? 'Saving...' : 'Save Coin of the Day Settings' }}
@@ -75,12 +96,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { getCoinOfDayRunDetail, getCoinOfDayRuns, triggerCoinOfDayRun } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import type { AppSettings, CoinOfDayRun } from '@/types'
+import { getBrowserTimezone } from '@/composables/usePurchaseReminder'
 
-defineProps<{
+const props = defineProps<{
   settings: AppSettings
   settingsSaving: boolean
 }>()
@@ -90,6 +112,28 @@ const emit = defineEmits<{
 }>()
 
 const triggerLoading = ref(false)
+const browserTimezone = getBrowserTimezone()
+
+// Intl.supportedValuesOf is missing on older Safari; fall back to the browser
+// zone alone so the saved value is still selectable.
+function listTimezones(): string[] {
+  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: 'timeZone') => string[] }
+  const zones = intl.supportedValuesOf?.('timeZone') ?? []
+  return zones.length ? zones : [browserTimezone].filter(Boolean)
+}
+
+const timezoneOptions = computed(() => {
+  const zones = listTimezones()
+  const saved = props.settings.CoinOfDayTimezone
+  return saved && !zones.includes(saved) ? [saved, ...zones] : zones
+})
+
+const scheduleSummary = computed(() => {
+  const time = props.settings.CoinOfDayStartTime || '07:00'
+  const zone = props.settings.CoinOfDayTimezone || 'server time'
+  return `Runs daily at ${time} ${zone}.`
+})
+
 const settingsMsg = ref('')
 const settingsError = ref(false)
 const timers: ReturnType<typeof setTimeout>[] = []

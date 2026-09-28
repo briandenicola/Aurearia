@@ -63,9 +63,45 @@ describe('CoinLookupCaptureWizard', () => {
 
     await wrapper.find('[aria-label="Add notes"]').trigger('click')
     expect(wrapper.text()).toContain('Step 3 of 3')
-    expect(wrapper.text()).toContain('Add supporting evidence')
+    expect(wrapper.text()).toContain('Add notes')
     expect(wrapper.find('textarea').exists()).toBe(true)
     expect(wrapper.find('textarea').attributes('maxlength')).toBe('2000')
+    expect(wrapper.find('.camera-stub').isVisible()).toBe(false)
+  })
+
+  it('keeps notes optional and explains what helps in the placeholder', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg') })
+
+    const analyze = wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))
+    await analyze?.trigger('click')
+    expect(wrapper.emitted('analyze')).toHaveLength(1)
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    const textarea = wrapper.get('textarea')
+    expect(textarea.attributes('required')).toBeUndefined()
+    expect(textarea.attributes('placeholder')).toContain('weight, diameter, ruler')
+    expect(textarea.attributes('placeholder')).toContain('Leave blank')
+  })
+
+  it('offers an opt-in price range toggle on the identify notes step only', async () => {
+    const wrapper = mountWizard({ obverse: image('obverse.jpg') })
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    const toggle = wrapper.get('input[type="checkbox"]')
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+    expect(wrapper.text()).toContain('Include an estimated price range')
+    expect(wrapper.text()).not.toContain('Rough AI guess')
+
+    await toggle.setValue(true)
+    expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
+
+    const intake = mountWizard({ obverse: image('obverse.jpg'), purpose: 'intake' })
+    await intake.find('[aria-label="Add reverse image"]').trigger('click')
+    await intake.find('[aria-label="Add coin card"]').trigger('click')
+    expect(intake.find('input[type="checkbox"]').exists()).toBe(false)
   })
 
   it('hides each camera after that step has an image', async () => {
@@ -94,7 +130,8 @@ describe('CoinLookupCaptureWizard', () => {
 
     await wrapper.setProps({ reverse: image('reverse.jpg') })
     await wrapper.find('[aria-label="Add notes"]').trigger('click')
-    expect(wrapper.find('.camera-stub').classes()).toContain('w-full')
+    expect(wrapper.find('.camera-stub').isVisible()).toBe(false)
+    expect(wrapper.get('.notes-editor').exists()).toBe(true)
   })
 
   it('uses the shared wizard for Deep Analysis and guides users to a missing reverse', async () => {

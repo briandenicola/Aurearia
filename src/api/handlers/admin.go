@@ -283,6 +283,10 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 				respondError(c, http.StatusBadRequest, "Invalid search source setting: "+s.Key, err)
 				return
 			}
+			if s.Key == services.SettingCoinOfDayTimezone {
+				respondError(c, http.StatusBadRequest, "Invalid time zone setting: "+s.Key, err)
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save setting: " + s.Key})
 			return
 		}
