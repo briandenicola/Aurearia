@@ -33,10 +33,17 @@ async def test_legacy_and_copilot_send_identical_search_configuration(monkeypatc
     search_model.ainvoke.return_value = AIMessage(content="No matching sources.")
     formatter = AsyncMock()
     formatter.ainvoke.return_value = AIMessage(content="No matching listings.")
-    monkeypatch.setattr(coin_search, "get_search_model", lambda _: search_model)
+    search_model_domains = []
+
+    def fake_search_model(_config, allowed_domains=None):
+        search_model_domains.append(sorted(allowed_domains or []))
+        return search_model
+
+    monkeypatch.setattr(coin_search, "get_search_model", fake_search_model)
     monkeypatch.setattr(coin_search, "get_chat_model", lambda _: formatter)
     config = LLMConfig(provider="anthropic", api_key="fixture", model="fixture")
-    hosts = {"ma-shops.com", "vcoins.com"}
+    # Dealers without a direct site adapter, so both paths use web search.
+    hosts = {"biddr.com", "forumancientcoins.com"}
     query = "Find a denarius under $150"
     legacy = coin_search.create_coin_search_team(config, prompt, hosts)
     await legacy.ainvoke({"user_message": query, "messages": [], "search_results": "", "fetched_listings": ""})
@@ -57,12 +64,13 @@ async def test_legacy_and_copilot_send_identical_search_configuration(monkeypatc
 
     assert frames[-1].type == "completed"
     assert search_model.ainvoke.await_count == 2
+    assert search_model_domains == [sorted(hosts), sorted(hosts)]
     legacy_messages = search_model.ainvoke.call_args_list[0].args[0]
     copilot_messages = search_model.ainvoke.call_args_list[1].args[0]
     assert [message.content for message in copilot_messages] == [message.content for message in legacy_messages]
     expected_sources = (
         "Search only these administrator-configured dealer hosts: "
-        "ma-shops.com, vcoins.com. Ignore results from every other host."
+        "biddr.com, forumancientcoins.com. Ignore results from every other host."
     )
     expected_prompt = "\n\n".join(part for part in (prompt, expected_sources, coin_search.SEARCH_PROMPT) if part)
     assert copilot_messages[0].content == expected_prompt
