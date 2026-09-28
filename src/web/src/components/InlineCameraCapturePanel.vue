@@ -277,6 +277,7 @@ defineExpose({
   captureFromCamera,
   cameraReady,
   cameraActive: computed(() => cameraStream.value !== null),
+  capturing,
 })
 </script>
 
