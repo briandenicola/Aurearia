@@ -55,17 +55,29 @@
       </ol>
 
       <section class="capture-stage">
-        <label v-if="showNotesField" class="stage-notes">
-          <span class="sr-only">Identification notes</span>
-          <textarea
-            class="form-input"
-            :value="notes"
-            maxlength="2000"
-            placeholder="Weight, diameter, provenance, visible text, suspected ruler&hellip;"
-            @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
-          <span class="stage-notes-count">{{ notes.length }} / 2000</span>
-        </label>
+        <div v-if="showNotesField" class="stage-notes">
+          <label>
+            <span class="sr-only">Identification notes (optional)</span>
+            <textarea
+              class="form-input"
+              :value="notes"
+              maxlength="2000"
+              placeholder="Optional: weight, diameter, ruler (if known)&hellip; Leave blank to use photos only."
+              @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
+            ></textarea>
+          </label>
+          <div class="stage-notes-row">
+            <label class="stage-price-toggle">
+              <input
+                type="checkbox"
+                :checked="includePriceEstimate"
+                @change="$emit('update:includePriceEstimate', ($event.target as HTMLInputElement).checked)"
+              />
+              <span>Include rough price range</span>
+            </label>
+            <span class="stage-notes-count">{{ notes.length }} / 2000</span>
+          </div>
+        </div>
 
         <div class="stage-view">
           <img
@@ -211,8 +223,10 @@ const props = withDefaults(defineProps<{
   purpose?: 'identify' | 'intake'
   deepAnalysisDisabled?: boolean
   deepAnalysisDisabledTitle?: string
+  includePriceEstimate?: boolean
 }>(), {
   deepAnalysisEnabled: false,
+  includePriceEstimate: false,
   purpose: 'identify',
   deepAnalysisDisabled: false,
   deepAnalysisDisabledTitle: undefined,
@@ -226,6 +240,7 @@ const emit = defineEmits<{
   deepAnalyze: []
   manual: []
   'update:notes': [value: string]
+  'update:includePriceEstimate': [value: boolean]
 }>()
 
 const router = useRouter()
@@ -702,13 +717,30 @@ defineExpose({ stopCamera })
 }
 
 .stage-notes textarea {
+  width: 100%;
   height: 116px;
   font-size: 13px;
   resize: none;
 }
 
+.stage-notes-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stage-price-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 .stage-notes-count {
-  justify-self: end;
   font-size: 10px;
   color: var(--text-secondary);
 }

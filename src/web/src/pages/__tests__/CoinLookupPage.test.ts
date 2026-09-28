@@ -116,7 +116,7 @@ describe('CoinLookupPage', () => {
     await flushPromises()
 
     expect(normalizeGalleryImage).toHaveBeenCalledWith(galleryFile)
-    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile], '', ['obverse'])
+    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile], '', ['obverse'], false)
   })
 
   it('sends and saves typed notes and a supporting image without treating it as the reverse', async () => {
@@ -156,6 +156,7 @@ describe('CoinLookupPage', () => {
       [obverse, notesImage],
       'Weight 3.2 g; dealer suggested Trajan.',
       ['obverse', 'notes'],
+      false,
     )
 
     const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
@@ -167,6 +168,46 @@ describe('CoinLookupPage', () => {
       obverseImage: obverse,
       reverseImage: null,
       detailImages: [notesImage],
+    }))
+  })
+
+  it('requests and shows an opt-in price range and carries it into the draft notes', async () => {
+    const file = new File(['jpeg'], 'coin.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'medium', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Trajan Denarius' },
+        priceEstimate: { low: 120, high: 250, currency: 'USD', basis: 'Common type in VF' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({
+      data: { id: 85 },
+    } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    await wrapper.find('textarea').setValue('Silver, 3.2 g')
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupCoin).toHaveBeenCalledWith([file], 'Silver, 3.2 g', ['obverse'], true)
+    expect(wrapper.text()).toContain('Estimated Price Range')
+    expect(wrapper.text()).toContain('$120.00 – $250.00')
+    expect(wrapper.text()).toContain('Common type in VF')
+    expect(wrapper.text()).toContain('not live auction or dealer data')
+
+    const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
+    await saveButton?.trigger('click')
+    await flushPromises()
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('**AI price range:** $120.00 – $250.00 (unverified AI estimate)'),
     }))
   })
 

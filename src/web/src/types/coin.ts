@@ -157,6 +157,15 @@ export interface CoinLookupResponse {
   numistaLookup?: NumistaLookupOutcome | null
   prefilledDraft?: CoinMutationPayload
   candidateReferences?: CoinReferenceInput[]
+  /** Present only when the collector opted in; model guess, not market comps. */
+  priceEstimate?: CoinLookupPriceEstimate
+}
+
+export interface CoinLookupPriceEstimate {
+  low: number
+  high: number
+  currency: string
+  basis?: string
 }
 
 export type CoinLookupImageRole = 'obverse' | 'reverse' | 'notes'
