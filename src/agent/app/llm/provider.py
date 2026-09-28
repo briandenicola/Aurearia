@@ -1,6 +1,7 @@
 """LLM provider factory — selects Anthropic or Ollama based on request config."""
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -65,7 +66,7 @@ def get_structured_model(config: LLMConfig, schema: type | dict[str, Any]) -> Ru
     return model.with_structured_output(schema, method=method, include_raw=True)
 
 
-def get_search_model(config: LLMConfig) -> Runnable:
+def get_search_model(config: LLMConfig, allowed_domains: Iterable[str] | None = None) -> Runnable:
     """Create a chat model with web search enabled (Anthropic only).
 
     For Anthropic: binds the built-in web_search tool (server-side, handled
@@ -76,7 +77,12 @@ def get_search_model(config: LLMConfig) -> Runnable:
     model = get_chat_model(config)
     if config.provider == "anthropic":
         logger.debug("Binding Anthropic web_search tool")
-        return model.bind_tools([WEB_SEARCH_TOOL])
+        tool = dict(WEB_SEARCH_TOOL)
+        domains = sorted({domain.strip().lower() for domain in allowed_domains or () if domain.strip()})
+        if domains:
+            # Enforced by the search provider, not just requested in the prompt.
+            tool["allowed_domains"] = domains
+        return model.bind_tools([tool])
     return model
 
 
