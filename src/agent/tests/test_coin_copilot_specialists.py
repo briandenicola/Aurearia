@@ -893,14 +893,15 @@ async def test_market_search_pipeline_returns_listing_from_real_search_response_
         ])
         + "\n```"
     )
-    monkeypatch.setattr(coin_search, "get_search_model", lambda _config: search_model)
+    monkeypatch.setattr(coin_search, "get_search_model", lambda _config, **_kwargs: search_model)
     monkeypatch.setattr(coin_search, "get_chat_model", lambda _config: format_model)
     monkeypatch.setattr(coin_search, "get_structured_model", lambda *_args: _StructuredMarketFixture(format_model))
 
     result = await run_market_search(
-        {"query": "Aurelian coins under $500", "limit": 5},
+        {"query": "Aurelian coins", "limit": 5},
         llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
         source_hosts={"vcoins.com", "ma-shops.com"},
+        site_adapters=(),  # exercise the web-search path
         observed_at=OBSERVED_AT,
     )
 
@@ -1100,7 +1101,7 @@ def _blocked_dealer_setup(monkeypatch, format_json):
             return AIMessage(content=self.content)
 
     format_model = FakeModel("```json\n" + json.dumps(format_json(listing_url)) + "\n```")
-    monkeypatch.setattr(coin_search, "get_search_model", lambda _config: FakeModel(search_content))
+    monkeypatch.setattr(coin_search, "get_search_model", lambda _config, **_kwargs: FakeModel(search_content))
     monkeypatch.setattr(coin_search, "get_chat_model", lambda _config: format_model)
     monkeypatch.setattr(coin_search, "get_structured_model", lambda *_args: _StructuredMarketFixture(format_model))
     return listing_url, format_model
@@ -1119,9 +1120,10 @@ async def test_market_search_uses_search_results_when_dealer_pages_are_blocked(m
     )
 
     result = await run_market_search(
-        {"query": "Aurelian coins under $500", "limit": 5},
+        {"query": "Aurelian coins", "limit": 5},
         llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
         source_hosts={"vcoins.com"},
+        site_adapters=(),  # exercise the web-search path
         observed_at=OBSERVED_AT,
     )
 
@@ -1141,6 +1143,7 @@ async def test_market_search_reports_failure_when_pages_are_blocked_and_search_h
         {"query": "Aurelian coins under $500"},
         llm_config=LLMConfig(provider="anthropic", api_key="test", model="test"),
         source_hosts={"vcoins.com"},
+        site_adapters=(),  # exercise the web-search path
         observed_at=OBSERVED_AT,
     )
 
