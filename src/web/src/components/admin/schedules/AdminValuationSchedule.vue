@@ -2,7 +2,7 @@
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
   <!-- Collection Valuation -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Valuation</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Collection Valuation</h3>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Scheduled Valuation</label>
@@ -58,7 +58,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Valuation Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Valuation Run History</h3>
 
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No valuation runs recorded yet.</div>

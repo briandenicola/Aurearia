@@ -29,19 +29,19 @@
       <div v-else>
         <div class="mb-8 flex flex-wrap justify-around gap-4 rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)]">
           <div class="flex flex-col items-center gap-1">
-            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">{{ totalCoins }}</span>
+            <span class="font-display text-lg font-bold text-gold">{{ totalCoins }}</span>
             <span class="section-label">Coins</span>
           </div>
           <div class="flex flex-col items-center gap-1">
-            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">{{ yearSpan }}</span>
+            <span class="font-display text-lg font-bold text-gold">{{ yearSpan }}</span>
             <span class="section-label">Year Span</span>
           </div>
           <div class="flex flex-col items-center gap-1">
-            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">${{ totalInvested.toLocaleString() }}</span>
+            <span class="font-display text-lg font-bold text-gold">${{ totalInvested.toLocaleString() }}</span>
             <span class="section-label">Invested</span>
           </div>
           <div class="flex flex-col items-center gap-1">
-            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">${{ totalValue.toLocaleString() }}</span>
+            <span class="font-display text-lg font-bold text-gold">${{ totalValue.toLocaleString() }}</span>
             <span class="section-label">Current Value</span>
           </div>
         </div>
@@ -51,7 +51,7 @@
           <div v-for="group in timelineGroups" :key="group.label" class="relative mb-8 last:mb-0">
             <div class="relative mb-3 flex items-center gap-3">
               <div class="absolute -left-6 z-10 h-3 w-3 rounded-full border-2 border-surface bg-gold shadow-[0_0_0_2px_var(--accent-gold-dim)] max-sm:-left-[0.95rem] max-sm:h-2.5 max-sm:w-2.5" />
-              <div class="font-['Cinzel',serif] text-base font-semibold text-text-primary max-sm:text-[0.9rem]">{{ group.label }}</div>
+              <div class="font-display text-base font-semibold text-text-primary max-sm:text-base">{{ group.label }}</div>
               <div class="rounded-full bg-surface-secondary px-2 py-0.5 text-sm text-text-muted">
                 {{ group.coins.length }} {{ group.coins.length === 1 ? 'coin' : 'coins' }}
               </div>

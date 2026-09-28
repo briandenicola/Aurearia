@@ -439,7 +439,7 @@ onUnmounted(() => {
 .swipe-card-name {
   padding: 0.75rem 1rem;
   text-align: center;
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-family-display);
   font-size: 1rem;
   color: var(--text-heading);
   white-space: nowrap;

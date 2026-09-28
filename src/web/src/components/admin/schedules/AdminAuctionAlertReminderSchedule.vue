@@ -2,7 +2,7 @@
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
   <!-- Auction Price Alerts and Bid Reminders -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Price Alerts and Bid Reminders</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Auction Price Alerts and Bid Reminders</h3>
   <p class="mb-4 text-base text-text-secondary">Checks watched auction lots for price thresholds and close-time bid reminders.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
@@ -48,7 +48,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Price Alert and Reminder Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Auction Price Alert and Reminder Run History</h3>
 
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No auction price alert or reminder runs recorded yet.</div>

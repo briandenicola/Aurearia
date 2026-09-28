@@ -2,7 +2,7 @@
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
   <!-- Collection Health Snapshots -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Health Snapshots</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Collection Health Snapshots</h3>
   <p class="mb-4 text-base text-text-secondary">Captures daily health baselines used by the 30-day collection health trend.</p>
   <p v-if="statusLoading" class="mb-4 text-body text-text-muted">Checking server status…</p>
   <p v-else-if="status" class="mb-4 text-body" :class="status.enabled ? 'text-[var(--color-positive)]' : 'text-text-muted'">
@@ -41,7 +41,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Health Snapshot Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Collection Health Snapshot Run History</h3>
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No collection health snapshot runs recorded yet.</div>
   <template v-else>

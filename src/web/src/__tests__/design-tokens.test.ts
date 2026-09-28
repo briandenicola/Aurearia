@@ -1,5 +1,5 @@
 /**
- * Design Token Enforcement Tests (Constitution Principle V)
+ * Design Token Enforcement Tests (Constitution Principle VI)
  *
  * These tests scan Vue component scoped styles for hardcoded values
  * that should use design tokens from variables.css. Catches violations
@@ -37,7 +37,7 @@ function extractScopedStyles(content: string): string[] {
   return styles
 }
 
-describe('Design Token Enforcement (Constitution Principle V)', () => {
+describe('Design Token Enforcement (Constitution Principle VI)', () => {
   const vueFiles = collectVueFiles(SRC_DIR)
 
   it('should find Vue files to scan', () => {
@@ -155,6 +155,87 @@ describe('Design Token Enforcement (Constitution Principle V)', () => {
     })
   })
 
+  describe('font families use the shared typography tokens', () => {
+    const FONT_FAMILY = /font-family\s*:\s*([^;]+)/g
+
+    it('does not use raw font-family declarations in application styles', () => {
+      const violations: string[] = []
+      const styleFiles = [
+        join(STYLES_DIR, 'main.css'),
+        ...vueFiles,
+      ]
+
+      for (const file of styleFiles) {
+        const content = readFileSync(file, 'utf-8')
+        let match
+        while ((match = FONT_FAMILY.exec(content)) !== null) {
+          const value = match[1].trim()
+          if (value !== 'inherit' && !value.startsWith('var(--font-family-')) {
+            violations.push(`${relative(SRC_DIR, file)}: font-family: ${value}`)
+          }
+        }
+      }
+
+      expect(
+        violations,
+        `Use --font-family-sans or --font-family-display:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('does not bypass font tokens with arbitrary Tailwind families', () => {
+      const violations = vueFiles
+        .filter(file => /font-\[[^\]]+\]/.test(readFileSync(file, 'utf-8')))
+        .map(file => relative(SRC_DIR, file))
+
+      expect(
+        violations,
+        `Use font-sans or font-display instead:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('bundles Inter and Cinzel instead of loading remote Google Fonts', () => {
+      const mainCss = readFileSync(join(STYLES_DIR, 'main.css'), 'utf-8')
+      const mainTs = readFileSync(join(SRC_DIR, 'main.ts'), 'utf-8')
+
+      expect(mainCss).not.toContain('fonts.googleapis.com')
+      expect(mainTs).toContain("@fontsource/inter/400.css")
+      expect(mainTs).toContain("@fontsource/inter/600.css")
+      expect(mainTs).toContain("@fontsource/cinzel/500.css")
+      expect(mainTs).toContain("@fontsource/cinzel/600.css")
+    })
+  })
+
+  describe('admin schedule typography', () => {
+    const scheduleDir = join(SRC_DIR, 'components', 'admin', 'schedules')
+    const scheduleFiles = [
+      join(SRC_DIR, 'components', 'admin', 'AdminSchedulesSection.vue'),
+      ...collectVueFiles(scheduleDir),
+    ]
+
+    it('uses the standard h3 display hierarchy', () => {
+      const violations: string[] = []
+
+      for (const file of scheduleFiles) {
+        const content = readFileSync(file, 'utf-8')
+        const headings = content.match(/<h3\b[^>]*>/g) ?? []
+        for (const heading of headings) {
+          if (
+            !heading.includes('text-lg') ||
+            !heading.includes('font-medium') ||
+            !heading.includes('text-heading')
+          ) {
+            violations.push(`${relative(SRC_DIR, file)}: ${heading}`)
+          }
+        }
+      }
+
+      expect(
+        violations,
+        `Schedule h3 elements must use text-lg font-medium text-heading:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+  })
+
   describe('variables.css and main.css define required tokens', () => {
     it('Louvre theme uses official brand colors', () => {
       const vars = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
@@ -180,6 +261,12 @@ describe('Design Token Enforcement (Constitution Principle V)', () => {
       expect(vars).toContain('--bg-card')
       expect(vars).toContain('--border-subtle')
       expect(vars).toContain('--text-primary')
+    })
+
+    it('variables.css defines the approved font-family tokens', () => {
+      const vars = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
+      expect(vars).toContain('--font-family-sans')
+      expect(vars).toContain('--font-family-display')
     })
 
     it('main.css defines global chip and button classes', () => {
