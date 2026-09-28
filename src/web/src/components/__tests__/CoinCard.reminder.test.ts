@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CoinCard from '../CoinCard.vue'
 import type { Coin, PurchaseReminder } from '@/types'
@@ -85,6 +85,17 @@ function mountCard(props: { coin: Coin; wishlist?: boolean; activeReminder?: Pur
 }
 
 describe('CoinCard reminder badge', () => {
+  // Pin "today" so the fixed 2026-09-25 remind date stays in the future;
+  // only Date is faked so Vue's scheduler keeps real timers.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('shows a reminder badge when wishlist coin has an active pending reminder', () => {
     const wrapper = mountCard({
       coin: buildWishlistCoin(),

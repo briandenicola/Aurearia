@@ -407,6 +407,14 @@ type CandidateReferenceSwagger struct {
 	URI     string `json:"uri,omitempty" example:"https://www.ngccoin.com/certlookup/823160-093/"`
 }
 
+// LookupPriceEstimateSwagger is the opt-in, unverified AI price range.
+type LookupPriceEstimateSwagger struct {
+	Low      float64 `json:"low" example:"120"`
+	High     float64 `json:"high" example:"250"`
+	Currency string  `json:"currency" example:"USD"`
+	Basis    string  `json:"basis,omitempty" example:"Common type in VF"`
+}
+
 type CoinLookupSwaggerResponse struct {
 	ExtractedData        LookupExtractedDataSwagger   `json:"extractedData"`
 	NumistaCandidates    []NumistaCandidateSwagger    `json:"numistaCandidates"`
@@ -415,4 +423,5 @@ type CoinLookupSwaggerResponse struct {
 	NumistaLookup        *models.NumistaLookupOutcome `json:"numistaLookup" extensions:"x-nullable"`
 	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
 	CandidateReferences  []CandidateReferenceSwagger  `json:"candidateReferences,omitempty"`
+	PriceEstimate        *LookupPriceEstimateSwagger  `json:"priceEstimate,omitempty"`
 }

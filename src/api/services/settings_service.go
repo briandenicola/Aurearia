@@ -83,6 +83,7 @@ const (
 	SettingAuctionAlertsCheckStartTime        = "AuctionAlertsCheckStartTime"
 	SettingCoinOfDayEnabled                   = "CoinOfDayEnabled"
 	SettingCoinOfDayStartTime                 = "CoinOfDayStartTime"
+	SettingCoinOfDayTimezone                  = "CoinOfDayTimezone"
 	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
 	SettingCollectionHealthSnapshotsStartTime = "CollectionHealthSnapshotsStartTime"
 	SettingExternalToolServerEnabled          = "ExternalToolServerEnabled"
@@ -218,6 +219,7 @@ var settingDefaults = map[string]string{
 	SettingAuctionAlertsCheckStartTime:        "08:00",
 	SettingCoinOfDayEnabled:                   "false",
 	SettingCoinOfDayStartTime:                 "07:00",
+	SettingCoinOfDayTimezone:                  "", // empty = server local time
 	SettingCollectionHealthSnapshotsEnabled:   "false",
 	SettingCollectionHealthSnapshotsStartTime: "04:30",
 	SettingExternalToolServerEnabled:          "false",
@@ -541,7 +543,25 @@ func (s *SettingsService) SetSetting(key, value string) error {
 		}
 		value = normalized
 	}
+	if key == SettingCoinOfDayTimezone {
+		value = strings.TrimSpace(value)
+		if err := ValidateTimezoneSetting(value); err != nil {
+			return err
+		}
+	}
 	return s.repo.Upsert(key, value)
+}
+
+// ValidateTimezoneSetting accepts an empty value (server local time) or an
+// IANA zone name such as "America/Chicago".
+func ValidateTimezoneSetting(value string) error {
+	if value == "" {
+		return nil
+	}
+	if _, err := time.LoadLocation(value); err != nil {
+		return fmt.Errorf("unknown time zone %q", value)
+	}
+	return nil
 }
 
 var searchSourceHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
