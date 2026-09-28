@@ -63,9 +63,10 @@ describe('CoinLookupCaptureWizard', () => {
 
     await wrapper.find('[aria-label="Add notes"]').trigger('click')
     expect(wrapper.text()).toContain('Step 3 of 3')
-    expect(wrapper.text()).toContain('Add supporting evidence')
+    expect(wrapper.text()).toContain('Add notes')
     expect(wrapper.find('textarea').exists()).toBe(true)
     expect(wrapper.find('textarea').attributes('maxlength')).toBe('2000')
+    expect(wrapper.find('.camera-stub').isVisible()).toBe(false)
   })
 
   it('keeps notes optional and explains what helps in the placeholder', async () => {
@@ -79,7 +80,7 @@ describe('CoinLookupCaptureWizard', () => {
     await wrapper.find('[aria-label="Add notes"]').trigger('click')
     const textarea = wrapper.get('textarea')
     expect(textarea.attributes('required')).toBeUndefined()
-    expect(textarea.attributes('placeholder')).toContain('weight, diameter, or ruler (if known)')
+    expect(textarea.attributes('placeholder')).toContain('weight, diameter, ruler')
     expect(textarea.attributes('placeholder')).toContain('Leave blank')
   })
 
@@ -92,6 +93,7 @@ describe('CoinLookupCaptureWizard', () => {
     const toggle = wrapper.get('input[type="checkbox"]')
     expect((toggle.element as HTMLInputElement).checked).toBe(false)
     expect(wrapper.text()).toContain('Include an estimated price range')
+    expect(wrapper.text()).not.toContain('Rough AI guess')
 
     await toggle.setValue(true)
     expect(wrapper.emitted('update:includePriceEstimate')).toEqual([[true]])
@@ -128,7 +130,8 @@ describe('CoinLookupCaptureWizard', () => {
 
     await wrapper.setProps({ reverse: image('reverse.jpg') })
     await wrapper.find('[aria-label="Add notes"]').trigger('click')
-    expect(wrapper.find('.camera-stub').classes()).toContain('w-full')
+    expect(wrapper.find('.camera-stub').isVisible()).toBe(false)
+    expect(wrapper.get('.notes-editor').exists()).toBe(true)
   })
 
   it('uses the shared wizard for Deep Analysis and guides users to a missing reverse', async () => {

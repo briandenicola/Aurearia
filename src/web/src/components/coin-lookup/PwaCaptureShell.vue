@@ -46,7 +46,7 @@
             :aria-label="wizardStep.navLabel"
             :aria-current="index === step ? 'step' : undefined"
             :disabled="index > 0 && !obverse"
-            @click="step = index"
+            @click="goToStep(index)"
           >
             <span class="rail-bar"></span>
             <span class="rail-label">{{ index + 1 }} {{ wizardStep.label }}</span>
@@ -62,7 +62,7 @@
               class="form-input"
               :value="notes"
               maxlength="2000"
-              placeholder="Optional: weight, diameter, ruler (if known)&hellip; Leave blank to use photos only."
+              placeholder="Add anything you know about the coin, such as weight, diameter, ruler, inscription, or provenance. Leave blank to use the photos only."
               @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             ></textarea>
           </label>
@@ -73,13 +73,13 @@
                 :checked="includePriceEstimate"
                 @change="$emit('update:includePriceEstimate', ($event.target as HTMLInputElement).checked)"
               />
-              <span>Include rough price range</span>
+              <span>Include an estimated price range</span>
             </label>
             <span class="stage-notes-count">{{ notes.length }} / 2000</span>
           </div>
         </div>
 
-        <div class="stage-view">
+        <div v-show="!showNotesField" class="stage-view">
           <img
             v-if="currentImage"
             :src="currentImage.preview"
@@ -93,7 +93,7 @@
             :filename-prefix="`${purpose}-${currentStep.role}`"
             :image-role="currentStep.role"
             :instruction="currentStep.hint"
-            @captured="(file, role) => $emit('captured', role, file)"
+            @captured="handleCameraCaptured"
             @upload="pickFromLibrary"
           />
 
@@ -103,13 +103,13 @@
           </svg>
         </div>
 
-        <span class="stage-chip">
+        <span v-if="!showNotesField" class="stage-chip">
           <i class="stage-chip-dot" :class="{ 'is-met': stepImage(currentStep.role) }"></i>
           {{ currentStep.chip }}
         </span>
 
         <button
-          v-if="currentImage"
+          v-if="currentImage && !showNotesField"
           type="button"
           class="stage-remove"
           :aria-label="`Remove ${currentStep.label.toLowerCase()} image`"
@@ -138,8 +138,9 @@
         </div>
       </section>
 
-      <footer class="shell-bottom">
+      <footer class="shell-bottom" :class="{ 'notes-step': showNotesField }">
         <button
+          v-if="!showNotesField"
           type="button"
           class="tool-btn"
           aria-label="Choose from library"
@@ -151,6 +152,7 @@
         </button>
 
         <button
+          v-if="!showNotesField"
           type="button"
           class="shutter"
           :aria-label="shutterLabel"
@@ -273,11 +275,11 @@ const steps = computed(() => [
     role: 'notes' as const,
     label: 'Details',
     navLabel: props.purpose === 'intake' ? 'Add coin card' : 'Add notes',
-    title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
-    chip: props.purpose === 'intake' ? 'Card · optional' : 'Details · optional',
+    title: props.purpose === 'intake' ? 'Add a coin card' : 'Add notes',
+    chip: props.purpose === 'intake' ? 'Card · optional' : 'Notes · optional',
     hint: props.purpose === 'intake'
       ? 'Frame the coin card or label'
-      : 'Capture a label, edge, or measurement',
+      : 'Notes are optional',
   },
 ] as const)
 
@@ -300,9 +302,11 @@ const shutterLabel = computed(() => {
 })
 
 const hintText = computed(() => (
-  currentImage.value
-    ? `${currentStep.value.label} added · shutter retakes it`
-    : currentStep.value.hint
+  showNotesField.value
+    ? 'Notes are optional'
+    : currentImage.value
+      ? `${currentStep.value.label} added · shutter retakes it`
+      : currentStep.value.hint
 ))
 
 function stepImage(role: CoinLookupImageRole) {
@@ -376,10 +380,22 @@ function handleFileSelection(event: Event) {
   input.value = ''
 }
 
+function goToStep(nextStep: number) {
+  if (nextStep === 2 && props.purpose === 'identify' && !cameraPanel.value?.capturing) {
+    cameraPanel.value?.stopCamera()
+  }
+  step.value = nextStep
+}
+
+function handleCameraCaptured(file: File, role: CoinLookupImageRole) {
+  emit('captured', role, file)
+  if (showNotesField.value) cameraPanel.value?.stopCamera()
+}
+
 function startDeepAnalysis() {
   deepRequirementError.value = ''
   if (!props.reverse) {
-    step.value = 1
+    goToStep(1)
     deepRequirementError.value = 'Add a reverse image before starting Deep Analysis.'
     return
   }
@@ -707,20 +723,28 @@ defineExpose({ stopCamera })
   animation: spin 0.8s linear infinite;
 }
 
-/* Identify-only notes panel on step 3, above the viewfinder. */
+/* Identify-only notes panel replaces the step-3 viewfinder. */
 .stage-notes {
-  flex: none;
-  display: grid;
-  gap: 4px;
-  /* Top padding clears the stage chip floating at top:16px, height 32px. */
-  padding: 60px 16px 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px 16px 110px;
+}
+
+.stage-notes label:first-child {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .stage-notes textarea {
   width: 100%;
-  height: 116px;
-  font-size: 13px;
+  height: 100%;
+  min-height: 0;
   resize: none;
+  font-size: 13px;
 }
 
 .stage-notes-row {
@@ -751,6 +775,10 @@ defineExpose({ stopCamera })
   align-items: center;
   justify-content: space-between;
   padding: 17px 30px 0;
+}
+
+.shell-bottom.notes-step {
+  justify-content: flex-end;
 }
 
 .tool-btn,

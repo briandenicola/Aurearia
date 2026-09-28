@@ -48,7 +48,7 @@
             class="evidence-item"
             :class="{ active: index === step }"
             :disabled="index > 0 && !obverse"
-            @click="step = index"
+            @click="goToStep(index)"
           >
             <img
               v-if="stepImage(wizardStep.role)"
@@ -63,64 +63,63 @@
             <Check v-if="stepImage(wizardStep.role)" :size="16" class="evidence-check" />
           </button>
         </div>
+      </aside>
 
-        <template v-if="currentStep.role === 'notes' && purpose === 'identify'">
-          <label class="form-group">
+      <div class="capture-stage">
+        <div v-if="showNotesEditor" class="notes-editor">
+          <label class="notes-field">
             <span class="section-label">Identification notes (optional)</span>
             <textarea
               :value="notes"
-              class="form-input min-h-[120px] resize-y"
+              class="form-input"
               maxlength="2000"
-              placeholder="Optional: add anything you know that could help the AI, like weight, diameter, or ruler (if known). Leave blank and the AI will work from the photos alone."
+              placeholder="Add anything you know about the coin, such as weight, diameter, ruler, inscription, or provenance. Leave blank to use the photos only."
               @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             ></textarea>
             <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
           </label>
 
-          <label class="flex cursor-pointer items-start gap-2 text-small text-text-secondary">
+          <label class="price-toggle">
             <input
               type="checkbox"
-              class="mt-1"
               :checked="includePriceEstimate"
               @change="$emit('update:includePriceEstimate', ($event.target as HTMLInputElement).checked)"
             />
-            <span>
-              <span class="block text-text-primary">Include an estimated price range</span>
-              <span class="block text-tiny text-text-muted">Rough AI guess from general market knowledge, not live auction results.</span>
-            </span>
+            <span>Include an estimated price range</span>
           </label>
-        </template>
-      </aside>
-
-      <div class="capture-stage">
-        <div
-          v-if="currentImage"
-          class="capture-preview relative w-full overflow-hidden rounded-sm border border-border-accent bg-card"
-        >
-          <img :src="currentImage.preview" :alt="`${currentStep.label} coin image`" class="h-full w-full object-contain" />
-          <button
-            type="button"
-            class="absolute right-2 top-2 flex min-h-11 min-w-11 items-center justify-center rounded-sm bg-overlay text-text-primary"
-            :aria-label="`Remove ${currentStep.label.toLowerCase()} image`"
-            @click="$emit('remove', currentStep.role)"
-          >
-            <X :size="18" />
-          </button>
         </div>
 
-        <InlineCameraCapturePanel
-          v-else
-          ref="cameraPanel"
-          class="w-full"
-          desktop-workspace
-          :filename-prefix="`lookup-${currentStep.role}`"
-          :image-role="currentStep.role"
-          :instruction="currentStep.instruction"
-          @captured="(file, role) => $emit('captured', role, file)"
-          @upload="fileInput?.click()"
-        />
+        <div v-show="!showNotesEditor" class="capture-media">
+          <div
+            v-if="currentImage"
+            class="capture-preview relative w-full overflow-hidden rounded-sm border border-border-accent bg-card"
+          >
+            <img :src="currentImage.preview" :alt="`${currentStep.label} coin image`" class="h-full w-full object-contain" />
+            <button
+              type="button"
+              class="absolute right-2 top-2 flex min-h-11 min-w-11 items-center justify-center rounded-sm bg-overlay text-text-primary"
+              :aria-label="`Remove ${currentStep.label.toLowerCase()} image`"
+              @click="$emit('remove', currentStep.role)"
+            >
+              <X :size="18" />
+            </button>
+          </div>
+
+          <InlineCameraCapturePanel
+            v-else
+            ref="cameraPanel"
+            class="w-full"
+            desktop-workspace
+            :filename-prefix="`lookup-${currentStep.role}`"
+            :image-role="currentStep.role"
+            :instruction="currentStep.instruction"
+            @captured="handleCameraCaptured"
+            @upload="fileInput?.click()"
+          />
+        </div>
 
         <input
+          v-if="!showNotesEditor"
           ref="fileInput"
           type="file"
           accept="image/*"
@@ -146,7 +145,7 @@
             class="btn btn-secondary min-h-11 shrink-0 justify-center"
             title="Previous step"
             aria-label="Previous step"
-            @click="step -= 1"
+            @click="goToStep(step - 1)"
           >
             <ChevronLeft :size="20" aria-hidden="true" />
             <span class="hidden sm:inline">Previous</span>
@@ -184,7 +183,7 @@
             :disabled="!obverse || preparingImage"
             :title="step === 0 ? 'Add reverse image' : purpose === 'intake' ? 'Add coin card' : 'Add notes'"
             :aria-label="step === 0 ? 'Add reverse image' : purpose === 'intake' ? 'Add coin card' : 'Add notes'"
-            @click="step += 1"
+            @click="goToStep(step + 1)"
           >
             <span class="hidden sm:inline">{{ step === 0 ? 'Next: Reverse' : purpose === 'intake' ? 'Next: Card' : 'Next: Notes' }}</span>
             <ChevronRight :size="20" aria-hidden="true" />
@@ -273,10 +272,10 @@ const steps = computed(() => [
     role: 'notes' as const,
     label: props.purpose === 'intake' ? 'Card' : 'Notes',
     required: false,
-    title: props.purpose === 'intake' ? 'Add a coin card' : 'Add supporting evidence',
+    title: props.purpose === 'intake' ? 'Add a coin card' : 'Add notes',
     description: props.purpose === 'intake'
       ? 'Optional. Photograph or upload a coin card or label. For a PDF card, use manual mode.'
-      : 'Optional. Anything you know about the coin helps the AI; a supporting photo is optional too.',
+      : 'Optional. Add anything you know about the coin, or leave this blank and analyze the photos.',
     instruction: 'Capture a label, edge, measurement, or other detail',
   },
 ] as const)
@@ -295,6 +294,7 @@ const currentImage = computed(() => {
   if (currentStep.value.role === 'reverse') return props.reverse
   return props.notesImage
 })
+const showNotesEditor = computed(() => props.purpose === 'identify' && currentStep.value.role === 'notes')
 
 function stepImage(role: CoinLookupImageRole) {
   if (role === 'obverse') return props.obverse
@@ -311,10 +311,22 @@ function handleFileSelection(event: Event) {
   input.value = ''
 }
 
+function goToStep(nextStep: number) {
+  if (nextStep === 2 && props.purpose === 'identify' && !cameraPanel.value?.capturing) {
+    cameraPanel.value?.stopCamera()
+  }
+  step.value = nextStep
+}
+
+function handleCameraCaptured(file: File, role: CoinLookupImageRole) {
+  emit('captured', role, file)
+  if (showNotesEditor.value) cameraPanel.value?.stopCamera()
+}
+
 function startDeepAnalysis() {
   deepRequirementError.value = ''
   if (!props.reverse) {
-    step.value = 1
+    goToStep(1)
     deepRequirementError.value = 'Add a reverse image before starting Deep Analysis.'
     return
   }
@@ -401,6 +413,10 @@ defineExpose({ stopCamera })
   min-width: 0;
 }
 
+.capture-media {
+  width: 100%;
+}
+
 .capture-guidance {
   display: flex;
   flex-direction: column;
@@ -411,6 +427,40 @@ defineExpose({ stopCamera })
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.notes-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: clamp(240px, 48vh, 420px);
+  padding: 1rem;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+
+.notes-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.notes-field textarea {
+  flex: 1;
+  min-height: 10rem;
+  resize: none;
+}
+
+.price-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .capture-evidence {
@@ -524,6 +574,10 @@ defineExpose({ stopCamera })
 
   .capture-preview {
     height: min(48vh, 390px);
+  }
+
+  .notes-editor {
+    min-height: min(48vh, 390px);
   }
 
   .workflow-actions {
