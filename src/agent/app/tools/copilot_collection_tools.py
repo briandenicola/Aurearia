@@ -438,12 +438,14 @@ def build_copilot_tool_definitions(
             "without requiring collection ownership or additional confirmation. "
             "Pass query as the owner's request; also pass search_terms as short dealer-search keywords "
             "(for example 'Caligula' or 'Athens tetradrachm') and, when the owner states a budget, "
-            "max_price with its ISO currency (for example 500 and USD for 'under $500')."
+            "max_price with its ISO currency (for example 500 and USD for 'under $500'). "
+            "Leave limit unset for the default of 5 listings; use up to 10 only when the owner asks for more."
         ),
         "auction_search": (
             "Search the administrator-configured auction sources for relevant lots. "
             "Use for explicit auction searches, "
-            "without requiring collection ownership or additional confirmation."
+            "without requiring collection ownership or additional confirmation. "
+            "Leave limit unset for the default of 5 lots; use up to 10 only when the owner asks for more."
         ),
         "price_trends": "Analyze source-backed completed-sale observations.",
         "similar_lots": "Find and rank source-backed similar auction lots.",

@@ -52,6 +52,11 @@ and may answer with a browser challenge after repeated searches. That dealer is
 then reported as unavailable while the others' results are still shown; the
 challenge is never worked around.
 
+**Result limits.** Coin Copilot shows 5 dealer listings (or auction lots) by
+default. When more matched, it says how many and offers to show more, up to a
+hard ceiling of 10; it only searches again with the higher limit if you agree.
+The older chat search shows at most 10 listings.
+
 Coin Copilot's market specialist uses structured model output rather than
 relying on a markdown JSON response. If a dealer blocks direct access, or a
 fetched results page yields no listings, it can use source-backed search

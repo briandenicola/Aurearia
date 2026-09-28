@@ -333,3 +333,53 @@ async def test_bot_challenge_is_reported_as_a_failed_source(monkeypatch):
     )
     assert [(attempt.provider, attempt.status) for attempt in result.provider_attempts] == [("vcoins", "failure")]
     assert result.items == []
+
+
+@pytest.mark.asyncio
+async def test_market_search_returns_five_by_default_and_reports_how_many_more_matched():
+    result = await run_market_search(
+        {"query": "Caligula"},
+        llm_config=LLM,
+        source_hosts=ALL_ADAPTER_HOSTS,
+        dealer_http=FixtureDealerHttp(),
+    )
+    # 5 vCoins + 4 MA-Shops + 1 HJB listings match; the owner sees 5 and is told about the rest.
+    assert len(result.items) == 5
+    assert result.truncation.truncated is True
+    assert result.truncation.omitted_items == 5
+
+
+def test_market_and_auction_tool_descriptions_state_the_default_limit():
+    from app.tools.copilot_collection_tools import build_copilot_tool_definitions
+
+    tools = {tool.name: tool for tool in build_copilot_tool_definitions(["market_search", "auction_search"])}
+    for name in ("market_search", "auction_search"):
+        assert "default of 5" in tools[name].description
+        assert "up to 10 only when the owner asks for more" in tools[name].description
+
+
+@pytest.mark.asyncio
+async def test_legacy_chat_search_shows_at_most_ten_listings(monkeypatch):
+    urls = [f"https://www.forumancientcoins.com/catalog/{index}.html" for index in range(15)]
+    fetched = "".join(f"--- Source: {url} ---\nlisting {index}\n\n" for index, url in enumerate(urls))
+
+    async def fake_search(*_args, **_kwargs):
+        return "search results"
+
+    async def fake_fetch(*_args, **_kwargs):
+        return fetched
+
+    async def fake_format(*_args, **_kwargs):
+        return "", [{"name": f"Coin {index}", "sourceUrl": url} for index, url in enumerate(urls)]
+
+    monkeypatch.setattr(coin_search, "_search_dealer_pages", fake_search)
+    monkeypatch.setattr(coin_search, "_fetch_dealer_pages", fake_fetch)
+    monkeypatch.setattr(coin_search, "_format_dealer_candidates", fake_format)
+    team = coin_search.create_coin_search_team(LLM, "", {"forumancientcoins.com"})
+    state = await team.ainvoke(
+        {"user_message": "Caligula", "messages": [], "search_results": "", "fetched_listings": ""}
+    )
+
+    content = state["messages"][-1].content
+    payload = json.loads(content.split("```json\n", 1)[1].split("\n```", 1)[0])
+    assert len(payload) == coin_search.LEGACY_MAX_LISTINGS == 10

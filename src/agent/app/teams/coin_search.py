@@ -152,6 +152,10 @@ NO_RESULTS_PROMPT = (
 )
 
 
+# Chat search shows at most this many listings, matching Coin Copilot's ceiling.
+LEGACY_MAX_LISTINGS = 10
+
+
 class CoinSearchState(TypedDict):
     """State for the coin search pipeline."""
 
@@ -629,7 +633,7 @@ def create_coin_search_team(
 
         # Format real listings via LLM (this call streams to user)
         _, candidates = await _format_dealer_candidates(llm_config, user_msg, fetched)
-        candidates = _apply_observed_availability(candidates, fetched)
+        candidates = _apply_observed_availability(candidates, fetched)[:LEGACY_MAX_LISTINGS]
         formatted = f"```json\n{json.dumps(candidates, ensure_ascii=False, indent=2)}\n```"
         formatted = _enrich_references_with_authority_links(formatted)
 
