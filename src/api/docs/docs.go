@@ -6963,8 +6963,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Collector-provided identification context (max 2000 characters)",
+                        "description": "Optional collector-provided identification context (max 2000 characters)",
                         "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Ask the AI for a rough, unverified price range",
+                        "name": "includePriceEstimate",
                         "in": "formData"
                     }
                 ],
@@ -19501,6 +19507,9 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "priceEstimate": {
+                    "$ref": "#/definitions/handlers.LookupPriceEstimateSwagger"
+                },
                 "proposedNumistaQuery": {
                     "type": "string"
                 }
@@ -20239,6 +20248,27 @@ const docTemplate = `{
                 "rawAnalysis": {
                     "type": "string",
                     "example": "Vision analysis text..."
+                }
+            }
+        },
+        "handlers.LookupPriceEstimateSwagger": {
+            "type": "object",
+            "properties": {
+                "basis": {
+                    "type": "string",
+                    "example": "Common type in VF"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "high": {
+                    "type": "number",
+                    "example": 250
+                },
+                "low": {
+                    "type": "number",
+                    "example": 120
                 }
             }
         },

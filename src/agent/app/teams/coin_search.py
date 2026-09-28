@@ -1,5 +1,10 @@
 """Team 1: Coin Search — two-phase search with page fetching.
 
+Market search (Coin Copilot) first queries dealers that have a direct site
+adapter (app.tools.dealer_sites) through their own search, which returns only
+current stock. The web-search pipeline below covers the remaining configured
+dealers.
+
 Phase 1: Search the web for dealer pages (Anthropic uses built-in web_search;
          Ollama uses a ReAct agent with SearXNG tool — model decides when to search).
 Phase 2: We fetch dealer pages from the URLs found and extract real listings.
@@ -12,6 +17,7 @@ import logging
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated, Any, TypedDict
 from urllib.parse import urlparse
 
@@ -29,6 +35,7 @@ from app.safety import with_safety
 from app.teams.json_extraction import extract_json_payload
 from app.teams.specialist_contracts import (
     CancellationCheck,
+    MarketSearchQuery,
     ProviderMalformedError,
     ProviderRunner,
     ProviderUnavailableError,
@@ -37,8 +44,19 @@ from app.teams.specialist_contracts import (
     raise_if_cancelled,
     run_provider_search,
 )
+from app.tools.dealer_sites import (
+    DEALER_SITE_ADAPTERS,
+    DealerHttp,
+    DealerSiteAdapter,
+    SiteListing,
+    adapters_for_hosts,
+    apply_budget,
+    extract_search_terms,
+    parse_budget,
+    parse_price,
+)
 from app.tools.numismatic_authority import normalize_candidate_references
-from app.tools.search import fetch_dealer_page, fetch_registered_dealer_page
+from app.tools.search import RegisteredDealerHttp, fetch_dealer_page, fetch_registered_dealer_page
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +152,10 @@ NO_RESULTS_PROMPT = (
 )
 
 
+# Chat search shows at most this many listings, matching Coin Copilot's ceiling.
+LEGACY_MAX_LISTINGS = 10
+
+
 class CoinSearchState(TypedDict):
     """State for the coin search pipeline."""
 
@@ -147,6 +169,7 @@ async def _search_dealer_pages(
     llm_config: LLMConfig,
     user_message: str,
     combined_search_prompt: str,
+    allowed_domains: set[str] | None = None,
 ) -> str:
     messages = [
         SystemMessage(content=combined_search_prompt),
@@ -160,7 +183,9 @@ async def _search_dealer_pages(
         result = await search_agent.ainvoke({"messages": messages})
         last_msg = result["messages"][-1]
         return extract_text_content(last_msg.content)
-    model = get_search_model(llm_config)
+    model = get_search_model(llm_config, allowed_domains=allowed_domains) if allowed_domains else get_search_model(
+        llm_config
+    )
     response = await ainvoke_with_retry(model, messages)
     return extract_search_text(response.content)
 
@@ -334,7 +359,7 @@ async def _collect_market_candidates(
 ) -> Sequence[Mapping[str, Any]]:
     source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
     combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
-    search_results = await _search_dealer_pages(llm_config, query, combined_search)
+    search_results = await _search_dealer_pages(llm_config, query, combined_search, allowed_fetch_hosts or None)
     await raise_if_cancelled(cancellation_check)
     fetch_error: httpx.HTTPError | None = None
     try:
@@ -394,6 +419,86 @@ async def _search_result_candidates(
     return listings
 
 
+class _BudgetTally:
+    """Counts listings left out by the budget filter, for the result warnings."""
+
+    def __init__(self) -> None:
+        self.other_currency = 0
+        self.no_price = 0
+
+    def warnings(self, max_price: Decimal | None, currency: str | None) -> list[str]:
+        if max_price is None:
+            return []
+        budget = f"{max_price:,.2f} {currency or 'USD'}"
+        notes: list[str] = []
+        if self.other_currency:
+            notes.append(
+                f"{self.other_currency} listing(s) priced in another currency were left out because they "
+                f"can't be compared with a {budget} budget without converting currencies."
+            )
+        if self.no_price:
+            notes.append(f"{self.no_price} listing(s) without a readable price were left out of the {budget} budget.")
+        return notes
+
+
+def _rank_by_title_match(listings: Sequence[SiteListing], terms: str) -> list[SiteListing]:
+    """Put listings whose title names every search term first; keep site order otherwise."""
+    words = [word.lower() for word in terms.split() if len(word) > 2]
+    if not words:
+        return list(listings)
+    return sorted(listings, key=lambda listing: not all(word in listing.title.lower() for word in words))
+
+
+def _site_runner(
+    adapter: DealerSiteAdapter,
+    http: DealerHttp,
+    terms: str,
+    max_price: Decimal | None,
+    currency: str | None,
+    tally: _BudgetTally,
+) -> ProviderRunner:
+    async def run(_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
+        listings = await adapter.search(http, terms, max_price, currency, limit)
+        filtered = apply_budget(listings, max_price, currency)
+        tally.other_currency += filtered.other_currency
+        tally.no_price += filtered.no_price
+        return [listing.as_candidate() for listing in _rank_by_title_match(filtered.listings, terms)]
+
+    return ProviderRunner(provider=adapter.name, run=run, allowed_hosts=frozenset({adapter.host}))
+
+
+def _candidate_budget_filter(
+    candidates: Sequence[Mapping[str, Any]],
+    max_price: Decimal | None,
+    currency: str | None,
+    tally: _BudgetTally,
+) -> list[Mapping[str, Any]]:
+    """Apply the same no-conversion budget rule to web-search candidates."""
+    if max_price is None:
+        return list(candidates)
+    kept: list[Mapping[str, Any]] = []
+    for candidate in candidates:
+        raw = candidate.get("listed_price") or candidate.get("estPrice") or candidate.get("price") or ""
+        amount, parsed_currency = parse_price(str(raw))
+        listing_currency = str(candidate.get("currency") or parsed_currency or "").upper() or None
+        result = apply_budget(
+            [SiteListing(title="", url="", dealer="", price=amount, currency=listing_currency)], max_price, currency
+        )
+        tally.other_currency += result.other_currency
+        tally.no_price += result.no_price
+        if result.listings:
+            kept.append(candidate)
+    return kept
+
+
+def _parse_market_query(query: SpecialistQuery | Mapping[str, Any]) -> MarketSearchQuery:
+    if isinstance(query, MarketSearchQuery):
+        return query
+    if isinstance(query, SpecialistQuery):
+        return MarketSearchQuery.model_validate(query.model_dump())
+    return MarketSearchQuery.model_validate(query)
+
+
 async def run_market_search(
     query: SpecialistQuery | Mapping[str, Any],
     *,
@@ -403,44 +508,68 @@ async def run_market_search(
     cancellation_check: CancellationCheck | None = None,
     source_hosts: set[str] | None = None,
     search_prompt: str = "",
+    dealer_http: DealerHttp | None = None,
+    site_adapters: Sequence[DealerSiteAdapter] = DEALER_SITE_ADAPTERS,
 ) -> SpecialistResult:
-    """Run the canonical dealer workflow and return a strict specialist result."""
+    """Run the canonical dealer workflow and return a strict specialist result.
+
+    Dealers with a site adapter are searched directly (current stock only);
+    any other configured dealer goes through web search restricted to its host.
+    A budget ("under $500", or max_price) is enforced on parsed prices without
+    converting currencies.
+    """
+    market_query = _parse_market_query(query)
+    max_price, currency = market_query.max_price, market_query.currency
+    if max_price is None:
+        max_price, currency = parse_budget(market_query.query)
+    elif currency is None:
+        currency = parse_budget(market_query.query)[1] or "USD"
+    terms = market_query.search_terms or extract_search_terms(market_query.query)
+    tally = _BudgetTally()
+
     if provider_runners is None:
         if llm_config is None:
             raise ProviderUnavailableError
+        adapters, web_hosts = adapters_for_hosts(source_hosts or set(), site_adapters)
+        http = dealer_http or RegisteredDealerHttp({adapter.host for adapter in adapters})
+        provider_runners = [_site_runner(adapter, http, terms, max_price, currency, tally) for adapter in adapters]
 
-        async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
-            return await _collect_market_candidates(
-                llm_config,
-                search_query,
-                limit,
-                search_prompt=search_prompt,
-                allowed_fetch_hosts=source_hosts,
-                cancellation_check=cancellation_check,
-            )
+        if web_hosts or not adapters:
+            async def canonical_provider(search_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
+                candidates = await _collect_market_candidates(
+                    llm_config,
+                    search_query,
+                    limit,
+                    search_prompt=search_prompt,
+                    # None keeps the historical "no host list given" behavior.
+                    allowed_fetch_hosts=web_hosts if source_hosts is not None else None,
+                    cancellation_check=cancellation_check,
+                )
+                return _candidate_budget_filter(candidates, max_price, currency, tally)
 
-        provider_runners = [
-            ProviderRunner(
-                provider="configured_dealer_search",
-                run=canonical_provider,
-                allowed_hosts=frozenset(source_hosts or set()),
+            provider_runners.append(
+                ProviderRunner(
+                    provider="configured_dealer_search",
+                    run=canonical_provider,
+                    allowed_hosts=frozenset(web_hosts),
+                )
             )
-        ]
     result = await run_provider_search(
         capability="market_search",
-        query=query,
+        query=SpecialistQuery(query=market_query.query, limit=market_query.limit),
         provider_runners=provider_runners,
         observed_at=observed_at,
         cancellation_check=cancellation_check,
     )
+    extra_warnings = tally.warnings(max_price, currency)
     if any(item.verification_state == "partial" for item in result.items):
+        extra_warnings.append("Some listings are only partially verified; current availability may be unknown.")
         return result.model_copy(update={
             "outcome": "partial",
-            "warnings": [
-                *result.warnings,
-                "Some listings are only partially verified; current availability may be unknown.",
-            ][:10],
+            "warnings": [*result.warnings, *extra_warnings][:10],
         })
+    if extra_warnings:
+        return result.model_copy(update={"warnings": [*result.warnings, *extra_warnings][:10]})
     return result
 
 
@@ -464,7 +593,7 @@ def create_coin_search_team(
         user_msg = state.get("user_message", "")
         logger.debug("[coin_search] search_node start — query: %.100s", user_msg)
 
-        content = await _search_dealer_pages(llm_config, user_msg, combined_search)
+        content = await _search_dealer_pages(llm_config, user_msg, combined_search, allowed_fetch_hosts or None)
         logger.debug("[coin_search] search response=%d chars", len(content))
 
         return {"search_results": content, "messages": []}
@@ -504,7 +633,7 @@ def create_coin_search_team(
 
         # Format real listings via LLM (this call streams to user)
         _, candidates = await _format_dealer_candidates(llm_config, user_msg, fetched)
-        candidates = _apply_observed_availability(candidates, fetched)
+        candidates = _apply_observed_availability(candidates, fetched)[:LEGACY_MAX_LISTINGS]
         formatted = f"```json\n{json.dumps(candidates, ensure_ascii=False, indent=2)}\n```"
         formatted = _enrich_references_with_authority_links(formatted)
 

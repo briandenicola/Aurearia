@@ -50,6 +50,16 @@ describe('Quick Capture Numista API contracts', () => {
     expect(formEntries(mockApi.post.mock.calls[0] ?? []).imageRoles).toEqual(['obverse', 'reverse'])
   })
 
+  it('sends includePriceEstimate only when the collector opts in', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+
+    await client.lookupCoin([obverse], 'Silver', ['obverse'])
+    await client.lookupCoin([obverse], 'Silver', ['obverse'], true)
+
+    expect(formEntries(mockApi.post.mock.calls[0] ?? []).includePriceEstimate).toBeUndefined()
+    expect(formEntries(mockApi.post.mock.calls[1] ?? []).includePriceEstimate).toEqual(['true'])
+  })
+
   it('creates a draft with exactly the selected Numista id and canonical URL', async () => {
     await client.createQuickCaptureDraft({
       workingTitle: 'Trajan denarius',

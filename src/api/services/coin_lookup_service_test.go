@@ -815,3 +815,60 @@ func TestCoinLookupPhotoEvidenceBoundsNoiseNoImageAndCancellation(t *testing.T) 
 		t.Fatal("cancelled lookup should fail")
 	}
 }
+
+func TestCoinLookupPriceEstimateIsOptIn(t *testing.T) {
+	analysis := `{"name":"Trajan Denarius","ruler":"Trajan","priceEstimateLow":120,"priceEstimateHigh":250,"priceEstimateCurrency":"usd","priceEstimateBasis":"Common type in VF"}`
+	for _, test := range []struct {
+		name    string
+		include bool
+	}{
+		{name: "not requested", include: false},
+		{name: "requested", include: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var prompt string
+			svc := newCoinLookupServiceForResponse(t, analysis, func(r *http.Request) {
+				var request AnalyzeProxyRequest
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Fatalf("decode agent request: %v", err)
+				}
+				prompt = request.Prompt
+			})
+			result, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{
+				Images:               []string{"data:image/png;base64,AA=="},
+				Notes:                "Silver, 3.2 g",
+				IncludePriceEstimate: test.include,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(prompt, "priceEstimateLow"); got != test.include {
+				t.Fatalf("prompt includes price section = %v, want %v", got, test.include)
+			}
+			if !test.include {
+				if result.PriceEstimate != nil {
+					t.Fatalf("price estimate returned without opt-in: %#v", result.PriceEstimate)
+				}
+				return
+			}
+			want := LookupPriceEstimate{Low: 120, High: 250, Currency: "USD", Basis: "Common type in VF"}
+			if result.PriceEstimate == nil || *result.PriceEstimate != want {
+				t.Fatalf("price estimate = %#v, want %#v", result.PriceEstimate, want)
+			}
+		})
+	}
+}
+
+func TestExtractPriceEstimateRejectsUnusableRanges(t *testing.T) {
+	for _, analysis := range []string{
+		`not json`,
+		`{"priceEstimateLow":null,"priceEstimateHigh":null}`,
+		`{"priceEstimateLow":0,"priceEstimateHigh":100}`,
+		`{"priceEstimateLow":300,"priceEstimateHigh":100}`,
+		`{"priceEstimateLow":"100","priceEstimateHigh":"200"}`,
+	} {
+		if got := extractPriceEstimate(analysis); got != nil {
+			t.Errorf("extractPriceEstimate(%s) = %#v, want nil", analysis, got)
+		}
+	}
+}

@@ -1,0 +1,34 @@
+{
+ "status": "ok",
+ "data": {
+  "totalItemsCount": 1,
+  "items": [
+   {
+    "InventoryGroup": "cc",
+    "InventoryNumber": 117376,
+    "Title": "Caligula. AE 21",
+    "EscapedTitle": "Caligula. AE 21",
+    "Image": "https://images.hjbltd.com/ancient-coins/cc117376a.jpg",
+    "Images": [
+     "https://images.hjbltd.com/ancient-coins/cc117376.jpg",
+     "https://images.hjbltd.com/ancient-coins/cc117376a.jpg",
+     "https://images.hjbltd.com/ancient-coins/cc117376b.jpg"
+    ],
+    "Quantity": 1,
+    "Price": 400,
+    "Reserve": 0,
+    "LotNumber": 636,
+    "PointOfSale": "Buy Or Bid Sale",
+    "PointOfSaleID": 2,
+    "isSelect": false,
+    "isMobility": false,
+    "isBuyOrBid": true,
+    "isCurrentBBS": "1",
+    "VideoUrl": "https://player.vimeo.com/video/1202256546",
+    "VideoOnly": 0,
+    "ImageA": "https://images.hjbltd.com/ancient-coins/cc117376a.jpg",
+    "ImageB": "https://images.hjbltd.com/ancient-coins/cc117376b.jpg"
+   }
+  ]
+ }
+}
