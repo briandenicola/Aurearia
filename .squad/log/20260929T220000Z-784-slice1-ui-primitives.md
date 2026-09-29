@@ -13,7 +13,8 @@
      `disabled`, `label` (aria-label), `inheritAttrs: false` so `id` and other
      attributes land on the `<input>`.
    - Standardizes the track on `--bg-input`, the knob on `--text-secondary`, and
-     always renders a focus ring.
+     always renders a **keyboard** focus ring (`peer-focus-visible`), so a
+     mouse click leaves no persistent outline.
    - **All 23 hand-rolled `peer sr-only` toggles migrated** across 15 files
      (9 schedule panels, `SettingsAccountSection`, `SettingsAppearanceSection`,
      `AdminSchedulesSection`, `AdminOIDCSection`, `AdminCatalogsSection`,
@@ -56,10 +57,14 @@ this log understated it as a single delta):
 3. **Track background unified on `--bg-input`.** Baseline used `bg-surface`
    (schedule panels) and `bg-[var(--bg-primary)]` (settings) as well as
    `bg-input`.
-4. **Focus ring model unified on `peer-focus-visible`.** Baseline had 18 copies
-   on `peer-focus-visible`, 7 on `focus-within` (which also rings after a mouse
-   click), and 5 with no ring at all. All toggles now ring on keyboard focus
-   only, and the five that had none gain one.
+4. **Focus ring model unified on `peer-focus-visible`.** Of the 23 baseline
+   toggles, **18** already used `peer-focus-visible` (10 schedule panels, the 7
+   in `SettingsAccountSection`, and `SettingsAppearanceSection`), **3** used
+   `focus-within` on the wrapper, which also rings after a mouse click
+   (`AdminCatalogsSection` form row and both `AdminOIDCSection` toggles), and
+   **2** had no ring at all (`CoinForm`, and the `AdminCatalogsSection` table
+   cell). Net effect: 18 unchanged, 3 stop ringing after a mouse click, 2 gain
+   a keyboard ring.
 5. **Knob colour unified on `--text-secondary`**; one copy used
    `--text-primary`.
 6. **Checked border unified on `--accent-gold`**; one copy used
@@ -76,15 +81,18 @@ regression caught in review and reverted.
 Screenshots were waived by the owner for this slice, so none of the above was
 visually confirmed.
 
-## Verification (this tree)
+## Verification (candidate `c864cea0`)
+
+All rows below were run on the final candidate `c864cea0` unless the row says
+otherwise.
 
 | Gate | Result |
 |---|---|
 | `npm run lint` (`eslint . --ext .vue,.ts,.tsx --max-warnings 0`) | PASS |
 | `npm run type-check` (`vue-tsc --build`) | PASS |
-| `npm run test` | PASS — 1749 passed, 1 skipped (208 files) |
+| `npm run test` | PASS — 1752 passed, 1 skipped (208 files) |
 | `npm run build` | PASS — built in 2.79s, PWA precache 198 entries |
-| `task check:delivery` | PASS — 91 subtests, governance 0 errors (run on `29aadfd7`; later commits touch only `src/web` and docs, no delivery-scoped path) |
+| `task check:delivery` | PASS — 91 subtests, governance 0 errors. Run on `29aadfd7`; every later commit touches only `src/web` and documentation, so no delivery-scoped path changed and the result carries over. |
 
 `npm run build` initially could not run because `node_modules/@fontsource` was
 absent. The owner authorized `npm ci` in `src/web` (688 packages), after which
@@ -128,11 +136,16 @@ author repaired the non-binding findings:
 | F-6 light-theme status contrast | colours unchanged; recorded as a known gap in `docs/design-system.md` §4 |
 | F-9 knob not vertically centred | `md` knob centred and travel made symmetric in both sizes |
 
-Answer to the reviewer's factual question: the schedule-panel
-`<label class="form-label">` elements never carried a `for=` attribute, before
-or after (`git show de0dd508:…AdminSchedulesSection.vue | grep -c 'form-label
-for='` is 0, and no `form-label` line appears in the diff). Click-to-toggle on
-the switch itself is preserved because `BaseToggle` wraps its own label.
+Answer to the reviewer's factual question, corrected after the reviewer found a
+counter-example to an earlier over-general claim. Searching every baseline
+schedule panel (`git grep -n 'form-label" for=' de0dd508 --
+'src/web/src/components/admin/schedules/*.vue'`), exactly **one** toggle had an
+associated text label: `AdminPurchaseReminderSchedule.vue` L9,
+`<label class="form-label" for="reminder-check-enabled">`. Its `id` is
+forwarded to the `<input>` through `BaseToggle`'s attribute pass-through, so
+that association survives. Every other toggle's sibling `form-label` was an
+orphan label before the change and still is. Click-to-toggle on the switch
+itself is preserved in all cases because `BaseToggle` wraps its own label.
 
 Gates re-run on `a87c73ee`: lint PASS, type-check PASS, 1751 passed / 1 skipped,
 `npm run build` PASS.
@@ -148,5 +161,6 @@ Gates re-run on `a87c73ee`: lint PASS, type-check PASS, 1751 passed / 1 skipped,
 
 ## Next action
 
-Owner review of the one intended visual delta, then agree slice 2 scope for
-#784 and whether #766 comes next. No deployment or release is authorized.
+Owner review of the eight intended visual deltas listed above, then agree
+slice 2 scope for #784 and whether #766 comes next. No deployment or release
+is authorized.
