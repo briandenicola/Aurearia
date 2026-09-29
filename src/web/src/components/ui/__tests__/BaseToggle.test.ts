@@ -32,9 +32,28 @@ describe('BaseToggle', () => {
     expect(sm.find('span').classes()).toContain('after:h-4')
   })
 
-  it('keeps a visible focus ring on the track', () => {
+  // Keyboard focus only: a mouse click must not leave a persistent ring.
+  it('keeps a keyboard focus ring on the track', () => {
     const wrapper = mount(BaseToggle, { props: { modelValue: false, label: 'Thing' } })
-    expect(wrapper.find('label').classes()).toContain('focus-within:outline-gold')
+    const track = wrapper.find('span').classes()
+    expect(track).toContain('peer-focus-visible:outline-gold')
+    expect(wrapper.find('label').classes()).not.toContain('focus-within:outline-gold')
+  })
+
+  // The knob sits 2px inside the track's padding box on all four edges in both
+  // sizes. Track border is 1px, so travel is width - 2*border - knob - 2*inset.
+  it('insets and travels the knob symmetrically in both sizes', () => {
+    const md = mount(BaseToggle, { props: { modelValue: false, label: 'Thing' } }).find('span').classes()
+    expect(md).toContain('after:left-[2px]')
+    expect(md).toContain('after:bottom-[2px]')
+    expect(md).toContain('peer-checked:after:translate-x-[22px]')
+
+    const sm = mount(BaseToggle, { props: { modelValue: false, size: 'sm', label: 'Thing' } })
+      .find('span')
+      .classes()
+    expect(sm).toContain('after:left-[2px]')
+    expect(sm).toContain('after:bottom-[2px]')
+    expect(sm).toContain('peer-checked:after:translate-x-5')
   })
 
   it('forwards attributes to the input rather than the wrapper', () => {

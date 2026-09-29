@@ -23,7 +23,8 @@
    - `tone` of `success | error | warning | info | neutral`, driven by new
      `--status-*-bg` / `--status-*-fg` tokens in `variables.css`.
    - 10 duplicated status pills migrated across 6 admin schedule panels.
-   - Template `rgba()` literals dropped from 195 to 109.
+   - Template `rgba()` literals dropped from 195 to 109 (the ratchet in
+     section 4 counts hex and `rgb()` too, so its budget is 139).
 
 3. **Written standard** — `docs/design-system.md` is now the canonical design
    system: tokens, typography, chips/buttons, **status tones**, **shared
@@ -32,21 +33,48 @@
    now points at it and adds a shared-primitives table instead of drifting.
 
 4. **Guards** in `src/web/src/__tests__/design-tokens.test.ts`
-   - Hand-rolled `peer sr-only` toggles: must be zero.
-   - The raw status-pill class shape: must be zero.
-   - Template `rgba()` literals: ratchet budget of 109, may only decrease.
+   - Visually hidden checkboxes outside `BaseToggle`: must be zero, whatever
+     the class order.
+   - Status-driven pills carrying a hardcoded colour: must be zero.
+   - Hardcoded template colour literals (`rgba()`, `rgb()`, hex): ratchet
+     budget of 139, may only decrease.
 
-## Intended visual delta (one)
+## Intended visual deltas
 
-Three toggle size clusters existed on `beta`, not two: 22x42 (10 uses), 24x44
-(4 uses) and 28x50 (8 uses). The owner chose two sizes before that third cluster
-was known. The 24x44 group was folded into `sm` because every one of its
-instances is an **indented sub-option** row (for example "Include wishlist
-items" under "Coin of the Day"), where the smaller size is semantically correct.
-Two other small deltas: the `AdminValuationSchedule` "pending" pill moves from
-`rgba(243,156,18,…)/#f39c12` to the shared `warning` tone, and the
-`AdminSchedulesSection` ParcelApp toggle track moves from `--bg-surface` to the
-standard `--bg-input`.
+Standardizing 23 drifted copies onto one primitive necessarily changes pixels.
+The full list, derived from the `de0dd508..HEAD` diff (an earlier version of
+this log understated it as a single delta):
+
+1. **Three size clusters collapse to two.** Baseline had 22x42 (10 uses),
+   24x44 (5 uses) and 28x50 (8 uses). The 24x44 cluster folds into `sm`. Four
+   of its five members are indented sub-option rows, where `sm` is
+   semantically right; the fifth, `CoinForm.vue` "Private Coin", is a
+   top-level form row and does shrink. Its knob also goes 20px to 16px and its
+   knob colour `--text-primary` to `--text-secondary`.
+2. **Knob grows 20px to 22px** on the four `md` settings toggles that used
+   `after:h-5`.
+3. **Track background unified on `--bg-input`.** Baseline used `bg-surface`
+   (schedule panels) and `bg-[var(--bg-primary)]` (settings) as well as
+   `bg-input`.
+4. **Focus ring model unified on `peer-focus-visible`.** Baseline had 18 copies
+   on `peer-focus-visible`, 7 on `focus-within` (which also rings after a mouse
+   click), and 5 with no ring at all. All toggles now ring on keyboard focus
+   only, and the five that had none gain one.
+5. **Knob colour unified on `--text-secondary`**; one copy used
+   `--text-primary`.
+6. **Checked border unified on `--accent-gold`**; one copy used
+   `--border-accent`.
+7. **`AdminCatalogsSection` read-only table-cell toggle 28x50 to 22x42**,
+   applying the documented "compact table cells use `sm`" rule.
+8. **`AdminValuationSchedule` "pending" pill** moves from
+   `rgba(243,156,18,...)`/`#f39c12` to the shared `warning` tone.
+
+Knob geometry is unchanged from baseline: a 2px inset on all four edges of the
+track's padding box in both sizes. An earlier attempt to "centre" it was a
+regression caught in review and reverted.
+
+Screenshots were waived by the owner for this slice, so none of the above was
+visually confirmed.
 
 ## Verification (this tree)
 
@@ -55,12 +83,13 @@ standard `--bg-input`.
 | `npm run lint` (`eslint . --ext .vue,.ts,.tsx --max-warnings 0`) | PASS |
 | `npm run type-check` (`vue-tsc --build`) | PASS |
 | `npm run test` | PASS — 1749 passed, 1 skipped (208 files) |
-| `task check:delivery` | PASS — 91 subtests, governance 0 errors |
+| `npm run build` | PASS — built in 2.79s, PWA precache 198 entries |
+| `task check:delivery` | PASS — 91 subtests, governance 0 errors (run on `29aadfd7`; later commits touch only `src/web` and docs, no delivery-scoped path) |
 
-`npm run build` was **not** run: `node_modules/@fontsource` is absent on this
-machine, so the build fails to resolve `@fontsource/inter/300.css`. This is a
-pre-existing environment gap unrelated to this change and needs an
-owner-authorized `npm ci`. Browser/mobile checks remain additional.
+`npm run build` initially could not run because `node_modules/@fontsource` was
+absent. The owner authorized `npm ci` in `src/web` (688 packages), after which
+`npm run build` passed: built in 2.79s, PWA generateSW, 198 precache entries,
+`dist/sw.js` generated. Browser/mobile checks remain additional.
 
 ### Tamper tests (each guard broken, failure observed, reverted)
 
@@ -68,8 +97,45 @@ owner-authorized `npm ci`. Browser/mobile checks remain additional.
 |---|---|---|
 | Hand-rolled toggle check | Added a `peer sr-only` input to `CoinForm.vue` | 1 test failed |
 | Status-pill shape check | Added the raw pill class to `CoinForm.vue` | 1 test failed |
-| Template `rgba()` ratchet | Added one `bg-[rgba(1,2,3,0.1)]` class | 1 test failed |
+| Colour ratchet | Added one `bg-[rgba(1,2,3,0.1)]` class | 1 test failed |
 | `BaseStatusBadge` token colours | Hardcoded a tone background to `rgba(...)` | 2 tests failed |
+| Hardened toggle check | Reordered to `class="sr-only peer"` (evades the old regex) | 1 test failed |
+| Hardened status-pill check | Status pill coloured with a hex literal | 2 tests failed |
+| Hardened colour ratchet | Added one bare `text-[#123456]` | 1 test failed |
+| Knob geometry | Changed `sm` inset to `after:bottom-[3px]` | 1 test failed |
+| Keyboard-only focus ring | Swapped `peer-focus-visible:` for `focus-visible:` | 1 test failed |
+
+The `COLOR_BUDGET = 139` figure was derived by counting
+`rgba?\(|#[0-9a-fA-F]{3,8}\b` inside the `<template>` block of every
+non-test `.vue` file under `src/web/src`; the same expression the guard uses.
+
+## Independent review and repairs (commit `a87c73ee`)
+
+The first review of `29aadfd7` returned INCOMPLETE with two blocking findings —
+both evidence gaps, not defects: no diff was supplied to bind the candidate, and
+the production build had not been run. Both were remediated (full diff supplied
+from the session workspace; `npm ci` + `npm run build` run with owner
+authorization). The reviewer did not require an independent reviser, so the
+author repaired the non-binding findings:
+
+| Finding | Repair |
+|---|---|
+| F-1 attribute fallthrough onto the hidden input | `class`/`style` now go to the wrapper, other attrs to the input; test added |
+| F-2 optional `label` allowed a nameless toggle | `label` is now a required prop |
+| F-3 table-cell toggle contradicted the documented `sm` rule | switched to `sm`; aria-label now names the row's catalog |
+| F-4 untested `@change` fallthrough on Public Collection | regression test pins the revert-on-uncheck semantics |
+| F-5 guards evadable by class reorder or hex notation | all three guards rewritten and re-tamper-tested with evasions the old regexes missed; ratchet now counts `rgba()`, `rgb()` and hex, budget 139 |
+| F-6 light-theme status contrast | colours unchanged; recorded as a known gap in `docs/design-system.md` §4 |
+| F-9 knob not vertically centred | `md` knob centred and travel made symmetric in both sizes |
+
+Answer to the reviewer's factual question: the schedule-panel
+`<label class="form-label">` elements never carried a `for=` attribute, before
+or after (`git show de0dd508:…AdminSchedulesSection.vue | grep -c 'form-label
+for='` is 0, and no `form-label` line appears in the diff). Click-to-toggle on
+the switch itself is preserved because `BaseToggle` wraps its own label.
+
+Gates re-run on `a87c73ee`: lint PASS, type-check PASS, 1751 passed / 1 skipped,
+`npm run build` PASS.
 
 ## Not done in this slice
 

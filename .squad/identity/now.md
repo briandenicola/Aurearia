@@ -23,9 +23,12 @@ standard, with ratchet guards in `design-tokens.test.ts`. See
 
 ## Next Action
 
-Get an independent review of #784 slice 1 bound to its commit, then ask the
-owner to confirm the one intended visual delta (the 24x44 toggles folded into
-`sm`) and agree whether #784 slice 2 (page-by-page typography and tables, which
+Re-review #784 slice 1 against its new commit: the first review returned
+INCOMPLETE (evidence gaps) and the second FAIL, catching a knob-geometry
+regression the reviewer had itself mistakenly requested, plus stale records and
+an understated visual-delta list. All of that is repaired here. Once the review
+clears, ask the owner to confirm the eight declared visual deltas in the slice 1
+log and agree whether #784 slice 2 (page-by-page typography and tables, which
 needs owner screenshots) or #766 comes next. #766 still needs its own spec.
-`npm run build` is still blocked by a missing `node_modules/@fontsource` and
-needs an owner-authorized `npm ci`. No deployment or release is authorized.
+`npm ci` and `npm run build` in `src/web` were owner-authorized and pass. No
+deployment or release is authorized.

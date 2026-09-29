@@ -2,7 +2,6 @@
   <label
     :class="[
       'relative inline-block shrink-0 rounded-full',
-      'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold',
       size === 'sm' ? 'h-[22px] w-[42px]' : 'h-7 w-[50px]',
       $attrs.class,
     ]"
@@ -21,14 +20,16 @@
       :class="[
         'absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors',
         'peer-checked:border-gold peer-checked:bg-gold-dim',
+        'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold',
         'peer-disabled:cursor-not-allowed peer-disabled:opacity-60',
         disabled ? '' : 'cursor-pointer',
         'after:absolute after:left-[2px] after:rounded-full after:bg-text-secondary',
         `after:transition-transform after:content-['']`,
         'peer-checked:after:bg-gold',
+        // 2px inset on all four edges of the span's padding box in both sizes.
         size === 'sm'
-          ? 'after:bottom-[3px] after:h-4 after:w-4 peer-checked:after:translate-x-6'
-          : 'after:bottom-[3px] after:h-[22px] after:w-[22px] peer-checked:after:translate-x-[24px]',
+          ? 'after:bottom-[2px] after:h-4 after:w-4 peer-checked:after:translate-x-5'
+          : 'after:bottom-[2px] after:h-[22px] after:w-[22px] peer-checked:after:translate-x-[22px]',
       ]"
     ></span>
   </label>
