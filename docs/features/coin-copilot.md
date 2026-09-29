@@ -2,14 +2,19 @@
 
 > A default-off, durable, read-only multi-step harness for owner-scoped
 > collection analysis in the existing chat drawer.
+>
+> This is the operator and technical reference. For a plain-language guide with
+> diagrams of every helper and the flow through the system, see
+> [How Coin Copilot Works: A Collector's Guide](how-coin-copilot-works.md).
 
 ## Scope and rollout
 
 Coin Copilot can sequence collection search, coin detail, collection summary,
 top-value, portfolio-review, structural gap-analysis, dealer search, auction
-search, completed-sale price-trend, and an owner-scoped Deep Analysis handoff.
-It does not expose writes, approvals, similar lots, long-term memory, arbitrary
-HTTP, filesystem, shell, code execution, or direct database access.
+search, completed-sale price-trend, similar-lot, and an owner-scoped Deep
+Analysis handoff: the 11 tools in `CoinCopilotAllowedTools`. It does not expose
+writes, approvals, coin-show search, long-term memory, arbitrary HTTP,
+filesystem, shell, code execution, or direct database access.
 
 The existing drawer calls `GET /api/agent/copilot/capability` before starting a
 run. Copilot mode is selected only when `CoinCopilotEnabled` is on (it defaults

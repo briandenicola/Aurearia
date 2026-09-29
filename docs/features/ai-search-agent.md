@@ -1,6 +1,10 @@
 # Coin Agent
 
 > Chat with an intelligent agent to discover coins, answer collection questions, research shows, and save useful answers as markdown Notes after review.
+>
+> When an administrator enables Coin Copilot, the same chat drawer uses Copilot
+> instead. For how the two compare, and diagrams of both, see
+> [How Coin Copilot Works: A Collector's Guide](how-coin-copilot-works.md).
 
 ## Overview
 
