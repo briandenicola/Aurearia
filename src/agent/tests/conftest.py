@@ -20,3 +20,14 @@ def _reset_dealer_search_guard():
     DEALER_SEARCH_GUARD.reset()
     yield
     DEALER_SEARCH_GUARD.reset()
+
+
+@pytest.fixture(autouse=True)
+def _no_live_listing_relevance(monkeypatch):
+    """The title-relevance check calls an LLM; by default it fails open so tests stay offline."""
+    from app.teams import listing_relevance
+
+    async def unavailable(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(listing_relevance, "classify_titles", unavailable)

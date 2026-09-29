@@ -157,7 +157,7 @@ sequenceDiagram
             Dealer->>Sites: The dealer's own search
             Sites-->>Dealer: Current listings with prices
         end
-        Dealer->>Dealer: Drop over-budget and other-currency listings<br/>Rank title matches first · alternate dealers
+        Dealer->>Dealer: Drop over-budget and other-currency listings<br/>Rank title matches first · alternate dealers<br/>AI check drops titles that only mention the coin
         Dealer-->>Copilot: 5 listings + "N more matched" + notes
     end
 
@@ -213,7 +213,7 @@ flowchart TD
     Web("🌐 Web search locked to<br/>that dealer's website,<br/>then read the listing pages"):::market
     Budget("💲 Keep listings<br/>at or under budget<br/>in the budget's currency"):::server
     Drop("🚫 Leave out sold,<br/>over-budget, other-currency<br/>and unpriced listings<br/>and say how many"):::server
-    Mix("🔀 Title matches first<br/>dealers take turns"):::server
+    Mix("🔀 Title matches first<br/>dealers take turns<br/>AI check leaves out titles<br/>that only mention the coin"):::server
     Out(["✅ Show 5 listings<br/>up to 10 if you ask<br/>each with its dealer link"]):::copilot
 
     Q --> P --> Split
@@ -419,7 +419,12 @@ Your administrator can adjust these in *Admin → System → Coin Copilot Limits
 - **Keyword search can't judge meaning.** Dealers search their own titles and
   descriptions, so a listing that merely *mentions* Caligula (a Germanicus coin
   "struck under Caligula", or a dealer's colourful description) can appear.
-  Listings with the coin in the title are ranked first.
+  Listings with the coin in the title are ranked first. A quick AI check then
+  reads the listing titles: listings about a different coin (a caliph dubbed
+  "the Caligula of the Islamic world") are left out and counted, and coins
+  *related* to the search (the Germanicus struck under Caligula) stay but are
+  shown after direct matches. The check has an 8-second limit; if it fails or
+  times out, the listings are shown unfiltered.
 - **Currencies aren't converted**, so a euro listing that would fit your
   dollar budget is left out (and counted).
 - **Dealers without direct search** can still show listings whose availability

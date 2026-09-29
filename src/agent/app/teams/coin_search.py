@@ -32,8 +32,10 @@ from app.llm.retry import ainvoke_with_retry
 from app.models.requests import AlertDiscoveryRequest, LLMConfig
 from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
 from app.safety import with_safety
+from app.teams import listing_relevance
 from app.teams.json_extraction import extract_json_payload
 from app.teams.specialist_contracts import (
+    MAX_ITEMS,
     CancellationCheck,
     MarketSearchQuery,
     ProviderMalformedError,
@@ -504,6 +506,29 @@ def _candidate_budget_filter(
     return kept
 
 
+async def _apply_title_relevance(
+    result: SpecialistResult, llm_config: LLMConfig, search: str
+) -> tuple[SpecialistResult, int]:
+    """Reorder by title relevance; on any failure the result is returned unchanged."""
+    if not result.items:
+        return result, 0
+    labels = await listing_relevance.classify_titles(llm_config, search, [item.title for item in result.items])
+    if labels is None:
+        return result, 0
+    items, dropped = listing_relevance.order_by_relevance(result.items, labels)
+    return result.model_copy(update={"items": items}), dropped
+
+
+def _trim_to_limit(result: SpecialistResult, limit: int) -> SpecialistResult:
+    if len(result.items) <= limit:
+        return result
+    omitted = result.truncation.omitted_items + len(result.items) - limit
+    return result.model_copy(update={
+        "items": result.items[:limit],
+        "truncation": result.truncation.model_copy(update={"truncated": True, "omitted_items": omitted}),
+    })
+
+
 def _parse_market_query(query: SpecialistQuery | Mapping[str, Any]) -> MarketSearchQuery:
     if isinstance(query, MarketSearchQuery):
         return query
@@ -529,7 +554,8 @@ async def run_market_search(
     Dealers with a site adapter are searched directly (current stock only);
     any other configured dealer goes through web search restricted to its host.
     A budget ("under $500", or max_price) is enforced on parsed prices without
-    converting currencies.
+    converting currencies. With an LLM configured, one bounded title-relevance
+    check then drops listings that only mention the search words (#774).
     """
     market_query = _parse_market_query(query)
     max_price, currency = market_query.max_price, market_query.currency
@@ -539,6 +565,9 @@ async def run_market_search(
         currency = parse_budget(market_query.query)[1] or "USD"
     terms = market_query.search_terms or extract_search_terms(market_query.query)
     tally = _BudgetTally()
+    check_relevance = llm_config is not None
+    # Headroom so listings dropped as unrelated can be replaced by the next ones.
+    search_limit = MAX_ITEMS if check_relevance else market_query.limit
 
     if provider_runners is None:
         if llm_config is None:
@@ -569,12 +598,18 @@ async def run_market_search(
             )
     result = await run_provider_search(
         capability="market_search",
-        query=SpecialistQuery(query=market_query.query, limit=market_query.limit),
+        query=SpecialistQuery(query=market_query.query, limit=search_limit),
         provider_runners=provider_runners,
         observed_at=observed_at,
         cancellation_check=cancellation_check,
     )
     extra_warnings = tally.warnings(max_price, currency)
+    if check_relevance:
+        await raise_if_cancelled(cancellation_check)
+        result, dropped = await _apply_title_relevance(result, llm_config, terms or market_query.query)
+        if dropped:
+            extra_warnings.insert(0, f"{dropped} listing(s) that only mentioned the search words were left out.")
+    result = _trim_to_limit(result, market_query.limit)
     if any(item.verification_state == "partial" for item in result.items):
         extra_warnings.append("Some listings are only partially verified; current availability may be unknown.")
         return result.model_copy(update={
