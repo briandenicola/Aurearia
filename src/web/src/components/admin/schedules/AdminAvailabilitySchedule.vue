@@ -33,6 +33,7 @@
         step="5"
       />
       <span class="form-hint">How often to repeat after the start time (e.g. 120 = every 2 hours).</span>
+      <AdminScheduleSummary :start-time="settings.WishlistCheckStartTime" default-start-time="02:00" :interval-minutes="settings.WishlistCheckInterval" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -225,6 +226,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   getAvailabilityCycleDetail,

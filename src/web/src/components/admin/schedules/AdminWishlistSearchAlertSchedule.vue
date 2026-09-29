@@ -24,6 +24,7 @@
         type="time"
       />
       <span class="form-hint">The daily sweep runs at this time and queues any alerts whose cadence has elapsed since their last run.</span>
+      <AdminScheduleSummary :start-time="settings.WishlistSearchAlertsCheckStartTime" default-start-time="03:00" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -88,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, ref } from 'vue'
 import { getAdminWishlistSearchAlertRuns } from '@/api/client'
 import type { AdminWishlistSearchAlertRun, AppSettings } from '@/types'

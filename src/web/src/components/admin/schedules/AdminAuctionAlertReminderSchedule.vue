@@ -35,6 +35,7 @@
         step="15"
       />
       <span class="form-hint">How often to re-check price thresholds and bid reminder windows. Default 60 (hourly).</span>
+      <AdminScheduleSummary :start-time="settings.AuctionAlertsCheckStartTime" default-start-time="08:00" :interval-minutes="settings.AuctionAlertsCheckInterval" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -97,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'

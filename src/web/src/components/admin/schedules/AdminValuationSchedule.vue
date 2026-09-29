@@ -34,6 +34,7 @@
         step="1"
       />
       <span class="form-hint">How often to run (e.g. 7 = weekly). AI valuations are costly so daily runs are not recommended.</span>
+      <AdminScheduleSummary :start-time="settings.ValuationCheckStartTime" default-start-time="03:00" :interval-days="settings.ValuationCheckInterval" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="form-group">
       <label class="form-label">Max Coins Per Run</label>
@@ -147,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { cancelValuationRun, getValuationRunDetail, getValuationRuns, triggerValuation } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'

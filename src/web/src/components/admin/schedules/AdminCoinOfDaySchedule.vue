@@ -33,7 +33,7 @@
         :value="settings.CoinOfDayTimezone ?? ''"
         @change="settings.CoinOfDayTimezone = ($event.target as HTMLSelectElement).value"
       >
-        <option value="">Server time (usually UTC in Docker)</option>
+        <option value="">Same as schedules ({{ sharedZoneLabel }})</option>
         <option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</option>
       </select>
       <span class="form-hint">{{ scheduleSummary }} Changes apply within a minute of saving; no restart needed.</span>
@@ -101,6 +101,7 @@ import { getCoinOfDayRunDetail, getCoinOfDayRuns, triggerCoinOfDayRun } from '@/
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import type { AppSettings, CoinOfDayRun } from '@/types'
 import { getBrowserTimezone } from '@/composables/usePurchaseReminder'
+import { describeSchedule, scheduleZoneLabel, timezoneOptionsWith } from '@/composables/useScheduleTimezone'
 
 const props = defineProps<{
   settings: AppSettings
@@ -114,25 +115,14 @@ const emit = defineEmits<{
 const triggerLoading = ref(false)
 const browserTimezone = getBrowserTimezone()
 
-// Intl.supportedValuesOf is missing on older Safari; fall back to the browser
-// zone alone so the saved value is still selectable.
-function listTimezones(): string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: 'timeZone') => string[] }
-  const zones = intl.supportedValuesOf?.('timeZone') ?? []
-  return zones.length ? zones : [browserTimezone].filter(Boolean)
-}
+const timezoneOptions = computed(() => timezoneOptionsWith(props.settings.CoinOfDayTimezone))
+const sharedZoneLabel = computed(() => scheduleZoneLabel(props.settings.ScheduleTimezone))
 
-const timezoneOptions = computed(() => {
-  const zones = listTimezones()
-  const saved = props.settings.CoinOfDayTimezone
-  return saved && !zones.includes(saved) ? [saved, ...zones] : zones
-})
-
-const scheduleSummary = computed(() => {
-  const time = props.settings.CoinOfDayStartTime || '07:00'
-  const zone = props.settings.CoinOfDayTimezone || 'server time'
-  return `Runs daily at ${time} ${zone}.`
-})
+const scheduleSummary = computed(() => describeSchedule({
+  startTime: props.settings.CoinOfDayStartTime,
+  defaultStartTime: '07:00',
+  zone: props.settings.CoinOfDayTimezone || props.settings.ScheduleTimezone,
+}))
 
 const settingsMsg = ref('')
 const settingsError = ref(false)

@@ -28,6 +28,7 @@
         type="time"
       />
       <span class="form-hint">Time of day when collection health baselines are captured for trend calculations.</span>
+      <AdminScheduleSummary :start-time="settings.CollectionHealthSnapshotsStartTime" default-start-time="04:30" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -83,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   getCollectionHealthSnapshotRuns,

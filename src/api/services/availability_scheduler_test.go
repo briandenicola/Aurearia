@@ -59,73 +59,79 @@ func TestTimeUntilNextRun_NoHistory(t *testing.T) {
 	}
 }
 
-// TestTimeUntilNextRun_UsesLastRun verifies that the interval is measured from
-// the most recent completed scheduled run, not recalculated from today's anchor.
-func TestTimeUntilNextRun_UsesLastRun(t *testing.T) {
-	db := setupAvailSchedulerDB(t)
-	s := newTestAvailabilityScheduler(t, db)
-
-	// Set interval to 1440 minutes.
-	if err := s.settingsSvc.SetSetting(SettingWishlistCheckInterval, "1440"); err != nil {
-		t.Fatalf("failed to set interval: %v", err)
-	}
-
-	// Seed a completed scheduled run that happened 60 minutes ago.
-	sixtyMinsAgo := time.Now().Add(-60 * time.Minute)
-	completedAt := time.Now().Add(-59 * time.Minute)
-	user := models.User{Username: "testuser"}
+func seedScheduledAvailabilityRun(t *testing.T, db *gorm.DB, username string, completedAt time.Time) {
+	t.Helper()
+	user := models.User{Username: username}
 	db.Create(&user)
 	run := &models.AvailabilityRun{
 		UserID:      user.ID,
 		TriggerType: "scheduled",
-		StartedAt:   sixtyMinsAgo,
+		StartedAt:   completedAt.Add(-time.Minute),
 		CompletedAt: &completedAt,
 	}
 	if err := db.Create(run).Error; err != nil {
 		t.Fatalf("failed to seed run: %v", err)
-	}
-
-	wait := s.timeUntilNextRun()
-
-	// With a last run 60 minutes ago and 1440-minute interval, the next run
-	// should be in approximately 1380 minutes (~23 hours).
-	expectedMin := 1379 * time.Minute
-	expectedMax := 1381 * time.Minute
-	if wait < expectedMin || wait > expectedMax {
-		t.Errorf("expected wait ~1380m, got %v", wait)
 	}
 }
 
-// TestTimeUntilNextRun_Overdue verifies that when the last run is further back
-// than the configured interval, the scheduler returns 0 to run immediately.
+func setAvailabilitySchedule(t *testing.T, s *AvailabilityScheduler, start, interval string) {
+	t.Helper()
+	for key, value := range map[string]string{
+		SettingScheduleTimezone:       "UTC",
+		SettingWishlistCheckStartTime: start,
+		SettingWishlistCheckInterval:  interval,
+	} {
+		if err := s.settingsSvc.SetSetting(key, value); err != nil {
+			t.Fatalf("failed to set %s: %v", key, err)
+		}
+	}
+}
+
+// TestTimeUntilNextRun_UsesLastRun verifies that after a completed scheduled
+// run the next run is the following start-time slot, not last run + interval.
+func TestTimeUntilNextRun_UsesLastRun(t *testing.T) {
+	db := setupAvailSchedulerDB(t)
+	s := newTestAvailabilityScheduler(t, db)
+	setAvailabilitySchedule(t, s, "03:00", "1440")
+	seedScheduledAvailabilityRun(t, db, "testuser", time.Date(2026, 9, 28, 3, 1, 0, 0, time.UTC))
+
+	now := time.Date(2026, 9, 28, 4, 0, 0, 0, time.UTC)
+	want := time.Date(2026, 9, 29, 3, 0, 0, 0, time.UTC)
+	if got := s.nextRun(now, false); !got.Equal(want) {
+		t.Errorf("nextRun = %v, want %v", got, want)
+	}
+}
+
+// TestNextRun_HonoursChangedStartTime reproduces issue #768: history used to
+// pin the next run to last run + interval, ignoring a newly saved start time.
+func TestNextRun_HonoursChangedStartTime(t *testing.T) {
+	db := setupAvailSchedulerDB(t)
+	s := newTestAvailabilityScheduler(t, db)
+	setAvailabilitySchedule(t, s, "12:00", "1440")
+	seedScheduledAvailabilityRun(t, db, "testuser", time.Date(2026, 9, 28, 2, 0, 30, 0, time.UTC))
+
+	now := time.Date(2026, 9, 28, 9, 0, 0, 0, time.UTC)
+	want := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if got := s.nextRun(now, false); !got.Equal(want) {
+		t.Errorf("nextRun = %v, want %v", got, want)
+	}
+}
+
+// TestTimeUntilNextRun_Overdue verifies that a missed slot runs immediately at
+// startup (catch-up) but is skipped once the scheduler is already running.
 func TestTimeUntilNextRun_Overdue(t *testing.T) {
 	db := setupAvailSchedulerDB(t)
 	s := newTestAvailabilityScheduler(t, db)
+	setAvailabilitySchedule(t, s, "00:00", "60")
+	seedScheduledAvailabilityRun(t, db, "testuser2", time.Date(2026, 9, 28, 1, 0, 30, 0, time.UTC))
 
-	// Set interval to 60 minutes.
-	if err := s.settingsSvc.SetSetting(SettingWishlistCheckInterval, "60"); err != nil {
-		t.Fatalf("failed to set interval: %v", err)
+	now := time.Date(2026, 9, 28, 3, 30, 0, 0, time.UTC)
+	if got := s.nextRun(now, true); !got.Equal(now) {
+		t.Errorf("startup catch-up nextRun = %v, want now %v", got, now)
 	}
-
-	// Seed a run that completed 120 minutes ago — clearly overdue.
-	twoHoursAgo := time.Now().Add(-120 * time.Minute)
-	completedAt := time.Now().Add(-119 * time.Minute)
-	user := models.User{Username: "testuser2"}
-	db.Create(&user)
-	run := &models.AvailabilityRun{
-		UserID:      user.ID,
-		TriggerType: "scheduled",
-		StartedAt:   twoHoursAgo,
-		CompletedAt: &completedAt,
-	}
-	if err := db.Create(run).Error; err != nil {
-		t.Fatalf("failed to seed run: %v", err)
-	}
-
-	wait := s.timeUntilNextRun()
-
-	if wait != 0 {
-		t.Errorf("expected 0 (immediate) for overdue run, got %v", wait)
+	want := time.Date(2026, 9, 28, 4, 0, 0, 0, time.UTC)
+	if got := s.nextRun(now, false); !got.Equal(want) {
+		t.Errorf("running nextRun = %v, want %v", got, want)
 	}
 }
 

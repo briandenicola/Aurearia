@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +39,7 @@ const (
 	wishlistSummaryTimeout = 10 * time.Second
 	// coinOfDayRecheckInterval bounds each sleep so a changed start time or
 	// time zone takes effect within a minute instead of after the old anchor.
-	coinOfDayRecheckInterval = time.Minute
+	coinOfDayRecheckInterval = schedulerRecheckInterval
 )
 
 // NewCoinOfDayScheduler creates a new scheduler.
@@ -90,40 +89,16 @@ func (s *CoinOfDayScheduler) StartWorkers(workerCount int) {
 // Start begins the daily loop. Call from a goroutine.
 func (s *CoinOfDayScheduler) Start() {
 	s.logger.Info("scheduler", "Coin of the Day scheduler started")
-
-	// Initial delay so the app finishes startup
-	select {
-	case <-time.After(45 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	var announced time.Time
-	for {
-		now := time.Now()
-		next := s.nextRunAfter(now)
-		if !next.Equal(announced) {
-			s.logger.Info("scheduler", "Next coin-of-the-day pick at %s (in %s)", next.Format(time.RFC3339), next.Sub(now).Round(time.Second))
-			announced = next
-		}
-
-		wait := next.Sub(now)
-		due := wait <= coinOfDayRecheckInterval
-		if !due {
-			wait = coinOfDayRecheckInterval
-		}
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("scheduler", "Coin of the Day scheduler stopped")
-			return
-		}
-
-		if due {
-			s.runCycle()
-		}
-	}
+	scheduleLoop{
+		category:     "scheduler",
+		name:         "coin-of-the-day pick",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 45 * time.Second,
+		recheck:      coinOfDayRecheckInterval,
+		next:         func(now time.Time, _ bool) time.Time { return s.nextRunAfter(now) },
+		run:          s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down. Safe to call multiple times.
@@ -142,37 +117,18 @@ func (s *CoinOfDayScheduler) timeUntilNextRun() time.Duration {
 // rather than now+24h so it stays at the same wall-clock time across DST.
 func (s *CoinOfDayScheduler) nextRunAfter(now time.Time) time.Time {
 	h, m := s.getStartTime()
-	local := now.In(s.location())
-	anchor := time.Date(local.Year(), local.Month(), local.Day(), h, m, 0, 0, local.Location())
-	if anchor.After(now) {
-		return anchor
-	}
-	return time.Date(local.Year(), local.Month(), local.Day()+1, h, m, 0, 0, local.Location())
+	return dailySchedule{Hour: h, Minute: m, Location: s.location()}.slotAfter(now)
 }
 
-// location resolves the CoinOfDayTimezone setting, falling back to the
-// server's local zone when it is empty or unknown.
+// location resolves CoinOfDayTimezone, then the app-wide ScheduleTimezone,
+// falling back to the server's local zone.
 func (s *CoinOfDayScheduler) location() *time.Location {
-	name := strings.TrimSpace(s.settingsSvc.GetSetting(SettingCoinOfDayTimezone))
-	if name == "" {
-		return time.Local
-	}
-	loc, err := time.LoadLocation(name)
-	if err != nil {
-		s.logger.Warn("scheduler", "Unknown coin-of-the-day time zone %q, using server time", name)
-		return time.Local
-	}
-	return loc
+	return scheduleLocation(s.settingsSvc, s.logger, SettingCoinOfDayTimezone)
 }
 
 // getStartTime parses HH:MM, defaults to 07:00.
 func (s *CoinOfDayScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingCoinOfDayStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 7, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingCoinOfDayStartTime), 7, 0)
 }
 
 // runCycle is the scheduled (non-manual) entry point. Gated on the global setting.

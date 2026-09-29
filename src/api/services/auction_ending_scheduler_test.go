@@ -37,11 +37,9 @@ func TestAuctionEndingTimeUntilNextRun_UsesLastCompletedRun(t *testing.T) {
 	db := setupAuctionEndingSchedulerDB(t)
 	s := newTestAuctionEndingScheduler(t, db)
 
-	if err := s.settingsSvc.SetSetting(SettingAuctionEndingCheckInterval, "120"); err != nil {
-		t.Fatalf("failed to set interval: %v", err)
-	}
+	setAuctionEndingSchedule(t, s, "00:00", "120")
 
-	completedAt := time.Now().Add(-60 * time.Minute)
+	completedAt := time.Date(2026, 9, 28, 10, 0, 30, 0, time.UTC)
 	run := &models.AuctionEndingRun{
 		TriggerType: "scheduled",
 		Status:      "success",
@@ -52,9 +50,23 @@ func TestAuctionEndingTimeUntilNextRun_UsesLastCompletedRun(t *testing.T) {
 		t.Fatalf("failed to seed run: %v", err)
 	}
 
-	wait := s.timeUntilNextRun()
-	if wait < 59*time.Minute || wait > 61*time.Minute {
-		t.Fatalf("expected ~60m wait, got %v", wait)
+	now := time.Date(2026, 9, 28, 11, 0, 0, 0, time.UTC)
+	want := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if got := s.nextRun(now, false); !got.Equal(want) {
+		t.Fatalf("nextRun = %v, want %v", got, want)
+	}
+}
+
+func setAuctionEndingSchedule(t *testing.T, s *AuctionEndingScheduler, start, interval string) {
+	t.Helper()
+	for key, value := range map[string]string{
+		SettingScheduleTimezone:            "UTC",
+		SettingAuctionEndingCheckStartTime: start,
+		SettingAuctionEndingCheckInterval:  interval,
+	} {
+		if err := s.settingsSvc.SetSetting(key, value); err != nil {
+			t.Fatalf("failed to set %s: %v", key, err)
+		}
 	}
 }
 
@@ -62,11 +74,9 @@ func TestAuctionEndingTimeUntilNextRun_Overdue(t *testing.T) {
 	db := setupAuctionEndingSchedulerDB(t)
 	s := newTestAuctionEndingScheduler(t, db)
 
-	if err := s.settingsSvc.SetSetting(SettingAuctionEndingCheckInterval, "60"); err != nil {
-		t.Fatalf("failed to set interval: %v", err)
-	}
+	setAuctionEndingSchedule(t, s, "00:00", "60")
 
-	completedAt := time.Now().Add(-2 * time.Hour)
+	completedAt := time.Date(2026, 9, 28, 8, 0, 30, 0, time.UTC)
 	run := &models.AuctionEndingRun{
 		TriggerType: "scheduled",
 		Status:      "error",
@@ -77,9 +87,13 @@ func TestAuctionEndingTimeUntilNextRun_Overdue(t *testing.T) {
 		t.Fatalf("failed to seed run: %v", err)
 	}
 
-	wait := s.timeUntilNextRun()
-	if wait != 0 {
-		t.Fatalf("expected immediate run (0), got %v", wait)
+	now := time.Date(2026, 9, 28, 10, 15, 0, 0, time.UTC)
+	if got := s.nextRun(now, true); !got.Equal(now) {
+		t.Fatalf("startup catch-up nextRun = %v, want now %v", got, now)
+	}
+	want := time.Date(2026, 9, 28, 11, 0, 0, 0, time.UTC)
+	if got := s.nextRun(now, false); !got.Equal(want) {
+		t.Fatalf("running nextRun = %v, want %v", got, want)
 	}
 }
 

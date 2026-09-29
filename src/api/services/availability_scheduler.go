@@ -129,28 +129,15 @@ func (s *AvailabilityScheduler) ProcessCycle(cycleID uint) error {
 // Start begins the periodic check loop. Call from a goroutine.
 func (s *AvailabilityScheduler) Start() {
 	s.logger.Info("scheduler", "Wishlist availability scheduler started")
-
-	// Initial delay to let the app finish startup
-	select {
-	case <-time.After(30 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	for {
-		// Wait until the next scheduled time before running
-		wait := s.timeUntilNextRun()
-		s.logger.Info("scheduler", "Next availability check in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("scheduler", "Scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category:     "scheduler",
+		name:         "availability check",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 30 * time.Second,
+		next:         s.nextRun,
+		run:          s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down. Safe to call multiple times.
@@ -208,51 +195,27 @@ func (s *AvailabilityScheduler) GetStatus() SchedulerStatus {
 	}
 }
 
-// timeUntilNextRun calculates the delay until the next scheduled run.
-// If there is a previous completed scheduled run, the interval is measured from
-// that completion timestamp so app restarts do not reset the schedule. Falls
-// back to the start-time anchor calculation only when no run history exists.
+// timeUntilNextRun returns the delay until the next scheduled run.
 func (s *AvailabilityScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	interval := s.getInterval()
+	return max(s.nextRun(now, false).Sub(now), 0)
+}
 
-	// Anchor to the last actual scheduled run so the interval is always
-	// measured from the previous execution, regardless of restarts.
-	lastRun := s.availRepo.GetLastScheduledRun()
-	if lastRun != nil && lastRun.CompletedAt != nil {
-		nextFromLast := lastRun.CompletedAt.Add(interval)
-		if nextFromLast.Before(now) {
-			// Overdue — run immediately (catches up after a long outage)
-			s.logger.Info("scheduler", "Last scheduled run completed %s ago, overdue — running now", now.Sub(*lastRun.CompletedAt).Round(time.Minute))
-			return 0
-		}
-		return nextFromLast.Sub(now)
+// nextRun returns the next start-time/interval slot after the last completed
+// scheduled run (so restarts don't reset the schedule), in the schedule zone.
+func (s *AvailabilityScheduler) nextRun(now time.Time, catchUp bool) time.Time {
+	var last *time.Time
+	if run := s.availRepo.GetLastScheduledRun(); run != nil {
+		last = run.CompletedAt
 	}
-
-	// No previous run — use today's start-time as the anchor.
-	startHour, startMin := s.getStartTime()
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
-
-	// If anchor is in the future, that's the next run
-	if anchor.After(now) {
-		return anchor.Sub(now)
-	}
-
-	// Find the next occurrence: anchor + N*interval that is still in the future
-	elapsed := now.Sub(anchor)
-	periods := int(elapsed/interval) + 1
-	next := anchor.Add(time.Duration(periods) * interval)
-	return next.Sub(now)
+	h, m := s.getStartTime()
+	schedule := dailySchedule{Hour: h, Minute: m, Interval: s.getInterval(), Location: scheduleLocation(s.settingsSvc, s.logger)}
+	return schedule.next(now, last, catchUp)
 }
 
 // getStartTime parses HH:MM from settings, defaults to 02:00.
 func (s *AvailabilityScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingWishlistCheckStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 2, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingWishlistCheckStartTime), 2, 0)
 }
 
 // getInterval returns the configured check interval.

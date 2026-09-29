@@ -778,6 +778,15 @@ Two goroutine-based schedulers run in the Go API:
 
 Both compute next-run from a daily anchor time plus interval cadence.
 
+### Shared schedule timing
+
+All schedulers use `services/schedule_timing.go`:
+
+- **Time zone:** start times are read in `ScheduleTimezone` (IANA name, blank = server time, which is UTC in the default Docker image). Coin of the Day may override it with `CoinOfDayTimezone`. Unknown zones are rejected on save. Purchase reminders keep each user's own zone; only the daily check time uses the shared zone.
+- **Slot grid:** a job runs at its start time, then every interval, restarting at the start time each day. Intervals of a day or longer run at the start time every whole number of days. Wall-clock time is kept across daylight-saving changes.
+- **Restarts:** jobs with run history resume at the first slot after the last completed scheduled run. A slot missed while the server was down runs once at startup; a slot skipped while running (for example after moving the start time earlier) is not run late.
+- **Setting changes:** each scheduler re-reads its settings at least once a minute, so saved changes apply without a restart.
+
 ---
 
 ## Build and Deployment

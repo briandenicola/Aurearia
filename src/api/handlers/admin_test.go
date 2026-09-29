@@ -195,7 +195,7 @@ func assertAdminHandlerError(t *testing.T, w *httptest.ResponseRecorder, expecte
 	}
 }
 
-func TestUpdateSettingsRejectsUnknownCoinOfDayTimezone(t *testing.T) {
+func TestUpdateSettingsRejectsUnknownTimezones(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
 	if err != nil {
@@ -209,8 +209,8 @@ func TestUpdateSettingsRejectsUnknownCoinOfDayTimezone(t *testing.T) {
 	router := gin.New()
 	router.PUT("/admin/settings", handler.UpdateSettings)
 
-	put := func(value string) *httptest.ResponseRecorder {
-		body, _ := json.Marshal([]map[string]string{{"key": services.SettingCoinOfDayTimezone, "value": value}})
+	put := func(key, value string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal([]map[string]string{{"key": key, "value": value}})
 		req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -218,13 +218,15 @@ func TestUpdateSettingsRejectsUnknownCoinOfDayTimezone(t *testing.T) {
 		return rec
 	}
 
-	if rec := put("Not/AZone"); rec.Code != http.StatusBadRequest {
-		t.Fatalf("unknown zone: expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if rec := put("America/Chicago"); rec.Code != http.StatusOK {
-		t.Fatalf("valid zone: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if got := settingsSvc.GetSetting(services.SettingCoinOfDayTimezone); got != "America/Chicago" {
-		t.Fatalf("stored zone = %q", got)
+	for _, key := range []string{services.SettingCoinOfDayTimezone, services.SettingScheduleTimezone} {
+		if rec := put(key, "Not/AZone"); rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s unknown zone: expected 400, got %d: %s", key, rec.Code, rec.Body.String())
+		}
+		if rec := put(key, "America/Chicago"); rec.Code != http.StatusOK {
+			t.Fatalf("%s valid zone: expected 200, got %d: %s", key, rec.Code, rec.Body.String())
+		}
+		if got := settingsSvc.GetSetting(key); got != "America/Chicago" {
+			t.Fatalf("%s stored zone = %q", key, got)
+		}
 	}
 }

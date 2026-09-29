@@ -27,6 +27,7 @@
         aria-describedby="reminder-check-start-time-hint"
       />
       <span id="reminder-check-start-time-hint" class="form-hint">Time of day when due purchase reminders are checked and delivered.</span>
+      <AdminScheduleSummary :start-time="settings.ReminderCheckStartTime" default-start-time="08:00" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -37,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import type { AppSettings } from '@/types'
 
 defineProps<{

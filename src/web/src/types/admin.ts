@@ -38,6 +38,7 @@ export interface AppSettings extends Partial<NumistaSettings> {
   CoinCopilotEventRetentionHours?: string
   CoinCopilotCheckpointRetentionDays?: string
   CoinCopilotResumeWindowHours?: string
+  ScheduleTimezone?: string
   [key: string]: string | undefined
 }
 

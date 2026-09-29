@@ -35,6 +35,7 @@
         step="60"
       />
       <span class="form-hint">How often to refresh watched lots and send the digest after the start time. Default 1440 (daily).</span>
+      <AdminScheduleSummary :start-time="settings.AuctionWatchBidDigestStartTime" default-start-time="08:00" :interval-minutes="settings.AuctionWatchBidDigestInterval" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -95,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'

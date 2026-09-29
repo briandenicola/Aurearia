@@ -37,11 +37,17 @@ func TestAuctionWatchBidDigestTimeUntilNextRun_UsesLastCompletedRun(t *testing.T
 	db := setupAuctionWatchBidDigestSchedulerDB(t)
 	s := newTestAuctionWatchBidDigestScheduler(t, db)
 
-	if err := s.settingsSvc.SetSetting(SettingAuctionWatchBidDigestInterval, "120"); err != nil {
-		t.Fatalf("failed to set interval: %v", err)
+	for key, value := range map[string]string{
+		SettingScheduleTimezone:               "UTC",
+		SettingAuctionWatchBidDigestStartTime: "00:00",
+		SettingAuctionWatchBidDigestInterval:  "120",
+	} {
+		if err := s.settingsSvc.SetSetting(key, value); err != nil {
+			t.Fatalf("failed to set %s: %v", key, err)
+		}
 	}
 
-	completedAt := time.Now().Add(-60 * time.Minute)
+	completedAt := time.Date(2026, 9, 28, 10, 0, 30, 0, time.UTC)
 	run := &models.AuctionWatchBidDigestRun{
 		TriggerType: "scheduled",
 		Status:      "success",
@@ -52,9 +58,10 @@ func TestAuctionWatchBidDigestTimeUntilNextRun_UsesLastCompletedRun(t *testing.T
 		t.Fatalf("failed to seed run: %v", err)
 	}
 
-	wait := s.timeUntilNextRun()
-	if wait < 59*time.Minute || wait > 61*time.Minute {
-		t.Fatalf("expected ~60m wait, got %v", wait)
+	now := time.Date(2026, 9, 28, 11, 0, 0, 0, time.UTC)
+	want := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if got := s.nextRun(now, false); !got.Equal(want) {
+		t.Fatalf("nextRun = %v, want %v", got, want)
 	}
 }
 
