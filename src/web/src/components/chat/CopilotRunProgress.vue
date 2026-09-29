@@ -302,6 +302,7 @@ import {
   copilotDealerListingUncertainty,
   isEligibleCopilotDealerListing,
 } from '@/utils/copilotWishlist'
+import { copilotToolLabel } from '@/utils/copilotToolLabels'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 
 const props = defineProps<{
@@ -385,10 +386,7 @@ const statusLabel = computed(() => {
 })
 
 function toolLabel(name: string) {
-  return name
-    .split('_')
-    .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : part)
-    .join(' ')
+  return copilotToolLabel(name)
 }
 
 // Display lines are built here from typed fields; the agent service sends the

@@ -61,6 +61,32 @@ describe('AdminSystemSection Coin Copilot settings', () => {
     })
     expect(wrapper.emitted('save')?.at(-1)?.[0]).not.toHaveProperty('coinCopilotMaxEstimatedCostMicros')
   })
+
+  it('loads and saves the Deep Analysis hand-off switch', async () => {
+    const wrapper = mount(AdminSystemSection, { props: { ...baseProps(), coinCopilotAttributionEnabled: 'true' } })
+    const toggle = wrapper.get<HTMLInputElement>('input[name="CoinCopilotAttributionEnabled"]')
+    expect(toggle.element.checked).toBe(true)
+
+    await toggle.setValue(false)
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({ coinCopilotAttributionEnabled: 'false' })
+
+    await toggle.setValue(true)
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({ coinCopilotAttributionEnabled: 'true' })
+  })
+
+  it('warns when the hand-off is on but Deep Analysis is off', async () => {
+    const wrapper = mount(AdminSystemSection, { props: { ...baseProps(), coinCopilotAttributionEnabled: 'true' } })
+    const hint = '[data-testid="coin-copilot-attribution-dependency-hint"]'
+    expect(wrapper.get(hint).text()).toContain('Also enable Deep Analysis')
+
+    await wrapper.get<HTMLInputElement>('input[name="DeepIdentificationEnabled"]').setValue(true)
+    expect(wrapper.find(hint).exists()).toBe(false)
+
+    await wrapper.setProps({ coinCopilotAttributionEnabled: 'false', deepIdentificationEnabled: 'false' })
+    expect(wrapper.find(hint).exists()).toBe(false)
+  })
 })
 
 function baseProps() {

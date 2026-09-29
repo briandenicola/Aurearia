@@ -38,6 +38,26 @@ describe('HelpSection', () => {
     expect(text).toContain('Only approval creates the Agentic set')
   })
 
+  it('explains Coin Copilot and keeps the Coin Agent for when Copilot is off', () => {
+    const wrapper = mount(HelpSection)
+    const copilot = wrapper.get('[data-testid="help-coin-copilot"]')
+    const text = wrapper.text()
+    const progress = readSource('components/chat/CopilotRunProgress.vue')
+
+    expect(copilot.text()).toBe('Coin Copilot (Beta)')
+    expect(progress).toContain('Beta')
+    expect(progress).toContain('Coin Copilot')
+    expect(text).toContain('Beta · Coin Copilot')
+    expect(text).toContain('step checklist')
+    expect(text).toContain('Source evidence')
+    expect(text).toContain('clarifying question')
+    expect(text).toContain('5 listings by default')
+    expect(text).toContain('up to 10')
+    expect(text).toContain('Coin show search is not available in Copilot yet')
+    expect(text).toContain('How Coin Copilot Works')
+    expect(text).toContain('When Coin Copilot is off, open the chat')
+  })
+
   // The help section's value is entirely in its instructions being followable. These pin the
   // navigation it names to the navigation that exists, so a settings-tab rename or a moved
   // entry point fails here instead of quietly sending users to the wrong screen.
@@ -74,7 +94,7 @@ describe('HelpSection', () => {
 
     // The agent is a sidebar item, not the retired Wish List → Find Coins button.
     expect(app).toContain("id: 'agent'")
-    expect(text).toContain('Open the chat from Agent in the sidebar')
+    expect(text).toContain('open the chat from Agent in the sidebar')
     expect(text).not.toContain('Find Coins')
 
     // Quick Capture and Coin Lookup are one merged entry point (see AppNavigation.test.ts).

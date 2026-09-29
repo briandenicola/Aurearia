@@ -214,6 +214,29 @@
           </span>
         </div>
 
+        <div class="form-group min-w-0">
+          <label class="flex items-center gap-3" for="coin-copilot-attribution-enabled">
+            <input
+              id="coin-copilot-attribution-enabled"
+              v-model="localCoinCopilotAttributionEnabled"
+              type="checkbox"
+              name="CoinCopilotAttributionEnabled"
+              aria-describedby="coin-copilot-attribution-enabled-help"
+            />
+            <span class="form-label m-0">Allow Deep Analysis from Coin Copilot</span>
+          </label>
+          <span id="coin-copilot-attribution-enabled-help" class="mt-1 block text-sm text-text-muted">
+            Lets Coin Copilot hand a coin off to Deep Analysis from the chat. Off by default.
+          </span>
+          <span
+            v-if="localCoinCopilotAttributionEnabled && !localDeepIdentificationEnabled"
+            class="mt-1 block text-sm text-gold"
+            data-testid="coin-copilot-attribution-dependency-hint"
+          >
+            Also enable Deep Analysis below for the hand-off to work.
+          </span>
+        </div>
+
         <fieldset class="mb-2 min-w-0">
           <legend class="section-label mb-3">Coin Copilot Limits</legend>
           <div class="grid min-w-0 gap-4 md:grid-cols-2">
@@ -453,6 +476,7 @@ const props = withDefaults(defineProps<{
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
   coinCopilotEnabled?: string
+  coinCopilotAttributionEnabled?: string
   coinCopilotWorkerCount?: string
   coinCopilotMaxActivePerUser?: string
   coinCopilotQueueDepth?: string
@@ -498,6 +522,7 @@ const props = withDefaults(defineProps<{
   deepIdentificationMaxProviders: '4',
   deepIdentificationNumistaCallBudget: '4',
   coinCopilotEnabled: 'false',
+  coinCopilotAttributionEnabled: 'false',
   coinCopilotWorkerCount: '1',
   coinCopilotMaxActivePerUser: '1',
   coinCopilotQueueDepth: '16',
@@ -533,6 +558,7 @@ const emit = defineEmits<{
     deepIdentificationOCREEnabled: string
     deepIdentificationOCRECallBudget: string
     coinCopilotEnabled: string
+    coinCopilotAttributionEnabled: string
     coinCopilotWorkerCount: string
     coinCopilotMaxActivePerUser: string
     coinCopilotQueueDepth: string
@@ -583,6 +609,7 @@ const localDeepIdentificationNumistaCallBudget = ref(props.deepIdentificationNum
 const localOCREEnabled = ref((props.deepIdentificationOCREEnabled || 'false') === 'true')
 const localOCRECallBudget = ref(props.deepIdentificationOCRECallBudget || '3')
 const localCoinCopilotEnabled = ref((props.coinCopilotEnabled || 'false') === 'true')
+const localCoinCopilotAttributionEnabled = ref((props.coinCopilotAttributionEnabled || 'false') === 'true')
 const localCoinCopilotWorkerCount = ref(props.coinCopilotWorkerCount)
 const localCoinCopilotMaxActivePerUser = ref(props.coinCopilotMaxActivePerUser)
 const localCoinCopilotQueueDepth = ref(props.coinCopilotQueueDepth)
@@ -724,6 +751,7 @@ function save() {
     deepIdentificationOCREEnabled: localOCREEnabled.value ? 'true' : 'false',
     deepIdentificationOCRECallBudget: localOCRECallBudget.value,
     coinCopilotEnabled: localCoinCopilotEnabled.value ? 'true' : 'false',
+    coinCopilotAttributionEnabled: localCoinCopilotAttributionEnabled.value ? 'true' : 'false',
     coinCopilotWorkerCount: localCoinCopilotWorkerCount.value,
     coinCopilotMaxActivePerUser: localCoinCopilotMaxActivePerUser.value,
     coinCopilotQueueDepth: localCoinCopilotQueueDepth.value,
@@ -862,6 +890,7 @@ watch(() => props.deepIdentificationNumistaCallBudget, (value) => { localDeepIde
 watch(() => props.deepIdentificationOCREEnabled, (value) => { localOCREEnabled.value = (value || 'false') === 'true' })
 watch(() => props.deepIdentificationOCRECallBudget, (value) => { localOCRECallBudget.value = value || '3' })
 watch(() => props.coinCopilotEnabled, (value) => { localCoinCopilotEnabled.value = (value || 'false') === 'true' })
+watch(() => props.coinCopilotAttributionEnabled, (value) => { localCoinCopilotAttributionEnabled.value = (value || 'false') === 'true' })
 watch(() => props.coinCopilotWorkerCount, (value) => { localCoinCopilotWorkerCount.value = value })
 watch(() => props.coinCopilotMaxActivePerUser, (value) => { localCoinCopilotMaxActivePerUser.value = value })
 watch(() => props.coinCopilotQueueDepth, (value) => { localCoinCopilotQueueDepth.value = value })

@@ -123,9 +123,18 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II (337-361 AD),ancient,An
           <li><strong>Biometric login</strong> — Register a passkey under Settings → Account → Biometric Login to sign in with Face ID, Touch ID, Windows Hello, or a security key.</li>
         </ul>
 
+        <h4 data-testid="help-coin-copilot">Coin Copilot (Beta)</h4>
+        <ul>
+          <li><strong>What it is</strong> — When your administrator turns on Coin Copilot, the same chat drawer plans several steps, calls read-only helpers (collection, dealer, auction and price-trend searches), and then answers. It never changes your coins, wishlist or purchases.</li>
+          <li><strong>How to tell</strong> — The chat shows a <strong>Beta · Coin Copilot</strong> label, a step checklist while it works, and a Source evidence card for each search. Without that label you are using the original Coin Agent described below.</li>
+          <li><strong>Questions and results</strong> — It may pause to ask a clarifying question when a request is ambiguous. Market searches return 5 listings by default; ask for more to get up to 10.</li>
+          <li><strong>Limits</strong> — Coin show search is not available in Copilot yet. Deep Analysis from the chat only works when your administrator allows it.</li>
+          <li><strong>Learn more</strong> — See the collector's guide <em>How Coin Copilot Works</em> in the project documentation.</li>
+        </ul>
+
         <h4>Coin Agent and Notes</h4>
         <ul>
-          <li><strong>Coin Agent</strong> — Open the chat from <strong>Agent</strong> in the sidebar (or the draggable launcher in PWA mode) to search listings, find shows, ask portfolio questions, or ask collection cleanup questions such as which coins are missing an era.</li>
+          <li><strong>Coin Agent</strong> — When Coin Copilot is off, open the chat from <strong>Agent</strong> in the sidebar (or the draggable launcher in PWA mode) to search listings, find shows, ask portfolio questions, or ask collection cleanup questions such as which coins are missing an era.</li>
           <li><strong>Starter prompts</strong> — The drawer includes acquisition examples plus a collection cleanup starter for missing era metadata.</li>
           <li><strong>Save to Notes</strong> — Completed assistant answers can be reviewed as markdown, edited, previewed, and saved to Notes only after you click Create Note.</li>
         </ul>
