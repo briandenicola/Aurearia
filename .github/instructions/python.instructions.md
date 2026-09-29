@@ -35,14 +35,14 @@ The Python agent is a **stateless** FastAPI service — no database access. All 
 Users choose one provider in Admin Settings (`AIProvider` key):
 
 - **Anthropic** — Claude models. Web search uses Claude's built-in `web_search_20250305` tool.
-- **Ollama** — Self-hosted models. Web search uses a `create_react_agent` with SearXNG tool.
+- **Ollama** — Self-hosted models. Web search uses a `langchain.agents.create_agent` loop with SearXNG tool.
 
 **Important:** Anthropic's `web_search` is NOT available by default on `ChatAnthropic`. Use `get_search_model()` from `app/llm/provider.py` (which calls `bind_tools`) for any agent node that needs web search. Use `get_chat_model()` for nodes that don't search.
 
 ### Python (Agent)
 - Pydantic models for all request/response schemas (in `app/models/`)
 - LangGraph `StateGraph` for team pipelines
-- `create_react_agent()` for tool-using agents
+- `langchain.agents.create_agent()` for tool-using agents (not the deprecated `langgraph.prebuilt.create_react_agent`)
 - Structured logging via `app/logging_config.py` (ring buffer + stdout)
 
 ## Completion

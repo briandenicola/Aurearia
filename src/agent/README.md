@@ -113,7 +113,7 @@ The provider is selected per-request via `LLMConfig` passed from the Go API (con
 | Provider | Chat Model | Web Search |
 |---|---|---|
 | **Anthropic** | Claude via `ChatAnthropic` | Claude's built-in `web_search_20250305` tool (via `get_search_model()`) |
-| **Ollama** | Self-hosted models via `ChatOllama` | `create_react_agent` with SearXNG tool |
+| **Ollama** | Self-hosted models via `ChatOllama` | `langchain.agents.create_agent` with SearXNG tool |
 
 Use `get_search_model()` from `app/llm/provider.py` for any agent node that needs web search. Use `get_chat_model()` for nodes that don't search. Anthropic's web search tool is **not** available by default on `ChatAnthropic` — it must be bound via `get_search_model()`.
 

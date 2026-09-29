@@ -10,12 +10,13 @@
 | E. #774, #771, #779 | Not started | - |
 | F. #783 | Done (context budget, see `.squad/log/2026-09-29-context-budget-783.md`) | commit that adds that log |
 | F. #780 | Done (see `.squad/log/2026-09-29-gofmt-780.md`) | commit that adds that log |
-| F. #781 | Not started; waiting on `task setup:agent` approval | - |
+| F. #781 | Done (see `.squad/log/2026-09-29-create-agent-781.md`) | commit that adds that log |
 | #784 | Not triaged in this plan | - |
 
-Pending owner approvals: `task setup:agent` (ruff lock 0.16.8 vs installed
-0.16.7) and the local Go toolchain update (1.26.1 to 1.26.6) needed for
-`task check:go`. No deployment or release is authorized.
+Owner-approved local setup on 2026-09-29 (this machine): Go 1.27.1,
+`task setup:go`, `task setup:openapi`, Python 3.12 via uv and
+`task setup:agent`. Owner acceptance of group F is separate from its
+reviews. No deployment or release is authorized.
 
 Note on #775: the shipped fix differs from the plan below. The web now uses a
 label map (`src/web/src/utils/copilotToolLabels.ts`) with a drift test against

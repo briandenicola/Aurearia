@@ -96,11 +96,11 @@ def create_search_agent(config: LLMConfig) -> CompiledStateGraph:
 
     Only meaningful for Ollama — Anthropic uses get_search_model() instead.
     """
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 
     from app.tools.search import create_searxng_search
 
     model = get_chat_model(config)
     search_tool = create_searxng_search(config.searxng_url)
     logger.debug("Creating ReAct search agent (Ollama) with SearXNG, url=%s", config.searxng_url)
-    return create_react_agent(model, tools=[search_tool])
+    return create_agent(model, tools=[search_tool])

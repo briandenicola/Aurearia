@@ -448,7 +448,7 @@ Each team is a LangGraph `StateGraph` with verification stages:
 
 **Provider selection:**
 - **Anthropic:** Claude models. Web search uses Claude's built-in `web_search_20250305` tool via `bind_tools`.
-- **Ollama:** Self-hosted models. Web search uses `create_react_agent` with a SearXNG HTTP tool.
+- **Ollama:** Self-hosted models. Web search uses `langchain.agents.create_agent` with a SearXNG HTTP tool.
 
 ### SSE Streaming
 
