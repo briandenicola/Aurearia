@@ -67,6 +67,7 @@ tasks:
     cmds:
       - GOTOOLCHAIN=local GOPROXY=off go build ./...
       - GOTOOLCHAIN=local GOPROXY=off go vet ./...
+      - GOTOOLCHAIN=local GOPROXY=off node ../../scripts/delivery/gofmt-check.mjs
       - task: test
 
   check:web:
