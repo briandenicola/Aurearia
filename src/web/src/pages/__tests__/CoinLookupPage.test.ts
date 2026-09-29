@@ -201,6 +201,10 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('Estimated Price Range')
     expect(wrapper.text()).toContain('$120.00 – $250.00')
     expect(wrapper.text()).toContain('Common type in VF')
+    // The fallback must not claim a dealer search ran and came back empty:
+    // priceComparables is also absent when the search could not run at all.
+    expect(wrapper.text()).not.toContain('No current dealer listings were found')
+    expect(wrapper.text()).toContain('no current dealer listing was available to price against')
     expect(wrapper.text()).toContain('not live auction or dealer data')
 
     const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
@@ -208,6 +212,58 @@ describe('CoinLookupPage', () => {
     await flushPromises()
     expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
       notes: expect.stringContaining('**AI price range:** $120.00 – $250.00 (unverified AI estimate)'),
+    }))
+  })
+
+  it('prefers comparables over the model estimate and carries them into the draft notes', async () => {
+    const file = new File(['jpeg'], 'coin.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'medium', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Trajan Denarius' },
+        priceEstimate: { low: 120, high: 250, currency: 'USD', basis: 'Common type in VF' },
+        priceComparables: {
+          low: 180,
+          high: 420,
+          currency: 'USD',
+          count: 2,
+          query: 'Trajan Denarius Roman',
+          listings: [
+            { title: 'Trajan Denarius F', url: 'https://dealer.example/a', price: 180, currency: 'USD' },
+            { title: 'Trajan Denarius VF', url: 'https://dealer.example/b', price: 420, currency: 'USD', sourceName: 'Example Coins' },
+          ],
+        },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({
+      data: { id: 86 },
+    } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Current Dealer Listings')
+    expect(wrapper.text()).toContain('2 current listings from $180.00 to $420.00')
+    expect(wrapper.text()).toContain('Example Coins')
+    expect(wrapper.text()).not.toContain('Estimated Price Range')
+    const links = wrapper.findAll('a').filter(link => link.attributes('href')?.startsWith('https://dealer.example'))
+    expect(links).toHaveLength(2)
+    expect(links[0].attributes('rel')).toBe('noopener noreferrer')
+
+    const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
+    await saveButton?.trigger('click')
+    await flushPromises()
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('**Comparable listings:** 2 current listings from $180.00 to $420.00 (dealer asking prices)'),
     }))
   })
 

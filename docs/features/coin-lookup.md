@@ -53,6 +53,31 @@ Possible Numista matches show:
 
 NGC-slab lookups return as soon as the cert is extracted; they do not wait for Numista enrichment.
 
+## Optional Price Range
+
+**Include an estimated price range** is off by default. When it is on, Coin Lookup
+first runs one bounded dealer search on the proposed attribution (ruler,
+denomination and category, or the proposed name when those are thin) against the
+configured dealer search sources. Dealers with a direct site adapter return
+current stock only.
+
+- When priced, available listings come back in the requested currency, the
+  results page shows **Current Dealer Listings** with the range, the listing
+  links and the dealer names. These are asking prices, not completed sales.
+- Only listings whose dealer page was actually read are used. A listing that was
+  never fetched is dropped rather than shown as current, because it may already
+  have sold. Sold, unpriced, link-less and non-USD listings are dropped too.
+- At most five listings are shown, always including the cheapest and the dearest,
+  so both ends of the stated range have a link you can open.
+- When the search finds nothing, times out or fails, the page falls back to the
+  labelled **Estimated Price Range** from the vision model's general knowledge.
+  That fallback says a dealer listing was not available to price against; it does
+  not claim the dealers were searched and had nothing.
+- Whichever range is shown is carried into the draft notes when you save.
+
+The comparables search is capped at one extra call per opt-in lookup with a short
+timeout, and it never blocks the rest of the lookup result.
+
 ## Saving Results
 
 Coin Lookup supports:

@@ -8,7 +8,7 @@
 | C. #776, #775, #777 | Done | commit that adds this file |
 | D. #766 | Not started; needs its own spec | - |
 | E. #774 | Done (see `.squad/log/2026-09-29-listing-relevance-774.md`) | commit that adds that log |
-| E. #779, #771 | Not started | - |
+| E. #779, #771 | Done (see `.squad/log/20260929T213823Z-comparables-price-range-and-dealer-adapters.md`) | commit that adds that log |
 | F. #783 | Done (context budget, see `.squad/log/2026-09-29-context-budget-783.md`) | commit that adds that log |
 | F. #780 | Done (see `.squad/log/2026-09-29-gofmt-780.md`) | commit that adds that log |
 | F. #781 | Done (see `.squad/log/2026-09-29-create-agent-781.md`) | commit that adds that log |

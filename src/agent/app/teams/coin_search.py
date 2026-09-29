@@ -29,8 +29,14 @@ from app.config import settings
 from app.llm.content import extract_search_text, extract_text_content
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model, get_structured_model
 from app.llm.retry import ainvoke_with_retry
-from app.models.requests import AlertDiscoveryRequest, LLMConfig
-from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
+from app.models.requests import AlertDiscoveryRequest, ComparablesSearchRequest, LLMConfig
+from app.models.responses import (
+    AlertDiscoveryCandidate,
+    AlertDiscoveryProvenance,
+    AlertDiscoveryResponse,
+    ComparableListing,
+    ComparablesSearchResponse,
+)
 from app.safety import with_safety
 from app.teams import listing_relevance
 from app.teams.json_extraction import extract_json_payload
@@ -869,6 +875,50 @@ async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDisc
     if len(suggestions) > request.alert.max_candidates:
         warnings.append("Some candidates were omitted because the result cap was reached.")
     return AlertDiscoveryResponse(candidates=candidates, warnings=warnings, partial=bool(warnings))
+
+
+async def search_comparables(request: ComparablesSearchRequest) -> ComparablesSearchResponse:
+    """Run one bounded dealer search for Quick Identify's price range (#779).
+
+    Reuses the canonical dealer workflow, so dealers with a site adapter return
+    current stock only. Any failure is reported as an empty, partial result so
+    the caller can fall back to its own estimate.
+    """
+    try:
+        result = await run_market_search(
+            {
+                "query": request.query,
+                "limit": request.limit,
+                "search_terms": request.search_terms or None,
+            },
+            llm_config=request.llm,
+            source_hosts=set(request.dealer_search_sources),
+        )
+    except Exception:
+        logger.exception("Quick Identify comparables search failed")
+        return ComparablesSearchResponse(
+            listings=[],
+            warnings=["Comparables search could not complete."],
+            partial=True,
+        )
+
+    listings = [
+        ComparableListing(
+            source_url=item.source_url,
+            source_name=getattr(item, "dealer_name", None) or "",
+            title=item.title,
+            price=float(price) if (price := getattr(item, "listed_price", None)) is not None else None,
+            currency=getattr(item, "currency", None) or "",
+            availability=getattr(item, "availability", None) or "unknown",
+            verification_state=item.verification_state,
+        )
+        for item in result.items
+    ]
+    return ComparablesSearchResponse(
+        listings=listings,
+        warnings=list(result.warnings)[:10],
+        partial=result.outcome in {"partial", "unavailable"},
+    )
 
 
 def _alert_criteria_query(criteria) -> str:

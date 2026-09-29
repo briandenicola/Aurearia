@@ -169,9 +169,9 @@ def test_budget_never_converts_currencies():
 
 
 def test_adapter_selection_splits_configured_hosts():
-    adapters, remaining = adapters_for_hosts({"www.vcoins.com", "ma-shops.com", "biddr.com", "hjbltd.com"})
+    adapters, remaining = adapters_for_hosts({"www.vcoins.com", "ma-shops.com", "catawiki.com", "hjbltd.com"})
     assert [adapter.name for adapter in adapters] == ["vcoins", "ma_shops", "harlan_j_berk"]
-    assert remaining == {"biddr.com"}
+    assert remaining == {"catawiki.com"}
 
 
 # --- end to end through run_market_search ---------------------------------
@@ -315,8 +315,20 @@ async def test_registered_dealer_http_refuses_hosts_outside_the_boundary():
 
 
 def test_every_adapter_host_is_in_the_default_dealer_list():
-    default_sources = {"vcoins.com", "ma-shops.com", "forumancientcoins.com", "biddr.com", "catawiki.com", "hjbltd.com"}
+    default_sources = {"vcoins.com", "ma-shops.com", "forumancientcoins.com", "catawiki.com", "hjbltd.com"}
     assert {adapter.host for adapter in dealer_sites.DEALER_SITE_ADAPTERS} <= default_sources
+
+
+def test_dealer_hosts_without_an_adapter_fall_back_to_web_search():
+    """#771: Forum Ancient Coins and Catawiki stay on web search by decision.
+
+    Forum answers automated requests with an AWS WAF challenge and Catawiki
+    with an Akamai 403, so neither gets a direct adapter. If an adapter is ever
+    added for one of them this test must be updated deliberately, not silently.
+    """
+    adapters, remaining = adapters_for_hosts({"forumancientcoins.com", "catawiki.com"})
+    assert adapters == []
+    assert remaining == {"forumancientcoins.com", "catawiki.com"}
 
 
 @pytest.mark.asyncio

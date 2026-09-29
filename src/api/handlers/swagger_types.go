@@ -415,13 +415,35 @@ type LookupPriceEstimateSwagger struct {
 	Basis    string  `json:"basis,omitempty" example:"Common type in VF"`
 }
 
+// LookupComparableListingSwagger is one current dealer listing behind a range.
+type LookupComparableListingSwagger struct {
+	Title      string  `json:"title" example:"Trajan Denarius VF"`
+	URL        string  `json:"url" example:"https://www.vcoins.com/en/stores/example/item"`
+	SourceName string  `json:"sourceName,omitempty" example:"Example Ancient Coins"`
+	Price      float64 `json:"price" example:"180"`
+	Currency   string  `json:"currency" example:"USD"`
+}
+
+// LookupPriceComparablesSwagger is the opt-in range taken from current dealer
+// listings for the proposed attribution. It replaces the model-only estimate
+// in the UI whenever it is present.
+type LookupPriceComparablesSwagger struct {
+	Low      float64                          `json:"low" example:"180"`
+	High     float64                          `json:"high" example:"420"`
+	Currency string                           `json:"currency" example:"USD"`
+	Count    int                              `json:"count" example:"2"`
+	Query    string                           `json:"query,omitempty" example:"Trajan Denarius Roman"`
+	Listings []LookupComparableListingSwagger `json:"listings"`
+}
+
 type CoinLookupSwaggerResponse struct {
-	ExtractedData        LookupExtractedDataSwagger   `json:"extractedData"`
-	NumistaCandidates    []NumistaCandidateSwagger    `json:"numistaCandidates"`
-	ProposedNumistaQuery string                       `json:"proposedNumistaQuery,omitempty"`
-	NumistaEvidence      models.NumistaEvidence       `json:"numistaEvidence"`
-	NumistaLookup        *models.NumistaLookupOutcome `json:"numistaLookup" extensions:"x-nullable"`
-	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
-	CandidateReferences  []CandidateReferenceSwagger  `json:"candidateReferences,omitempty"`
-	PriceEstimate        *LookupPriceEstimateSwagger  `json:"priceEstimate,omitempty"`
+	ExtractedData        LookupExtractedDataSwagger     `json:"extractedData"`
+	NumistaCandidates    []NumistaCandidateSwagger      `json:"numistaCandidates"`
+	ProposedNumistaQuery string                         `json:"proposedNumistaQuery,omitempty"`
+	NumistaEvidence      models.NumistaEvidence         `json:"numistaEvidence"`
+	NumistaLookup        *models.NumistaLookupOutcome   `json:"numistaLookup" extensions:"x-nullable"`
+	PrefilledDraft       map[string]any                 `json:"prefilledDraft,omitempty"`
+	CandidateReferences  []CandidateReferenceSwagger    `json:"candidateReferences,omitempty"`
+	PriceEstimate        *LookupPriceEstimateSwagger    `json:"priceEstimate,omitempty"`
+	PriceComparables     *LookupPriceComparablesSwagger `json:"priceComparables,omitempty"`
 }

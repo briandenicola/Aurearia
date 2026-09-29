@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 )
@@ -55,6 +57,27 @@ type LookupPriceEstimate struct {
 	Basis    string  `json:"basis,omitempty"`
 }
 
+// LookupComparableListing is one current dealer listing behind a comparables range.
+type LookupComparableListing struct {
+	Title      string  `json:"title"`
+	URL        string  `json:"url"`
+	SourceName string  `json:"sourceName,omitempty"`
+	Price      float64 `json:"price"`
+	Currency   string  `json:"currency"`
+}
+
+// LookupPriceComparables is a price range taken from current dealer listings
+// for the proposed attribution. Unlike LookupPriceEstimate it is source-backed,
+// so the web shows it in place of the model's guess when it is present.
+type LookupPriceComparables struct {
+	Low      float64                   `json:"low"`
+	High     float64                   `json:"high"`
+	Currency string                    `json:"currency"`
+	Count    int                       `json:"count"`
+	Query    string                    `json:"query,omitempty"`
+	Listings []LookupComparableListing `json:"listings"`
+}
+
 // LookupExtractedData represents extracted data from vision analysis.
 type LookupExtractedData struct {
 	NGC         *NGCData       `json:"ngc,omitempty"`
@@ -93,6 +116,7 @@ type CoinLookupResponse struct {
 	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
 	CandidateReferences  []CandidateReferenceProxy    `json:"candidateReferences,omitempty"`
 	PriceEstimate        *LookupPriceEstimate         `json:"priceEstimate,omitempty"`
+	PriceComparables     *LookupPriceComparables      `json:"priceComparables,omitempty"`
 }
 
 var (
@@ -135,8 +159,10 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 	candidateReferences := s.buildCandidateReferences(extractedData, nil)
 
 	var priceEstimate *LookupPriceEstimate
+	var priceComparables *LookupPriceComparables
 	if req.IncludePriceEstimate {
 		priceEstimate = extractPriceEstimate(extractedData.RawAnalysis)
+		priceComparables = s.lookupPriceComparables(ctx, extractedData)
 	}
 
 	return &CoinLookupResponse{
@@ -148,6 +174,7 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 		PrefilledDraft:       prefilledDraft,
 		CandidateReferences:  candidateReferences,
 		PriceEstimate:        priceEstimate,
+		PriceComparables:     priceComparables,
 	}, nil
 }
 
@@ -310,6 +337,137 @@ func extractPriceEstimate(analysis string) *LookupPriceEstimate {
 		estimate.Basis = boundedEvidenceField(basis, 300)
 	}
 	return estimate
+}
+
+const (
+	// One extra bounded dealer search per opt-in, with a short timeout that
+	// fails open to the model-only estimate.
+	coinLookupComparablesTimeout = 25 * time.Second
+	coinLookupComparablesLimit   = 8
+	coinLookupComparablesShown   = 5
+	coinLookupComparablesCcy     = "USD"
+)
+
+// lookupPriceComparables runs one bounded dealer search on the proposed
+// attribution so the opt-in price range can be grounded in current listings
+// instead of model knowledge alone (#779). It returns nil on any missing
+// configuration, timeout, error or empty result, which keeps today's behaviour.
+func (s *CoinLookupService) lookupPriceComparables(ctx context.Context, data *LookupExtractedData) *LookupPriceComparables {
+	if s.proxy == nil || s.settingsSvc == nil || data == nil {
+		return nil
+	}
+	query := buildComparablesQuery(data.CoinFields)
+	if query == "" {
+		return nil
+	}
+	dealerSources := s.settingsSvc.GetSearchSources(SettingDealerSearchSources)
+	if len(dealerSources) == 0 {
+		return nil
+	}
+	llmCfg, err := s.settingsSvc.ResolveLLMConfig()
+	if err != nil {
+		s.logger.Warn("coin-lookup", "Comparables skipped, LLM is not configured: %v", err)
+		return nil
+	}
+
+	searchCtx, cancel := context.WithTimeout(ctx, coinLookupComparablesTimeout)
+	defer cancel()
+	resp, err := s.proxy.SearchComparables(searchCtx, ComparablesProxyRequest{
+		LLM:           llmCfg,
+		Query:         query,
+		SearchTerms:   query,
+		Limit:         coinLookupComparablesLimit,
+		DealerSources: dealerSources,
+	})
+	if err != nil {
+		s.logger.Warn("coin-lookup", "Comparables search failed, keeping model estimate: %v", err)
+		return nil
+	}
+	return summarizeComparables(query, resp)
+}
+
+// buildComparablesQuery turns the proposed attribution into short dealer search
+// keywords. It returns "" when the extraction is too thin to search on.
+func buildComparablesQuery(fields map[string]any) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	seen := make(map[string]bool)
+	for _, key := range []string{"ruler", "denomination", "category"} {
+		value := strings.TrimSpace(stringField(fields, key))
+		if value == "" || seen[strings.ToLower(value)] {
+			continue
+		}
+		seen[strings.ToLower(value)] = true
+		parts = append(parts, value)
+	}
+	if len(parts) < 2 {
+		if name := strings.TrimSpace(stringField(fields, "name")); name != "" {
+			return boundedEvidenceField(name, 200)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return boundedEvidenceField(strings.Join(parts, " "), 200)
+}
+
+// summarizeComparables keeps available, priced listings in the requested
+// currency and reduces them to a low/high range with linked sources.
+func summarizeComparables(query string, resp *ComparablesProxyResponse) *LookupPriceComparables {
+	if resp == nil {
+		return nil
+	}
+	listings := make([]LookupComparableListing, 0, len(resp.Listings))
+	for _, listing := range resp.Listings {
+		if listing.Price == nil || *listing.Price <= 0 {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(listing.Currency), coinLookupComparablesCcy) {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(listing.Availability), "sold") {
+			continue
+		}
+		// A listing whose dealer page was never fetched cannot be presented as
+		// a current listing: it may already be sold.
+		if !strings.EqualFold(strings.TrimSpace(listing.VerificationState), "verified") {
+			continue
+		}
+		url := strings.TrimSpace(listing.SourceURL)
+		title := strings.TrimSpace(listing.Title)
+		if url == "" || title == "" {
+			continue
+		}
+		listings = append(listings, LookupComparableListing{
+			Title:      boundedEvidenceField(title, 200),
+			URL:        url,
+			SourceName: boundedEvidenceField(strings.TrimSpace(listing.SourceName), 120),
+			Price:      *listing.Price,
+			Currency:   coinLookupComparablesCcy,
+		})
+	}
+	if len(listings) == 0 {
+		return nil
+	}
+	sort.Slice(listings, func(i, j int) bool { return listings[i].Price < listings[j].Price })
+	summary := &LookupPriceComparables{
+		Low:      listings[0].Price,
+		High:     listings[len(listings)-1].Price,
+		Currency: coinLookupComparablesCcy,
+		Count:    len(listings),
+		Query:    query,
+	}
+	if len(listings) > coinLookupComparablesShown {
+		// Keep the cheapest listings plus the most expensive one so both ends
+		// of the reported range stay backed by a source link.
+		shown := make([]LookupComparableListing, 0, coinLookupComparablesShown)
+		shown = append(shown, listings[:coinLookupComparablesShown-1]...)
+		listings = append(shown, listings[len(listings)-1])
+	}
+	summary.Listings = listings
+	return summary
 }
 
 // extractNGCCert parses NGC certification data from analysis text.

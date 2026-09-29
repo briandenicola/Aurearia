@@ -9,6 +9,22 @@ Each adapter knows one site: how to build its search request and how to parse
 the response into ``SiteListing`` values. Network access goes through a
 ``DealerHttp`` bound to the administrator-configured hosts, so adapters can't
 reach anything outside that boundary and tests can substitute saved pages.
+
+Sites investigated for a direct adapter and deliberately left on web search
+(#771). Re-check before adding an adapter for any of them:
+
+* ``forumancientcoins.com`` — every plain request, including ``robots.txt``,
+  is answered with HTTP 202 and ``x-amzn-waf-action: challenge`` from AWS WAF.
+  An adapter would have to defeat that challenge, which we never do, so Forum
+  stays on web search restricted to its host.
+* ``catawiki.com`` — the Akamai edge answers automated requests with HTTP 403,
+  including ``robots.txt`` and the search page, and the site's terms do not
+  permit automated querying. Left on web search.
+* ``biddr.com`` — reachable and permitted by ``robots.txt`` (Crawl-delay 3),
+  with a server-rendered ``/search?s=`` page, but it is an auction platform:
+  lots carry closing times and bids rather than dealer stock at an asking
+  price. It was moved out of the dealer sources into the auction sources
+  instead of getting a dealer adapter.
 """
 
 from __future__ import annotations

@@ -13,10 +13,13 @@ tasks_artifact: docs/audits/2026-09-29-open-issue-plans.md
 The owner is working through open issues on `beta` before any merge to `main`.
 Plans and a status table are in
 [the open-issue plans](../../docs/audits/2026-09-29-open-issue-plans.md).
-Groups A, B, C and F and #774 are done.
+Groups A, B, C, E and F are done: #779 grounds Quick Identify prices in current
+dealer listings and #771 records the per-site adapter decisions.
 
 ## Next Action
 
-Owner-set order: #779, then #771, then #766 (needs its own spec first), then
-#784. Confirm with the owner before starting #779. No deployment or release is
-authorized.
+Discuss #766 and #784 with the owner and agree which to do first (the owner
+indicated #784 may come before #766). #766 still needs its own spec. #779 also
+needs a re-review against the committed tree, since the first review returned
+INCOMPLETE and its two blocking findings were repaired by the author. No
+deployment or release is authorized.

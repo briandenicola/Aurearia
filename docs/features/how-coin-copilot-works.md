@@ -53,7 +53,7 @@ flowchart LR
 
     subgraph Outside["Trusted outside sources"]
         direction TB
-        D("🏪 Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Biddr · Catawiki"):::outside
+        D("🏪 Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Catawiki"):::outside
         A("🔨 Auctions<br/>NumisBids · CNG"):::outside
         R("📚 References<br/>Numista · Nomisma / OCRE"):::outside
     end
@@ -531,7 +531,10 @@ of Copilot, but they're useful to know about.
   quietly uses the original Coin Agent.
 - **Choose sources:** *Admin → System → Dealer Search Sources* and *Auction
   Search Sources*. vCoins, MA-Shops and Harlan J. Berk get direct search when
-  listed; others use web search limited to their site.
+  listed; others use web search limited to their site. Forum Ancient Coins and
+  Catawiki stay on web search on purpose — Forum answers automated requests with
+  a bot challenge and Catawiki refuses them outright. Biddr sells through timed
+  auction lots, so it ships as an auction source rather than a dealer source.
 - **Deep Analysis from the chat** needs *Enable Deep Analysis* (Admin → System)
   and *Allow Deep Analysis from Coin Copilot* (Admin → System → Coin Copilot).
   It is off by default.

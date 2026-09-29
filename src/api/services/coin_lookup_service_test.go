@@ -828,6 +828,9 @@ func TestCoinLookupPriceEstimateIsOptIn(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var prompt string
 			svc := newCoinLookupServiceForResponse(t, analysis, func(r *http.Request) {
+				if r.URL.Path != "/api/analyze" {
+					return
+				}
 				var request AnalyzeProxyRequest
 				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 					t.Fatalf("decode agent request: %v", err)
@@ -870,5 +873,232 @@ func TestExtractPriceEstimateRejectsUnusableRanges(t *testing.T) {
 		if got := extractPriceEstimate(analysis); got != nil {
 			t.Errorf("extractPriceEstimate(%s) = %#v, want nil", analysis, got)
 		}
+	}
+}
+
+// newCoinLookupServiceWithComparables serves the vision analysis and the
+// bounded comparables search from one stub agent, routed by path.
+func newCoinLookupServiceWithComparables(
+	t *testing.T,
+	analysis string,
+	comparables func(w http.ResponseWriter, r *http.Request),
+) (*CoinLookupService, *int) {
+	t.Helper()
+	comparablesCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/search/comparables" {
+			comparablesCalls++
+			comparables(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(AnalyzeProxyResponse{Analysis: analysis})
+	}))
+	t.Cleanup(server.Close)
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:coin_lookup_comparables_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, setting := range []models.AppSetting{
+		{Key: SettingAIProvider, Value: "anthropic"},
+		{Key: SettingAnthropicAPIKey, Value: "test-key"},
+		{Key: SettingAnthropicModel, Value: "test-model"},
+	} {
+		if err := db.Create(&setting).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := NewCoinLookupService(
+		NewAgentProxy(server.URL, "internal-token", NewLogger(10)),
+		NewSettingsService(repository.NewSettingsRepository(db)),
+		NewLogger(10),
+	)
+	return svc, &comparablesCalls
+}
+
+const comparablesAnalysis = `{"name":"Trajan Denarius","ruler":"Trajan","denomination":"Denarius","category":"Roman","priceEstimateLow":120,"priceEstimateHigh":250,"priceEstimateCurrency":"USD","priceEstimateBasis":"Common type in VF"}`
+
+func TestCoinLookupGroundsPriceRangeInComparables(t *testing.T) {
+	var request ComparablesProxyRequest
+	svc, calls := newCoinLookupServiceWithComparables(t, comparablesAnalysis, func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode comparables request: %v", err)
+		}
+		low, high := 180.0, 420.0
+		_ = json.NewEncoder(w).Encode(ComparablesProxyResponse{Listings: []ComparableListingProxy{
+			{SourceURL: "https://dealer.example/b", Title: "Trajan Denarius VF", Price: &high, Currency: "USD", Availability: "available", SourceName: "Example Coins", VerificationState: "verified"},
+			{SourceURL: "https://dealer.example/a", Title: "Trajan Denarius F", Price: &low, Currency: "usd", Availability: "unknown", VerificationState: "verified"},
+		}})
+	})
+
+	result, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{
+		Images:               []string{"data:image/png;base64,AA=="},
+		IncludePriceEstimate: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 1 {
+		t.Fatalf("comparables search ran %d times, want exactly 1", *calls)
+	}
+	if request.Query != "Trajan Denarius Roman" {
+		t.Fatalf("comparables query = %q, want %q", request.Query, "Trajan Denarius Roman")
+	}
+	if len(request.DealerSources) == 0 {
+		t.Fatal("comparables request carried no configured dealer sources")
+	}
+	comps := result.PriceComparables
+	if comps == nil {
+		t.Fatal("price comparables missing")
+	}
+	if comps.Low != 180 || comps.High != 420 || comps.Count != 2 || comps.Currency != "USD" {
+		t.Fatalf("comparables summary = %#v, want 180-420 USD over 2 listings", comps)
+	}
+	if len(comps.Listings) != 2 || comps.Listings[0].URL != "https://dealer.example/a" {
+		t.Fatalf("comparables listings = %#v, want cheapest first with links", comps.Listings)
+	}
+	if result.PriceEstimate == nil {
+		t.Fatal("model estimate was dropped; it must remain as the labelled fallback")
+	}
+}
+
+func TestCoinLookupComparablesFailOpenToModelEstimate(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		handler func(w http.ResponseWriter, r *http.Request)
+	}{
+		{
+			name:    "agent error",
+			handler: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
+		},
+		{
+			name: "no listings",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				_ = json.NewEncoder(w).Encode(ComparablesProxyResponse{Listings: []ComparableListingProxy{}, Partial: true})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			svc, _ := newCoinLookupServiceWithComparables(t, comparablesAnalysis, test.handler)
+			result, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{
+				Images:               []string{"data:image/png;base64,AA=="},
+				IncludePriceEstimate: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.PriceComparables != nil {
+				t.Fatalf("price comparables = %#v, want nil", result.PriceComparables)
+			}
+			if result.PriceEstimate == nil {
+				t.Fatal("model estimate fallback missing")
+			}
+		})
+	}
+}
+
+func TestCoinLookupSkipsComparablesWithoutOptIn(t *testing.T) {
+	svc, calls := newCoinLookupServiceWithComparables(t, comparablesAnalysis, func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("comparables search ran without the price opt-in")
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	result, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{Images: []string{"data:image/png;base64,AA=="}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 0 {
+		t.Fatalf("comparables search ran %d times without opt-in, want 0", *calls)
+	}
+	if result.PriceComparables != nil || result.PriceEstimate != nil {
+		t.Fatal("price data returned without the opt-in")
+	}
+}
+
+func TestSummarizeComparablesDropsUnusableListings(t *testing.T) {
+	price, zero, euros := 200.0, 0.0, 150.0
+	summary := summarizeComparables("Trajan Denarius", &ComparablesProxyResponse{Listings: []ComparableListingProxy{
+		{SourceURL: "https://dealer.example/sold", Title: "Sold", Price: &price, Currency: "USD", Availability: "sold", VerificationState: "verified"},
+		{SourceURL: "https://dealer.example/zero", Title: "No price", Price: &zero, Currency: "USD", VerificationState: "verified"},
+		{SourceURL: "https://dealer.example/eur", Title: "Euros", Price: &euros, Currency: "EUR", VerificationState: "verified"},
+		{SourceURL: "https://dealer.example/none", Title: "Unpriced", Currency: "USD", VerificationState: "verified"},
+		{SourceURL: "", Title: "No link", Price: &price, Currency: "USD", VerificationState: "verified"},
+		{SourceURL: "https://dealer.example/partial", Title: "Never fetched", Price: &price, Currency: "USD", Availability: "unknown", VerificationState: "partial"},
+		{SourceURL: "https://dealer.example/blank", Title: "No verification state", Price: &price, Currency: "USD"},
+		{SourceURL: "https://dealer.example/ok", Title: "Keeper", Price: &price, Currency: "USD", VerificationState: "verified"},
+	}})
+	if summary == nil {
+		t.Fatal("summary = nil, want the single usable listing")
+	}
+	if summary.Count != 1 || summary.Listings[0].URL != "https://dealer.example/ok" {
+		t.Fatalf("summary = %#v, want only the available USD listing", summary)
+	}
+	if got := summarizeComparables("q", &ComparablesProxyResponse{}); got != nil {
+		t.Fatalf("summary without listings = %#v, want nil", got)
+	}
+	if got := summarizeComparables("q", nil); got != nil {
+		t.Fatalf("summary without response = %#v, want nil", got)
+	}
+}
+
+// Both ends of the reported range must stay backed by a visible source link.
+func TestSummarizeComparablesKeepsBothEndsOfTheRangeLinked(t *testing.T) {
+	listings := make([]ComparableListingProxy, 0, 8)
+	for i := 1; i <= 8; i++ {
+		price := float64(i) * 100
+		listings = append(listings, ComparableListingProxy{
+			SourceURL:         fmt.Sprintf("https://dealer.example/%d", i),
+			Title:             fmt.Sprintf("Listing %d", i),
+			Price:             &price,
+			Currency:          "USD",
+			VerificationState: "verified",
+		})
+	}
+	summary := summarizeComparables("q", &ComparablesProxyResponse{Listings: listings})
+	if summary == nil {
+		t.Fatal("summary = nil")
+	}
+	if summary.Count != 8 || len(summary.Listings) != coinLookupComparablesShown {
+		t.Fatalf("summary = %#v, want all 8 counted and %d shown", summary, coinLookupComparablesShown)
+	}
+	first, last := summary.Listings[0], summary.Listings[len(summary.Listings)-1]
+	if first.Price != summary.Low {
+		t.Errorf("cheapest shown listing = %v, want the reported low %v", first.Price, summary.Low)
+	}
+	if last.Price != summary.High {
+		t.Errorf("dearest shown listing = %v, want the reported high %v", last.Price, summary.High)
+	}
+}
+
+func TestBuildComparablesQuery(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		fields map[string]any
+		want   string
+	}{
+		{name: "empty", fields: nil, want: ""},
+		{
+			name:   "attribution fields",
+			fields: map[string]any{"ruler": "Trajan", "denomination": "Denarius", "category": "Roman", "material": "Silver"},
+			want:   "Trajan Denarius Roman",
+		},
+		{
+			name:   "falls back to name when thin",
+			fields: map[string]any{"ruler": "Trajan", "name": "Trajan Denarius Rome mint"},
+			want:   "Trajan Denarius Rome mint",
+		},
+		{name: "unsearchable", fields: map[string]any{"material": "Silver"}, want: ""},
+		{
+			name:   "drops duplicates",
+			fields: map[string]any{"ruler": "Roman", "denomination": "Denarius", "category": "roman"},
+			want:   "Roman Denarius",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := buildComparablesQuery(test.fields); got != test.want {
+				t.Fatalf("buildComparablesQuery = %q, want %q", got, test.want)
+			}
+		})
 	}
 }

@@ -31,7 +31,7 @@ func NewCoinLookupHandler(service *services.CoinLookupService, logger *services.
 //	@Param			images	formData	file	true	"Coin or slab images (use multiple files)"
 //	@Param			imageRoles	formData	[]string	false	"Semantic role for each image: obverse, reverse, or notes"	collectionFormat(multi)
 //	@Param			notes	formData	string	false	"Optional collector-provided identification context (max 2000 characters)"
-//	@Param			includePriceEstimate	formData	bool	false	"Ask the AI for a rough, unverified price range"
+//	@Param			includePriceEstimate	formData	bool	false	"Ask for a price range: current dealer comparables when available, otherwise a rough, unverified AI estimate"
 //	@Success		200	{object}	CoinLookupSwaggerResponse
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		401	{object}	ErrorResponse

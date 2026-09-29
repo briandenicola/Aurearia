@@ -503,6 +503,32 @@ type AlertDiscoveryProxyResponse struct {
 	Partial    bool                  `json:"partial"`
 }
 
+// ComparablesProxyRequest asks the agent for one bounded dealer search used to
+// ground Quick Identify's price range in current listings (#779).
+type ComparablesProxyRequest struct {
+	LLM           LLMConfig `json:"llm"`
+	Query         string    `json:"query"`
+	SearchTerms   string    `json:"search_terms,omitempty"`
+	Limit         int       `json:"limit,omitempty"`
+	DealerSources []string  `json:"dealer_search_sources"`
+}
+
+type ComparableListingProxy struct {
+	SourceURL         string   `json:"source_url"`
+	SourceName        string   `json:"source_name,omitempty"`
+	Title             string   `json:"title"`
+	Price             *float64 `json:"price,omitempty"`
+	Currency          string   `json:"currency,omitempty"`
+	Availability      string   `json:"availability,omitempty"`
+	VerificationState string   `json:"verification_state,omitempty"`
+}
+
+type ComparablesProxyResponse struct {
+	Listings []ComparableListingProxy `json:"listings"`
+	Warnings []string                 `json:"warnings"`
+	Partial  bool                     `json:"partial"`
+}
+
 type WishlistFeaturedSummaryCoinProxy struct {
 	Name            string `json:"name"`
 	Era             string `json:"era,omitempty"`
@@ -846,6 +872,44 @@ func (p *AgentProxy) DiscoverAlertCandidates(ctx context.Context, req AlertDisco
 	var result AlertDiscoveryProxyResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("parse alert discovery response: %w", err)
+	}
+	return &result, nil
+}
+
+// SearchComparables POSTs to the Python agent's stateless /api/search/comparables
+// endpoint. Callers are expected to fail open: a returned error means Quick
+// Identify keeps its model-only estimate.
+func (p *AgentProxy) SearchComparables(ctx context.Context, req ComparablesProxyRequest) (*ComparablesProxyResponse, error) {
+	logger := p.logger
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal comparables request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/search/comparables", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create comparables request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		logger.Error("agent-proxy", "Comparables request failed: %v", err)
+		return nil, fmt.Errorf("agent service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := string(respBody)
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200] + "... (truncated)"
+		}
+		logger.Error("agent-proxy", "Comparables search returned %d: %s", resp.StatusCode, errMsg)
+		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
+	}
+	var result ComparablesProxyResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse comparables response: %w", err)
 	}
 	return &result, nil
 }

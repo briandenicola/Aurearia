@@ -60,6 +60,21 @@ or the dealer's `Retry-After`, bounded to 1 minute to 6 hours), and the answer
 says the dealer was skipped. Identical dealer requests within 5 minutes are
 served from an in-memory cache.
 
+**Dealers searched directly today:** vCoins, MA-Shops and Harlan J. Berk. The
+remaining default dealer sources stay on web search by decision, not oversight:
+
+| Dealer | Why it has no direct adapter |
+| --- | --- |
+| Forum Ancient Coins | Every automated request, including `robots.txt`, is answered with an AWS WAF browser challenge. We never work around a challenge. |
+| Catawiki | The site's edge protection refuses automated requests outright and its terms do not permit automated querying. |
+
+Biddr was also reviewed. It is reachable and permitted by its `robots.txt`, but
+it sells through timed auction lots rather than dealer stock at an asking
+price, so it moved from the default dealer sources to the default auction
+sources instead of getting a dealer adapter. Existing installations that set
+their own source lists in Admin are not changed; move it there if you want the
+same behaviour.
+
 The original Coin Agent's coin search (Team 1) uses the same direct dealer
 search when any configured dealer has a site adapter, returning up to 10
 listings in its usual format and noting skipped dealers or budget exclusions.

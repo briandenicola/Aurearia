@@ -186,11 +186,22 @@
             </div>
           </form>
 
-          <section v-if="results.priceEstimate" class="card min-w-0 overflow-hidden" aria-labelledby="lookup-price-estimate-title">
+          <section v-if="results.priceComparables" class="card min-w-0 overflow-hidden" aria-labelledby="lookup-price-comparables-title">
+            <h3 id="lookup-price-comparables-title" class="section-label mb-2 block">Current Dealer Listings</h3>
+            <p class="text-lg text-gold">{{ priceComparablesText }}</p>
+            <ul class="mt-2 space-y-1">
+              <li v-for="listing in results.priceComparables.listings" :key="listing.url" class="text-body leading-6 [overflow-wrap:anywhere]">
+                <SafeExternalLink :href="listing.url" class="text-gold underline">{{ listing.title }}</SafeExternalLink>
+                <span class="text-text-secondary"> — {{ formatCurrency(listing.price, listing.currency) }}<template v-if="listing.sourceName"> · {{ listing.sourceName }}</template></span>
+              </li>
+            </ul>
+            <p class="mt-2 text-sm text-text-muted">Asking prices from configured dealers for "{{ results.priceComparables.query }}", not completed sales. Use Estimate Value on a saved coin for a full comparables valuation.</p>
+          </section>
+          <section v-else-if="results.priceEstimate" class="card min-w-0 overflow-hidden" aria-labelledby="lookup-price-estimate-title">
             <h3 id="lookup-price-estimate-title" class="section-label mb-2 block">Estimated Price Range</h3>
             <p class="text-lg text-gold">{{ priceEstimateText }}</p>
             <p v-if="results.priceEstimate.basis" class="mt-1 text-body leading-6 text-text-secondary">{{ results.priceEstimate.basis }}</p>
-            <p class="mt-2 text-sm text-text-muted">AI estimate from general market knowledge, not live auction or dealer data. Use Estimate Value on a saved coin for a comparables-based figure.</p>
+            <p class="mt-2 text-sm text-text-muted">This is an AI estimate from general market knowledge, not live auction or dealer data, because no current dealer listing was available to price against. Use Estimate Value on a saved coin for a comparables-based figure.</p>
           </section>
           <p v-else-if="requestedPriceEstimate" class="text-body text-text-muted">The AI could not identify this coin confidently enough to suggest a price range.</p>
 
@@ -398,6 +409,15 @@ const priceEstimateText = computed(() => {
   if (!estimate) return ''
   return `${formatCurrency(estimate.low, estimate.currency)} – ${formatCurrency(estimate.high, estimate.currency)}`
 })
+const priceComparablesText = computed(() => {
+  const comparables = results.value?.priceComparables
+  if (!comparables) return ''
+  const listingLabel = comparables.count === 1 ? '1 current listing' : `${comparables.count} current listings`
+  if (comparables.low === comparables.high) {
+    return `${listingLabel} at ${formatCurrency(comparables.low, comparables.currency)}`
+  }
+  return `${listingLabel} from ${formatCurrency(comparables.low, comparables.currency)} to ${formatCurrency(comparables.high, comparables.currency)}`
+})
 
 async function toggleNgcNumista() {
   ngcNumistaExpanded.value = !ngcNumistaExpanded.value
@@ -534,7 +554,9 @@ function handleCancel() {
 function buildDraftNotes() {
   const parts: string[] = []
   appendUniqueObservation(parts, captureNotes.value, 'Collector notes')
-  if (priceEstimateText.value) {
+  if (priceComparablesText.value) {
+    appendUniqueObservation(parts, `${priceComparablesText.value} (dealer asking prices)`, 'Comparable listings')
+  } else if (priceEstimateText.value) {
     appendUniqueObservation(parts, `${priceEstimateText.value} (unverified AI estimate)`, 'AI price range')
   }
   const extractedFields = [
