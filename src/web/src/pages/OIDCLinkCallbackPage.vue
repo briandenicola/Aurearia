@@ -28,11 +28,11 @@
       >
         <div class="flex items-center justify-between gap-3">
           <span class="section-label">Provider</span>
-          <strong class="text-gold text-base overflow-wrap-anywhere text-right">{{ identity.providerDisplayName }}</strong>
+          <strong class="text-gold text-base [overflow-wrap:anywhere] text-right">{{ identity.providerDisplayName }}</strong>
         </div>
         <div v-if="identity.email" class="flex items-center justify-between gap-3">
           <span class="section-label">Email</span>
-          <strong class="text-gold text-base overflow-wrap-anywhere text-right">{{ identity.email }}</strong>
+          <strong class="text-gold text-base [overflow-wrap:anywhere] text-right">{{ identity.email }}</strong>
         </div>
       </div>
 

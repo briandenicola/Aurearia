@@ -236,6 +236,72 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     })
   })
 
+  describe('template classes resolve to real styles', () => {
+    const mainCss = readFileSync(join(STYLES_DIR, 'main.css'), 'utf-8')
+    const themeColors = new Set([...mainCss.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]))
+    const themeSizes = new Set([...mainCss.matchAll(/--text-([a-z0-9]+)\s*:/g)].map((m) => m[1]))
+    const tailwindSizes = ['xs', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl']
+    const textUtilities = ['left', 'center', 'right', 'justify', 'start', 'end', 'wrap', 'nowrap', 'balance', 'pretty', 'ellipsis', 'clip']
+    const colorKeywords = ['white', 'black', 'transparent', 'current', 'inherit']
+    const bgUtilities = ['none', 'cover', 'contain', 'auto', 'center', 'top', 'bottom', 'fixed', 'local', 'scroll', 'repeat', 'no-repeat', 'clip', 'origin', 'blend']
+    const semanticPrefix = /^(form|section|info|setting|settings|btn)-/
+    const globalSelectors = new Set([...mainCss.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]))
+
+    function templateClassTokens(content: string): string[] {
+      const template = content.match(/<template>[\s\S]*<\/template>/)?.[0] ?? ''
+      const tokens: string[] = []
+      for (const m of template.matchAll(/\sclass="([^"]*)"/g)) tokens.push(...m[1].split(/\s+/))
+      for (const m of template.matchAll(/\s:class="([^"]*)"/g)) {
+        for (const lit of m[1].matchAll(/'([^']*)'/g)) tokens.push(...lit[1].split(/\s+/))
+      }
+      return tokens.filter(Boolean)
+    }
+
+    function isKnownColor(name: string): boolean {
+      return themeColors.has(name) || colorKeywords.includes(name) || /^[a-z]+-\d{2,3}$/.test(name)
+    }
+
+    function problem(token: string, scoped: Set<string>): string | null {
+      const opens = (token.match(/\[/g) ?? []).length
+      const closes = (token.match(/\]/g) ?? []).length
+      if (opens !== closes) return 'unbalanced brackets'
+
+      const utility = token.replace(/^!/, '').split(':').pop()!.replace(/\/\d+$/, '')
+      if (utility.includes('[')) return null
+
+      const text = utility.match(/^text-(.+)$/)
+      if (text && !themeSizes.has(text[1]) && !tailwindSizes.includes(text[1]) && !textUtilities.includes(text[1]) && !isKnownColor(text[1])) {
+        return 'text-* is not a typography token or theme color'
+      }
+      const bg = utility.match(/^bg-(.+)$/)
+      if (bg && !isKnownColor(bg[1]) && !bgUtilities.includes(bg[1]) && !bg[1].startsWith('gradient') && !bg[1].startsWith('linear')) {
+        return 'bg-* is not a theme color'
+      }
+      if (semanticPrefix.test(utility) && !globalSelectors.has(utility) && !scoped.has(utility)) {
+        return 'shared class is not defined in main.css or scoped styles'
+      }
+      return null
+    }
+
+    it('uses only defined text sizes, colors and shared form/section classes', () => {
+      const violations: string[] = []
+      for (const file of collectVueFiles(SRC_DIR)) {
+        const content = readFileSync(file, 'utf-8')
+        const scoped = new Set(
+          [...content.matchAll(/<style[\s\S]*?<\/style>/g)].flatMap((s) =>
+            [...s[0].matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1])
+          )
+        )
+        for (const token of new Set(templateClassTokens(content))) {
+          const reason = problem(token, scoped)
+          if (reason) violations.push(`${relative(SRC_DIR, file)}: ${token} (${reason})`)
+        }
+      }
+
+      expect(violations, `Undefined template classes render with browser defaults:\n  ${violations.join('\n  ')}`).toEqual([])
+    })
+  })
+
   describe('variables.css and main.css define required tokens', () => {
     it('Louvre theme uses official brand colors', () => {
       const vars = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')

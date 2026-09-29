@@ -81,7 +81,7 @@
 
       <div v-else-if="visibleLots.length && groupingAvailable && groupingEnabled">
         <div v-for="house in groupedLots" :key="house.auctionHouse" class="mb-5">
-          <h3 class="mb-1 mt-4 text-text-heading">{{ house.auctionHouse }}</h3>
+          <h3 class="mb-1 mt-4 text-heading">{{ house.auctionHouse }}</h3>
           <div v-for="sale in house.sales" :key="sale.saleName" class="mb-4">
             <p class="section-label mb-2">{{ sale.saleName }}</p>
             <div class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">

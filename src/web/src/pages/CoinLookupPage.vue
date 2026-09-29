@@ -190,9 +190,9 @@
             <h3 id="lookup-price-estimate-title" class="section-label mb-2 block">Estimated Price Range</h3>
             <p class="text-lg text-gold">{{ priceEstimateText }}</p>
             <p v-if="results.priceEstimate.basis" class="mt-1 text-body leading-6 text-text-secondary">{{ results.priceEstimate.basis }}</p>
-            <p class="mt-2 text-tiny text-text-muted">AI estimate from general market knowledge, not live auction or dealer data. Use Estimate Value on a saved coin for a comparables-based figure.</p>
+            <p class="mt-2 text-sm text-text-muted">AI estimate from general market knowledge, not live auction or dealer data. Use Estimate Value on a saved coin for a comparables-based figure.</p>
           </section>
-          <p v-else-if="requestedPriceEstimate" class="text-small text-text-muted">The AI could not identify this coin confidently enough to suggest a price range.</p>
+          <p v-else-if="requestedPriceEstimate" class="text-body text-text-muted">The AI could not identify this coin confidently enough to suggest a price range.</p>
 
           <div v-if="ngcCertNumber" class="card min-w-0 overflow-hidden">
             <button

@@ -80,7 +80,7 @@
         <input
           v-model="selectedDate"
           type="date"
-          class="input self-start"
+          class="form-input w-auto self-start"
           :min="bounds.earliestDate"
           :max="bounds.latestDate"
           aria-label="Jump to date"

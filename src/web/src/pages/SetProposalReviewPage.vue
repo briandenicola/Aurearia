@@ -31,15 +31,15 @@
 
         <div class="info-grid">
           <div class="info-card">
-            <span class="info-label">Scope</span>
+            <span class="section-label mb-0">Scope</span>
             <strong>{{ proposal.selectedScope || 'Review required' }}</strong>
           </div>
           <div class="info-card">
-            <span class="info-label">Slots</span>
+            <span class="section-label mb-0">Slots</span>
             <strong>{{ slots.length }}</strong>
           </div>
           <div class="info-card">
-            <span class="info-label">Estimated filled</span>
+            <span class="section-label mb-0">Estimated filled</span>
             <strong>{{ estimatedFilled }} / {{ estimatedTotal }}</strong>
           </div>
         </div>
@@ -69,15 +69,15 @@
         <span class="section-label">Collection match insight</span>
         <div class="info-grid mt-3">
           <div class="info-card">
-            <span class="info-label">Matched estimate</span>
+            <span class="section-label mb-0">Matched estimate</span>
             <strong>{{ estimatedFilled }} / {{ estimatedTotal }}</strong>
           </div>
           <div class="info-card">
-            <span class="info-label">Verified slots</span>
+            <span class="section-label mb-0">Verified slots</span>
             <strong>{{ verifiedSlotCount }}</strong>
           </div>
           <div class="info-card">
-            <span class="info-label">Needs review</span>
+            <span class="section-label mb-0">Needs review</span>
             <strong>{{ unverifiedSlotCount }}</strong>
           </div>
         </div>

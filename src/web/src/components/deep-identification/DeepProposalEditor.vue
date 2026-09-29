@@ -41,7 +41,7 @@
           <textarea
             v-if="name === 'notes'"
             :id="`deep-proposal-field-${name}`"
-            class="min-h-[132px] min-w-0 resize-y rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
+            class="min-h-[132px] min-w-0 resize-y rounded-sm border border-border-subtle bg-input px-2 py-1 text-text-primary"
             :value="ownerValue(name)"
             @input="onOwnerValueInput(name, $event)"
           ></textarea>
@@ -49,7 +49,7 @@
             v-else
             :id="`deep-proposal-field-${name}`"
             type="text"
-            class="min-h-[44px] rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
+            class="min-h-[44px] rounded-sm border border-border-subtle bg-input px-2 py-1 text-text-primary"
             :value="ownerValue(name)"
             @input="onOwnerValueInput(name, $event)"
           >
