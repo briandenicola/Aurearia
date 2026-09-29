@@ -223,7 +223,7 @@ onMounted(() => {
 
 .mapped-count {
   color: var(--accent-gold);
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-family-display);
   font-size: 1.2rem;
   font-weight: 600;
 }

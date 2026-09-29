@@ -15,7 +15,7 @@
     <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- ParcelApp Shipment Tracking -->
-    <h3 class="mb-4 text-base font-semibold text-text-primary">ParcelApp Shipment Tracking</h3>
+    <h3 class="mb-4 text-lg font-medium text-heading">ParcelApp Shipment Tracking</h3>
     <p class="mb-4 text-base text-text-secondary">Enables ParcelApp shipment checks for users who have saved a ParcelApp API key. Automated checks run no more often than every 20 minutes.</p>
     <div class="mb-4">
       <div class="form-group flex items-center justify-between gap-3">

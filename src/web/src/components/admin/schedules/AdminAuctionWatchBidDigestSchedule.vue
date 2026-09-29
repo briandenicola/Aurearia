@@ -2,7 +2,7 @@
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
   <!-- Auction Watch Bid Digest -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Watch Bid Digest</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Auction Watch Bid Digest</h3>
   <p class="mb-4 text-base text-text-secondary">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active. Each lot in the digest shows how its bid moved since the previous digest.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
@@ -48,7 +48,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Watch Bid Digest Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Auction Watch Bid Digest Run History</h3>
 
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No auction watch bid digest runs recorded yet.</div>

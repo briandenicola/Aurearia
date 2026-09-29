@@ -25,6 +25,7 @@
 - [**AI Coin Analysis**](features/ai-analysis.md) — Vision model analysis of obverse/reverse photos
 - [**AI Coin Search Agent**](features/ai-search-agent.md) — Chat agent for dealer discovery
 - [**Coin Copilot**](features/coin-copilot.md) — Default-off, read-only multi-step collection analysis in the existing chat drawer
+- [**How Coin Copilot Works**](features/how-coin-copilot-works.md) — Collector's guide to Copilot's helpers and workflow, with diagrams
 - [**AI Grading**](features/ai-grading.md) — Grade estimation from photos
 - [**Price Trends**](features/price-trends.md) — Market trend analysis
 - [**Gap Analysis**](features/gap-analysis.md) — Collection gap suggestions

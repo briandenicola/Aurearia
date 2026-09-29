@@ -2,7 +2,7 @@
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
   <!-- Coin of the Day -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Coin of the Day</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Coin of the Day</h3>
   <p class="mb-4 text-base text-text-secondary">Picks one coin per day from each user's collection and sends an in-app and Pushover notification. Each coin in a user's collection appears once before any coin repeats.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
@@ -58,7 +58,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Coin of the Day Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Coin of the Day Run History</h3>
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No Coin of the Day runs recorded yet.</div>
   <template v-else>

@@ -1,7 +1,7 @@
 <template>
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Wishlist Search Alerts</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Wishlist Search Alerts</h3>
   <p class="mb-4 text-base text-text-secondary">Runs the daily sweep that queues automatic discovery runs for wishlist search alerts whose cadence (daily/weekly/monthly) has elapsed. Individual alerts also support Run Now from the Wishlist Alerts page.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
@@ -33,7 +33,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Wishlist Search Alert Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Wishlist Search Alert Run History</h3>
 
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="historyError" class="px-8 py-8 text-center font-sans text-[var(--color-negative)]" role="alert">{{ historyError }}</div>

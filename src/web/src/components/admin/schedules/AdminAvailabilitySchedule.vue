@@ -1,6 +1,6 @@
 <template>
   <!-- Wishlist Availability Check -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Wishlist Availability Check</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Wishlist Availability Check</h3>
   <p class="mb-4 text-base text-text-secondary">Monitors dealer sites for coins on your wishlist and sends alerts when availability changes.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
@@ -46,7 +46,7 @@
   </div>
 
   <hr class="my-6 border-0 border-t border-border-subtle" />
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Availability Run History</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Availability Run History</h3>
 
   <div v-if="cyclesLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
   <div v-else-if="cycles.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No availability cycles recorded yet.</div>

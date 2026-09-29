@@ -2,7 +2,7 @@
   <hr class="my-6 border-0 border-t border-border-subtle" />
 
   <!-- Purchase Reminder Delivery -->
-  <h3 class="mb-4 text-base font-semibold text-text-primary">Purchase Reminder Delivery</h3>
+  <h3 class="mb-4 text-lg font-medium text-heading">Purchase Reminder Delivery</h3>
   <p class="mb-4 text-base text-text-secondary">Sends in-app notifications for wishlist purchase reminders whose due date has arrived. Users set their own reminders per coin; this scheduler handles daily delivery.</p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">

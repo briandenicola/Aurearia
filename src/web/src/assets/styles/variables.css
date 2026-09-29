@@ -1,4 +1,8 @@
 :root {
+  /* Typography */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-display: 'Cinzel', Georgia, serif;
+
   /* Dark museum palette (default) */
   --bg-primary: #0f0f1a;
   --bg-secondary: #1a1a2e;

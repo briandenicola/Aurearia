@@ -23,7 +23,7 @@
       <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
         <div v-for="card in summaryCards" :key="card.label" class="flex flex-col gap-[0.35rem] rounded-sm border border-border-subtle bg-input p-3">
           <span class="section-label">{{ card.label }}</span>
-          <span class="font-['Cinzel'] text-xl font-semibold text-gold">{{ card.value }}</span>
+          <span class="font-display text-xl font-semibold text-gold">{{ card.value }}</span>
         </div>
       </div>
     </section>
