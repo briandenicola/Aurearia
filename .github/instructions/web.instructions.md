@@ -133,13 +133,13 @@ Import from `@/components/ui`. Do not hand-roll these:
 
 | Component | Replaces |
 |---|---|
-| `BaseToggle` | Any `peer sr-only` checkbox switch. Sizes: `md` (28x50) default, `sm` (22x42) for indented sub-options and compact table cells. |
+| `BaseToggle` | Any visually hidden checkbox switch. Sizes: `md` (28x50) default, `sm` (22x42) for indented sub-options and compact table cells. `label` is required; `class`/`style` land on the wrapper, other attributes on the input. |
 | `BaseStatusBadge` | Run status / outcome pills. `tone` is `success`, `error`, `warning`, `info` or `neutral`, backed by `--status-*` tokens - never raw `rgba()`. |
 | `BaseButton`, `BaseChip`, `BaseBadge`, `BaseSpinner`, `BaseEmptyState` | Their respective ad-hoc markup. |
 
 `src/web/src/__tests__/design-tokens.test.ts` fails the build on a hand-rolled
-toggle or status pill, and caps template `rgba()` literals with a ratchet budget
-that may only decrease.
+toggle or status pill, and caps hardcoded template colour literals (`rgba()`,
+`rgb()` and hex) with a ratchet budget that may only decrease.
 
 #### Rules for New UI Components
 

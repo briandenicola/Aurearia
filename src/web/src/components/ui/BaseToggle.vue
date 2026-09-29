@@ -4,7 +4,9 @@
       'relative inline-block shrink-0 rounded-full',
       'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold',
       size === 'sm' ? 'h-[22px] w-[42px]' : 'h-7 w-[50px]',
+      $attrs.class,
     ]"
+    :style="$attrs.style as StyleValue"
   >
     <input
       type="checkbox"
@@ -12,7 +14,7 @@
       :checked="modelValue"
       :disabled="disabled"
       :aria-label="label"
-      v-bind="$attrs"
+      v-bind="inputAttrs"
       @change="onChange"
     />
     <span
@@ -25,26 +27,35 @@
         `after:transition-transform after:content-['']`,
         'peer-checked:after:bg-gold',
         size === 'sm'
-          ? 'after:bottom-[3px] after:h-4 after:w-4 peer-checked:after:translate-x-5'
-          : 'after:bottom-[2px] after:h-[22px] after:w-[22px] peer-checked:after:translate-x-[22px]',
+          ? 'after:bottom-[3px] after:h-4 after:w-4 peer-checked:after:translate-x-6'
+          : 'after:bottom-[3px] after:h-[22px] after:w-[22px] peer-checked:after:translate-x-[24px]',
       ]"
     ></span>
   </label>
 </template>
 
 <script setup lang="ts">
+import { computed, useAttrs, type StyleValue } from 'vue'
+
 defineOptions({ inheritAttrs: false })
 
 withDefaults(defineProps<{
+  label: string
   modelValue?: boolean
   size?: 'sm' | 'md'
   disabled?: boolean
-  label?: string
 }>(), {
   modelValue: false,
   size: 'md',
   disabled: false,
-  label: undefined,
+})
+
+const attrs = useAttrs()
+
+// class and style belong on the wrapper; everything else on the hidden input.
+const inputAttrs = computed(() => {
+  const { class: _class, style: _style, ...rest } = attrs
+  return rest
 })
 
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()

@@ -59,9 +59,10 @@
               <td class="border-b border-border-subtle px-2 py-3 align-top text-text-primary">{{ cat.displayName }}</td>
               <td class="hidden border-b border-border-subtle px-2 py-3 align-top md:table-cell">
                 <BaseToggle
+                  size="sm"
                   :model-value="cat.volumeRequired"
                   disabled
-                  label="Volume required"
+                  :label="`Volume required for ${cat.displayName}`"
                 />
               </td>
               <td class="border-b border-border-subtle px-2 py-3 align-top">

@@ -241,9 +241,17 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     const statusBadgeComponent = join(SRC_DIR, 'components', 'ui', 'BaseStatusBadge.vue')
 
     it('routes every switch through BaseToggle', () => {
+      // Any visually hidden checkbox is a hand-rolled switch, however the
+      // class list is spelled or ordered.
+      const hiddenCheckbox = /<input\b[^>]*>/g
       const violations = vueFiles
         .filter((file) => file !== toggleComponent)
-        .filter((file) => /class="[^"]*\bpeer sr-only\b/.test(readFileSync(file, 'utf-8')))
+        .filter((file) => {
+          const content = readFileSync(file, 'utf-8')
+          return [...content.matchAll(hiddenCheckbox)].some(
+            (tag) => tag[0].includes('sr-only') && /type="checkbox"/.test(tag[0])
+          )
+        })
         .map((file) => relative(SRC_DIR, file))
 
       expect(
@@ -253,10 +261,19 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     })
 
     it('routes every run-status pill through BaseStatusBadge', () => {
-      const shape = /class="inline-block rounded-full px-2 py-\[0\.15rem\] text-label font-semibold"/
+      // A pill whose colour is chosen from a status expression must use the
+      // primitive, regardless of how its utility classes are ordered.
       const violations = vueFiles
         .filter((file) => file !== statusBadgeComponent)
-        .filter((file) => shape.test(readFileSync(file, 'utf-8')))
+        .filter((file) => {
+          const content = readFileSync(file, 'utf-8')
+          return [...content.matchAll(/<span\b[^>]*>/g)].some(
+            (tag) =>
+              tag[0].includes('rounded-full') &&
+              /\bstatus\b/i.test(tag[0]) &&
+              /rgba\(|#[0-9a-fA-F]{3,8}\b/.test(tag[0])
+          )
+        })
         .map((file) => relative(SRC_DIR, file))
 
       expect(
@@ -265,17 +282,19 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       ).toEqual([])
     })
 
-    it('keeps raw rgba() in templates within budget', () => {
-      // Budget: remaining pre-existing template rgba() literals after the
-      // #784 toggle and status-badge consolidation. It may only decrease.
-      const RGBA_BUDGET = 109
+    it('keeps hardcoded colour literals in templates within budget', () => {
+      // Budget: remaining pre-existing hardcoded template colour literals
+      // after the #784 toggle and status-badge consolidation. Counts rgba(),
+      // rgb() and hex literals so the ratchet cannot be evaded by switching
+      // notation. It may only decrease.
+      const COLOR_BUDGET = 139
       let total = 0
       const details: string[] = []
 
       for (const file of vueFiles) {
         const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
         if (!template) continue
-        const count = (template.match(/rgba\(/g) ?? []).length
+        const count = (template.match(/rgba?\(|#[0-9a-fA-F]{3,8}\b/g) ?? []).length
         if (count > 0) {
           total += count
           details.push(`${relative(SRC_DIR, file)}: ${count}`)
@@ -284,8 +303,8 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
 
       expect(
         total,
-        `Template rgba() literals (${total}) exceed budget (${RGBA_BUDGET}). Use design tokens:\n  ${details.join('\n  ')}`
-      ).toBeLessThanOrEqual(RGBA_BUDGET)
+        `Hardcoded template colour literals (${total}) exceed budget (${COLOR_BUDGET}). Use design tokens:\n  ${details.join('\n  ')}`
+      ).toBeLessThanOrEqual(COLOR_BUDGET)
     })
   })
 

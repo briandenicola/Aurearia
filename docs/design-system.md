@@ -89,6 +89,12 @@ Run status, availability and outcome pills use the status tokens, never raw
 | `info` | `--status-info-bg` | `--status-info-fg` | running, in progress |
 | `neutral` | `--status-neutral-bg` | `--status-neutral-fg` | skipped, inactive |
 
+> Known gap: the status foregrounds are defined once in `:root`, matching the
+> existing `--color-positive` / `--color-negative` / `--text-warning` pattern.
+> They are tuned for the dark theme and their contrast on light-theme cards is
+> below WCAG AA. Fixing that needs per-theme values and a visual check, which
+> is out of scope for the #784 foundation slice.
+
 ## 5. Shared primitives
 
 Primitives live in `src/web/src/components/ui` and are re-exported from
@@ -116,7 +122,12 @@ checkbox is a test failure.
 
 The track uses `--bg-input` with a `--border-subtle` border; the knob uses
 `--text-secondary`. Checked state switches to `--accent-gold-dim` /
-`--accent-gold`. Every toggle carries a focus ring and an accessible `label`.
+`--accent-gold`. Every toggle carries a focus ring, and `label` is a **required**
+prop so no switch can ship without an accessible name.
+
+`class` and `style` passed to `BaseToggle` land on the wrapper, where layout
+utilities work; every other attribute (for example `id`) is forwarded to the
+hidden `<input>`.
 
 ## 6. Tables
 
