@@ -12,7 +12,7 @@
 | F. #783 | Done (context budget, see `.squad/log/2026-09-29-context-budget-783.md`) | commit that adds that log |
 | F. #780 | Done (see `.squad/log/2026-09-29-gofmt-780.md`) | commit that adds that log |
 | F. #781 | Done (see `.squad/log/2026-09-29-create-agent-781.md`) | commit that adds that log |
-| #784 | Slice 1 (shared toggle + status-badge primitives, design-system doc) done; slices 2+ (page-by-page typography and tables) not started (see `.squad/log/20260929T220000Z-784-slice1-ui-primitives.md`) | commit that adds that log |
+| #784 | Slice 1 (shared toggle + status-badge primitives, design-system doc) done and reviewed PASS at `af2df567`, awaiting owner confirmation of the eight declared visual deltas; slices 2+ (page-by-page typography and tables) not started (see `.squad/log/20260929T220000Z-784-slice1-ui-primitives.md`) | `af2df567` |
 
 Owner-approved local setup on 2026-09-29 (this machine): Go 1.27.1,
 `task setup:go`, `task setup:openapi`, Python 3.12 via uv and

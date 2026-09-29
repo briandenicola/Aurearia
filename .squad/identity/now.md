@@ -21,14 +21,20 @@ toggle now routes through `BaseToggle`, every admin run-status pill through
 standard, with ratchet guards in `design-tokens.test.ts`. See
 [the slice 1 log](../log/20260929T220000Z-784-slice1-ui-primitives.md).
 
+#784 slice 1 is reviewed **PASS**, bound to `af2df567`, after four rounds: the
+first returned INCOMPLETE (evidence gaps), the second and third FAIL — catching
+a knob-geometry regression the reviewer had itself mistakenly requested, then
+five defects in the completion record. All are repaired and cleared, with no
+open findings and no revision-owner restriction.
+
 ## Next Action
 
-Re-review #784 slice 1 against its new commit: the first review returned
-INCOMPLETE (evidence gaps) and the second FAIL, catching a knob-geometry
-regression the reviewer had itself mistakenly requested, plus stale records and
-an understated visual-delta list. All of that is repaired here. Once the review
-clears, ask the owner to confirm the eight declared visual deltas in the slice 1
-log and agree whether #784 slice 2 (page-by-page typography and tables, which
-needs owner screenshots) or #766 comes next. #766 still needs its own spec.
+Owner decision. Confirm the eight declared visual deltas in the slice 1 log —
+screenshots were waived, so none has been visually confirmed by anyone — and
+note two carried items: `COLOR_BUDGET = 139` rests on the author's count alone,
+and the light-theme status-contrast gap recorded in `docs/design-system.md` §4
+should be carried into slice 2 scope. Then agree whether #784 slice 2
+(page-by-page typography and tables, which needs owner screenshots) or #766
+comes next. #766 still needs its own spec.
 `npm ci` and `npm run build` in `src/web` were owner-authorized and pass. No
 deployment or release is authorized.
