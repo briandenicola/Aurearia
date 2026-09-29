@@ -54,7 +54,23 @@ domains by the search provider itself rather than only by prompt instructions.
 Dealers can still refuse automated requests: vCoins uses AWS WAF bot protection
 and may answer with a browser challenge after repeated searches. That dealer is
 then reported as unavailable while the others' results are still shown; the
-challenge is never worked around.
+challenge is never worked around. After a challenge or an HTTP 429, the agent
+stops sending requests to that dealer for a cool-down (45 minutes by default,
+or the dealer's `Retry-After`, bounded to 1 minute to 6 hours), and the answer
+says the dealer was skipped. Identical dealer requests within 5 minutes are
+served from an in-memory cache.
+
+The original Coin Agent's coin search (Team 1) uses the same direct dealer
+search when any configured dealer has a site adapter, returning up to 10
+listings in its usual format and noting skipped dealers or budget exclusions.
+With no adapter dealers configured it keeps the web-search pipeline. Wishlist
+alert discovery also keeps the web-search pipeline.
+
+**Sold listings.** When listing pages are read, a page that says sold, sold
+out, reserved, on hold, or no longer available is marked sold and dropped. A
+page is only marked available when it shows a real purchase control ("add to
+cart", "buy now", "purchase now", or a cart/checkout form); the bare word
+"purchase" does not count.
 
 **Result limits.** Coin Copilot shows 5 dealer listings (or auction lots) by
 default. When more matched, it says how many and offers to show more, up to a

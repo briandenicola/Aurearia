@@ -5,9 +5,15 @@
 - fetch_dealer_page: fetches a dealer URL and extracts coin listing data
 """
 
+import copy
+import json
 import logging
 import re
+import time
+from collections import OrderedDict
 from collections.abc import Callable
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
@@ -138,33 +144,127 @@ _BROWSER_HEADERS = {
 
 
 _DEALER_SITE_TIMEOUT = httpx.Timeout(15.0, connect=5.0, read=10.0)
+_DEFAULT_COOLDOWN_SECONDS = 45 * 60
+_MIN_COOLDOWN_SECONDS = 60
+_MAX_COOLDOWN_SECONDS = 6 * 60 * 60
+_RESPONSE_CACHE_SECONDS = 5 * 60
+_RESPONSE_CACHE_MAX_ENTRIES = 256
+
+
+class DealerRateLimitedError(RuntimeError):
+    """A dealer is limiting automated searches; it is skipped until its cool-down ends."""
+
+    def __init__(self, host: str, seconds_remaining: int):
+        super().__init__(f"{host} is limiting automated searches")
+        self.host = host
+        self.seconds_remaining = seconds_remaining
+
+
+def _retry_after_seconds(value: str | None) -> int:
+    if not value:
+        return _DEFAULT_COOLDOWN_SECONDS
+    value = value.strip()
+    seconds: float
+    if value.isdigit():
+        seconds = float(value)
+    else:
+        try:
+            seconds = (parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds()
+        except (TypeError, ValueError):
+            return _DEFAULT_COOLDOWN_SECONDS
+    return int(min(max(seconds, _MIN_COOLDOWN_SECONDS), _MAX_COOLDOWN_SECONDS))
+
+
+class DealerSearchGuard:
+    """Per-process dealer cool-downs and a short response cache.
+
+    After a bot challenge or HTTP 429 a dealer is not contacted again until its
+    cool-down ends, so automated searches don't prolong the block. Identical
+    searches within a few minutes ("show me more", retries) reuse the response.
+    State is in memory only; a restart clears it.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic):
+        self._clock = clock
+        self._cooldown_until: dict[str, float] = {}
+        self._cache: OrderedDict[tuple[str, ...], tuple[float, object]] = OrderedDict()
+
+    def check(self, host: str) -> None:
+        until = self._cooldown_until.get(host)
+        if until is None:
+            return
+        remaining = until - self._clock()
+        if remaining > 0:
+            logger.info("Dealer search skipped during cool-down host=%s seconds_remaining=%d", host, remaining)
+            raise DealerRateLimitedError(host, int(remaining))
+        del self._cooldown_until[host]
+        logger.info("Dealer search cool-down ended host=%s", host)
+
+    def start_cooldown(self, host: str, seconds: int) -> None:
+        self._cooldown_until[host] = self._clock() + seconds
+        logger.warning("Dealer search cool-down started host=%s seconds=%d", host, seconds)
+
+    def cached(self, key: tuple[str, ...]) -> object | None:
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        expires, value = entry
+        if expires <= self._clock():
+            del self._cache[key]
+            return None
+        self._cache.move_to_end(key)
+        return copy.deepcopy(value)
+
+    def store(self, key: tuple[str, ...], value: object) -> None:
+        self._cache[key] = (self._clock() + _RESPONSE_CACHE_SECONDS, copy.deepcopy(value))
+        self._cache.move_to_end(key)
+        while len(self._cache) > _RESPONSE_CACHE_MAX_ENTRIES:
+            self._cache.popitem(last=False)
+
+    def reset(self) -> None:
+        self._cooldown_until.clear()
+        self._cache.clear()
+
+
+DEALER_SEARCH_GUARD = DealerSearchGuard()
 
 
 class RegisteredDealerHttp:
     """DealerHttp for site adapters, confined to the administrator-configured hosts."""
 
-    def __init__(self, allowed_hosts: set[str]):
+    def __init__(self, allowed_hosts: set[str], guard: DealerSearchGuard | None = None):
         self._allowed_hosts = set(allowed_hosts)
+        self._guard = guard or DEALER_SEARCH_GUARD
 
-    @staticmethod
-    def _raise_for_status(response: httpx.Response) -> None:
+    def _raise_for_status(self, response: httpx.Response, host: str) -> None:
         if response.status_code == 200:
             return
         # Bot protection (e.g. vCoins' AWS WAF) answers 202 with a JavaScript
-        # challenge. It is reported as a failed source, never worked around.
+        # challenge. It is reported and backed off from, never worked around.
         challenged = response.headers.get("x-amzn-waf-action") == "challenge" or response.status_code == 202
         logger.warning(
             "Dealer site search refused host=%s status_code=%d bot_challenge=%s",
-            response.url.host,
+            host,
             response.status_code,
             challenged,
         )
+        if challenged or response.status_code == 429:
+            seconds = _retry_after_seconds(response.headers.get("retry-after"))
+            self._guard.start_cooldown(host, seconds)
+            raise DealerRateLimitedError(host, seconds)
         raise httpx.TransportError("dealer search returned a non-success status")
 
     def _validate(self, url: str) -> str:
         return validate_search_source_url(url, self._allowed_hosts)
 
     async def get_text(self, url: str, params: dict[str, str]) -> str:
+        validated = self._validate(validate_public_outbound_url(url, "dealer search URL"))
+        host = (urlsplit(validated).hostname or "").lower()
+        key = ("GET", validated, json.dumps(sorted(dict(params).items())))
+        cached = self._guard.cached(key)
+        if isinstance(cached, str):
+            return cached
+        self._guard.check(host)
         response = await safe_registered_get(
             url,
             validator=self._validate,
@@ -173,22 +273,31 @@ class RegisteredDealerHttp:
             params=dict(params),
             timeout=_DEALER_SITE_TIMEOUT,
         )
-        self._raise_for_status(response)
+        self._raise_for_status(response, host)
+        self._guard.store(key, response.text)
         return response.text
 
     async def post_json(self, url: str, body: dict) -> object:
         # POSTs are never redirected: a redirect would need re-validation and a
         # changed method, and none of the supported search APIs redirect.
         validated = self._validate(validate_public_outbound_url(url, "dealer search URL"))
-        origin = f"https://{urlsplit(validated).hostname}/"
+        host = (urlsplit(validated).hostname or "").lower()
+        key = ("POST", validated, json.dumps(body, sort_keys=True, default=str))
+        cached = self._guard.cached(key)
+        if cached is not None:
+            return cached
+        self._guard.check(host)
+        origin = f"https://{host}/"
         async with httpx.AsyncClient(timeout=_DEALER_SITE_TIMEOUT, follow_redirects=False) as client:
             response = await client.post(
                 validated,
                 json=body,
                 headers={**_BROWSER_HEADERS, "Accept": "application/json", "Referer": origin},
             )
-        self._raise_for_status(response)
-        return response.json()
+        self._raise_for_status(response, host)
+        payload = response.json()
+        self._guard.store(key, payload)
+        return payload
 
 
 @tool
@@ -222,7 +331,7 @@ async def verify_url(url: str) -> str:
         sold_indicators = ["sold", "auction ended", "realized price", "no longer available", "out of stock"]
         is_sold = any(indicator in text for indicator in sold_indicators)
 
-        buy_indicators = ["add to cart", "buy now", "add to basket", "purchase", "bid now", "place bid"]
+        buy_indicators = ["add to cart", "buy now", "add to basket", "purchase now", "bid now", "place bid"]
         has_buy = any(indicator in text for indicator in buy_indicators)
 
         # Also detect search pages from page content
@@ -484,17 +593,31 @@ def _parse_generic(html: str, base_url: str) -> str:
     return result
 
 
+_SOLD_PATTERNS = (
+    r"\bsold out\b",
+    r"\bno longer available\b",
+    r"\bno longer for sale\b",
+    r"\bitem (?:has been|is) sold\b",
+    r"\bthis (?:item|coin|lot) (?:has|is) (?:been )?sold\b",
+    r"\bthis (?:item|coin|lot) is (?:reserved|on hold)\b",
+    r">\s*(?:sold|reserved|on hold)\s*<",
+)
+# Explicit purchase controls only; bare words such as "purchase" appear in menus,
+# footers and policy links on sold pages too.
+_AVAILABLE_TEXT_PATTERNS = (
+    r"\badd to (?:cart|basket)\b",
+    r"\bbuy (?:it )?now\b",
+    r"\bpurchase now\b",
+)
+_CART_FORM_PATTERN = r"<form\b[^>]*\baction=[\"'][^\"']*(?:cart|basket|checkout)"
+
+
 def _listing_availability_signal(html: str) -> str:
     text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip().lower()
-    sold_patterns = (
-        r"\bsold out\b",
-        r"\bno longer available\b",
-        r"\bitem (?:has been|is) sold\b",
-        r">\s*sold\s*<",
-    )
-    if any(re.search(pattern, html, re.IGNORECASE) for pattern in sold_patterns) or "sold out" in text:
+    if any(re.search(pattern, html, re.IGNORECASE) for pattern in _SOLD_PATTERNS) or "sold out" in text:
         return "sold"
-    available_patterns = ("add to cart", "add to basket", "buy now", "purchase")
-    if any(pattern in text for pattern in available_patterns):
+    if any(re.search(pattern, text) for pattern in _AVAILABLE_TEXT_PATTERNS) or re.search(
+        _CART_FORM_PATTERN, html, re.IGNORECASE
+    ):
         return "available"
     return "unknown"

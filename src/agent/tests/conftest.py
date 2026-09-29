@@ -8,3 +8,15 @@ os.environ.setdefault(
     "http://localhost:11434,http://localhost:8080,http://test-api:8080,http://test:8080",
 )
 os.environ.setdefault("AGENT_ALLOW_LOCAL_OUTBOUND", "true")
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_dealer_search_guard():
+    """Dealer cool-downs and cached responses are process state; isolate every test."""
+    from app.tools.search import DEALER_SEARCH_GUARD
+
+    DEALER_SEARCH_GUARD.reset()
+    yield
+    DEALER_SEARCH_GUARD.reset()

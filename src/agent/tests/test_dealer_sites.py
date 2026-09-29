@@ -320,7 +320,7 @@ def test_every_adapter_host_is_in_the_default_dealer_list():
 
 
 @pytest.mark.asyncio
-async def test_bot_challenge_is_reported_as_a_failed_source(monkeypatch):
+async def test_bot_challenge_is_reported_as_an_unavailable_source(monkeypatch):
     import httpx
 
     async def challenged_get(url, **_kwargs):
@@ -333,8 +333,126 @@ async def test_bot_challenge_is_reported_as_a_failed_source(monkeypatch):
         source_hosts={"vcoins.com"},
         dealer_http=RegisteredDealerHttp({"vcoins.com"}),
     )
-    assert [(attempt.provider, attempt.status) for attempt in result.provider_attempts] == [("vcoins", "failure")]
+    assert [(attempt.provider, attempt.status) for attempt in result.provider_attempts] == [("vcoins", "unavailable")]
     assert result.items == []
+    assert any("vcoins.com is temporarily limiting automated searches" in warning for warning in result.warnings)
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _counting_get(responses: list[Any]):
+    import httpx
+
+    calls: list[str] = []
+
+    async def fake_get(url, **_kwargs):
+        calls.append(url)
+        status, headers = responses.pop(0) if responses else (200, {})
+        return httpx.Response(status, headers=headers, text="<html>ok</html>", request=httpx.Request("GET", url))
+
+    return fake_get, calls
+
+
+@pytest.mark.asyncio
+async def test_challenge_starts_a_cooldown_with_no_requests_until_it_ends(monkeypatch):
+    from app.tools.search import DealerRateLimitedError, DealerSearchGuard
+
+    clock = _FakeClock()
+    guard = DealerSearchGuard(clock=clock)
+    fake_get, calls = _counting_get([(202, {"x-amzn-waf-action": "challenge", "retry-after": "600"})])
+    monkeypatch.setattr("app.tools.search.safe_registered_get", fake_get)
+    http = RegisteredDealerHttp({"vcoins.com"}, guard=guard)
+    url = "https://www.vcoins.com/en/Search.aspx"
+
+    with pytest.raises(DealerRateLimitedError):
+        await http.get_text(url, {"q": "caligula"})
+    assert len(calls) == 1
+
+    clock.now += 599
+    with pytest.raises(DealerRateLimitedError):
+        await http.get_text(url, {"q": "nero"})
+    assert len(calls) == 1, "no request may reach the dealer during the cool-down"
+
+    clock.now += 2
+    assert await http.get_text(url, {"q": "nero"}) == "<html>ok</html>"
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_http_429_without_retry_after_uses_the_default_cooldown(monkeypatch):
+    from app.tools.search import _DEFAULT_COOLDOWN_SECONDS, DealerRateLimitedError, DealerSearchGuard
+
+    clock = _FakeClock()
+    guard = DealerSearchGuard(clock=clock)
+    fake_get, calls = _counting_get([(429, {})])
+    monkeypatch.setattr("app.tools.search.safe_registered_get", fake_get)
+    http = RegisteredDealerHttp({"vcoins.com"}, guard=guard)
+    url = "https://www.vcoins.com/en/Search.aspx"
+
+    with pytest.raises(DealerRateLimitedError):
+        await http.get_text(url, {"q": "caligula"})
+    clock.now += _DEFAULT_COOLDOWN_SECONDS - 1
+    with pytest.raises(DealerRateLimitedError):
+        await http.get_text(url, {"q": "caligula"})
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_other_errors_do_not_start_a_cooldown(monkeypatch):
+    import httpx
+
+    from app.tools.search import DealerSearchGuard
+
+    guard = DealerSearchGuard(clock=_FakeClock())
+    fake_get, calls = _counting_get([(500, {})])
+    monkeypatch.setattr("app.tools.search.safe_registered_get", fake_get)
+    http = RegisteredDealerHttp({"vcoins.com"}, guard=guard)
+    url = "https://www.vcoins.com/en/Search.aspx"
+
+    with pytest.raises(httpx.TransportError):
+        await http.get_text(url, {"q": "caligula"})
+    assert await http.get_text(url, {"q": "caligula"}) == "<html>ok</html>"
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_repeated_search_within_the_cache_window_makes_no_new_request(monkeypatch):
+    from app.tools.search import _RESPONSE_CACHE_SECONDS, DealerSearchGuard
+
+    clock = _FakeClock()
+    guard = DealerSearchGuard(clock=clock)
+    fake_get, calls = _counting_get([])
+    monkeypatch.setattr("app.tools.search.safe_registered_get", fake_get)
+    http = RegisteredDealerHttp({"vcoins.com"}, guard=guard)
+    url = "https://www.vcoins.com/en/Search.aspx"
+
+    await http.get_text(url, {"q": "caligula"})
+    await http.get_text(url, {"q": "caligula"})
+    assert len(calls) == 1
+    await http.get_text(url, {"q": "nero"})
+    assert len(calls) == 2, "different keywords are a different search"
+
+    clock.now += _RESPONSE_CACHE_SECONDS + 1
+    await http.get_text(url, {"q": "caligula"})
+    assert len(calls) == 3, "expired entries are fetched again"
+
+
+def test_retry_after_is_honoured_and_bounded():
+    from app.tools.search import _DEFAULT_COOLDOWN_SECONDS, _MAX_COOLDOWN_SECONDS, _MIN_COOLDOWN_SECONDS
+    from app.tools.search import _retry_after_seconds as parse
+
+    assert parse("600") == 600
+    assert parse(None) == _DEFAULT_COOLDOWN_SECONDS
+    assert parse("not a date") == _DEFAULT_COOLDOWN_SECONDS
+    assert parse("1") == _MIN_COOLDOWN_SECONDS
+    assert parse("999999") == _MAX_COOLDOWN_SECONDS
+    assert parse("Wed, 21 Oct 2015 07:28:00 GMT") == _MIN_COOLDOWN_SECONDS
 
 
 @pytest.mark.asyncio
@@ -385,3 +503,41 @@ async def test_legacy_chat_search_shows_at_most_ten_listings(monkeypatch):
     content = state["messages"][-1].content
     payload = json.loads(content.split("```json\n", 1)[1].split("\n```", 1)[0])
     assert len(payload) == coin_search.LEGACY_MAX_LISTINGS == 10
+
+
+@pytest.mark.asyncio
+async def test_coin_agent_search_uses_dealer_sites_directly_and_enforces_budget(monkeypatch):
+    async def no_web_search(*_args, **_kwargs):
+        raise AssertionError("dealers with a site adapter must not go through web search")
+
+    http = FixtureDealerHttp()
+    monkeypatch.setattr(coin_search, "_search_dealer_pages", no_web_search)
+    monkeypatch.setattr(coin_search, "RegisteredDealerHttp", lambda _hosts: http)
+    team = coin_search.create_coin_search_team(LLM, "", set(ALL_ADAPTER_HOSTS))
+    state = await team.ainvoke(
+        {"user_message": "Find me any Caligula coins under $500", "messages": [], "search_results": "",
+         "fetched_listings": ""}
+    )
+
+    content = state["messages"][-1].content
+    payload = json.loads(content.split("```json\n", 1)[1].split("\n```", 1)[0])
+    assert payload and len(payload) <= coin_search.LEGACY_MAX_LISTINGS
+    assert http.gets and http.posts
+    for item in payload:
+        assert item["availability"] == "Available"
+        assert item["estPrice"].startswith("$")
+        assert Decimal(item["estPrice"].lstrip("$").replace(",", "")) <= 500
+        assert item["sourceUrl"].startswith("https://")
+    # The collector is told why some listings were left out.
+    assert "another currency" in content
+
+
+@pytest.mark.asyncio
+async def test_coin_agent_search_without_adapter_dealers_keeps_the_web_pipeline(monkeypatch):
+    def no_direct_search(*_args, **_kwargs):
+        raise AssertionError("no configured dealer has a site adapter")
+
+    monkeypatch.setattr(coin_search, "_create_direct_coin_search_team", no_direct_search)
+    coin_search.create_coin_search_team(LLM, "", {"forumancientcoins.com"})
+    coin_search.create_coin_search_team(LLM, "", None)
+    coin_search.create_coin_search_team(LLM, "", set(ALL_ADAPTER_HOSTS), direct_dealer_search=False)

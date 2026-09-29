@@ -249,6 +249,19 @@ flowchart TD
   fairly compare €450 with $500.
 - **Five by default.** You'll see 5 listings. If more matched, Copilot says so
   and offers to show more, up to a maximum of 10.
+- **The original Coin Agent searches the same way.** When Copilot is off, the
+  Coin Agent's coin search also uses each dealer's own search and your budget,
+  and shows up to 10 listings. (Wishlist alert checks still use web search.)
+- **Sold and reserved listings are left out.** A listing page that says it is
+  sold, sold out, reserved, on hold or no longer available is treated as sold.
+  A page only counts as for sale when it has a real "add to cart" or "buy now"
+  button, not just the word "purchase" somewhere on the page.
+- **Dealers that push back get a rest.** If a dealer blocks automated searches
+  (a browser challenge or "too many requests"), Aurearia stops asking it for a
+  while (45 minutes by default, or as long as the dealer asks, up to 6 hours).
+  The answer says that dealer was skipped, and the other dealers' results
+  still show. Repeating the same search within 5 minutes reuses the earlier
+  answer instead of asking the dealer again.
 - **Add to Wishlist** appears on dealer listings. Pressing it asks you to
   confirm; Copilot never adds anything itself.
 

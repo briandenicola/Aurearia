@@ -1,9 +1,9 @@
 """Team 1: Coin Search — two-phase search with page fetching.
 
-Market search (Coin Copilot) first queries dealers that have a direct site
-adapter (app.tools.dealer_sites) through their own search, which returns only
-current stock. The web-search pipeline below covers the remaining configured
-dealers.
+Market search (Coin Copilot) and the Coin Agent's coin search first query
+dealers that have a direct site adapter (app.tools.dealer_sites) through their
+own search, which returns only current stock. The web-search pipeline below
+covers the remaining configured dealers.
 
 Phase 1: Search the web for dealer pages (Anthropic uses built-in web_search;
          Ollama uses a ReAct agent with SearXNG tool — model decides when to search).
@@ -56,7 +56,12 @@ from app.tools.dealer_sites import (
     parse_price,
 )
 from app.tools.numismatic_authority import normalize_candidate_references
-from app.tools.search import RegisteredDealerHttp, fetch_dealer_page, fetch_registered_dealer_page
+from app.tools.search import (
+    DealerRateLimitedError,
+    RegisteredDealerHttp,
+    fetch_dealer_page,
+    fetch_registered_dealer_page,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -420,17 +425,21 @@ async def _search_result_candidates(
 
 
 class _BudgetTally:
-    """Counts listings left out by the budget filter, for the result warnings."""
+    """Counts listings left out by the budget filter and dealers skipped by rate limits."""
 
     def __init__(self) -> None:
         self.other_currency = 0
         self.no_price = 0
+        self.rate_limited_hosts: list[str] = []
 
     def warnings(self, max_price: Decimal | None, currency: str | None) -> list[str]:
+        notes = [
+            f"{host} is temporarily limiting automated searches, so it was skipped. Try again later."
+            for host in self.rate_limited_hosts
+        ]
         if max_price is None:
-            return []
+            return notes
         budget = f"{max_price:,.2f} {currency or 'USD'}"
-        notes: list[str] = []
         if self.other_currency:
             notes.append(
                 f"{self.other_currency} listing(s) priced in another currency were left out because they "
@@ -458,7 +467,11 @@ def _site_runner(
     tally: _BudgetTally,
 ) -> ProviderRunner:
     async def run(_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
-        listings = await adapter.search(http, terms, max_price, currency, limit)
+        try:
+            listings = await adapter.search(http, terms, max_price, currency, limit)
+        except DealerRateLimitedError as exc:
+            tally.rate_limited_hosts.append(adapter.host)
+            raise ProviderUnavailableError from exc
         filtered = apply_budget(listings, max_price, currency)
         tally.other_currency += filtered.other_currency
         tally.no_price += filtered.no_price
@@ -573,10 +586,88 @@ async def run_market_search(
     return result
 
 
+_PRICE_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£"}
+
+
+def _format_listed_price(amount: Decimal | None, currency: str | None) -> str:
+    if amount is None:
+        return ""
+    symbol = _PRICE_SYMBOLS.get(currency or "")
+    return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency or ''}".strip()
+
+
+def _suggestion_from_specialist_item(item: Any) -> dict[str, Any]:
+    """Shape a market-search evidence item like the legacy CoinSuggestion JSON."""
+    availability = getattr(item, "availability", None) or "unknown"
+    return {
+        "name": item.title,
+        "sourceUrl": item.source_url,
+        "sourceName": getattr(item, "dealer_name", None) or "",
+        "description": item.description or "",
+        "era": getattr(item, "era", None) or "",
+        "ruler": getattr(item, "ruler", None) or "",
+        "material": getattr(item, "material", None) or "",
+        "denomination": getattr(item, "denomination", None) or "",
+        "estPrice": _format_listed_price(getattr(item, "listed_price", None), getattr(item, "currency", None)),
+        "imageUrl": item.image_url or "",
+        "availability": availability.title(),
+        "candidateReferences": [ref.model_dump(exclude_none=True) for ref in item.candidate_references],
+    }
+
+
+def _create_direct_coin_search_team(llm_config: LLMConfig, search_prompt: str, source_hosts: set[str]):
+    """Coin Agent search through the same dealer workflow as Coin Copilot.
+
+    Dealers with a site adapter are searched directly (current stock only); the
+    other configured dealers use web search restricted to their hosts, and a
+    stated budget is enforced without converting currencies.
+    """
+
+    async def market_node(state: CoinSearchState) -> dict:
+        user_msg = state.get("user_message", "")
+        result = await run_market_search(
+            {"query": (user_msg.strip() or "ancient coins")[:500], "limit": LEGACY_MAX_LISTINGS},
+            llm_config=llm_config,
+            source_hosts=source_hosts,
+            search_prompt=search_prompt,
+        )
+        suggestions = [_suggestion_from_specialist_item(item) for item in result.items][:LEGACY_MAX_LISTINGS]
+        notes = "\n".join(f"- {warning}" for warning in result.warnings)
+
+        if not suggestions:
+            model = get_chat_model(llm_config)
+            messages = [
+                SystemMessage(content=NO_RESULTS_PROMPT),
+                HumanMessage(
+                    content=f"The user asked: {user_msg}\n\n"
+                    f"Search notes:\n{notes or 'No listings matched.'}\n\n"
+                    "No coin listings could be extracted. Generate a helpful response."
+                ),
+            ]
+            response = await ainvoke_with_retry(model, messages)
+            return {"messages": [AIMessage(content=extract_text_content(response.content))]}
+
+        formatted = _enrich_references_with_authority_links(
+            f"```json\n{json.dumps(suggestions, ensure_ascii=False, indent=2)}\n```"
+        )
+        summary = "I found some coins matching your search. These listings come from the dealers' current stock."
+        if notes:
+            summary = f"{summary}\n\n{notes}"
+        return {"messages": [AIMessage(content=f"{summary}\n\n{formatted}")]}
+
+    graph = StateGraph(CoinSearchState)
+    graph.add_node("market", market_node)
+    graph.set_entry_point("market")
+    graph.add_edge("market", END)
+    return graph.compile()
+
+
 def create_coin_search_team(
     llm_config: LLMConfig,
     search_prompt: str = "",
     allowed_fetch_hosts: set[str] | None = None,
+    *,
+    direct_dealer_search: bool = True,
 ):
     """Create the coin search pipeline.
 
@@ -584,7 +675,14 @@ def create_coin_search_team(
         llm_config: LLM provider configuration
         search_prompt: Additional context from admin settings (prepended)
         allowed_fetch_hosts: Optional host allowlist for fetched listing pages
+        direct_dealer_search: Route configured dealers that have a site adapter
+            through their own search (current stock only), like Coin Copilot
     """
+    if direct_dealer_search and allowed_fetch_hosts:
+        adapters, _ = adapters_for_hosts(allowed_fetch_hosts, DEALER_SITE_ADAPTERS)
+        if adapters:
+            return _create_direct_coin_search_team(llm_config, search_prompt, set(allowed_fetch_hosts))
+
     source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
     combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
 
@@ -701,7 +799,11 @@ async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDisc
         request.alert.criteria_snapshot.source_filters,
         set(request.dealer_search_sources),
     )
-    graph = create_coin_search_team(request.llm, allowed_fetch_hosts=allowed_fetch_hosts)
+    # Alert queries carry "site:" and price-range text that isn't usable as dealer
+    # search keywords, so discovery keeps the web-search pipeline for now.
+    graph = create_coin_search_team(
+        request.llm, allowed_fetch_hosts=allowed_fetch_hosts, direct_dealer_search=False
+    )
     try:
         result = await graph.ainvoke({
             "messages": [],
