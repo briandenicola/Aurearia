@@ -74,6 +74,17 @@ test('accepts supported metadata, Nygard status sections, and warning-only budge
   assert.ok(checkGovernance(f.root).some(item => item.code === 'BUDGET'));
   assert.equal(metadata("---\nname: 'it''s text'\n---", ['name']).name, "it's text");
 });
+test('initial-context budget warning names each contributing file, largest first', t => {
+  const f = fixture(t);
+  f.put('.squad/decisions.md', 'w '.repeat(6001));
+  const budget = checkGovernance(f.root).filter(item => item.code === 'BUDGET');
+  assert.equal(budget.length, 1, JSON.stringify(budget));
+  assert.equal(budget[0].file, '.squad/identity/now.md');
+  assert.match(budget[0].message, /warning budget 6000\): \.squad\/decisions\.md 6001, /);
+  for (const file of ['.specify/memory/constitution.md', '.github/copilot-instructions.md', '.squad/identity/now.md']) {
+    assert.ok(budget[0].message.includes(`${file} `), budget[0].message);
+  }
+});
 test('does not lint immutable archives, selected requirement bodies, examples or runtime paths', t => {
   const f = fixture(t);
   f.put('.squad/decisions-archive.md', 'Principle XX. [Missing](missing.md)\n');

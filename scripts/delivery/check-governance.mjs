@@ -263,9 +263,13 @@ export function checkGovernance(root) {
     const lines = file === currentWork ? 100 : file === '.github/copilot-instructions.md' ? 150 : undefined;
     if (lines && countLines(text) > lines) report(file, 1, 'BUDGET', `Context exceeds ${lines} lines`, 'warning');
   }
-  const words = [policy, ...['.github/copilot-instructions.md', '.squad/decisions.md', currentWork].map(file => contents.get(file) ?? '')]
-    .reduce((total, text) => total + (text.match(/\S+/g)?.length ?? 0), 0);
-  if (words > 6000) report(currentWork, 1, 'BUDGET', `Conservative initial context is ${words} words (warning budget 6000)`, 'warning');
+  const contextFiles = [constitution, '.github/copilot-instructions.md', '.squad/decisions.md', currentWork];
+  const counts = contextFiles.map(file => [file, (file === constitution ? policy : contents.get(file) ?? '').match(/\S+/g)?.length ?? 0]);
+  const words = counts.reduce((total, [, count]) => total + count, 0);
+  if (words > 6000) {
+    const detail = [...counts].sort((a, b) => b[1] - a[1]).map(([file, count]) => `${file} ${count}`).join(', ');
+    report(currentWork, 1, 'BUDGET', `Conservative initial context is ${words} words (warning budget 6000): ${detail}`, 'warning');
+  }
   return diagnostics.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.code.localeCompare(b.code) || a.message.localeCompare(b.message));
 }
 

@@ -8,7 +8,8 @@
 | C. #776, #775, #777 | Done | commit that adds this file |
 | D. #766 | Not started; needs its own spec | - |
 | E. #774, #771, #779 | Not started | - |
-| F. #780, #781, #783 | Not started | - |
+| F. #783 | Done (context budget, see `.squad/log/2026-09-29-context-budget-783.md`) | commit that adds that log |
+| F. #780, #781 | Not started; waiting on toolchain/setup approval | - |
 | #784 | Not triaged in this plan | - |
 
 Pending owner approvals: `task setup:agent` (ruff lock 0.16.8 vs installed

@@ -25326,3 +25326,189 @@ tables, audit workflows, watchlist ranking, or provenance-risk workflows.
 4. Resume at T012 only when the user explicitly restarts F015.
 5. Run the combined F014/F015 engineering audit before any beta-to-main v4.2
    release PR.
+
+<a id="curation-2026-09-29-decisions"></a>
+
+# Preserved context: .squad/decisions.md
+
+Source commit: `73d5750c`. Canonical Git blob bytes follow unchanged (last changed in `180188c7`).
+Historical snapshot for issue #783, not current task state. See the active decisions and current-work pointer.
+
+# Active Squad Decisions
+
+Curated 2026-09-21 under Constitution 4.0.0 section 18.3 and owner-authorized
+D05/P2. This is a current view, not a replacement constitution or task ledger.
+Start with [current work](identity/now.md); follow the selected specification.
+
+## Authority and preservation
+
+Constitution > PRD > applicable accepted ADRs > active spec > plan > tasks >
+backlog > active decisions > agent judgment. Framework instructions and historical
+role notes cannot override that order.
+
+All previous content is preserved unchanged in the
+[decision snapshot](decisions-archive.md#curation-2026-09-21-decisions).
+The pre-existing archive is unchanged; oversized role histories have adjacent
+`history-archive.md` snapshots. The [inventory](artifacts/context-curation-2026-09-21.json)
+records the baseline commit, SHA-256 hashes, byte ranges, and every heading/section.
+Its `decisions-L...` identifiers use the ORIGINAL ledger line, not the appended
+archive line. The old current-work pointer is also preserved, but superseded.
+
+Archiving does not revoke a decision, clear a rejection, or prove a defect still
+exists. Domain-specific decisions remain applicable unless higher authority or
+an explicit superseding record says otherwise. Search the inventory for the
+selected domain before retrieving its historical evidence; do not load the whole
+archive routinely.
+
+## Current cross-cutting decisions
+
+| ID | Scope / status | Decision and authoritative source |
+|---|---|---|
+| GOV-001 | Delivery policy / Accepted | Constitution 4.0.0 and [ADR 0019](../docs/adr/0019-evidence-based-agentic-delivery.md) took effect through owner merge of [#734](https://github.com/briandenicola/Aurearia/pull/734); [#735](https://github.com/briandenicola/Aurearia/pull/735) recorded acceptance. Historical proposal wording is not a pending activation gate. |
+| GOV-002 | Execution / Active | Use one implementation owner, the smallest sufficient lane, explicitly bounded delegation, and independent review where required. Evidence distinguishes implemented, verified, accepted, and released. Constitution sections 17-22 supersede older mandatory fan-out and author-never-repairs guidance for NEW reviews only. Existing restrictions below retain their terms. |
+| GOV-003 | Context / Active | Current decisions <=20 KiB, role history <=12 KiB, now.md <=100 lines are warning budgets, never deletion authority. Preserve originals before curation. Current work belongs only in now.md with links to authoritative tasks, not another status ledger. Constitution section 18.3. |
+| GOV-004 | P3 validation / Verified and accepted via #737 | The Taskfile `check:*` targets are shared with CI; setup stays separate and missing tools/lint fail. Offline checks validate active structural references, not historical approval or prose meaning. Small work may point to a project issue rather than an invented spec. See [bounded execution record](decisions/inbox/copilot-p3-validation.md), [acceptance handoff](log/2026-09-21-delivery-validation-closeout.md) and [testing guide](../docs/testing.md#6-running-tests-locally-vs-ci). No historical block is cleared; live protections and native skill migration remain P5/P4 work. |
+| ENG-001 | Architecture / Active | Preserve Go-owned authentication, durable state, data access and typed contracts; Python stays stateless. Follow Constitution Principles I-III and applicable ADRs. A framework or role memory is not permission to cross a service/data boundary. |
+| ENG-002 | Validation / Active | Prove the exact changed workflow and sibling paths, including meaningful negative/guard cases. Apply the section 17 scope matrix; do not infer verification from checked tasks or substitute local Windows evidence for a required Linux/browser gate. Older command transcripts describe their original artifacts, not current passing results. |
+| UI-001 | Shared UI behavior / Active | Reuse local component/token/navigation patterns. Narrow tables retain reachable columns through contained horizontal scrolling. Swipe consumers share the common primitive rather than parallel gesture engines. [Table decisions][tables] and [shared-swipe review][swipe] preserve scope and outstanding device conditions. |
+| SEC-001 | Background removal / Accepted design | Eval-requiring model code is isolated in the dedicated same-origin module worker; do not relax app-wide CSP. [ADR 0014](../docs/adr/0014-background-removal-worker-csp-isolation.md) and [Brutus's explicit worker clearance][worker-clear] govern; the earlier app-wide unsafe-eval suggestion is not current authority. Real-photo browser smoke guidance remains in that clearance. |
+| AI-001 | Coin Copilot / Accepted MVP and subsequent scoped extensions | Go owns durable run state; Python executes bounded allowed tools. The original read-only MVP excludes writes and dollar-cost enforcement; later capabilities require their own authorized spec. Preserve legacy fallback, existing drawer entry, explicit confirmation boundaries and iteration/tool/time/concurrency/token/payload controls. [Original scope decision][copilot], [ADR 0016](../docs/adr/0016-go-owned-durable-coin-copilot-state.md), Features 359/361/362/363. |
+| AI-002 | Identification / Accepted | Deep Analysis reuses separate collection-grade face analysis and optional notes before provider verification, retaining evidence, disagreements, confidence and narrative. Quick Lookup remains the fast combined-image NGC-first path. [ADR 0018](../docs/adr/0018-role-specific-deep-analysis.md) supersedes ONLY ADR 0012's single-vision-call constraint. |
+| AI-003 | Reduced F015 / Owner-approved scope, implementation recorded | [Feature 363](../specs/363-collector-curator-watchlist-provenance/spec.md) authorizes private collector context, read-only curator guidance, existing UI-owned Add to Wishlist, and native listing-URL intake. It does not authorize an auction rewrite, wishlist-action platform, action/audit tables, watchlist ranking or provenance-risk workflow. The archived T011 pause is superseded by the later task/evidence records; do not restart completed work. |
+
+**GOV-005 - P4 native integration (verified; owner-merged #739 and corrective #740):** Scoped instructions and canonical
+native skills replace eager/duplicate guidance. Use `task review:read-only` for
+required independent review; installed-client limitations require explicit tool
+exclusions and matching-file loads. SpecKit upgrade is deferred, not installed.
+See [bounded decision/evidence](decisions/inbox/copilot-p4-native-integration.md).
+Original P4 review passed. Hosted Vue Web found two stale documentation-reader
+paths after the move; the owner-approved corrective closeout is tracked in the
+action plan/current pointer. #740 corrected those readers with every assertion
+preserved; all PR and post-merge checks passed. #739's merge does not
+retroactively certify its failing gate.
+Historical application blocks are unchanged.
+
+**GOV-006 - P5 acceptance/release controls (owner-merged #741; live activation incomplete):**
+Use one criterion/evidence/candidate completion record in the PR or approved work
+artifact; handoffs link it and record deltas. Main protections and platform-owned
+approval are specified in the [control guide](../docs/agentic-acceptance-controls.md)
+and [bounded decision](decisions/inbox/copilot-p5-acceptance-controls.md).
+Beta publishing and Ralph remain unchanged. Stale proof, unresolved review blocks
+and missing owner approval cannot support acceptance. Later owner-authorized main
+protections and release reviewer/branch policy were applied and read back. The
+owner explicitly authorized leaving environment admin bypass enabled and aligning
+the verifier while retaining actual owner approval and all exact-candidate checks.
+Runtime approval proof is pending. See the
+[release-remediation receipt](../docs/audits/2026-09-21.md). No main promotion,
+publication, deployment or blanket historical clearance is inferred.
+
+## D05 lifecycle reconciliation
+
+Evidence checked on 2026-09-21 against baseline
+`e6ab8313346b971dce4b288804036222f7d4c95d`. Approval and implementation are
+different claims; merged code alone is not reviewer clearance.
+
+| Record | Reconciled state / evidence |
+|---|---|
+| ADR 0005 | Accepted through owner-merged [#248](https://github.com/briandenicola/Aurearia/pull/248), 2026-06-09, merge `00c7403fef85f6c420ee7dcce7cb6cf87a26bccb`. PR explicitly adds the ADR and constitution consolidation. |
+| ADR 0011 | Accepted through owner-merged [#626](https://github.com/briandenicola/Aurearia/pull/626), 2026-08-16, merge `c7e11ac82e61ed43cb6ad5db3020480cc67301ed`. PR explicitly names the added ADR. |
+| ADRs 0016 / 0018 | Accepted under the ADR index's merge-promotes-status rule: both ADR files were added in owner-merged [#732](https://github.com/briandenicola/Aurearia/pull/732), 2026-09-20, merge `b03ac3a2c146936952e11b69bfd8dae57c8f744e`. This accepts the documents, not unrecorded reviewer clearance or release-wide audit completion. |
+| ADRs 0013 / 0017 | Already Accepted in their source headers; index corrected in #734. No new approval inferred by this batch. |
+| Feature 359 | Implementation and validation recorded through [T070](../specs/359-coin-copilot-harness/tasks.md); included in #732. No longer ready to start implementation. Final release-wide evidence remains qualified by #732's open audit checklist. |
+| Feature 362 / F014 | Implementation, compatibility evidence and feature-specific QC PASS recorded in [quickstart evidence](../specs/362-coin-copilot-attribution/quickstart-evidence.md#post-major-work-qc-audit--feature-362--f014); included in #732. This feature-specific audit does not substitute for the combined F014/F015 audit. |
+| Feature 363 / F015 | [Tasks](../specs/363-collector-curator-watchlist-provenance/tasks.md) T001-T043 checked; [quality evidence](../specs/363-collector-curator-watchlist-provenance/quickstart-evidence.md) records implementation checks. T044 remains open and its referenced combined `qc-audit.md` is absent. Included in #732, not paused after T011 and not fully release-verified. |
+| Feature 357 Quick Access | Frontend implementation exists, but explicit Brutus and Maximus rejection records remain without located clearance. T093 cannot certify acceptance; T095/T096 remain outstanding. Preserve the frozen backend boundary and reviewer sequence below. |
+| Release state | #732 merged into main; its body still says final release-wide audit/acceptance is pending. No GitHub Release objects were returned by the release-list query. This is not evidence of deployment absence or success. Do not infer deployment or retroactively certify the missing audit. |
+
+Header corrections only: accepted ADR bodies and landed spec requirement bodies
+are unchanged. Current metadata and the Feature 357 acceptance checkbox are
+reconciled; old evidence is not rewritten.
+
+## Unresolved review and release evidence
+
+These are unresolved RECORDS, not newly diagnosed application vulnerabilities.
+Only the original reviewer, or an owner-appointed independent successor after
+re-review, can clear a block unless that reviewer already specified an automatic
+evidence condition. This curation clears none. Assignment alone is not clearance.
+Older author restrictions are retained even though new reviews use ADR 0019.
+
+| ID | Scope / recorded restriction | Owner and next evidence needed |
+|---|---|---|
+| R352 | Structured results Phases 3/4: [independent revision notes][structured-block] call themselves cleared but explicitly request Brutus re-review. | Brutus clearance evidence not established in this reconciliation. Preserve original independent-revision restrictions; do not accept author self-clearance. |
+| R353 | Availability-run spec/plan/tasks: [Cassius revision record][availability-block] reports three Brutus findings repaired under strict lockout. | Locate original Brutus approval, not merely the reviser's "approved" label. Until then preserve the original-author restriction for that rejected scope. |
+| R-SWIPE | [Maximus conditional approval][swipe]: B2-B5 and round-one lockout cleared. B1 converts automatically only on the specified green ubuntu Vue job with the guard passing; owner iOS/Android PWA checks remain release conditions. | Link the exact qualifying runner result and device acceptance. Do NOT invent a continuing blanket lockout: Aurelia/Brutus become ineligible again only if the stated B1 failure condition fires; Livia owns that revision. |
+| R225 | [Brutus Mint Map REJECT][mint-block]: lint and phone verification; next revision must be non-Aurelia. | Locate Brutus clearance and device evidence. The separate 50-coin-cap approval is not proof that this earlier rejection was cleared. |
+| R320 | [Brutus combined #316/#320/#322 BLOCK][toolchain-block]: toolchain source mismatch; non-original reviser required. | Locate explicit clearance for that batch. Later toolchain versions do not themselves clear the historical record. |
+| R337 | Wishlist Search Alerts, issue #357 (NOT Feature 357 Quick Access): [Maximus BLOCK and Scribe completion summary][wishlist-block]. | Scribe reports Maximus approval but the underlying reviewer record was not established here. Locate that evidence; do not promote a transcription into reviewer clearance. |
+| R-RELEASE | Combined F014/F015 release audit T044 and #732 final acceptance checklist remain unclosed in the inspected records. | Owner-authorized, separately scoped release audit and explicit disposition. D05/P2 is not that application audit and does not authorize a new release. |
+
+Other historical blocks remain preserved and searchable. This is not a global
+adjudication of every historical review. When a previously unselected artifact is
+touched, inspect its indexed review chain; absent clearance remains unresolved.
+
+## Located clearance pairs (do not reopen from an old REJECT alone)
+
+| Scope | Evidence and limitation |
+|---|---|
+| R357-ARCH Quick Access frontend | Owner-appointed successor explicitly CLEAR on tree `8b07947f`, after QA clearance, mounted race/follower tests, mutation proof and exact-tree web gate. T095 review complete; T093 broader layout/device evidence and T096 final PR reconciliation remain qualified/pending. Original [rejection][quick-access-arch] preserved; [current receipt](../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). |
+| R361 specialist contracts | Owner-appointed independent successor explicitly CLEAR on tree `910fa92e` (`531f35d7`), after reviewing all four [original criteria][specialist-block] and the serialized-summary repair. Owner authorized Copilot's narrow revision; Cassius exclusion retained. [Receipt](../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). |
+| R357-QA Quick Access frontend | Same successor explicitly CLEAR on tree `910fa92e` for original and re-review [QA findings][quick-access-qa]. This does not clear R357-ARCH or certify missing physical-device acceptance. [Receipt](../docs/audits/2026-09-21.md#scoped-validation-and-successor-review). |
+| External tools #218 | Original Maximus block in archive, explicitly cleared by Maximus at [archive lines 5659 onward][external-clear]. |
+| Private media #313 / outbound #310 / public hardening / security gates #323 | Brutus's explicit scoped approvals at [archive lines 9813-10119][security-clear]. #323's historical settings evidence is not a claim about today's live protection configuration; P5 must check it anew. |
+| Feature 341 / ADR 0008 | [Maximus final release clearance][feature341-clear] resolves the earlier plan/closure restrictions. |
+| Valuation Feature 356 | [Maximus B1-B4 clearance][valuation-clear] and [Brutus B1/B2 clearance][valuation-qa-clear]; do not reclassify the preceding revisions as open. |
+| Background-removal worker | [Brutus re-review][worker-clear] explicitly clears `3a0d7b04`; retained manual smoke guidance is not a new blanket rejection. |
+| Architecture #317 | Brutus history records explicit re-review approval in the [preserved history](agents/brutus/history-archive.md#curation-2026-09-21-brutus), original line 565, dated 2026-06-19T15:21:36Z. |
+
+[tables]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L72-L119
+[copilot]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L11289-L11343
+[worker-clear]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L11463-L11569
+[quick-access-qa]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L11729-L11886
+[quick-access-arch]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L12037-L12154
+[specialist-block]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/agents/brutus/history.md#L888-L918
+[structured-block]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L6995-L7088
+[availability-block]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L6893-L6930
+[swipe]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L10912-L11035
+[mint-block]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions-archive.md#L9711-L9738
+[toolchain-block]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions-archive.md#L11160-L11185
+[wishlist-block]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions-archive.md#L12261-L12304
+[external-clear]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions-archive.md#L5659-L5680
+[security-clear]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions-archive.md#L9813-L10119
+[feature341-clear]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L4682-L4745
+[valuation-clear]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L2260-L2300
+[valuation-qa-clear]: https://github.com/briandenicola/Aurearia/blob/e6ab8313346b971dce4b288804036222f7d4c95d/.squad/decisions.md#L2483-L2545
+
+<a id="curation-2026-09-29-now"></a>
+
+# Preserved context: .squad/identity/now.md
+
+Source commit: `73d5750c`. Canonical Git blob bytes follow unchanged.
+Historical snapshot for issue #783, superseded current-work pointer.
+
+---
+updated_at: 2026-09-29
+focus_area: Open issue batch on beta (issues #766-#784)
+owner: Copilot CLI implementation owner; repository owner accepts results
+work_branch: beta
+baseline_commit: be5dd3e4
+work_artifact: docs/audits/2026-09-29-open-issue-plans.md
+tasks_artifact: docs/audits/2026-09-29-open-issue-plans.md
+---
+
+# Current Work
+
+The owner is working through the open issues on `beta` before any merge to
+`main`. The triage, grouping and fix plans are in
+[the open-issue plans](../../docs/audits/2026-09-29-open-issue-plans.md), with a
+status table at the top.
+
+Done and pushed: typography fixes, group B (#770, #772, #769), group A (#768).
+Group C (#776, #775, #777) is implemented and verified in the commit that
+updates this file: `task check:web` passed; Go and agent code are unchanged.
+
+## Next Action
+
+Pick the next group with the owner: F (#780, #781, #783), E (#774, #771, #779),
+D (#766, needs its own spec first) or #784. Pending owner approval:
+`task setup:agent` (ruff 0.16.8 lock mismatch) and the local Go toolchain
+update needed for `task check:go`. No deployment or release is authorized.
