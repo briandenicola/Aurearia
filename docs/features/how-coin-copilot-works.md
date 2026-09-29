@@ -37,35 +37,52 @@ You can tell which one you're talking to: Copilot answers carry a small
 ## The big picture
 
 ```mermaid
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 36, "rankSpacing": 48}}}%%
 flowchart LR
-    You(["You<br/>(chat drawer)"])
-    App["Aurearia server<br/>keeps your collection,<br/>the conversation and<br/>every step it takes"]
-    Copilot["Coin Copilot<br/>plans the steps and<br/>writes the answer"]
+    You(["👤 You<br/>chat drawer"]):::person
+    App[("🏛️ Aurearia server<br/>your collection<br/>the conversation · each step")]:::server
+    Copilot{{"🧭 Coin Copilot<br/>plans the steps<br/>writes the answer"}}:::copilot
 
     subgraph Helpers["Helpers Copilot can call"]
         direction TB
-        H1["Your collection<br/>search · coin details · summary · top values"]
-        H2["Collection reviews<br/>portfolio facts · missing-data check"]
-        H3["Market<br/>dealer search · auction search<br/>price trends · similar lots"]
-        H4["Deep Analysis hand-off<br/>(identification)"]
+        H1("🗂️ Your collection<br/>search · details · summary · top values"):::collection
+        H2("📋 Collection reviews<br/>portfolio facts · missing-data check"):::collection
+        H3("🔎 Market<br/>dealers · auctions · price trends · similar lots"):::market
+        H4("🔬 Deep Analysis hand-off<br/>identification"):::identify
     end
 
     subgraph Outside["Trusted outside sources"]
         direction TB
-        D["Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Biddr · Catawiki"]
-        A["Auctions<br/>NumisBids · CNG"]
-        R["References<br/>Numista · Nomisma / OCRE"]
+        D("🏪 Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Biddr · Catawiki"):::outside
+        A("🔨 Auctions<br/>NumisBids · CNG"):::outside
+        R("📚 References<br/>Numista · Nomisma / OCRE"):::outside
     end
 
     You <--> App
     App <--> Copilot
     Copilot --> H1 & H2 & H3 & H4
-    H1 -. "read-only, your coins only" .-> App
-    H2 -. "uses the collection summary" .-> App
+    H1 -. "read-only · your coins only" .-> App
+    H2 -. "collection summary" .-> App
     H3 --> D & A
     H4 --> App
     App -. "Deep Analysis job" .-> R
+
+    classDef person fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
+    classDef server fill:#e3eefb,stroke:#3b6ea8,stroke-width:2px,color:#1f2328
+    classDef copilot fill:#f7dc85,stroke:#9a7200,stroke-width:2.5px,color:#1f2328
+    classDef collection fill:#e3f4e8,stroke:#2f855a,stroke-width:1.5px,color:#1f2328
+    classDef market fill:#fde7d3,stroke:#c05621,stroke-width:1.5px,color:#1f2328
+    classDef identify fill:#ede4fb,stroke:#6b46c1,stroke-width:1.5px,color:#1f2328
+    classDef outside fill:#eef0f2,stroke:#6c757d,stroke-width:1.5px,color:#1f2328
+    classDef decision fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
+    style Helpers fill:none,stroke:#9a7200,stroke-width:1.5px,stroke-dasharray:6 4
+    style Outside fill:none,stroke:#9a7200,stroke-width:1.5px,stroke-dasharray:6 4
 ```
+
+**Colour key** (same in every diagram): 🟨 gold = Coin Copilot ·
+🟦 blue = the Aurearia server · 🟩 green = your collection ·
+🟧 orange = market searches · 🟪 purple = identification ·
+⬜ grey = outside websites and catalogues.
 
 Three things are worth knowing about this picture:
 
@@ -112,30 +129,45 @@ Here is one real question traced end to end:
 ```mermaid
 sequenceDiagram
     autonumber
-    actor You
-    participant Chat as Chat drawer
-    participant Server as Aurearia server
-    participant Copilot as Coin Copilot
-    participant Dealer as Dealer search helper
-    participant Sites as vCoins · MA-Shops · HJB
+    actor You as 👤 You
+    participant Chat as 💬 Chat drawer
+    participant Server as 🏛️ Aurearia server
+    participant Copilot as 🧭 Coin Copilot
+    participant Dealer as 🔎 Dealer search
+    participant Sites as 🏪 vCoins · MA-Shops · HJB
 
-    You->>Chat: "Find me any Caligula coins under $500"
-    Chat->>Server: Start a Copilot run
-    Server->>Server: Save the run, issue a short-lived read-only pass
-    Server->>Copilot: Your message + the list of allowed helpers
-    Copilot->>Copilot: Plan: one step, "Search dealer listings"
-    Copilot-->>Server: Plan and progress
-    Server-->>Chat: Checklist appears (step spinning)
-    Copilot->>Dealer: search terms "Caligula", budget 500 USD
-    par Each dealer at once
-        Dealer->>Sites: The dealer's own search
-        Sites-->>Dealer: Current listings with prices
+    rect rgba(59,110,168,0.14)
+        Note over You,Copilot: ① Start
+        You->>Chat: "Find me any Caligula coins under $500"
+        Chat->>Server: Start a Copilot run
+        Server->>Server: Save the run · issue a short-lived read-only pass
+        Server->>Copilot: Your message + the allowed helpers
     end
-    Dealer->>Dealer: Drop over-budget and other-currency listings<br/>Rank title matches first, alternate dealers
-    Dealer-->>Copilot: 5 listings + "N more matched" + notes
-    Copilot-->>Server: Answer citing each listing's link
-    Server-->>Chat: Step ticked, Source evidence card, answer
-    Chat-->>You: 5 listings, offer to show more (up to 10)
+
+    rect rgba(154,114,0,0.14)
+        Note over Chat,Copilot: ② Plan
+        Copilot->>Copilot: One step: "Search dealer listings"
+        Copilot-->>Server: Plan and progress
+        Server-->>Chat: Checklist appears, step spinning
+    end
+
+    rect rgba(192,86,33,0.14)
+        Note over Copilot,Sites: ③ Search
+        Copilot->>Dealer: keywords "Caligula" · budget 500 USD
+        par Each dealer at the same time
+            Dealer->>Sites: The dealer's own search
+            Sites-->>Dealer: Current listings with prices
+        end
+        Dealer->>Dealer: Drop over-budget and other-currency listings<br/>Rank title matches first · alternate dealers
+        Dealer-->>Copilot: 5 listings + "N more matched" + notes
+    end
+
+    rect rgba(47,133,90,0.14)
+        Note over You,Copilot: ④ Answer
+        Copilot-->>Server: Answer citing each listing's link
+        Server-->>Chat: Step ticked · Source evidence card · answer
+        Chat-->>You: 5 listings and an offer to show more (up to 10)
+    end
 ```
 
 In words:
@@ -173,19 +205,33 @@ Dealer search is where most shopping questions end up, so it's worth knowing
 what happens inside it.
 
 ```mermaid
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 36, "rankSpacing": 48}}}%%
 flowchart TD
-    Q["Your request<br/>'Caligula coins under $500'"] --> P["Work out the keywords and budget<br/>keywords: Caligula<br/>budget: 500 USD"]
-    P --> Split{"Is the dealer one Aurearia<br/>can search directly?"}
+    Q(["💬 Caligula coins<br/>under $500"]):::person
+    P("✂️ Work out keywords<br/>and budget<br/>Caligula · 500 USD"):::copilot
+    Split{"Can Aurearia search<br/>this dealer directly?"}:::decision
+    Direct("🎯 Dealer's own search<br/>current stock only<br/>HJB: in stock only"):::collection
+    Web("🌐 Web search locked to<br/>that dealer's website,<br/>then read the listing pages"):::market
+    Budget("💲 Keep listings<br/>at or under budget<br/>in the budget's currency"):::server
+    Drop("🚫 Leave out sold,<br/>over-budget, other-currency<br/>and unpriced listings<br/>and say how many"):::server
+    Mix("🔀 Title matches first<br/>dealers take turns"):::server
+    Out(["✅ Show 5 listings<br/>up to 10 if you ask<br/>each with its dealer link"]):::copilot
 
-    Split -- "Yes: vCoins, MA-Shops,<br/>Harlan J. Berk" --> Direct["Use the dealer's own search<br/>(current stock only; HJB: in stock only)"]
-    Split -- "No: Forum, Biddr,<br/>Catawiki, others" --> Web["Web search limited to that<br/>dealer's website, then read<br/>the listing pages it found"]
-
+    Q --> P --> Split
+    Split -- "Yes · vCoins, MA-Shops, Harlan J. Berk" --> Direct
+    Split -- "No · Forum, Biddr, Catawiki, others" --> Web
     Direct --> Budget
     Web --> Budget
-    Budget["Keep listings at or under budget<br/>in the budget's currency"]
-    Budget --> Drop["Leave out: sold, over budget,<br/>other currencies, no readable price<br/>(and say how many)"]
-    Drop --> Mix["Rank listings that name the coin<br/>in their title first; take turns<br/>between dealers"]
-    Mix --> Out["Show 5 (up to 10 if you ask)<br/>each with its dealer link"]
+    Budget --> Drop --> Mix --> Out
+
+    classDef person fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
+    classDef server fill:#e3eefb,stroke:#3b6ea8,stroke-width:2px,color:#1f2328
+    classDef copilot fill:#f7dc85,stroke:#9a7200,stroke-width:2.5px,color:#1f2328
+    classDef collection fill:#e3f4e8,stroke:#2f855a,stroke-width:1.5px,color:#1f2328
+    classDef market fill:#fde7d3,stroke:#c05621,stroke-width:1.5px,color:#1f2328
+    classDef identify fill:#ede4fb,stroke:#6b46c1,stroke-width:1.5px,color:#1f2328
+    classDef outside fill:#eef0f2,stroke:#6c757d,stroke-width:1.5px,color:#1f2328
+    classDef decision fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
 ```
 
 - **Why "directly" matters.** A general web search turns up years of old
@@ -214,25 +260,42 @@ report. If your administrator has enabled it for Copilot, you can start it
 from the chat ("run Deep Analysis on my Trajan denarius").
 
 ```mermaid
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 36, "rankSpacing": 48}}}%%
 flowchart TB
-    You(["You: run Deep Analysis on my Trajan denarius"]) --> Copilot["Coin Copilot<br/>asks which coin if it's unclear"]
-    Copilot -- "hand-off" --> Server["Aurearia server<br/>checks it's your coin, takes a<br/>snapshot and queues the job"]
+    You(["👤 'Run Deep Analysis on my Trajan denarius'"]):::person
+    Copilot{{"🧭 Coin Copilot<br/>asks which coin if it's unclear"}}:::copilot
+    Server[("🏛️ Aurearia server<br/>checks it's your coin<br/>snapshots it · queues the job")]:::server
 
-    subgraph DeepAnalysis["Deep Analysis job (runs in the background)"]
+    subgraph Job["🔬 Deep Analysis job · runs in the background"]
         direction TB
-        E["Read the evidence<br/>photos, earlier AI analysis, your notes"] --> Rt["Choose reference sources"]
-        Rt --> N["Numista<br/>catalogue"]
-        Rt --> O["Nomisma / OCRE<br/>Roman Imperial types"]
-        Rt --> G["NGC<br/>certificate link only"]
-        N --> Ev["Compare the sources<br/>and flag disagreements"]
-        O --> Ev
-        G --> Ev
-        Ev --> Sy["Write a cited report and<br/>a proposed set of fields"]
+        E("📷 Read the evidence<br/>photos · earlier AI analysis · your notes"):::identify
+        Rt("🧭 Choose reference sources"):::identify
+        N("📚 Numista<br/>catalogue"):::outside
+        O("🏛️ Nomisma / OCRE<br/>Roman Imperial types"):::outside
+        G("🔖 NGC<br/>certificate link only"):::outside
+        Ev("⚖️ Compare the sources<br/>flag disagreements"):::identify
+        Sy("📝 Cited report<br/>+ proposed fields"):::identify
+        E --> Rt
+        Rt --> N & O & G
+        N & O & G --> Ev
+        Ev --> Sy
     end
 
-    Server --> E
-    Sy --> Card["Chat card<br/>status, summary, 'Open Deep Analysis'"]
-    Card --> Page["Deep Analysis page<br/>you review, edit and choose<br/>which fields to apply"]
+    Card("💬 Chat card<br/>status · summary · Open Deep Analysis"):::server
+    Page(["✅ Deep Analysis page<br/>you review, edit and choose<br/>which fields to apply"]):::person
+
+    You --> Copilot -- "hand-off" --> Server --> E
+    Sy --> Card --> Page
+
+    classDef person fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
+    classDef server fill:#e3eefb,stroke:#3b6ea8,stroke-width:2px,color:#1f2328
+    classDef copilot fill:#f7dc85,stroke:#9a7200,stroke-width:2.5px,color:#1f2328
+    classDef collection fill:#e3f4e8,stroke:#2f855a,stroke-width:1.5px,color:#1f2328
+    classDef market fill:#fde7d3,stroke:#c05621,stroke-width:1.5px,color:#1f2328
+    classDef identify fill:#ede4fb,stroke:#6b46c1,stroke-width:1.5px,color:#1f2328
+    classDef outside fill:#eef0f2,stroke:#6c757d,stroke-width:1.5px,color:#1f2328
+    classDef decision fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
+    style Job fill:none,stroke:#9a7200,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
 - The chat card shows progress, a short summary, where sources disagree, and
@@ -335,7 +398,8 @@ Your administrator can adjust these in *Admin → System → Coin Copilot Limits
 
 - **Coin shows aren't a Copilot helper yet.** With Copilot on, "find coin shows
   near me" gets a polite decline. The original Coin Agent can find shows; an
-  admin can switch Copilot off to use it.
+  admin can switch Copilot off to use it. Adding show search to Copilot is
+  tracked in [#766](https://github.com/briandenicola/Aurearia/issues/766).
 - **Dealers can block automated searches.** vCoins uses bot protection and may
   temporarily refuse searches after many in a short time. The result is then
   *Partial*: that dealer is listed as unavailable and the others still show.
@@ -368,18 +432,42 @@ When Copilot is off, the chat uses the original **Coin Agent**. A router reads
 each message and sends it to exactly one team.
 
 ```mermaid
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 36, "rankSpacing": 48}}}%%
 flowchart LR
-    M(["Your message"]) --> Router{"Router<br/>which kind of<br/>question is this?"}
-    Router -- "about coins I own" --> Col["Collection chat"]
-    Router -- "find coins to buy" --> CS["Coin search"]
-    Router -- "coin shows / events" --> Shows["Coin shows"]
-    Router -- "analyze a coin photo" --> An["Coin analysis"]
-    Router -- "whole-portfolio value" --> Pf["Portfolio review"]
-    Router -- "what's missing / what next" --> Gap["Gap analysis"]
-    Router -- "price history" --> Pt["Price trends"]
-    Router -- "similar coins at auction" --> Sim["Similar lots"]
-    Router -- "auction lots" --> Au["Auction search"]
-    Router -- "anything else" --> Gen["General reply<br/>(politely declines off-topic)"]
+    M(["💬 Your message"]):::person
+    Router{"🧭 Router<br/>which kind of<br/>question is this?"}:::copilot
+
+    Col("🗂️ Collection chat"):::collection
+    Pf("📋 Portfolio review"):::collection
+    Gap("🧩 Gap analysis"):::collection
+    CS("🏪 Coin search"):::market
+    Au("🔨 Auction search"):::market
+    Pt("📈 Price trends"):::market
+    Sim("🪙 Similar lots"):::market
+    Shows("📅 Coin shows"):::market
+    An("📷 Coin analysis"):::identify
+    Gen("💬 General reply<br/>declines off-topic"):::outside
+
+    M --> Router
+    Router -- "coins I own" --> Col
+    Router -- "whole-portfolio value" --> Pf
+    Router -- "what's missing · what next" --> Gap
+    Router -- "coins to buy" --> CS
+    Router -- "auction lots" --> Au
+    Router -- "price history" --> Pt
+    Router -- "similar coins at auction" --> Sim
+    Router -- "shows and events" --> Shows
+    Router -- "analyze a photo" --> An
+    Router -- "anything else" --> Gen
+
+    classDef person fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
+    classDef server fill:#e3eefb,stroke:#3b6ea8,stroke-width:2px,color:#1f2328
+    classDef copilot fill:#f7dc85,stroke:#9a7200,stroke-width:2.5px,color:#1f2328
+    classDef collection fill:#e3f4e8,stroke:#2f855a,stroke-width:1.5px,color:#1f2328
+    classDef market fill:#fde7d3,stroke:#c05621,stroke-width:1.5px,color:#1f2328
+    classDef identify fill:#ede4fb,stroke:#6b46c1,stroke-width:1.5px,color:#1f2328
+    classDef outside fill:#eef0f2,stroke:#6c757d,stroke-width:1.5px,color:#1f2328
+    classDef decision fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
 ```
 
 | Team | What it does |
