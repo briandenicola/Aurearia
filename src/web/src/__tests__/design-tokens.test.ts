@@ -236,6 +236,59 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     })
   })
 
+  describe('shared UI primitives replace hand-rolled controls', () => {
+    const toggleComponent = join(SRC_DIR, 'components', 'ui', 'BaseToggle.vue')
+    const statusBadgeComponent = join(SRC_DIR, 'components', 'ui', 'BaseStatusBadge.vue')
+
+    it('routes every switch through BaseToggle', () => {
+      const violations = vueFiles
+        .filter((file) => file !== toggleComponent)
+        .filter((file) => /class="[^"]*\bpeer sr-only\b/.test(readFileSync(file, 'utf-8')))
+        .map((file) => relative(SRC_DIR, file))
+
+      expect(
+        violations,
+        `Hand-rolled toggles must use BaseToggle:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('routes every run-status pill through BaseStatusBadge', () => {
+      const shape = /class="inline-block rounded-full px-2 py-\[0\.15rem\] text-label font-semibold"/
+      const violations = vueFiles
+        .filter((file) => file !== statusBadgeComponent)
+        .filter((file) => shape.test(readFileSync(file, 'utf-8')))
+        .map((file) => relative(SRC_DIR, file))
+
+      expect(
+        violations,
+        `Status pills must use BaseStatusBadge:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('keeps raw rgba() in templates within budget', () => {
+      // Budget: remaining pre-existing template rgba() literals after the
+      // #784 toggle and status-badge consolidation. It may only decrease.
+      const RGBA_BUDGET = 109
+      let total = 0
+      const details: string[] = []
+
+      for (const file of vueFiles) {
+        const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
+        if (!template) continue
+        const count = (template.match(/rgba\(/g) ?? []).length
+        if (count > 0) {
+          total += count
+          details.push(`${relative(SRC_DIR, file)}: ${count}`)
+        }
+      }
+
+      expect(
+        total,
+        `Template rgba() literals (${total}) exceed budget (${RGBA_BUDGET}). Use design tokens:\n  ${details.join('\n  ')}`
+      ).toBeLessThanOrEqual(RGBA_BUDGET)
+    })
+  })
+
   describe('template classes resolve to real styles', () => {
     const mainCss = readFileSync(join(STYLES_DIR, 'main.css'), 'utf-8')
     const themeColors = new Set([...mainCss.matchAll(/--color-([a-z0-9-]+)\s*:/g)].map((m) => m[1]))

@@ -58,15 +58,11 @@
               </td>
               <td class="border-b border-border-subtle px-2 py-3 align-top text-text-primary">{{ cat.displayName }}</td>
               <td class="hidden border-b border-border-subtle px-2 py-3 align-top md:table-cell">
-                <label class="relative inline-block h-7 w-[50px] shrink-0" aria-label="Volume required">
-                  <input
-                    type="checkbox"
-                    :checked="cat.volumeRequired"
-                    disabled
-                    class="peer sr-only"
-                  />
-                  <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-disabled:cursor-not-allowed peer-disabled:opacity-60 after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-                </label>
+                <BaseToggle
+                  :model-value="cat.volumeRequired"
+                  disabled
+                  label="Volume required"
+                />
               </td>
               <td class="border-b border-border-subtle px-2 py-3 align-top">
                 <div class="flex flex-wrap justify-end gap-[0.35rem]">
@@ -123,14 +119,10 @@
             </div>
             <div class="form-group flex items-center justify-between gap-4">
               <label class="form-label mb-0">Volume Required</label>
-              <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
-                <input
-                  v-model="formData.volumeRequired"
-                  type="checkbox"
-                  class="peer sr-only"
-                />
-                <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-              </label>
+              <BaseToggle
+                v-model="formData.volumeRequired"
+                label="Volume required"
+              />
             </div>
             <div class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
               <button type="button" class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="closeForm">
@@ -156,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { ref, onMounted } from 'vue'
 import { AlertCircle } from 'lucide-vue-next'
 import { listCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog } from '@/api/client'

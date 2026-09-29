@@ -6,14 +6,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Scheduled Valuation</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.ValuationCheckEnabled === 'true'"
-          @change="settings.ValuationCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Scheduled Valuation"
+        :model-value="settings.ValuationCheckEnabled === 'true'"
+        @update:model-value="settings.ValuationCheckEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily anchor)</label>
@@ -84,7 +82,7 @@
               <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
               <td class="hidden md:table-cell">{{ run.triggerType }}</td>
               <td>
-                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'running' ? 'bg-[rgba(52,152,219,0.15)] text-[#3498db]' : run.status === 'completed' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : run.status === 'failed' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(243,156,18,0.15)] text-[#f39c12]'">{{ run.status }}</span>
+                <BaseStatusBadge :tone="run.status === 'running' ? 'info' : run.status === 'completed' ? 'success' : run.status === 'failed' ? 'error' : 'warning'">{{ run.status }}</BaseStatusBadge>
                 <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
                   {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
                 </span>
@@ -121,7 +119,7 @@
                           <span v-else>--</span>
                         </td>
                         <td>
-                          <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'skipped' ? 'bg-[rgba(149,165,166,0.15)] text-[#95a5a6]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]'">{{ result.status }}</span>
+                          <BaseStatusBadge :tone="result.status === 'success' ? 'success' : result.status === 'skipped' ? 'neutral' : 'error'">{{ result.status }}</BaseStatusBadge>
                         </td>
                         <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
                           <div v-if="result.changeExplanation" class="mb-[0.35rem] font-medium text-gold">{{ result.changeExplanation }}</div>
@@ -148,6 +146,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseStatusBadge, BaseToggle } from '@/components/ui'
 import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { cancelValuationRun, getValuationRunDetail, getValuationRuns, triggerValuation } from '@/api/client'

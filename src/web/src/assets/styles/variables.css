@@ -83,6 +83,18 @@
   --color-positive: #2ecc71;
   --color-negative: #e74c3c;
 
+  /* Status badge tones */
+  --status-success-bg: rgba(46, 204, 113, 0.15);
+  --status-success-fg: var(--color-positive);
+  --status-error-bg: rgba(231, 76, 60, 0.15);
+  --status-error-fg: var(--color-negative);
+  --status-warning-bg: rgba(241, 196, 15, 0.15);
+  --status-warning-fg: var(--text-warning);
+  --status-info-bg: rgba(52, 152, 219, 0.15);
+  --status-info-fg: #3498db;
+  --status-neutral-bg: rgba(149, 165, 166, 0.15);
+  --status-neutral-fg: #95a5a6;
+
   /* Confidence indicators */
   --confidence-high: #69b77f;
   --confidence-medium: #f0c261;

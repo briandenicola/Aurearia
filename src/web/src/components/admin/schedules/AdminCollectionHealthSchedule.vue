@@ -11,14 +11,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Daily Snapshots</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.CollectionHealthSnapshotsEnabled === 'true'"
-          @change="settings.CollectionHealthSnapshotsEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Daily Snapshots"
+        :model-value="settings.CollectionHealthSnapshotsEnabled === 'true'"
+        @update:model-value="settings.CollectionHealthSnapshotsEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily)</label>
@@ -64,7 +62,7 @@
             <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
             <td class="hidden md:table-cell">{{ run.triggerType }}</td>
             <td>
-              <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ run.status }}</span>
+              <BaseStatusBadge :tone="run.status === 'error' ? 'error' : run.status === 'success' ? 'success' : 'warning'">{{ run.status }}</BaseStatusBadge>
             </td>
             <td>{{ run.usersEligible }}</td>
             <td class="font-semibold text-[var(--color-positive)]">{{ run.usersSnapshotted }}</td>
@@ -84,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseStatusBadge, BaseToggle } from '@/components/ui'
 import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import {

@@ -22,6 +22,10 @@ Apply the [constitution](../../.specify/memory/constitution.md) and selected app
 
 ### Design System
 
+Canonical standard: [design system](../../docs/design-system.md). It is the full
+version of the tables below and additionally covers status tones, shared
+primitives and table styles. When the two disagree, the canonical document wins.
+
 All CSS values **must** use design tokens from `variables.css` and global classes from `main.css`. Never hardcode raw values when a token exists.
 
 #### Design Tokens (variables.css)
@@ -122,6 +126,20 @@ Before implementing UI, identify the closest existing page or component pattern 
 | Stats subviews | Health, value trends, timeline, map | Each subview is its own route/page under the Stats submenu; the Stats landing page stays summary-card focused. |
 | Collection subviews | Gallery and Tray | Keep Gallery and Tray under the Collection submenu; the Collection parent starts collapsed like Stats. |
 | Immersive PWA capture | Camera-first flows in an installed PWA (Add Coin, Identify Coin) | Use `PwaCaptureShell`: fixed full-bleed shell claiming `useImmersiveShellClaim()` so App.vue drops the nav bar and agent button. Close / Add-Identify segments / Quick Capture on top, a three-segment progress rail, one rounded stage with the guide ring, then Library + shutter + Manual (intake) or Deep (identify). Takes all color from the active theme's shared tokens (`--bg-primary`, `--bg-card`, `--bg-input`, `--accent-gold`, `--text-*`, `--border-subtle`) - no private palette and no literal colors. |
+
+#### Shared Primitives (`src/web/src/components/ui`)
+
+Import from `@/components/ui`. Do not hand-roll these:
+
+| Component | Replaces |
+|---|---|
+| `BaseToggle` | Any `peer sr-only` checkbox switch. Sizes: `md` (28x50) default, `sm` (22x42) for indented sub-options and compact table cells. |
+| `BaseStatusBadge` | Run status / outcome pills. `tone` is `success`, `error`, `warning`, `info` or `neutral`, backed by `--status-*` tokens - never raw `rgba()`. |
+| `BaseButton`, `BaseChip`, `BaseBadge`, `BaseSpinner`, `BaseEmptyState` | Their respective ad-hoc markup. |
+
+`src/web/src/__tests__/design-tokens.test.ts` fails the build on a hand-rolled
+toggle or status pill, and caps template `rgba()` literals with a ratchet budget
+that may only decrease.
 
 #### Rules for New UI Components
 

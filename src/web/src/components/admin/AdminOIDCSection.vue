@@ -161,10 +161,11 @@
                 <label class="form-label" for="oidc-enabled">Enabled</label>
                 <span class="mt-1 block text-sm text-text-muted">Only enabled providers appear on the login page.</span>
               </div>
-              <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
-                <input id="oidc-enabled" v-model="form.enabled" type="checkbox" class="peer sr-only" />
-                <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-              </label>
+              <BaseToggle
+                id="oidc-enabled"
+                v-model="form.enabled"
+                label="Enabled"
+              />
             </div>
           </div>
 
@@ -259,10 +260,11 @@
               <label class="form-label" for="oidc-verified-email">Require Verified Email</label>
               <span class="mt-1 block text-sm text-text-muted">Recommended for matching account emails safely.</span>
             </div>
-            <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
-              <input id="oidc-verified-email" v-model="form.requireVerifiedEmail" type="checkbox" class="peer sr-only" />
-              <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-            </label>
+            <BaseToggle
+              id="oidc-verified-email"
+              v-model="form.requireVerifiedEmail"
+              label="Require Verified Email"
+            />
           </div>
 
           <div
@@ -289,6 +291,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AlertCircle, CheckCircle, X } from 'lucide-vue-next'

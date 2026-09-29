@@ -7,14 +7,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Automatic Digests</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.AuctionWatchBidDigestEnabled === 'true'"
-          @change="settings.AuctionWatchBidDigestEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Automatic Digests"
+        :model-value="settings.AuctionWatchBidDigestEnabled === 'true'"
+        @update:model-value="settings.AuctionWatchBidDigestEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily anchor)</label>
@@ -70,16 +68,16 @@
           <tr v-for="run in runs" :key="run.id">
             <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
             <td class="hidden md:table-cell">
-              <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.triggerType === 'manual' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">
+              <BaseStatusBadge :tone="run.triggerType === 'manual' ? 'error' : 'warning'">
                 {{ run.triggerType }}
-              </span>
+              </BaseStatusBadge>
             </td>
             <td>{{ run.lotsChecked }}</td>
             <td class="font-semibold text-[var(--color-positive)]">{{ run.digestsSent }}</td>
             <td class="hidden md:table-cell">
-              <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : (run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning')">
+              <BaseStatusBadge :tone="run.status === 'error' ? 'error' : (run.status === 'success' ? 'success' : 'warning')">
                 {{ run.status }}
-              </span>
+              </BaseStatusBadge>
             </td>
             <td>{{ formatDuration(run.durationMs) }}</td>
           </tr>
@@ -96,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseStatusBadge, BaseToggle } from '@/components/ui'
 import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest } from '@/api/client'

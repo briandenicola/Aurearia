@@ -28,14 +28,12 @@
     <div class="mb-4">
       <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable ParcelApp Tracking</label>
-        <label class="relative inline-block h-[22px] w-[42px]">
-          <input
-            class="peer sr-only" type="checkbox"
-            :checked="settings.ParcelAppEnabled === 'true'"
-            @change="settings.ParcelAppEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-          />
-          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-        </label>
+        <BaseToggle
+          size="sm"
+          label="Enable ParcelApp Tracking"
+          :model-value="settings.ParcelAppEnabled === 'true'"
+          @update:model-value="settings.ParcelAppEnabled = $event ? 'true' : 'false'"
+        />
       </div>
       <div class="form-group">
         <label class="form-label">Repeat Interval (minutes)</label>
@@ -126,6 +124,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import AdminAuctionAlertReminderSchedule from '@/components/admin/schedules/AdminAuctionAlertReminderSchedule.vue'
 import AdminAuctionEndingSchedule from '@/components/admin/schedules/AdminAuctionEndingSchedule.vue'
 import AdminAuctionWatchBidDigestSchedule from '@/components/admin/schedules/AdminAuctionWatchBidDigestSchedule.vue'

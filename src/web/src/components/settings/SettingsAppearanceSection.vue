@@ -163,23 +163,18 @@
         <span class="text-sm text-text-muted">Swipe left or right on a coin's pages to move between its sections. Applies to the installed app only; it has no effect in a web browser.</span>
         <span v-if="pwaSwipeNavError" class="mt-1 text-chip text-[var(--color-negative)]">{{ pwaSwipeNavError }}</span>
       </div>
-      <label class="relative inline-block h-7 w-[50px] shrink-0">
-        <input
-          type="checkbox"
-          class="peer sr-only"
-          :checked="pwaSwipeNavLocal"
-          :disabled="pwaSwipeNavSaving"
-          @change="handlePwaSwipeNavChange(($event.target as HTMLInputElement).checked)"
-        />
-        <span
-          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
-        ></span>
-      </label>
+      <BaseToggle
+        label="Swipe navigation"
+        :model-value="pwaSwipeNavLocal"
+        :disabled="pwaSwipeNavSaving"
+        @update:model-value="handlePwaSwipeNavChange"
+      />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { ref } from 'vue'
 import type { Theme } from '@/types'
 import type { FeltColor } from '@/composables/useTrayPreference'
