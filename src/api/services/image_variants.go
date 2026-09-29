@@ -3,10 +3,10 @@ package services
 import (
 	"bytes"
 	"image"
-	_ "image/gif"  // GIF decoder
-	_ "image/jpeg" // JPEG decoder
+	_ "image/gif" // GIF decoder
 	"image/jpeg"
-	_ "image/png" // PNG decoder
+	_ "image/jpeg" // JPEG decoder
+	_ "image/png"  // PNG decoder
 	"math"
 )
 

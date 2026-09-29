@@ -1,4 +1,4 @@
-﻿package services
+package services
 
 import (
 	"fmt"
@@ -41,7 +41,7 @@ const (
 	// bidding on. It fires once per time the lead is lost, not once per sync while behind
 	// (specs/_backlog/F034).
 	NotificationTypeAuctionLotsOutbid = "auction_lots_outbid"
-	NotificationTypeShipmentStatus     = "shipment_status"
+	NotificationTypeShipmentStatus    = "shipment_status"
 	// NotificationTypeAvailabilityRun is the terminal-outcome notification created for every
 	// terminal child AvailabilityRun (owner/scheduled/admin-triggered), in addition to (never
 	// instead of) any per-coin wishlist_unavailable notifications fired during the same run (D6).

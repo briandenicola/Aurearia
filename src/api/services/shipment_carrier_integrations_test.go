@@ -22,7 +22,7 @@ func TestUSPSShipmentCarrierClient_GetTracking(t *testing.T) {
 		}
 		gotAPIKeyHeader = r.Header.Get("X-API-Key")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status":             "In Transit",
+			"status":              "In Transit",
 			"estimatedDeliveryAt": "2026-08-06T10:00:00Z",
 			"events": []map[string]any{
 				{

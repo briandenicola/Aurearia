@@ -375,17 +375,17 @@ func mapToCoin(payload map[string]interface{}) (*models.Coin, error) {
 }
 
 var intakeCoinFieldAliases = map[string]string{
-	"obverse_inscription":  "obverseInscription",
-	"reverse_inscription":  "reverseInscription",
-	"obverse_description":  "obverseDescription",
-	"reverse_description":  "reverseDescription",
-	"weight_grams":         "weightGrams",
-	"diameter_mm":          "diameterMm",
-	"purchase_price":       "purchasePrice",
-	"current_value":        "currentValue",
-	"purchase_date":        "purchaseDate",
-	"purchase_location":    "purchaseLocation",
-	"is_wishlist":          "isWishlist",
+	"obverse_inscription": "obverseInscription",
+	"reverse_inscription": "reverseInscription",
+	"obverse_description": "obverseDescription",
+	"reverse_description": "reverseDescription",
+	"weight_grams":        "weightGrams",
+	"diameter_mm":         "diameterMm",
+	"purchase_price":      "purchasePrice",
+	"current_value":       "currentValue",
+	"purchase_date":       "purchaseDate",
+	"purchase_location":   "purchaseLocation",
+	"is_wishlist":         "isWishlist",
 }
 
 func toSnakeCase(s string) string {

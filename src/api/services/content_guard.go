@@ -12,11 +12,11 @@ import (
 // Content moderation and prompt injection detection for agent chat.
 
 var (
-	ErrBlockedContent    = errors.New("message contains inappropriate content")
-	ErrPromptInjection   = errors.New("message contains disallowed instructions")
-	ErrMessageTooLong    = errors.New("message exceeds maximum length")
-	ErrHistoryTooLong    = errors.New("conversation history exceeds maximum length")
-	ErrInvalidRole       = errors.New("invalid message role in history")
+	ErrBlockedContent  = errors.New("message contains inappropriate content")
+	ErrPromptInjection = errors.New("message contains disallowed instructions")
+	ErrMessageTooLong  = errors.New("message exceeds maximum length")
+	ErrHistoryTooLong  = errors.New("conversation history exceeds maximum length")
+	ErrInvalidRole     = errors.New("invalid message role in history")
 )
 
 const (

@@ -29,10 +29,10 @@ func (legacyCoinValueHistoryWithoutSource) TableName() string { return "coin_val
 // legacyCoinJournalEntry is used only to seed and count coin_journals rows in migration tests.
 // coin_journals has no physical FK constraints in the real schema, so no parent tables are needed.
 type legacyCoinJournalEntry struct {
-	ID        uint      `gorm:"primaryKey"`
-	CoinID    uint      `gorm:"not null;index"`
-	UserID    uint      `gorm:"not null"`
-	Entry     string    `gorm:"type:text;not null"`
+	ID        uint   `gorm:"primaryKey"`
+	CoinID    uint   `gorm:"not null;index"`
+	UserID    uint   `gorm:"not null"`
+	Entry     string `gorm:"type:text;not null"`
 	CreatedAt time.Time
 }
 
@@ -79,11 +79,11 @@ func seedPreFeature356LegacyDatabase(t *testing.T, dbPath string) (*gorm.DB, fea
 
 	// One row for each confidence tier -- exactly the repertoire the backfill must handle.
 	rows := []legacyCoinValueHistoryWithoutSource{
-		{CoinID: 1, UserID: 1, Value: 100.0, Confidence: "high",   RecordedAt: now.Add(-4 * 24 * time.Hour)},
-		{CoinID: 1, UserID: 1, Value: 90.0,  Confidence: "medium", RecordedAt: now.Add(-3 * 24 * time.Hour)},
-		{CoinID: 1, UserID: 1, Value: 80.0,  Confidence: "low",    RecordedAt: now.Add(-2 * 24 * time.Hour)},
-		{CoinID: 1, UserID: 1, Value: 75.0,  Confidence: "manual", RecordedAt: now.Add(-1 * 24 * time.Hour)},
-		{CoinID: 1, UserID: 1, Value: 70.0,  Confidence: "",       RecordedAt: now},
+		{CoinID: 1, UserID: 1, Value: 100.0, Confidence: "high", RecordedAt: now.Add(-4 * 24 * time.Hour)},
+		{CoinID: 1, UserID: 1, Value: 90.0, Confidence: "medium", RecordedAt: now.Add(-3 * 24 * time.Hour)},
+		{CoinID: 1, UserID: 1, Value: 80.0, Confidence: "low", RecordedAt: now.Add(-2 * 24 * time.Hour)},
+		{CoinID: 1, UserID: 1, Value: 75.0, Confidence: "manual", RecordedAt: now.Add(-1 * 24 * time.Hour)},
+		{CoinID: 1, UserID: 1, Value: 70.0, Confidence: "", RecordedAt: now},
 	}
 	for i := range rows {
 		if err := db.Create(&rows[i]).Error; err != nil {
@@ -92,15 +92,15 @@ func seedPreFeature356LegacyDatabase(t *testing.T, dbPath string) (*gorm.DB, fea
 	}
 
 	var seed feature356Seed
-	seed.highID   = rows[0].ID
+	seed.highID = rows[0].ID
 	seed.mediumID = rows[1].ID
-	seed.lowID    = rows[2].ID
+	seed.lowID = rows[2].ID
 	seed.manualID = rows[3].ID
-	seed.emptyID  = rows[4].ID
+	seed.emptyID = rows[4].ID
 
 	// Two scheduled journal entries (must be deleted by D4).
 	scheduled := []legacyCoinJournalEntry{
-		{CoinID: 1, UserID: 1, Entry: "Scheduled AI Value Estimate: $100.00 (high confidence)",  CreatedAt: now.Add(-4 * 24 * time.Hour)},
+		{CoinID: 1, UserID: 1, Entry: "Scheduled AI Value Estimate: $100.00 (high confidence)", CreatedAt: now.Add(-4 * 24 * time.Hour)},
 		{CoinID: 1, UserID: 1, Entry: "Scheduled AI Value Estimate: $90.00 (medium confidence)", CreatedAt: now.Add(-3 * 24 * time.Hour)},
 	}
 	for i := range scheduled {

@@ -25,17 +25,17 @@ type catalogListResponse struct {
 }
 
 type catalogCreateRequest struct {
-	Catalog        string      `json:"catalog" binding:"required"`
-	DisplayName    string      `json:"displayName" binding:"required"`
-	Era            models.Era  `json:"era" binding:"required"`
-	VolumeRequired bool        `json:"volumeRequired"`
+	Catalog        string     `json:"catalog" binding:"required"`
+	DisplayName    string     `json:"displayName" binding:"required"`
+	Era            models.Era `json:"era" binding:"required"`
+	VolumeRequired bool       `json:"volumeRequired"`
 }
 
 type catalogUpdateRequest struct {
-	Catalog        string      `json:"catalog" binding:"required"`
-	DisplayName    string      `json:"displayName" binding:"required"`
-	Era            models.Era  `json:"era" binding:"required"`
-	VolumeRequired bool        `json:"volumeRequired"`
+	Catalog        string     `json:"catalog" binding:"required"`
+	DisplayName    string     `json:"displayName" binding:"required"`
+	Era            models.Era `json:"era" binding:"required"`
+	VolumeRequired bool       `json:"volumeRequired"`
 }
 
 // List returns all catalog registry entries.
