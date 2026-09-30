@@ -358,7 +358,7 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
         const content = readFileSync(file, 'utf-8')
         const name = relative(SRC_DIR, file).split(sep).join('/')
         let count = 0
-        for (const block of content.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) {
+        for (const block of content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)) {
           const code = block[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
           count += (code.match(/rgba?\(|#[0-9a-fA-F]{3,8}\b/g) ?? []).length
         }
@@ -805,7 +805,7 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     // that holds no measured fill yields no pairs.
     function scriptChunks(text: string): string[] {
       const chunks: string[] = []
-      for (const block of text.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) {
+      for (const block of text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)) {
         // A template literal's ${} expressions are blanked, so its static
         // classes are still read and its backticks cannot pair with another's.
         for (const literal of block[1].matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`]*)`/g)) {
