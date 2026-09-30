@@ -1,5 +1,5 @@
 ---
-updated_at: 2026-09-29
+updated_at: 2026-09-30
 focus_area: Open issue batch on beta (issues #766-#784)
 owner: Copilot CLI implementation owner; repository owner accepts results
 work_branch: beta
@@ -89,3 +89,8 @@ Slice 4 is **reviewed PASS at `1600e4f2`** and the block is cleared. All four
 light theme should be first — its status colours all move in slice 4 and
 nobody has looked at any of it. Then #766, which still needs its own spec.
 No deployment or release is authorized.
+
+**2026-09-30:** Release QC audit of `beta` @ `d4f77459` vs `main` returned PASS
+(no blockers; log `.squad/log/2026-09-30-beta-release-qc-audit.md`). A beta to
+main PR is open for owner review. Merge and release need separate explicit
+owner approval. #766 remains open and needs its own spec.
