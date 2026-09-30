@@ -69,11 +69,13 @@ naming the file and token, and both injections were reverted.
 
 ### 5. Dead responsive variants removed
 
-Eight admin schedule tables carried `text-[0.82rem] md:table-fixed
-md:text-[0.82rem]`. Both legs mapped to `text-chip`, leaving `md:text-chip` as
-a no-op duplicate of its own base. The dead variant was removed from all
-eight, matching how the now-redundant `md:text-2xl` was handled in
-`AdminHealthSection.vue`. Zero visual change.
+Eight admin schedule tables carried `text-[0.8rem] md:table-fixed
+md:text-[0.82rem]` — a real, if tiny, responsive step at baseline. Both legs
+mapped to `text-chip`, at which point `md:text-chip` became a no-op duplicate
+of its own base. The dead variant was then removed from all eight, matching
+how the now-redundant `md:text-2xl` was handled in `AdminHealthSection.vue`.
+The removal itself is zero-change; the underlying `0.82 → 0.8` shift at `md`
+is covered by the imperceptible bucket above.
 
 ### 6. Documentation
 
@@ -178,7 +180,11 @@ So any element that moved onto a default-named step **and does not set
 `body { line-height: 1.6 }`.
 
 45 of the 170 conversions landed on a default-named step; 8 set `leading-*`
-and are unaffected; **37 change**:
+and are unaffected; **37 change**. The counting convention: a conversion is
+excluded when the target token was already present on that line at baseline —
+this drops `AdminHealthSection.vue`'s two stat numerals, which already carried
+`md:text-2xl`. Counting them in gives 47 / 10 / 37; the consequential number
+is 37 either way.
 
 | File | Elements | Conversion | Line-height |
 |---|---|---|---|
@@ -239,9 +245,29 @@ slice 1 budget.
 Go, Python and delivery gates were not run: no file outside `src/web` and
 `docs/` changed.
 
+## Independent review
+
+Reviewer `aurearia-reviewer` (read-only) reviewed `58cbb684` and returned
+**BLOCK** on three findings: the line-height set was declared as 1 element when
+it is 37 (8 of them `form-input` controls that change height); deltas 3 and 4
+were attributed to the wrong components; and the "`text-3xl`/`text-4xl` had no
+prior call sites" claim was unevidenced. All three were repaired, along with
+two non-binding findings, in `f265ff87`.
+
+Re-review bound to **`f265ff87`**: **PASS**, block lifted, findings 1–3
+cleared. Three further non-binding record-hygiene notes were raised (a
+misquoted baseline class string, a stale "Next action", and the counting
+convention behind the 45/8/37 split); all three are corrected in this log.
+
+A PASS is a review verdict only — not owner acceptance, not merge permission,
+and not release authorization.
+
 ## Next action
 
-Owner review of the running app, concentrating on the six individually listed
-size changes and the health-scorecard line-height. Then agree whether #784
-continues into casing/table density or #766 comes next. #766 still needs its
-own spec. No deployment or release is authorized.
+Owner review of the running app. Check the auction lot edit form first: eight
+`form-input` controls there change height because they moved from an inherited
+`1.6` line-height to `text-base`'s `1.5`. Then the individually listed size
+changes — note that the health scorecard has **no** size change, only a
+line-height change. Then agree whether #784 continues into casing/table
+density or #766 comes next. #766 still needs its own spec. No deployment or
+release is authorized.

@@ -22,21 +22,24 @@ standard, with ratchet guards in `design-tokens.test.ts`. See
 [the slice 1 log](../log/20260929T220000Z-784-slice1-ui-primitives.md).
 
 #784 slice 1 is reviewed **PASS**, bound to `af2df567`, after four rounds. #784
-slice 2 is implemented on top of it: the typography scale gained five steps so
-every size in the app is a named token, all 170 arbitrary `text-[Nrem]` uses
-and all 154 raw `text-[var(--…)]` classes are gone, and two zero-tolerance
-guards hold the line. See
+slice 2 is reviewed **PASS**, bound to `f265ff87`: the typography scale gained
+five steps so every size in the app is a named token, all 170 arbitrary
+`text-[Nrem]` uses and all 154 raw `text-[var(--…)]` classes are gone, and two
+zero-tolerance guards hold the line. The review blocked first on an
+under-declared line-height set — 37 elements, 8 of them `form-input` controls
+that change height — and cleared once the record was corrected. See
 [the slice 2 log](../log/20260929T234500Z-784-slice2-typography-colour.md).
 
 ## Next Action
 
-Independent review of slice 2, then owner review of the running app. The slice
-2 log lists six individually noticeable size changes and one line-height
-change; screenshots were waived, so none is visually confirmed. Three carried
-items: `COLOR_BUDGET = 139` still rests on the author's count alone, the
-light-theme status-contrast gap in `docs/design-system.md` section 4 is still
-open, and `text-xs` remains a Tailwind built-in duplicating `text-sm` at
-`0.75rem` across 35 call sites. Then agree whether #784 continues into
-casing and table density, or #766 comes next. #766 still needs its own spec.
-`npm ci` and `npm run build` in `src/web` were owner-authorized and pass. No
-deployment or release is authorized.
+Owner review of the running app for slice 2. Check the auction lot edit form
+first — eight `form-input` controls change height there. Screenshots were
+waived, so nothing is visually confirmed.
+
+Slice 3 (casing rules and a shared data-table header/cell recipe) is in
+progress on this tree. Three carried items remain for slice 4:
+`COLOR_BUDGET = 139` still rests on the author's count alone, the light-theme
+status-contrast gap in `docs/design-system.md` section 4 is still open, and
+`text-xs` remains a Tailwind built-in duplicating `text-sm` at `0.75rem`
+across 35 call sites. Then #766, which still needs its own spec.
+No deployment or release is authorized.
