@@ -54,20 +54,31 @@ Slice 4 (colour tokens, overlays, theme contrast) is implemented, was reviewed
 **BLOCK**, and has been repaired twice; it is awaiting re-review.
 
 The real defect: status text was failing WCAG AA and the guard kept measuring
-the wrong thing. Three versions, three scoping errors, none of them found by
-me — light-theme only, then bare-surface only, then the default palette
-excluded. The last is the substantive one: a badge renders its text on a ~0.15
-alpha `--status-*-bg` fill, so the ratio that matters is against the composite,
-and the bare-surface check was certifying pairs that were really 4.00:1. The
-guard now covers seven theme states, follows `var()` indirection, and
-composites the fill before measuring. Six token values were retuned. Template
-colour literals went 139 to 69, and `COLOR_BUDGET` is a per-file map so a swap
-cannot net to zero. See [the slice 4 log](../log/20260930T040000Z-784-slice4-colour-contrast.md).
+the wrong thing. **Four versions, four scoping errors, none of them found by
+me** — light-theme only, then bare-surface only, then the default palette
+excluded, then a hand-listed set of pairs over two surfaces. Each version
+checked the cases already found instead of deriving them from the source.
+
+Two substantive findings came out of that. A badge renders its text on a ~0.15
+alpha `--status-*-bg` fill, so the ratio that matters is against the composite;
+the bare-surface check was certifying pairs that were really 4.00:1. And status
+text renders on more than the card and the page — a nested table sits on
+`--bg-secondary`, where every tone failed, and confidence pills pair
+`--confidence-*` with a *status* fill, a combination the guard never had.
+
+The guard now **derives its cases**: surfaces from the `--bg-*` tokens in
+`:root` (all five), and fg/fill pairings from the templates that render them,
+including components that build token names dynamically. A status fill paired
+with a non-token colour now fails rather than being silently skipped. Twelve
+token values were retuned. Template colour literals went 139 to 65 — binding
+two badges off raw palette colours removed four and brought them under the
+guard. `COLOR_BUDGET` is a per-file map so a swap cannot net to zero. See
+[the slice 4 log](../log/20260930T040000Z-784-slice4-colour-contrast.md).
 
 The open owner decisions are recorded in
 [the open-issue plans](../../docs/audits/2026-09-29-open-issue-plans.md#g-open-owner-decisions-from-784),
 not only here, because an agent-authored log cannot supply authorization: the
-69-literal palette choice, the outstanding visual pass, the deferred `text-xs`
+65-literal palette choice, the outstanding visual pass, the deferred `text-xs`
 fold, and two known guard gaps.
 
 **The owner's visual pass is now overdue across all four slices**, and the

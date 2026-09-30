@@ -73,7 +73,7 @@ contract did not change.
 These are recorded here rather than only in `.squad/`, because agent-authored
 handoff logs cannot supply owner authorization.
 
-1. **The remaining 69 template colour literals need a palette decision.** They
+1. **The remaining 65 template colour literals need a palette decision.** They
    are not oversights. The app carries near-duplicate values with no single
    winner: greens `#2ecc71` / `#27ae60` / `#229954` / `#4ade80`; reds
    `#e74c3c` / `#f87171` / `#ef4444` / `#c0392b`; ambers `#f39c12` / `#f59e0b`

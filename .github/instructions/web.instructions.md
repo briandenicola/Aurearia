@@ -175,10 +175,14 @@ tones have `--status-*-bg`, `-fg`, `-border` (0.3 alpha) and, for success and
 error, `-tint` (0.1). A guard computes the WCAG ratio from the token values for
 **every** theme state, including bare `:root`, resolving through `var()` and
 through `:root` where a theme does not override. It checks status text both as
-plain text on `--bg-card` / `--bg-primary` and **composited over its own
-`--status-*-bg` fill**, which is how a badge actually renders and is always the
-lower ratio. Adding a theme means checking its status foregrounds, not just its
-backgrounds.
+plain text and **composited over its own `--status-*-bg` fill**, which is how a
+badge actually renders and is always the lower ratio, on **all five** `--bg-*`
+surfaces. It derives its cases rather than listing them: surfaces from the
+`--bg-*` tokens in `:root`, and fg/fill pairings from the templates that render
+them, including components that build tokens dynamically. Pairing a status fill
+with a non-token colour (`text-red-400`, arbitrary `bg-[rgba(...)]`) fails the
+guard — it cannot be themed or measured. Adding a theme means checking its
+status foregrounds, not just its backgrounds.
 
 #### Rules for New UI Components
 

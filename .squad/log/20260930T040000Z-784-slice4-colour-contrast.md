@@ -122,7 +122,7 @@ single winner:
 - purples/blues: `#8b5cf6`, `#8e44ad`, `#6366f1`, `#3b82f6`, `#6496ff`, `#ec4899`
 
 `AuctionLotDetailModal.vue` alone holds 16 and uses a Tailwind-ish palette
-distinct from the rest of the app. `CollectionHealthScorecard.vue` holds 12,
+distinct from the rest of the app. `CollectionHealthScorecard.vue` holds 16,
 most of them grade gradients. Picking which green wins is a design call.
 
 ## Verification
@@ -289,3 +289,96 @@ Three versions of this guard, three scoping errors, each found by someone other
 than me: light-theme only, then bare-surface only, then default-theme excluded.
 The colours were never the hard part. Each time I scoped the check to the case I
 had already found rather than to the shape of the thing being checked.
+
+## Third repair — the guard now derives its cases
+
+The second repair was reviewed **BLOCK** again, correctly. The composite
+arithmetic was right and the reviewer verified all six retunes by hand, but the
+check still *enumerated* its cases: five tone pairs over two surfaces.
+
+### Fourth instance of the same pattern
+
+| # | Guard version | Scope error | Missed |
+|---|---|---|---|
+| 1 | light only | one theme | louvre, modern-greek |
+| 2 | every theme, bare surface | wrong measurement | badges really at 4.00:1 |
+| 3 | no bare `:root` | default palette | default info 4.04:1 |
+| 4 | hand-listed pairs, 2 surfaces | enumerated, not derived | `--bg-secondary`, confidence pills |
+
+`AdminValuationSchedule.vue:99` puts a nested table on `bg-surface-secondary`,
+and that table renders both a `BaseStatusBadge` and three confidence pills that
+pair `--confidence-*` with a *status* fill. Neither the surface nor those
+pairings were in the guard's cross-product.
+
+### The fix: derive, don't list
+
+- **Surfaces** from the `--bg-*` tokens declared in `:root` — all five. No
+  argument about which surfaces host a badge; the extreme ones are covered, so
+  a future placement cannot land somewhere unmeasured.
+- **Pairings** from the templates: each element's class list, each `:class`
+  branch separately, plus dynamic token construction expanded across the tone
+  union (`BaseStatusBadge` builds `var(--status-${props.tone}-fg)`).
+
+A first cut of the extractor was too *loose* — its double-quoted alternative
+swallowed whole `:class` ternaries and merged branches, manufacturing 84
+failures from pairings that do not exist (`--text-muted` on a warning fill,
+etc.). Bounding by element start-tag and per-branch literal brought it to the
+**37 real failures**. A guard that is too loose is as useless as one too narrow;
+it just fails differently.
+
+### Twelve retunes
+
+`:root` (covers every theme that does not override; solved against the worst
+case, louvre on `--bg-input`): `--color-negative` `#fa6e5e`→`#fb8476`,
+`--status-info-fg` `#38a4ed`→`#54b1f0`, `--status-neutral-fg` `#95a5a6`→`#a3b1b2`,
+`--confidence-high` `#69b77f`→`#7abf8d`, `--confidence-low` `#e08d8d`→`#e19090`.
+
+`light`: `--color-negative` `#ad3327`→`#a63125`, `--status-info-fg`
+`#1e6698`→`#1d6292`, `--status-neutral-fg` `#576667`→`#546364`,
+`--confidence-high` `#2f7a4d`→`#296b44`, `--confidence-medium` `#8a6100`→`#835c00`,
+`--text-warning` `#875f00`→`#835c00`, `--color-positive` `#157347`→`#146e44`.
+
+`--status-warning-fg` needed no change: it is `var(--text-warning)`, so fixing
+light's `--text-warning` fixed it. That alias is also why `resolve()` must follow
+indirection **in the theme's own scope** — an aliased token has a different
+value per theme even when only `:root` declares it.
+
+### Literals fell 69 → 65
+
+`CollectionHealthTrendIndicator.vue` and `WishlistPage.vue` rendered status
+badges with `text-red-400` / `text-green-400` and arbitrary `bg-[rgba(...)]`
+fills. Binding them to status tokens removed four literals **and** brought those
+badges under the guard — a colour outside the token system cannot be measured.
+Both files came off the budget list entirely. Pairing a status fill with a
+non-token colour is now an explicit failure.
+
+### Tamper tests (four, each grep-verified then reverted)
+
+1. Revert light `--color-positive` → fails on `--bg-secondary` (4.29) and
+   `--bg-input` (4.49) **only** — precisely the surfaces the previous guard
+   never checked — and names the three source files.
+2. Restore `text-red-400` → fails the non-token pairing check by name.
+3. Revert light `--confidence-high` → fails, reproducing the reviewer's exact
+   **4.16:1** figure on `--bg-primary`, the row the previous failure table had
+   misattributed to the success tone.
+4. Append a duplicate `[data-theme="louvre"]` block → fails; a second block
+   would otherwise silently replace the first and hide every token in it.
+
+### Also closed
+
+Comments are stripped before scoping (a token named in a comment was matchable).
+`contrast()` composites a translucent foreground before measuring — no live
+effect, all foregrounds are opaque hex, but it removes the assumption. The
+`CollectionHealthScorecard` 12-vs-16 discrepancy between this log and the audit
+is reconciled to **16**.
+
+### Gates
+
+Type-check clean; lint clean at `--max-warnings 0`; **1760 passed / 1 skipped**
+across 208 files; build succeeded.
+
+### Still open
+
+The two budget gaps (the `<style scoped>` hex guard is still a single net total;
+`<script>` literals are counted by neither) remain recorded, not closed. The
+visual pass and the 65-literal palette choice remain owner decisions.

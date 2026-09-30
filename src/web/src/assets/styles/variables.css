@@ -99,7 +99,7 @@
 
   /* Gain/loss semantic colors */
   --color-positive: #2ecc71;
-  --color-negative: #fa6e5e;
+  --color-negative: #fb8476;
 
   /* Status badge tones */
   --status-success-bg: rgba(46, 204, 113, 0.15);
@@ -109,9 +109,9 @@
   --status-warning-bg: rgba(241, 196, 15, 0.15);
   --status-warning-fg: var(--text-warning);
   --status-info-bg: rgba(52, 152, 219, 0.15);
-  --status-info-fg: #38a4ed;
+  --status-info-fg: #54b1f0;
   --status-neutral-bg: rgba(149, 165, 166, 0.15);
-  --status-neutral-fg: #95a5a6;
+  --status-neutral-fg: #a3b1b2;
 
   /* Status borders (#784 slice 4). The bg/border pair at 0.15 / 0.3 was
    * already the de facto convention inlined across the app; the 0.3 leg
@@ -134,9 +134,9 @@
   --status-error-tint: rgba(231, 76, 60, 0.1);
 
   /* Confidence indicators */
-  --confidence-high: #69b77f;
+  --confidence-high: #7abf8d;
   --confidence-medium: #f0c261;
-  --confidence-low: #e08d8d;
+  --confidence-low: #e19090;
 
   /* Radius */
   --radius-sm: 8px;
@@ -186,13 +186,13 @@
    * against both --bg-card (#ffffff) and --bg-primary (#f5f0e8). The ratios
    * are asserted by a test in design-tokens.test.ts, so they cannot drift.
    */
-  --color-positive: #157347;
-  --color-negative: #ad3327;
-  --text-warning: #875f00;
-  --status-info-fg: #1e6698;
-  --status-neutral-fg: #576667;
-  --confidence-high: #2f7a4d;
-  --confidence-medium: #8a6100;
+  --color-positive: #146e44;
+  --color-negative: #a63125;
+  --text-warning: #835c00;
+  --status-info-fg: #1d6292;
+  --status-neutral-fg: #546364;
+  --confidence-high: #296b44;
+  --confidence-medium: #835c00;
   --confidence-low: #a32316;
 }
 

@@ -164,23 +164,42 @@ subtle row highlights.
 
 The `:root` values are tuned for the dark themes. The light theme overrides all
 eight status foregrounds, because the dark-theme values fail WCAG AA on a white
-card — `--color-positive` measured 2.10:1 and `--text-warning` 1.63:1. The
-overrides clear 4.5:1 against **both** `--bg-card` (`#ffffff`) and
-`--bg-primary` (`#f5f0e8`), since status text appears on both.
+card — `--color-positive` measured 2.10:1 and `--text-warning` 1.63:1. Every
+foreground clears 4.5:1 on **all five** surface tokens, not just the card and
+the page.
 
 A guard in `design-tokens.test.ts` computes the WCAG ratio from the token values
 rather than asserting a number by hand, so it keeps holding if a value changes.
 It covers **seven theme states** — the six `[data-theme]` blocks and bare
-`:root`, which is the default palette — resolves each token through `:root` and
-through `var()` indirection, and checks both surfaces.
+`:root`, which is the default palette — and resolves each token through `:root`
+and through `var()` indirection, in the theme's own scope, because an alias like
+`--status-warning-fg: var(--text-warning)` resolves differently per theme.
 
 Critically, it measures badge text **composited over its own `--status-*-bg`
 fill**, not against the bare surface. A badge renders its text on a ~0.15 alpha
 fill, which shifts the surface toward the foreground's hue and always reduces
 contrast. Measuring the bare surface certified pairs that were really 4.00:1.
 
-If you add a theme, its status foregrounds are checked automatically. If you
-retune a `--status-*-bg` fill, the composited ratios move — that is intended.
+The guard **derives its cases instead of listing them**, which is the part that
+matters when you add UI:
+
+- **Surfaces** come from the `--bg-*` tokens declared in `:root`, so all five
+  are covered. `--bg-secondary` and `--bg-input` are the extreme surfaces in
+  most themes; an earlier version checked only `--bg-card` and `--bg-primary`
+  and missed a nested table on `--bg-secondary` where every tone failed.
+- **Pairings** come from the templates. The guard reads each element's class
+  list — and each branch of a `:class` binding separately — and pairs a
+  `bg-status-*-bg` fill with whatever `text-*` colour sits on the same element.
+  It also expands a component that builds its tokens dynamically, such as
+  `BaseStatusBadge`, across its declared tone union.
+
+So a status fill paired with a **non-token colour** (`text-red-400`, or an
+arbitrary `bg-[rgba(...)]`) is a **failure**, not an omission: a colour outside
+the token system cannot be themed and cannot be measured. Use the status tokens.
+
+If you add a theme, a surface token, or a badge on a new surface, it is checked
+automatically. If you retune a `--status-*-bg` fill, the composited ratios move
+— that is intended.
 
 ### Overlays
 

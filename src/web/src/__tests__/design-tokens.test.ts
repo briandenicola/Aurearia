@@ -299,6 +299,12 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       // otherwise refuses, and it half-bound a gradient to status semantics.
       // Reverting it is correct and costs 8 literals.
       //
+      // Two entries came *off* the list entirely: CollectionHealthTrendIndicator
+      // and WishlistPage rendered status badges with raw palette colours and
+      // arbitrary rgba() fills. Binding them to the status tokens both removed
+      // four literals and brought those badges under the contrast guard, which
+      // cannot measure a colour that is not in the token system.
+      //
       // Known gap, not closed here: the separate hex guard covering
       // `<style scoped>` blocks is still a single net total, and a literal
       // moved into `<script>` is counted by neither guard.
@@ -310,10 +316,8 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
         ['pages/NotificationsPage.vue', 3],
         ['components/AuctionLotCard.vue', 2],
         ['components/admin/AdminHealthSection.vue', 2],
-        ['components/stats/CollectionHealthTrendIndicator.vue', 2],
         ['components/wishlist-alerts/AlertCriteriaSummary.vue', 2],
         ['pages/CoinLookupPage.vue', 2],
-        ['pages/WishlistPage.vue', 2],
         ['components/HelpSection.vue', 1],
         ['components/admin/schedules/AdminValuationSchedule.vue', 1],
         ['pages/FollowerCoinDetailPage.vue', 1],
@@ -572,20 +576,30 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       expect(main).toContain('.btn-primary')
     })
   })
-  describe('every theme meets WCAG AA for status text', () => {
-    // This guard has been wrong twice, in the same way both times: scoped to
-    // the case already found rather than to the shape of the problem.
+  describe('status text meets WCAG AA wherever it renders', () => {
+    // This guard has now been wrong four times, in the same way every time:
+    // it enumerated the cases already found instead of deriving them.
     //
-    // First it checked only `[data-theme="light"]`, and missed --color-negative
-    // failing on `louvre` and `modern-greek`. Then, checking every theme, it
-    // still measured foregrounds against the *bare* surface — but a status
-    // badge renders its text on --status-{tone}-bg, a translucent fill, over
-    // that surface. The ratio a user sees is against the composite. Measuring
-    // the bare surface certified pairs that were really 4.00:1.
+    //   1. Checked only [data-theme="light"]      -> missed louvre, modern-greek.
+    //   2. Checked every theme, but measured the  -> certified badges that were
+    //      foreground on the *bare* surface          really 4.00:1.
+    //   3. Skipped the default palette (bare      -> missed default info at 4.04.
+    //      :root carries no data-theme attribute)
+    //   4. Hand-listed the fg/fill pairs and two  -> missed --bg-secondary, where
+    //      surfaces                                  every tone failed, and missed
+    //                                                the confidence-on-fill pills.
     //
-    // So: every theme including the default, both surfaces status text lands
-    // on, and the alpha fill composited before measuring.
-    const variables = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
+    // So this version derives its cases from the source rather than listing
+    // them: surfaces come from the --bg-* tokens declared in :root, and the
+    // fg/fill pairings come from the templates that actually render them.
+    // Adding a badge on a new surface, or a new fg/fill combination, extends
+    // this guard automatically instead of silently escaping it.
+    // Comments are stripped before scoping: variables.css now carries several
+    // multi-line notes that name tokens, and a token written inside a comment
+    // would otherwise be read as a declaration.
+    const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const variables = stripComments(readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8'))
+    const main = stripComments(readFileSync(join(STYLES_DIR, 'main.css'), 'utf-8'))
 
     const rootScope = /:root\s*\{([\s\S]*?)\n\}/.exec(variables)?.[1] ?? ''
     // The default palette lives in bare `:root` with no data-theme attribute.
@@ -593,6 +607,9 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     // the fallback scope.
     const themes = new Map<string, string>([['default', rootScope]])
     for (const match of variables.matchAll(/\[data-theme="([a-z-]+)"\]\s*\{([\s\S]*?)\n\}/g)) {
+      // A second block for the same theme would silently replace the first and
+      // hide every token in it, so refuse rather than overwrite.
+      expect(themes.has(match[1]), `variables.css declares [data-theme="${match[1]}"] more than once`).toBe(false)
       themes.set(match[1], match[2])
     }
 
@@ -600,14 +617,14 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       return new RegExp(`--${name}:\\s*([^;]+);`).exec(scope)?.[1].trim()
     }
 
-    // Follows var() indirection, because --status-error-fg is declared as
-    // var(--color-negative). Reading the literal text would make every such
-    // token unresolvable, and an earlier version treated a non-hex override
-    // as "no override at all" and silently measured :root's value instead.
+    // Follows var() indirection *in the theme's own scope*, because tokens
+    // alias each other: --status-error-fg is var(--color-negative), and
+    // --status-warning-fg is var(--text-warning). An alias therefore resolves
+    // to a different value per theme even when only :root declares it.
     function resolve(scope: string, name: string, depth = 0): string | undefined {
       const value = declaration(scope, name) ?? declaration(rootScope, name)
       if (!value) return undefined
-      const indirect = /^var\(--([a-z-]+)\)$/.exec(value)
+      const indirect = /^var\(--([a-z0-9-]+)\)$/.exec(value)
       if (indirect && depth < 5) return resolve(scope, indirect[1], depth + 1)
       return value
     }
@@ -615,7 +632,7 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     type Rgba = { rgb: [number, number, number]; alpha: number }
 
     function parseColor(value: string): Rgba | undefined {
-      if (value.startsWith('#') && /^#[0-9a-fA-F]{6}$/.test(value)) {
+      if (/^#[0-9a-fA-F]{6}$/.test(value)) {
         const hex = value.slice(1)
         return { rgb: [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number], alpha: 1 }
       }
@@ -638,13 +655,92 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
     }
 
+    // `a` is composited over `b` first: a translucent foreground measured as
+    // if it were opaque would be reported as higher contrast than it renders.
+    // Every foreground is currently an opaque hex, so this is a guard against
+    // a future rgba() foreground rather than a live correction.
     function contrast(a: Rgba, b: Rgba): number {
-      const [lighter, darker] = [relativeLuminance(a.rgb), relativeLuminance(b.rgb)].sort((x, y) => y - x)
+      const front = a.alpha < 1 ? composite(a, b) : a
+      const [lighter, darker] = [relativeLuminance(front.rgb), relativeLuminance(b.rgb)].sort((x, y) => y - x)
       return (lighter + 0.05) / (darker + 0.05)
     }
 
-    const TONES = ['success', 'error', 'warning', 'info', 'neutral']
+    // Tailwind utility -> variables.css token, read from main.css's @theme
+    // inline block, so `text-loss` is known to mean --color-negative.
+    const themeInline = /@theme inline\s*\{([\s\S]*?)\n\}/.exec(main)?.[1] ?? ''
+    const utilityToken = new Map<string, string>()
+    for (const match of themeInline.matchAll(/--color-([a-z0-9-]+):\s*var\(--([a-z0-9-]+)\);/g)) {
+      utilityToken.set(match[1], match[2])
+    }
+
+    // Every surface a fill can sit on, derived from :root's --bg-* tokens.
+    // All of them are required rather than arguing about which ones host a
+    // badge: --bg-input and --bg-secondary are the extreme surfaces in most
+    // themes, so clearing them clears the rest, and no future placement can
+    // land somewhere unmeasured.
+    const SURFACES = [...rootScope.matchAll(/--(bg-[a-z-]+):/g)].map((m) => m[1])
+    const AA = 4.5
+
+    // Tailwind text-* utilities that set size or alignment, not colour.
+    const NON_COLOUR_TEXT =
+      /^(xs|sm|base|lg|xl|[2-9]xl|left|right|center|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty|body|chip|label|micro|display|heading)$/
+
+    type Pairing = { fg: string; fill: string; sources: Set<string> }
+    const pairings = new Map<string, Pairing>()
+    const nonToken: string[] = []
+
+    function addPairing(fg: string, fill: string, source: string): void {
+      const key = `${fg}|${fill}`
+      if (!pairings.has(key)) pairings.set(key, { fg, fill, sources: new Set() })
+      pairings.get(key)!.sources.add(source)
+    }
+
+    // A pairing only exists when the fill and the text colour sit in the same
+    // class list on the same element, so scan bounded by element start-tag and
+    // treat each quoted literal inside a :class binding as its own branch.
+    function classChunks(tag: string): string[] {
+      const chunks: string[] = []
+      const staticClass = /(?:^|\s)class="([^"]*)"/.exec(tag)
+      if (staticClass) chunks.push(staticClass[1])
+      const bound = /(?::class|v-bind:class)="([\s\S]*?)"/.exec(tag)
+      if (bound) for (const literal of bound[1].matchAll(/'([^']*)'/g)) chunks.push(literal[1])
+      return chunks
+    }
+
+    for (const file of collectVueFiles(SRC_DIR)) {
+      const text = readFileSync(file, 'utf-8')
+      const rel = relative(SRC_DIR, file).split(sep).join('/')
+      for (const tag of text.matchAll(/<[a-zA-Z][^>]*>/g)) {
+        for (const chunk of classChunks(tag[0])) {
+          const fill = /(?:^|[\s:])bg-(status-[a-z]+-bg)(?![a-z0-9-])/.exec(chunk)?.[1]
+          if (!fill) continue
+          for (const utility of chunk.matchAll(/(?:^|[\s:])text-([a-z0-9-]+)/g)) {
+            const name = utility[1]
+            if (NON_COLOUR_TEXT.test(name)) continue
+            const token = utilityToken.get(name)
+            if (!token) {
+              nonToken.push(`${rel}: text-${name} on bg-${fill}`)
+              continue
+            }
+            addPairing(token, fill, rel)
+          }
+        }
+      }
+      // Components may build the token names dynamically, e.g. BaseStatusBadge:
+      //   backgroundColor: `var(--status-${props.tone}-bg)`
+      //   color:           `var(--status-${props.tone}-fg)`
+      // A literal regex cannot see those, so expand across the tone union
+      // declared in the same file.
+      if (/var\(--status-\$\{[^}]+\}-bg\)/.test(text) && /var\(--status-\$\{[^}]+\}-fg\)/.test(text)) {
+        const union = /StatusTone\s*=\s*([^\n]+)/.exec(text)?.[1] ?? ''
+        const tones = [...union.matchAll(/'([a-z]+)'/g)].map((m) => m[1])
+        expect(tones.length, `${rel} builds status tokens dynamically but declares no tone union`).toBeGreaterThan(0)
+        for (const tone of tones) addPairing(`status-${tone}-fg`, `status-${tone}-bg`, rel)
+      }
+    }
+
     // The tokens components consume, not the source tokens they alias to.
+    const TONES = ['success', 'error', 'warning', 'info', 'neutral']
     const BARE_TEXT = [
       'color-positive',
       'color-negative',
@@ -654,8 +750,6 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       'confidence-low',
       ...TONES.map((tone) => `status-${tone}-fg`),
     ]
-    const SURFACES = ['bg-card', 'bg-primary']
-    const AA = 4.5
 
     function required(theme: string, scope: string, name: string): Rgba {
       const value = resolve(scope, name)
@@ -665,8 +759,11 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       return parsed!
     }
 
-    it('resolves every status token in every theme', () => {
+    it('derives its cases from the stylesheets and the templates', () => {
       expect(themes.size, 'no theme scopes were parsed out of variables.css').toBeGreaterThan(1)
+      expect(SURFACES.length, 'no --bg-* surface tokens were parsed out of :root').toBeGreaterThan(1)
+      expect(utilityToken.size, 'no colour utilities were parsed out of main.css @theme inline').toBeGreaterThan(1)
+      expect(pairings.size, 'no status fg/fill pairings were found in any template').toBeGreaterThan(1)
       for (const [theme, scope] of themes) {
         for (const name of [...BARE_TEXT, ...SURFACES, ...TONES.map((t) => `status-${t}-bg`)]) {
           required(theme, scope, name)
@@ -674,37 +771,46 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       }
     })
 
-    it('clears 4.5:1 as plain text on the card and the page', () => {
+    it('pairs status fills only with colours from the token system', () => {
+      // A raw palette colour (text-red-400) or an arbitrary value on a status
+      // fill cannot be themed and cannot be measured here, so it is a failure
+      // rather than a silent omission.
+      expect(
+        nonToken,
+        `Status fills must be paired with token colours:\n  ${nonToken.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('clears 4.5:1 as plain text on every surface', () => {
       const failures: string[] = []
       for (const [theme, scope] of themes) {
         for (const surface of SURFACES) {
           const under = required(theme, scope, surface)
           for (const name of BARE_TEXT) {
             const ratio = contrast(required(theme, scope, name), under)
-            if (ratio < AA) {
-              failures.push(`${theme}: --${name} on --${surface} is ${ratio.toFixed(2)}:1`)
-            }
+            if (ratio < AA) failures.push(`${theme}: --${name} on --${surface} is ${ratio.toFixed(2)}:1`)
           }
         }
       }
       expect(failures, `Status text must reach WCAG AA (4.5:1):\n  ${failures.join('\n  ')}`).toEqual([])
     })
 
-    it('clears 4.5:1 as badge text on the translucent status fill', () => {
-      // BaseStatusBadge pairs --status-{tone}-fg with --status-{tone}-bg, which
-      // is ~0.15 alpha. The fill shifts the surface toward the foreground's own
-      // hue, so it always *reduces* contrast — which is why measuring the bare
-      // surface was not conservative, it was simply the wrong measurement.
+    it('clears 4.5:1 composited on the translucent fill, on every surface', () => {
+      // Status text renders on --status-{tone}-bg, a ~0.15 alpha fill, over
+      // the surface. The fill shifts the surface toward the foreground's own
+      // hue, so it always *reduces* contrast — measuring the bare surface was
+      // not conservative, it was simply the wrong measurement.
       const failures: string[] = []
       for (const [theme, scope] of themes) {
         for (const surface of SURFACES) {
           const under = required(theme, scope, surface)
-          for (const tone of TONES) {
-            const fill = composite(required(theme, scope, `status-${tone}-bg`), under)
-            const ratio = contrast(required(theme, scope, `status-${tone}-fg`), fill)
+          for (const { fg, fill, sources } of pairings.values()) {
+            const composited = composite(required(theme, scope, fill), under)
+            const ratio = contrast(required(theme, scope, fg), composited)
             if (ratio < AA) {
               failures.push(
-                `${theme}: --status-${tone}-fg on --status-${tone}-bg over --${surface} is ${ratio.toFixed(2)}:1`
+                `${theme}: --${fg} on --${fill} over --${surface} is ${ratio.toFixed(2)}:1` +
+                  ` [${[...sources].join(', ')}]`
               )
             }
           }
@@ -712,7 +818,7 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       }
       expect(
         failures,
-        `Badge text must reach WCAG AA (4.5:1) against the composited fill:\n  ${failures.join('\n  ')}`
+        `Status text must reach WCAG AA (4.5:1) against the composited fill:\n  ${failures.join('\n  ')}`
       ).toEqual([])
     })
   })

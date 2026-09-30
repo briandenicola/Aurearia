@@ -86,13 +86,13 @@
       v-if="checkResult"
       class="mb-4 flex flex-wrap items-center gap-4 rounded-md border border-border-subtle bg-card px-4 py-3 text-body"
     >
-      <span class="inline-flex rounded-full bg-[rgba(74,222,128,0.15)] px-2.5 py-1 text-chip font-semibold text-green-400">
+      <span class="inline-flex rounded-full bg-status-success-bg px-2.5 py-1 text-chip font-semibold text-status-success-fg">
         {{ checkResult.available }} available
       </span>
-      <span class="inline-flex rounded-full bg-[rgba(248,113,113,0.15)] px-2.5 py-1 text-chip font-semibold text-red-400">
+      <span class="inline-flex rounded-full bg-status-error-bg px-2.5 py-1 text-chip font-semibold text-status-error-fg">
         {{ checkResult.unavailable }} unavailable
       </span>
-      <span class="inline-flex rounded-full bg-status-warning-bg px-2.5 py-1 text-chip font-semibold text-warning">
+      <span class="inline-flex rounded-full bg-status-warning-bg px-2.5 py-1 text-chip font-semibold text-status-warning-fg">
         {{ checkResult.unknown }} unknown
       </span>
       <span class="ml-auto text-text-muted">{{ checkResult.coinsChecked }} checked</span>
