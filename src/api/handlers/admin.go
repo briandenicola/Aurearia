@@ -283,7 +283,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 				respondError(c, http.StatusBadRequest, "Invalid search source setting: "+s.Key, err)
 				return
 			}
-			if s.Key == services.SettingCoinOfDayTimezone {
+			if services.IsTimezoneSetting(s.Key) {
 				respondError(c, http.StatusBadRequest, "Invalid time zone setting: "+s.Key, err)
 				return
 			}

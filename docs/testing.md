@@ -132,7 +132,7 @@ environment; select every affected layer rather than claiming unrelated skips.
 
 | Completion target | Commands / effect |
 |-------------------|-------------------|
-| `task check:go` | `go build ./...`, `go vet ./...`, `go test -v ./...` in `src/api` |
+| `task check:go` | `go build ./...`, `go vet ./...`, `gofmt -l .` via `scripts/delivery/gofmt-check.mjs` (local toolchain's gofmt; fails on any unformatted file, including generated `docs/`), `go test -v ./...` in `src/api` |
 | `task check:web` | `npm run lint`, `npm run type-check`, full `npm run test`, `npm run build` in `src/web` |
 | `task check:agent` | Require prepared `.venv`, verify lock AND environment with `uv sync --locked --check --offline --extra dev`, then `uv run --no-sync --offline` Ruff and full pytest; Python downloads disabled |
 | `task check:openapi` | Run the pinned installed generator, sync version and snapshots, fail on generated tracked-file drift; **writes files** |

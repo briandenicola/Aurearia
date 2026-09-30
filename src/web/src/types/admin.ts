@@ -28,6 +28,7 @@ export interface AppSettings extends Partial<NumistaSettings> {
   DeepIdentificationOCREEnabled?: string
   DeepIdentificationOCRECallBudget?: string
   CoinCopilotEnabled?: string
+  CoinCopilotAttributionEnabled?: string
   CoinCopilotWorkerCount?: string
   CoinCopilotMaxActivePerUser?: string
   CoinCopilotQueueDepth?: string
@@ -38,6 +39,7 @@ export interface AppSettings extends Partial<NumistaSettings> {
   CoinCopilotEventRetentionHours?: string
   CoinCopilotCheckpointRetentionDays?: string
   CoinCopilotResumeWindowHours?: string
+  ScheduleTimezone?: string
   [key: string]: string | undefined
 }
 

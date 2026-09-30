@@ -24,7 +24,7 @@
 
     <div
       v-else-if="loadError"
-      class="flex items-start gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-[var(--color-negative)]"
+      class="flex items-start gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-loss"
       role="alert"
     >
       <AlertCircle :size="18" />
@@ -70,13 +70,13 @@
             v-if="testResults[provider.id]"
             class="flex items-start gap-2 rounded-sm border p-[0.8rem] text-body"
             :class="testResults[provider.id]?.available
-              ? 'border-[var(--color-positive)] bg-[color-mix(in_srgb,var(--color-positive)_14%,transparent)] text-[var(--color-positive)]'
-              : 'border-[var(--color-negative)] bg-[color-mix(in_srgb,var(--color-negative)_14%,transparent)] text-[var(--color-negative)]'"
+              ? 'border-[var(--color-positive)] bg-[color-mix(in_srgb,var(--color-positive)_14%,transparent)] text-gain'
+              : 'border-[var(--color-negative)] bg-[color-mix(in_srgb,var(--color-negative)_14%,transparent)] text-loss'"
           >
             <CheckCircle v-if="testResults[provider.id]?.available" :size="16" />
             <AlertCircle v-else :size="16" />
             <div>
-              <strong :class="testResults[provider.id]?.available ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
+              <strong :class="testResults[provider.id]?.available ? 'text-gain' : 'text-loss'">
                 {{ testResults[provider.id]?.available ? 'Discovery succeeded' : 'Discovery failed' }}
               </strong>
               <p class="mt-[0.15rem] text-text-secondary">{{ testResults[provider.id]?.message }}</p>
@@ -106,7 +106,7 @@
       </div>
     </template>
 
-    <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="closeForm">
+    <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-overlay-60 p-4" @click.self="closeForm">
       <div class="max-h-[90vh] w-full max-w-[760px] overflow-auto rounded-md border border-border-subtle bg-card shadow-[var(--shadow-card)]">
         <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
           <h3 class="m-0 text-lg font-medium text-heading">{{ editingProvider ? 'Edit OIDC Provider' : 'Add OIDC Provider' }}</h3>
@@ -161,10 +161,11 @@
                 <label class="form-label" for="oidc-enabled">Enabled</label>
                 <span class="mt-1 block text-sm text-text-muted">Only enabled providers appear on the login page.</span>
               </div>
-              <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
-                <input id="oidc-enabled" v-model="form.enabled" type="checkbox" class="peer sr-only" />
-                <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-              </label>
+              <BaseToggle
+                id="oidc-enabled"
+                v-model="form.enabled"
+                label="Enabled"
+              />
             </div>
           </div>
 
@@ -259,15 +260,16 @@
               <label class="form-label" for="oidc-verified-email">Require Verified Email</label>
               <span class="mt-1 block text-sm text-text-muted">Recommended for matching account emails safely.</span>
             </div>
-            <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
-              <input id="oidc-verified-email" v-model="form.requireVerifiedEmail" type="checkbox" class="peer sr-only" />
-              <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-            </label>
+            <BaseToggle
+              id="oidc-verified-email"
+              v-model="form.requireVerifiedEmail"
+              label="Require Verified Email"
+            />
           </div>
 
           <div
             v-if="formError"
-            class="mb-4 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-body text-[var(--color-negative)]"
+            class="mb-4 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-body text-loss"
             role="alert"
           >
             <div class="flex items-center gap-2">
@@ -289,6 +291,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AlertCircle, CheckCircle, X } from 'lucide-vue-next'

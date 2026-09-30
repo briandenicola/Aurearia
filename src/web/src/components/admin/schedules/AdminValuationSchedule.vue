@@ -6,14 +6,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Scheduled Valuation</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.ValuationCheckEnabled === 'true'"
-          @change="settings.ValuationCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Scheduled Valuation"
+        :model-value="settings.ValuationCheckEnabled === 'true'"
+        @update:model-value="settings.ValuationCheckEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily anchor)</label>
@@ -34,6 +32,7 @@
         step="1"
       />
       <span class="form-hint">How often to run (e.g. 7 = weekly). AI valuations are costly so daily runs are not recommended.</span>
+      <AdminScheduleSummary :start-time="settings.ValuationCheckStartTime" default-start-time="03:00" :interval-days="settings.ValuationCheckInterval" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="form-group">
       <label class="form-label">Max Coins Per Run</label>
@@ -50,7 +49,7 @@
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
         {{ settingsSaving ? 'Saving...' : 'Save Valuation Settings' }}
       </button>
-      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-[var(--color-negative)]' : ''">{{ settingsMsg }}</span>
+      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-loss' : ''">{{ settingsMsg }}</span>
       <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="triggerLoading" @click="triggerManualValuation()">
         {{ triggerLoading ? 'Starting...' : 'Run Now' }}
       </button>
@@ -64,7 +63,7 @@
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No valuation runs recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -83,23 +82,23 @@
               <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
               <td class="hidden md:table-cell">{{ run.triggerType }}</td>
               <td>
-                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'running' ? 'bg-[rgba(52,152,219,0.15)] text-[#3498db]' : run.status === 'completed' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : run.status === 'failed' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(243,156,18,0.15)] text-[#f39c12]'">{{ run.status }}</span>
+                <BaseStatusBadge :tone="run.status === 'running' ? 'info' : run.status === 'completed' ? 'success' : run.status === 'failed' ? 'error' : 'warning'">{{ run.status }}</BaseStatusBadge>
                 <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
                   {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
                 </span>
-                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-[0.65rem] text-[var(--color-negative)] transition-colors hover:bg-[rgba(231,76,60,0.15)]" @click.stop="cancelRun(run.id)">Cancel</button>
+                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-micro text-loss transition-colors hover:bg-status-error-bg" @click.stop="cancelRun(run.id)">Cancel</button>
               </td>
               <td>{{ run.coinsChecked }}</td>
-              <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.coinsUpdated }}</td>
+              <td class="hidden font-semibold text-gain md:table-cell">{{ run.coinsUpdated }}</td>
               <td class="hidden font-semibold text-warning md:table-cell">{{ run.coinsSkipped }}</td>
-              <td class="hidden font-semibold text-[var(--color-negative)] md:table-cell">{{ run.errors }}</td>
+              <td class="hidden font-semibold text-loss md:table-cell">{{ run.errors }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
             <tr v-if="expandedRunId === run.id && expandedResults" class="bg-surface-secondary">
               <td :colspan="colspan">
                 <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
                 <div v-else-if="expandedResults.length" class="overflow-x-auto">
-                  <table class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                  <table class="data-table text-chip md:table-fixed [&_th]:px-2 [&_th]:py-[0.4rem] [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                     <thead>
                       <tr>
                         <th>Coin</th>
@@ -116,11 +115,11 @@
                         <td>{{ result.previousValue != null ? `$${result.previousValue.toFixed(2)}` : '--' }}</td>
                         <td class="font-semibold text-gold">{{ result.estimatedValue > 0 ? `$${result.estimatedValue.toFixed(2)}` : '--' }}</td>
                         <td>
-                          <span v-if="result.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="result.confidence === 'high' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--confidence-high)]' : result.confidence === 'medium' ? 'bg-[rgba(241,196,15,0.15)] text-[var(--confidence-medium)]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--confidence-low)]'">{{ result.confidence }}</span>
+                          <span v-if="result.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="result.confidence === 'high' ? 'bg-status-success-bg text-confidence-high' : result.confidence === 'medium' ? 'bg-status-warning-bg text-confidence-medium' : 'bg-status-error-bg text-confidence-low'">{{ result.confidence }}</span>
                           <span v-else>--</span>
                         </td>
                         <td>
-                          <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'skipped' ? 'bg-[rgba(149,165,166,0.15)] text-[#95a5a6]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]'">{{ result.status }}</span>
+                          <BaseStatusBadge :tone="result.status === 'success' ? 'success' : result.status === 'skipped' ? 'neutral' : 'error'">{{ result.status }}</BaseStatusBadge>
                         </td>
                         <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
                           <div v-if="result.changeExplanation" class="mb-[0.35rem] font-medium text-gold">{{ result.changeExplanation }}</div>
@@ -140,13 +139,15 @@
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="prevPage()">Prev</button>
-      <span class="text-[0.82rem] text-text-secondary">Page {{ page }}</span>
+      <span class="text-chip text-text-secondary">Page {{ page }}</span>
       <button class="btn btn-secondary btn-sm" :disabled="runs.length < 5" @click="nextPage()">Next</button>
     </div>
   </template>
 </template>
 
 <script setup lang="ts">
+import { BaseStatusBadge, BaseToggle } from '@/components/ui'
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { cancelValuationRun, getValuationRunDetail, getValuationRuns, triggerValuation } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'

@@ -75,13 +75,13 @@
       </div>
       <div
         v-else-if="nbValidationError"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-loss"
       >
         {{ nbValidationError }}
       </div>
       <div
         v-else-if="auth.user?.numisBidsConfigured"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         NumisBids account connected
       </div>
@@ -107,13 +107,13 @@
       </div>
       <div
         v-else-if="cngValidationError"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-loss"
       >
         {{ cngValidationError }}
       </div>
       <div
         v-else-if="auth.user?.cngConfigured"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         CNG account connected
       </div>
@@ -129,7 +129,7 @@
       </div>
       <div
         v-if="auth.user?.parcelAppConfigured"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         ParcelApp key connected
       </div>
@@ -145,7 +145,7 @@
       </div>
       <div
         v-if="auth.user?.pushoverEnabled"
-        class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         Pushover notifications active
       </div>
@@ -159,7 +159,7 @@
       <p
         v-if="pushoverTestMsg"
         class="mt-1 text-body text-gold"
-        :class="{ 'text-[var(--color-negative)]': pushoverTestError }"
+        :class="{ 'text-loss': pushoverTestError }"
       >
         {{ pushoverTestMsg }}
       </p>
@@ -169,48 +169,42 @@
         <span class="text-base font-medium">Public Collection</span>
         <span class="text-sm text-text-muted">Allow other users to follow you and view your coins</span>
       </div>
-      <label class="relative inline-block h-7 w-[50px] shrink-0">
-        <input type="checkbox" class="peer sr-only" :checked="profilePublic" @change="onPublicToggle" />
-        <span
-          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
-        ></span>
-      </label>
+      <BaseToggle
+        label="Public Collection"
+        :model-value="profilePublic"
+        @change="onPublicToggle"
+      />
     </div>
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-base font-medium">Coin of the Day</span>
         <span class="text-sm text-text-muted">Receive a daily featured coin notification from your collection</span>
       </div>
-      <label class="relative inline-block h-7 w-[50px] shrink-0">
-        <input v-model="coinOfDayEnabled" type="checkbox" class="peer sr-only" />
-        <span
-          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
-        ></span>
-      </label>
+      <BaseToggle
+        label="Coin of the Day"
+        v-model="coinOfDayEnabled"
+      />
     </div>
     <div v-if="coinOfDayEnabled" class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-sm font-medium">Include wishlist items</span>
         <span class="text-xs text-text-muted">Coin of the Day may also feature coins from your wishlist, not just owned coins</span>
       </div>
-      <label class="relative inline-block h-6 w-[44px] shrink-0">
-        <input v-model="coinOfDayIncludeWishlist" type="checkbox" class="peer sr-only" />
-        <span
-          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
-        ></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Include wishlist items"
+        v-model="coinOfDayIncludeWishlist"
+      />
     </div>
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-base font-medium">Emperor Tracker</span>
         <span class="text-sm text-text-muted">Track your collection's progress toward every Roman Emperor, under Stats</span>
       </div>
-      <label class="relative inline-block h-7 w-[50px] shrink-0">
-        <input v-model="emperorTrackerEnabled" type="checkbox" class="peer sr-only" />
-        <span
-          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
-        ></span>
-      </label>
+      <BaseToggle
+        label="Emperor Tracker"
+        v-model="emperorTrackerEnabled"
+      />
     </div>
     <template v-if="emperorTrackerEnabled">
       <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
@@ -218,36 +212,33 @@
           <span class="text-sm font-medium">Also track usurpers</span>
           <span class="text-xs text-text-muted">Track completion of coins from usurpers/pretenders, as a separate goal</span>
         </div>
-        <label class="relative inline-block h-6 w-[44px] shrink-0">
-          <input v-model="emperorTrackerShowUsurpers" type="checkbox" class="peer sr-only" />
-          <span
-            class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
-          ></span>
-        </label>
+        <BaseToggle
+          size="sm"
+          label="Also track usurpers"
+          v-model="emperorTrackerShowUsurpers"
+        />
       </div>
       <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
         <div class="flex flex-col gap-[0.15rem]">
           <span class="text-sm font-medium">Also track empresses</span>
           <span class="text-xs text-text-muted">Track completion of coins from empresses, as a separate goal</span>
         </div>
-        <label class="relative inline-block h-6 w-[44px] shrink-0">
-          <input v-model="emperorTrackerShowEmpresses" type="checkbox" class="peer sr-only" />
-          <span
-            class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
-          ></span>
-        </label>
+        <BaseToggle
+          size="sm"
+          label="Also track empresses"
+          v-model="emperorTrackerShowEmpresses"
+        />
       </div>
       <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
         <div class="flex flex-col gap-[0.15rem]">
           <span class="text-sm font-medium">Also track other figures</span>
           <span class="text-xs text-text-muted">Track completion of Caesars who never acceded and other precursor figures, as a separate goal</span>
         </div>
-        <label class="relative inline-block h-6 w-[44px] shrink-0">
-          <input v-model="emperorTrackerShowOtherFigures" type="checkbox" class="peer sr-only" />
-          <span
-            class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
-          ></span>
-        </label>
+        <BaseToggle
+          size="sm"
+          label="Also track other figures"
+          v-model="emperorTrackerShowOtherFigures"
+        />
       </div>
     </template>
 
@@ -258,7 +249,7 @@
     >
       {{ saveLabel }}
     </button>
-    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': profileError }">{{ profileMsg }}</p>
+    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-loss': profileError }">{{ profileMsg }}</p>
 
     <!-- Privacy Warning Modal -->
     <Teleport to="body">
@@ -300,7 +291,7 @@
         <label class="form-label">Confirm New Password</label>
         <input v-model="confirmPassword" type="password" class="form-input" required />
       </div>
-      <p v-if="passwordMsg" class="my-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': passwordError }">{{ passwordMsg }}</p>
+      <p v-if="passwordMsg" class="my-2 text-body text-gold" :class="{ 'text-loss': passwordError }">{{ passwordMsg }}</p>
       <button
         type="submit"
         class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
@@ -315,7 +306,7 @@
       Link an external provider after signing in locally. This avoids unsafe automatic account merges.
     </p>
 
-    <div v-if="oidcMsg" class="my-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': oidcError }" role="status">
+    <div v-if="oidcMsg" class="my-2 text-body text-gold" :class="{ 'text-loss': oidcError }" role="status">
       {{ oidcMsg }}
     </div>
 
@@ -334,7 +325,7 @@
               <span class="text-base font-medium text-text-primary">{{ identity.providerDisplayName }}</span>
               <span
                 class="chip-sm"
-                :class="identity.emailVerified ? 'border-[var(--color-positive)] text-[var(--color-positive)]' : 'border-[var(--color-negative)] text-[var(--color-negative)]'"
+                :class="identity.emailVerified ? 'border-[var(--color-positive)] text-gain' : 'border-[var(--color-negative)] text-loss'"
               >
                 {{ identity.emailVerified ? 'Email verified' : 'Email unverified' }}
               </span>
@@ -390,7 +381,7 @@
         <LockKeyhole v-if="!registeringCredential" :size="16" aria-hidden="true" />
         {{ registeringCredential ? 'Registering...' : 'Register Biometric' }}
       </button>
-      <p v-if="credentialMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': credentialError }">{{ credentialMsg }}</p>
+      <p v-if="credentialMsg" class="mt-2 text-body text-gold" :class="{ 'text-loss': credentialError }">{{ credentialMsg }}</p>
 
       <div v-if="webauthnCredentials.length" class="mt-4 flex flex-col gap-2">
         <div
@@ -413,6 +404,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {

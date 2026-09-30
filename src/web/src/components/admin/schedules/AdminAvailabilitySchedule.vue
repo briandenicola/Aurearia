@@ -5,14 +5,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Automatic Checks</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.WishlistCheckEnabled === 'true'"
-          @change="settings.WishlistCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Automatic Checks"
+        :model-value="settings.WishlistCheckEnabled === 'true'"
+        @update:model-value="settings.WishlistCheckEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily anchor)</label>
@@ -33,12 +31,13 @@
         step="5"
       />
       <span class="form-hint">How often to repeat after the start time (e.g. 120 = every 2 hours).</span>
+      <AdminScheduleSummary :start-time="settings.WishlistCheckStartTime" default-start-time="02:00" :interval-minutes="settings.WishlistCheckInterval" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
         {{ settingsSaving ? 'Saving...' : 'Save Schedule Settings' }}
       </button>
-      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-[var(--color-negative)]' : ''">{{ settingsMsg }}</span>
+      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-loss' : ''">{{ settingsMsg }}</span>
       <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="triggerLoading" @click="triggerManualAvailabilityCheck()">
         {{ triggerLoading ? 'Queuing...' : 'Run Now' }}
       </button>
@@ -52,7 +51,7 @@
   <div v-else-if="cycles.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No availability cycles recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -76,14 +75,14 @@
               <td>{{ cycle.totalChildren }}</td>
               <td class="hidden md:table-cell">{{ cycle.queuedChildren }}</td>
               <td class="hidden md:table-cell">{{ cycle.runningChildren }}</td>
-              <td class="font-semibold text-[var(--color-positive)]">{{ cycle.completedChildren }}</td>
-              <td class="font-semibold text-[var(--color-negative)]">{{ cycle.failedChildren }}</td>
+              <td class="font-semibold text-gain">{{ cycle.completedChildren }}</td>
+              <td class="font-semibold text-loss">{{ cycle.failedChildren }}</td>
             </tr>
             <tr v-if="expandedCycleId === cycle.id" class="bg-surface-secondary">
               <td :colspan="cyclesColspan">
                 <div v-if="expandedChildrenLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
                 <div v-else-if="expandedChildren.length" class="overflow-x-auto">
-                  <table class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                  <table class="data-table text-chip md:table-fixed [&_th]:px-2 [&_th]:py-[0.4rem] [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                     <thead>
                       <tr>
                         <th>User</th>
@@ -120,7 +119,7 @@
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="cyclesPage <= 1" @click="prevCyclesPage()">Prev</button>
-      <span class="text-[0.82rem] text-text-secondary">Page {{ cyclesPage }}</span>
+      <span class="text-chip text-text-secondary">Page {{ cyclesPage }}</span>
       <button class="btn btn-secondary btn-sm" :disabled="cycles.length < 5" @click="nextCyclesPage()">Next</button>
     </div>
   </template>
@@ -135,7 +134,7 @@
   <div v-else-if="legacyRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No legacy availability runs recorded.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -161,8 +160,8 @@
                 <span class="chip-sm" :class="statusClass(run.status)">{{ run.status === 'completed' ? 'done' : run.status }}</span>
               </td>
               <td>{{ run.coinsChecked }}</td>
-              <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.available }}</td>
-              <td class="font-semibold text-[var(--color-negative)]">{{ run.unavailable }}</td>
+              <td class="hidden font-semibold text-gain md:table-cell">{{ run.available }}</td>
+              <td class="font-semibold text-loss">{{ run.unavailable }}</td>
               <td class="hidden font-semibold text-warning md:table-cell">{{ run.unknown }}</td>
               <td class="hidden md:table-cell">{{ run.errors }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
@@ -171,7 +170,7 @@
               <td :colspan="legacyColspan">
                 <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
                 <div v-else-if="expandedResults.length" class="overflow-x-auto">
-                  <table class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                  <table class="data-table text-chip md:table-fixed [&_th]:px-2 [&_th]:py-[0.4rem] [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                     <thead>
                       <tr>
                         <th>Coin</th>
@@ -199,7 +198,7 @@
                           <span v-else class="text-text-muted">--</span>
                         </td>
                         <td>
-                          <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="result.status === 'available' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : result.status === 'unavailable' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ result.status }}</span>
+                          <BaseStatusBadge :tone="result.status === 'available' ? 'success' : result.status === 'unavailable' ? 'error' : 'warning'">{{ result.status }}</BaseStatusBadge>
                         </td>
                         <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{{ result.reason || '--' }}</td>
                         <td>{{ result.httpStatus ?? '--' }}</td>
@@ -218,13 +217,15 @@
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="legacyPage <= 1" @click="prevLegacyPage()">Prev</button>
-      <span class="text-[0.82rem] text-text-secondary">Page {{ legacyPage }}</span>
+      <span class="text-chip text-text-secondary">Page {{ legacyPage }}</span>
       <button class="btn btn-secondary btn-sm" :disabled="legacyRuns.length < 5" @click="nextLegacyPage()">Next</button>
     </div>
   </template>
 </template>
 
 <script setup lang="ts">
+import { BaseStatusBadge, BaseToggle } from '@/components/ui'
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   getAvailabilityCycleDetail,
@@ -285,9 +286,9 @@ function onResize() {
 
 function statusClass(status: string): string {
   if (status === 'queued') return 'text-gold'
-  if (status === 'running') return 'text-[var(--accent-bronze)]'
-  if (status === 'failed' || status === 'partial_failure') return 'text-[var(--color-negative)]'
-  return 'text-[var(--color-positive)]'
+  if (status === 'running') return 'text-bronze'
+  if (status === 'failed' || status === 'partial_failure') return 'text-loss'
+  return 'text-gain'
 }
 
 async function loadCycles() {

@@ -32,7 +32,7 @@
       <textarea v-model="answer" class="form-input min-h-[96px]" maxlength="4000" rows="3"></textarea>
     </label>
 
-    <p v-if="error" class="mt-2 text-sm text-[var(--color-negative)]" role="alert">{{ error }}</p>
+    <p v-if="error" class="mt-2 text-sm text-loss" role="alert">{{ error }}</p>
     <div class="mt-3 flex flex-wrap justify-end gap-2">
       <button
         type="button"

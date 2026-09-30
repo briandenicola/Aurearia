@@ -6969,7 +6969,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Ask the AI for a rough, unverified price range",
+                        "description": "Ask for a price range: current dealer comparables when available, otherwise a rough, unverified AI estimate",
                         "name": "includePriceEstimate",
                         "in": "formData"
                     }
@@ -19507,6 +19507,9 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "priceComparables": {
+                    "$ref": "#/definitions/handlers.LookupPriceComparablesSwagger"
+                },
                 "priceEstimate": {
                     "$ref": "#/definitions/handlers.LookupPriceEstimateSwagger"
                 },
@@ -20227,6 +20230,31 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.LookupComparableListingSwagger": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "price": {
+                    "type": "number",
+                    "example": 180
+                },
+                "sourceName": {
+                    "type": "string",
+                    "example": "Example Ancient Coins"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Trajan Denarius VF"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://www.vcoins.com/en/stores/example/item"
+                }
+            }
+        },
         "handlers.LookupExtractedDataSwagger": {
             "type": "object",
             "properties": {
@@ -20248,6 +20276,37 @@ const docTemplate = `{
                 "rawAnalysis": {
                     "type": "string",
                     "example": "Vision analysis text..."
+                }
+            }
+        },
+        "handlers.LookupPriceComparablesSwagger": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "high": {
+                    "type": "number",
+                    "example": 420
+                },
+                "listings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.LookupComparableListingSwagger"
+                    }
+                },
+                "low": {
+                    "type": "number",
+                    "example": 180
+                },
+                "query": {
+                    "type": "string",
+                    "example": "Trajan Denarius Roman"
                 }
             }
         },

@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-[1400] flex h-dvh justify-end bg-black/50" @click.self="$emit('close')">
-    <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_rgba(0,0,0,0.3)] sm:w-[480px]">
+    <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_var(--overlay-30)] sm:w-[480px]">
       <ChatHeader
         :has-messages="messages.length > 0 && !copilotBusy"
         :saving="saving"
@@ -26,7 +26,7 @@
 
         <template v-for="(msg, i) in messages" :key="i">
           <div
-            class="max-w-[85%] rounded-md px-[0.85rem] py-[0.65rem] text-[0.88rem] leading-[1.5] break-words"
+            class="max-w-[85%] rounded-md px-[0.85rem] py-[0.65rem] text-base leading-[1.5] break-words"
             :class="msg.role === 'user' ? 'self-end bg-[linear-gradient(135deg,var(--accent-gold),var(--accent-bronze))] text-surface' : 'self-start border border-border-subtle bg-card text-text-primary'"
           >
             <div v-if="msg.streaming && msg.statusText && !msg.content" class="flex items-center gap-2 italic text-text-secondary">
@@ -138,7 +138,7 @@
 
         <p
           v-else-if="copilotRun && copilotError"
-          class="w-full rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]"
+          class="w-full rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss"
           role="alert"
         >
           {{ copilotError }}

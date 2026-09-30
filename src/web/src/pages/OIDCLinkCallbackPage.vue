@@ -10,8 +10,8 @@
         class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full border bg-input"
         :class="{
           'border-border-subtle text-gold': status === 'loading',
-          'border-[var(--color-positive)] text-[var(--color-positive)]': status === 'success',
-          'border-[var(--color-negative)] text-[var(--color-negative)]': status === 'error',
+          'border-[var(--color-positive)] text-gain': status === 'success',
+          'border-[var(--color-negative)] text-loss': status === 'error',
         }"
       >
         <LoaderCircle v-if="status === 'loading'" :size="28" aria-hidden="true" class="animate-spin" />
@@ -28,18 +28,18 @@
       >
         <div class="flex items-center justify-between gap-3">
           <span class="section-label">Provider</span>
-          <strong class="text-gold text-base overflow-wrap-anywhere text-right">{{ identity.providerDisplayName }}</strong>
+          <strong class="text-gold text-base [overflow-wrap:anywhere] text-right">{{ identity.providerDisplayName }}</strong>
         </div>
         <div v-if="identity.email" class="flex items-center justify-between gap-3">
           <span class="section-label">Email</span>
-          <strong class="text-gold text-base overflow-wrap-anywhere text-right">{{ identity.email }}</strong>
+          <strong class="text-gold text-base [overflow-wrap:anywhere] text-right">{{ identity.email }}</strong>
         </div>
       </div>
 
       <p
         v-if="message"
         class="text-body mb-4"
-        :class="status === 'error' ? 'text-[var(--color-negative)]' : 'text-text-secondary'"
+        :class="status === 'error' ? 'text-loss' : 'text-text-secondary'"
       >
         {{ message }}
       </p>

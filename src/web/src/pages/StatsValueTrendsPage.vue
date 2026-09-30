@@ -24,29 +24,29 @@
         <div v-if="stats" class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-gold">{{ formatCurrency(stats.values.totalCurrentValue) }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Total Value</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Total Value</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ formatCurrency(stats.values.totalPurchasePrice) }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Total Invested</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Total Invested</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
               class="font-display text-xl font-semibold"
-              :class="netGainLoss >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
+              :class="netGainLoss >= 0 ? 'text-gain' : 'text-loss'"
             >
               {{ netGainLoss >= 0 ? '+' : '' }}{{ formatCurrency(netGainLoss) }}
             </span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Net Gain / Loss</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Net Gain / Loss</span>
           </div>
           <div v-if="stats.values.totalPurchasePrice" class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
               class="font-display text-xl font-semibold"
-              :class="roi >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
+              :class="roi >= 0 ? 'text-gain' : 'text-loss'"
             >
               {{ roi >= 0 ? '+' : '' }}{{ roi.toFixed(1) }}%
             </span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">ROI</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">ROI</span>
           </div>
         </div>
 

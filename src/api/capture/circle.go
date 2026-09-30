@@ -5,8 +5,8 @@ import (
 	"image"
 	"image/color"
 	_ "image/jpeg" // register JPEG decoder
-	_ "image/png"  // register PNG decoder
 	"image/png"
+	_ "image/png" // register PNG decoder
 	"math"
 )
 

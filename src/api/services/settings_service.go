@@ -84,6 +84,7 @@ const (
 	SettingCoinOfDayEnabled                   = "CoinOfDayEnabled"
 	SettingCoinOfDayStartTime                 = "CoinOfDayStartTime"
 	SettingCoinOfDayTimezone                  = "CoinOfDayTimezone"
+	SettingScheduleTimezone                   = "ScheduleTimezone"
 	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
 	SettingCollectionHealthSnapshotsStartTime = "CollectionHealthSnapshotsStartTime"
 	SettingExternalToolServerEnabled          = "ExternalToolServerEnabled"
@@ -193,8 +194,8 @@ var settingDefaults = map[string]string{
 	SettingAnthropicAPIKey:                    "",
 	SettingAnthropicModel:                     "claude-sonnet-5",
 	SettingCoinSearchPrompt:                   "",
-	SettingDealerSearchSources:                "vcoins.com\nma-shops.com\nforumancientcoins.com\nbiddr.com\ncatawiki.com\nhjbltd.com",
-	SettingAuctionSearchSources:               "numisbids.com\ncngcoins.com",
+	SettingDealerSearchSources:                "vcoins.com\nma-shops.com\nforumancientcoins.com\ncatawiki.com\nhjbltd.com",
+	SettingAuctionSearchSources:               "numisbids.com\ncngcoins.com\nbiddr.com",
 	SettingCoinShowsPrompt:                    "",
 	SettingValuationPrompt:                    "",
 	SettingSearXNGURL:                         "",
@@ -219,7 +220,8 @@ var settingDefaults = map[string]string{
 	SettingAuctionAlertsCheckStartTime:        "08:00",
 	SettingCoinOfDayEnabled:                   "false",
 	SettingCoinOfDayStartTime:                 "07:00",
-	SettingCoinOfDayTimezone:                  "", // empty = server local time
+	SettingCoinOfDayTimezone:                  "", // empty = ScheduleTimezone, then server local time
+	SettingScheduleTimezone:                   "", // empty = server local time
 	SettingCollectionHealthSnapshotsEnabled:   "false",
 	SettingCollectionHealthSnapshotsStartTime: "04:30",
 	SettingExternalToolServerEnabled:          "false",
@@ -543,13 +545,18 @@ func (s *SettingsService) SetSetting(key, value string) error {
 		}
 		value = normalized
 	}
-	if key == SettingCoinOfDayTimezone {
+	if IsTimezoneSetting(key) {
 		value = strings.TrimSpace(value)
 		if err := ValidateTimezoneSetting(value); err != nil {
 			return err
 		}
 	}
 	return s.repo.Upsert(key, value)
+}
+
+// IsTimezoneSetting reports whether key holds an IANA time zone name.
+func IsTimezoneSetting(key string) bool {
+	return key == SettingCoinOfDayTimezone || key == SettingScheduleTimezone
 }
 
 // ValidateTimezoneSetting accepts an empty value (server local time) or an

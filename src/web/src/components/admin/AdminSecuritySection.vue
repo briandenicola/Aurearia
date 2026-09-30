@@ -13,7 +13,7 @@
 
       <div
         v-if="error"
-        class="mb-4 flex items-start gap-2 rounded-sm border border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] p-3 text-body text-[var(--color-negative)]"
+        class="mb-4 flex items-start gap-2 rounded-sm border border-status-error-border bg-status-error-bg p-3 text-body text-loss"
         role="alert"
       >
         <AlertTriangle :size="18" />
@@ -106,7 +106,7 @@
       </form>
 
       <div class="w-full max-w-full min-w-0 overflow-x-auto">
-        <table class="w-full min-w-[44rem] table-fixed border-collapse [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-3 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.08em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-3 [&_td]:align-top [&_td]:text-left">
+        <table class="data-table min-w-[44rem] table-fixed [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3 [&_td]:align-top">
           <thead>
             <tr>
               <th>Time</th>
@@ -154,7 +154,7 @@
       </form>
 
       <div class="w-full max-w-full min-w-0 overflow-x-auto">
-        <table class="w-full min-w-[44rem] table-fixed border-collapse [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-3 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.08em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-3 [&_td]:align-top [&_td]:text-left">
+        <table class="data-table min-w-[44rem] table-fixed [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3 [&_td]:align-top">
           <thead>
             <tr>
               <th>CIDR</th>

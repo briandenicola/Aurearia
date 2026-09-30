@@ -82,8 +82,8 @@ describe('StatsValueOverTime', () => {
     // jan2024 (1000) → feb2024 (1350): +350
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
     const roi = wrapper.find('.font-display')
-    expect(roi.classes()).toContain('text-[var(--color-positive)]')
-    expect(roi.classes()).not.toContain('text-[var(--color-negative)]')
+    expect(roi.classes()).toContain('text-gain')
+    expect(roi.classes()).not.toContain('text-loss')
   })
 
   it('applies negative class to ROI panel when latest value is below first', () => {
@@ -94,8 +94,8 @@ describe('StatsValueOverTime', () => {
     ]
     const wrapper = mount(StatsValueOverTime, { props: { history: downHistory } })
     const roi = wrapper.find('.font-display')
-    expect(roi.classes()).toContain('text-[var(--color-negative)]')
-    expect(roi.classes()).not.toContain('text-[var(--color-positive)]')
+    expect(roi.classes()).toContain('text-loss')
+    expect(roi.classes()).not.toContain('text-gain')
   })
 
   // ── Change percent display ───────────────────────────────────────────────

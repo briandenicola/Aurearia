@@ -124,7 +124,7 @@ func TestHealthRepository_UpsertCollectionHealthSnapshot_Update(t *testing.T) {
 	if len(found) != 1 {
 		t.Fatalf("expected 1 snapshot (upsert should not create duplicate), got %d", len(found))
 	}
-	
+
 	// Verify the record was updated (not created new)
 	if found[0].ID != snapshot.ID {
 		t.Errorf("expected same ID %d after upsert, got %d", snapshot.ID, found[0].ID)

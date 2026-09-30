@@ -1,6 +1,6 @@
 <template>
   <span
-    class="inline-flex items-center px-[0.7rem] py-[0.2rem] rounded-full text-sm font-semibold uppercase tracking-[0.05em] border"
+    class="inline-flex items-center px-[0.7rem] py-[0.2rem] rounded-full text-label font-semibold uppercase tracking-[0.08em] border"
     :style="badgeStyle"
   >
     <slot />

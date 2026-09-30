@@ -1,9 +1,9 @@
 """Team 1: Coin Search — two-phase search with page fetching.
 
-Market search (Coin Copilot) first queries dealers that have a direct site
-adapter (app.tools.dealer_sites) through their own search, which returns only
-current stock. The web-search pipeline below covers the remaining configured
-dealers.
+Market search (Coin Copilot) and the Coin Agent's coin search first query
+dealers that have a direct site adapter (app.tools.dealer_sites) through their
+own search, which returns only current stock. The web-search pipeline below
+covers the remaining configured dealers.
 
 Phase 1: Search the web for dealer pages (Anthropic uses built-in web_search;
          Ollama uses a ReAct agent with SearXNG tool — model decides when to search).
@@ -29,11 +29,19 @@ from app.config import settings
 from app.llm.content import extract_search_text, extract_text_content
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model, get_structured_model
 from app.llm.retry import ainvoke_with_retry
-from app.models.requests import AlertDiscoveryRequest, LLMConfig
-from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
+from app.models.requests import AlertDiscoveryRequest, ComparablesSearchRequest, LLMConfig
+from app.models.responses import (
+    AlertDiscoveryCandidate,
+    AlertDiscoveryProvenance,
+    AlertDiscoveryResponse,
+    ComparableListing,
+    ComparablesSearchResponse,
+)
 from app.safety import with_safety
+from app.teams import listing_relevance
 from app.teams.json_extraction import extract_json_payload
 from app.teams.specialist_contracts import (
+    MAX_ITEMS,
     CancellationCheck,
     MarketSearchQuery,
     ProviderMalformedError,
@@ -56,7 +64,12 @@ from app.tools.dealer_sites import (
     parse_price,
 )
 from app.tools.numismatic_authority import normalize_candidate_references
-from app.tools.search import RegisteredDealerHttp, fetch_dealer_page, fetch_registered_dealer_page
+from app.tools.search import (
+    DealerRateLimitedError,
+    RegisteredDealerHttp,
+    fetch_dealer_page,
+    fetch_registered_dealer_page,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -420,17 +433,21 @@ async def _search_result_candidates(
 
 
 class _BudgetTally:
-    """Counts listings left out by the budget filter, for the result warnings."""
+    """Counts listings left out by the budget filter and dealers skipped by rate limits."""
 
     def __init__(self) -> None:
         self.other_currency = 0
         self.no_price = 0
+        self.rate_limited_hosts: list[str] = []
 
     def warnings(self, max_price: Decimal | None, currency: str | None) -> list[str]:
+        notes = [
+            f"{host} is temporarily limiting automated searches, so it was skipped. Try again later."
+            for host in self.rate_limited_hosts
+        ]
         if max_price is None:
-            return []
+            return notes
         budget = f"{max_price:,.2f} {currency or 'USD'}"
-        notes: list[str] = []
         if self.other_currency:
             notes.append(
                 f"{self.other_currency} listing(s) priced in another currency were left out because they "
@@ -458,7 +475,11 @@ def _site_runner(
     tally: _BudgetTally,
 ) -> ProviderRunner:
     async def run(_query: str, limit: int) -> Sequence[Mapping[str, Any]]:
-        listings = await adapter.search(http, terms, max_price, currency, limit)
+        try:
+            listings = await adapter.search(http, terms, max_price, currency, limit)
+        except DealerRateLimitedError as exc:
+            tally.rate_limited_hosts.append(adapter.host)
+            raise ProviderUnavailableError from exc
         filtered = apply_budget(listings, max_price, currency)
         tally.other_currency += filtered.other_currency
         tally.no_price += filtered.no_price
@@ -491,6 +512,29 @@ def _candidate_budget_filter(
     return kept
 
 
+async def _apply_title_relevance(
+    result: SpecialistResult, llm_config: LLMConfig, search: str
+) -> tuple[SpecialistResult, int]:
+    """Reorder by title relevance; on any failure the result is returned unchanged."""
+    if not result.items:
+        return result, 0
+    labels = await listing_relevance.classify_titles(llm_config, search, [item.title for item in result.items])
+    if labels is None:
+        return result, 0
+    items, dropped = listing_relevance.order_by_relevance(result.items, labels)
+    return result.model_copy(update={"items": items}), dropped
+
+
+def _trim_to_limit(result: SpecialistResult, limit: int) -> SpecialistResult:
+    if len(result.items) <= limit:
+        return result
+    omitted = result.truncation.omitted_items + len(result.items) - limit
+    return result.model_copy(update={
+        "items": result.items[:limit],
+        "truncation": result.truncation.model_copy(update={"truncated": True, "omitted_items": omitted}),
+    })
+
+
 def _parse_market_query(query: SpecialistQuery | Mapping[str, Any]) -> MarketSearchQuery:
     if isinstance(query, MarketSearchQuery):
         return query
@@ -516,7 +560,8 @@ async def run_market_search(
     Dealers with a site adapter are searched directly (current stock only);
     any other configured dealer goes through web search restricted to its host.
     A budget ("under $500", or max_price) is enforced on parsed prices without
-    converting currencies.
+    converting currencies. With an LLM configured, one bounded title-relevance
+    check then drops listings that only mention the search words (#774).
     """
     market_query = _parse_market_query(query)
     max_price, currency = market_query.max_price, market_query.currency
@@ -526,6 +571,9 @@ async def run_market_search(
         currency = parse_budget(market_query.query)[1] or "USD"
     terms = market_query.search_terms or extract_search_terms(market_query.query)
     tally = _BudgetTally()
+    check_relevance = llm_config is not None
+    # Headroom so listings dropped as unrelated can be replaced by the next ones.
+    search_limit = MAX_ITEMS if check_relevance else market_query.limit
 
     if provider_runners is None:
         if llm_config is None:
@@ -556,12 +604,18 @@ async def run_market_search(
             )
     result = await run_provider_search(
         capability="market_search",
-        query=SpecialistQuery(query=market_query.query, limit=market_query.limit),
+        query=SpecialistQuery(query=market_query.query, limit=search_limit),
         provider_runners=provider_runners,
         observed_at=observed_at,
         cancellation_check=cancellation_check,
     )
     extra_warnings = tally.warnings(max_price, currency)
+    if check_relevance:
+        await raise_if_cancelled(cancellation_check)
+        result, dropped = await _apply_title_relevance(result, llm_config, terms or market_query.query)
+        if dropped:
+            extra_warnings.insert(0, f"{dropped} listing(s) that only mentioned the search words were left out.")
+    result = _trim_to_limit(result, market_query.limit)
     if any(item.verification_state == "partial" for item in result.items):
         extra_warnings.append("Some listings are only partially verified; current availability may be unknown.")
         return result.model_copy(update={
@@ -573,10 +627,88 @@ async def run_market_search(
     return result
 
 
+_PRICE_SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£"}
+
+
+def _format_listed_price(amount: Decimal | None, currency: str | None) -> str:
+    if amount is None:
+        return ""
+    symbol = _PRICE_SYMBOLS.get(currency or "")
+    return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency or ''}".strip()
+
+
+def _suggestion_from_specialist_item(item: Any) -> dict[str, Any]:
+    """Shape a market-search evidence item like the legacy CoinSuggestion JSON."""
+    availability = getattr(item, "availability", None) or "unknown"
+    return {
+        "name": item.title,
+        "sourceUrl": item.source_url,
+        "sourceName": getattr(item, "dealer_name", None) or "",
+        "description": item.description or "",
+        "era": getattr(item, "era", None) or "",
+        "ruler": getattr(item, "ruler", None) or "",
+        "material": getattr(item, "material", None) or "",
+        "denomination": getattr(item, "denomination", None) or "",
+        "estPrice": _format_listed_price(getattr(item, "listed_price", None), getattr(item, "currency", None)),
+        "imageUrl": item.image_url or "",
+        "availability": availability.title(),
+        "candidateReferences": [ref.model_dump(exclude_none=True) for ref in item.candidate_references],
+    }
+
+
+def _create_direct_coin_search_team(llm_config: LLMConfig, search_prompt: str, source_hosts: set[str]):
+    """Coin Agent search through the same dealer workflow as Coin Copilot.
+
+    Dealers with a site adapter are searched directly (current stock only); the
+    other configured dealers use web search restricted to their hosts, and a
+    stated budget is enforced without converting currencies.
+    """
+
+    async def market_node(state: CoinSearchState) -> dict:
+        user_msg = state.get("user_message", "")
+        result = await run_market_search(
+            {"query": (user_msg.strip() or "ancient coins")[:500], "limit": LEGACY_MAX_LISTINGS},
+            llm_config=llm_config,
+            source_hosts=source_hosts,
+            search_prompt=search_prompt,
+        )
+        suggestions = [_suggestion_from_specialist_item(item) for item in result.items][:LEGACY_MAX_LISTINGS]
+        notes = "\n".join(f"- {warning}" for warning in result.warnings)
+
+        if not suggestions:
+            model = get_chat_model(llm_config)
+            messages = [
+                SystemMessage(content=NO_RESULTS_PROMPT),
+                HumanMessage(
+                    content=f"The user asked: {user_msg}\n\n"
+                    f"Search notes:\n{notes or 'No listings matched.'}\n\n"
+                    "No coin listings could be extracted. Generate a helpful response."
+                ),
+            ]
+            response = await ainvoke_with_retry(model, messages)
+            return {"messages": [AIMessage(content=extract_text_content(response.content))]}
+
+        formatted = _enrich_references_with_authority_links(
+            f"```json\n{json.dumps(suggestions, ensure_ascii=False, indent=2)}\n```"
+        )
+        summary = "I found some coins matching your search. These listings come from the dealers' current stock."
+        if notes:
+            summary = f"{summary}\n\n{notes}"
+        return {"messages": [AIMessage(content=f"{summary}\n\n{formatted}")]}
+
+    graph = StateGraph(CoinSearchState)
+    graph.add_node("market", market_node)
+    graph.set_entry_point("market")
+    graph.add_edge("market", END)
+    return graph.compile()
+
+
 def create_coin_search_team(
     llm_config: LLMConfig,
     search_prompt: str = "",
     allowed_fetch_hosts: set[str] | None = None,
+    *,
+    direct_dealer_search: bool = True,
 ):
     """Create the coin search pipeline.
 
@@ -584,7 +716,14 @@ def create_coin_search_team(
         llm_config: LLM provider configuration
         search_prompt: Additional context from admin settings (prepended)
         allowed_fetch_hosts: Optional host allowlist for fetched listing pages
+        direct_dealer_search: Route configured dealers that have a site adapter
+            through their own search (current stock only), like Coin Copilot
     """
+    if direct_dealer_search and allowed_fetch_hosts:
+        adapters, _ = adapters_for_hosts(allowed_fetch_hosts, DEALER_SITE_ADAPTERS)
+        if adapters:
+            return _create_direct_coin_search_team(llm_config, search_prompt, set(allowed_fetch_hosts))
+
     source_prompt = _configured_source_prompt(allowed_fetch_hosts or set())
     combined_search = "\n\n".join(part for part in (search_prompt, source_prompt, SEARCH_PROMPT) if part)
 
@@ -701,7 +840,11 @@ async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDisc
         request.alert.criteria_snapshot.source_filters,
         set(request.dealer_search_sources),
     )
-    graph = create_coin_search_team(request.llm, allowed_fetch_hosts=allowed_fetch_hosts)
+    # Alert queries carry "site:" and price-range text that isn't usable as dealer
+    # search keywords, so discovery keeps the web-search pipeline for now.
+    graph = create_coin_search_team(
+        request.llm, allowed_fetch_hosts=allowed_fetch_hosts, direct_dealer_search=False
+    )
     try:
         result = await graph.ainvoke({
             "messages": [],
@@ -732,6 +875,50 @@ async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDisc
     if len(suggestions) > request.alert.max_candidates:
         warnings.append("Some candidates were omitted because the result cap was reached.")
     return AlertDiscoveryResponse(candidates=candidates, warnings=warnings, partial=bool(warnings))
+
+
+async def search_comparables(request: ComparablesSearchRequest) -> ComparablesSearchResponse:
+    """Run one bounded dealer search for Quick Identify's price range (#779).
+
+    Reuses the canonical dealer workflow, so dealers with a site adapter return
+    current stock only. Any failure is reported as an empty, partial result so
+    the caller can fall back to its own estimate.
+    """
+    try:
+        result = await run_market_search(
+            {
+                "query": request.query,
+                "limit": request.limit,
+                "search_terms": request.search_terms or None,
+            },
+            llm_config=request.llm,
+            source_hosts=set(request.dealer_search_sources),
+        )
+    except Exception:
+        logger.exception("Quick Identify comparables search failed")
+        return ComparablesSearchResponse(
+            listings=[],
+            warnings=["Comparables search could not complete."],
+            partial=True,
+        )
+
+    listings = [
+        ComparableListing(
+            source_url=item.source_url,
+            source_name=getattr(item, "dealer_name", None) or "",
+            title=item.title,
+            price=float(price) if (price := getattr(item, "listed_price", None)) is not None else None,
+            currency=getattr(item, "currency", None) or "",
+            availability=getattr(item, "availability", None) or "unknown",
+            verification_state=item.verification_state,
+        )
+        for item in result.items
+    ]
+    return ComparablesSearchResponse(
+        listings=listings,
+        warnings=list(result.warnings)[:10],
+        partial=result.outcome in {"partial", "unavailable"},
+    )
 
 
 def _alert_criteria_query(criteria) -> str:

@@ -16,8 +16,8 @@ var (
 )
 
 const (
-	minRecommendationSampleSize      = 2
-	maxRecommendationsPerCoin        = 12
+	minRecommendationSampleSize = 2
+	maxRecommendationsPerCoin   = 12
 	// medium confidence allows thematic tags (same category/era/material, different ruler)
 	// to score high enough after the ruler weight was reduced from 0.45 to 0.30.
 	requiredRecommendationConfidence = "medium"

@@ -7,14 +7,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Daily Feature</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.CoinOfDayEnabled === 'true'"
-          @change="settings.CoinOfDayEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Daily Feature"
+        :model-value="settings.CoinOfDayEnabled === 'true'"
+        @update:model-value="settings.CoinOfDayEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily)</label>
@@ -33,7 +31,7 @@
         :value="settings.CoinOfDayTimezone ?? ''"
         @change="settings.CoinOfDayTimezone = ($event.target as HTMLSelectElement).value"
       >
-        <option value="">Server time (usually UTC in Docker)</option>
+        <option value="">Same as schedules ({{ sharedZoneLabel }})</option>
         <option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</option>
       </select>
       <span class="form-hint">{{ scheduleSummary }} Changes apply within a minute of saving; no restart needed.</span>
@@ -50,7 +48,7 @@
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
         {{ settingsSaving ? 'Saving...' : 'Save Coin of the Day Settings' }}
       </button>
-      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-[var(--color-negative)]' : ''">{{ settingsMsg }}</span>
+      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-loss' : ''">{{ settingsMsg }}</span>
       <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="triggerLoading" @click="triggerManualCoinOfDay()">
         {{ triggerLoading ? 'Running...' : 'Run Now' }}
       </button>
@@ -63,7 +61,7 @@
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No Coin of the Day runs recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -89,18 +87,20 @@
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="prevPage()">Prev</button>
-      <span class="text-[0.82rem] text-text-secondary">Page {{ page }}</span>
+      <span class="text-chip text-text-secondary">Page {{ page }}</span>
       <button class="btn btn-secondary btn-sm" :disabled="runs.length < 5" @click="nextPage()">Next</button>
     </div>
   </template>
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { getCoinOfDayRunDetail, getCoinOfDayRuns, triggerCoinOfDayRun } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import type { AppSettings, CoinOfDayRun } from '@/types'
 import { getBrowserTimezone } from '@/composables/usePurchaseReminder'
+import { describeSchedule, scheduleZoneLabel, timezoneOptionsWith } from '@/composables/useScheduleTimezone'
 
 const props = defineProps<{
   settings: AppSettings
@@ -114,25 +114,14 @@ const emit = defineEmits<{
 const triggerLoading = ref(false)
 const browserTimezone = getBrowserTimezone()
 
-// Intl.supportedValuesOf is missing on older Safari; fall back to the browser
-// zone alone so the saved value is still selectable.
-function listTimezones(): string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: 'timeZone') => string[] }
-  const zones = intl.supportedValuesOf?.('timeZone') ?? []
-  return zones.length ? zones : [browserTimezone].filter(Boolean)
-}
+const timezoneOptions = computed(() => timezoneOptionsWith(props.settings.CoinOfDayTimezone))
+const sharedZoneLabel = computed(() => scheduleZoneLabel(props.settings.ScheduleTimezone))
 
-const timezoneOptions = computed(() => {
-  const zones = listTimezones()
-  const saved = props.settings.CoinOfDayTimezone
-  return saved && !zones.includes(saved) ? [saved, ...zones] : zones
-})
-
-const scheduleSummary = computed(() => {
-  const time = props.settings.CoinOfDayStartTime || '07:00'
-  const zone = props.settings.CoinOfDayTimezone || 'server time'
-  return `Runs daily at ${time} ${zone}.`
-})
+const scheduleSummary = computed(() => describeSchedule({
+  startTime: props.settings.CoinOfDayStartTime,
+  defaultStartTime: '07:00',
+  zone: props.settings.CoinOfDayTimezone || props.settings.ScheduleTimezone,
+}))
 
 const settingsMsg = ref('')
 const settingsError = ref(false)

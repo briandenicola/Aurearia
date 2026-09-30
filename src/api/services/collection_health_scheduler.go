@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -40,26 +39,15 @@ func (s *CollectionHealthScheduler) ListRuns(page, limit int) ([]models.Collecti
 // Start begins the periodic daily loop.
 func (s *CollectionHealthScheduler) Start() {
 	s.logger.Info("health-scheduler", "Collection health scheduler started")
-
-	select {
-	case <-time.After(45 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	for {
-		wait := s.timeUntilNextRun()
-		s.logger.Info("health-scheduler", "Next health snapshot in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("health-scheduler", "Collection health scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category:     "health-scheduler",
+		name:         "health snapshot",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 45 * time.Second,
+		next:         func(now time.Time, _ bool) time.Time { return s.nextRun(now) },
+		run:          s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down.
@@ -90,21 +78,16 @@ func (s *CollectionHealthScheduler) GetStatus() SchedulerStatus {
 
 func (s *CollectionHealthScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	hour, minute := s.getStartTime()
-	next := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
-	if !next.After(now) {
-		next = next.Add(24 * time.Hour)
-	}
-	return next.Sub(now)
+	return s.nextRun(now).Sub(now)
+}
+
+func (s *CollectionHealthScheduler) nextRun(now time.Time) time.Time {
+	h, m := s.getStartTime()
+	return dailySchedule{Hour: h, Minute: m, Location: scheduleLocation(s.settingsSvc, s.logger)}.slotAfter(now)
 }
 
 func (s *CollectionHealthScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingCollectionHealthSnapshotsStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 4, 30
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingCollectionHealthSnapshotsStartTime), 4, 30)
 }
 
 func (s *CollectionHealthScheduler) runCycle() {

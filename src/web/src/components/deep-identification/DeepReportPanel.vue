@@ -37,7 +37,7 @@
         :key="face.role"
         class="min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
       >
-        <summary class="cursor-pointer select-none text-sm font-semibold uppercase tracking-[0.08em] text-text-muted">
+        <summary class="cursor-pointer select-none text-label font-semibold uppercase tracking-[0.08em] text-text-muted">
           {{ face.role }} analysis
         </summary>
         <p
@@ -81,7 +81,7 @@
       v-if="report.image_hypothesis"
       class="min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
     >
-      <summary class="cursor-pointer select-none text-sm font-semibold uppercase tracking-[0.08em] text-text-muted">
+      <summary class="cursor-pointer select-none text-label font-semibold uppercase tracking-[0.08em] text-text-muted">
         Structured image hypothesis
       </summary>
 
@@ -103,7 +103,7 @@
               :key="entry.name"
               class="grid min-w-0 gap-1"
             >
-              <span class="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">{{ formatFieldName(entry.name) }}</span>
+              <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">{{ formatFieldName(entry.name) }}</span>
               <p class="m-0 flex flex-wrap items-center gap-2 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
                 <span class="text-text-primary">{{ entry.value }}</span>
                 <span class="chip-sm">{{ Math.round(entry.confidence * 100) }}% confidence</span>

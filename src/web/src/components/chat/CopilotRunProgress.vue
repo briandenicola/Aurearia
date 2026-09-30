@@ -16,7 +16,7 @@
     <ol v-if="plan.length" class="mt-3 flex list-none flex-col gap-2 p-0">
       <li v-for="item in plan" :key="item.id" class="flex items-start gap-2 text-sm">
         <CheckCircle2 v-if="item.status === 'completed'" :size="16" class="mt-0.5 shrink-0 text-gold" />
-        <CircleX v-else-if="item.status === 'failed'" :size="16" class="mt-0.5 shrink-0 text-[var(--color-negative)]" />
+        <CircleX v-else-if="item.status === 'failed'" :size="16" class="mt-0.5 shrink-0 text-loss" />
         <LoaderCircle v-else-if="item.status === 'in_progress'" :size="16" class="mt-0.5 shrink-0 animate-spin text-gold" />
         <Circle v-else :size="16" class="mt-0.5 shrink-0 text-text-muted" />
         <span :class="item.status === 'completed' ? 'text-text-secondary' : 'text-text-primary'">{{ item.title }}</span>
@@ -28,7 +28,7 @@
         <div class="flex items-start gap-2">
           <LoaderCircle v-if="tool.status === 'running'" :size="15" class="mt-0.5 shrink-0 animate-spin text-gold" />
           <CheckCircle2 v-else-if="tool.status === 'succeeded'" :size="15" class="mt-0.5 shrink-0 text-gold" />
-          <CircleX v-else :size="15" class="mt-0.5 shrink-0 text-[var(--color-negative)]" />
+          <CircleX v-else :size="15" class="mt-0.5 shrink-0 text-loss" />
           <span>
             <strong class="font-medium text-text-primary">{{ toolLabel(tool.toolName) }}</strong>
             <span v-if="tool.resultSummary"> — {{ tool.resultSummary }}</span>
@@ -302,6 +302,7 @@ import {
   copilotDealerListingUncertainty,
   isEligibleCopilotDealerListing,
 } from '@/utils/copilotWishlist'
+import { copilotToolLabel } from '@/utils/copilotToolLabels'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 
 const props = defineProps<{
@@ -385,10 +386,7 @@ const statusLabel = computed(() => {
 })
 
 function toolLabel(name: string) {
-  return name
-    .split('_')
-    .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : part)
-    .join(' ')
+  return copilotToolLabel(name)
 }
 
 // Display lines are built here from typed fields; the agent service sends the

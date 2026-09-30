@@ -20,10 +20,10 @@ type OllamaService struct {
 }
 
 type ollamaRequest struct {
-	Model  string    `json:"model"`
-	Prompt string    `json:"prompt"`
-	Images []string  `json:"images"`
-	Stream bool      `json:"stream"`
+	Model  string   `json:"model"`
+	Prompt string   `json:"prompt"`
+	Images []string `json:"images"`
+	Stream bool     `json:"stream"`
 }
 
 type ollamaResponse struct {
@@ -167,4 +167,3 @@ func buildCoinContext(coin models.Coin) string {
 	}
 	return sb.String()
 }
-

@@ -16,6 +16,7 @@ from app.models.requests import (
     BidMarketSignalRequest,
     CoinSearchRequest,
     CoinShowSearchRequest,
+    ComparablesSearchRequest,
     CopilotCapabilityRequest,
     CopilotExecuteRequest,
     DeepIdentifyRequest,
@@ -31,6 +32,7 @@ from app.models.responses import (
     AlertDiscoveryResponse,
     AvailabilityCheckResponse,
     AvailabilityVerdict,
+    ComparablesSearchResponse,
     CopilotCapabilityResponse,
     GradeResponse,
     IntakeDraftResponse,
@@ -55,7 +57,7 @@ from app.teams.coin_analysis import create_coin_analysis_team
 from app.teams.coin_copilot import run_coin_copilot
 from app.teams.coin_grading import create_coin_grading_team
 from app.teams.coin_intake import generate_intake_draft
-from app.teams.coin_search import discover_alert_candidates
+from app.teams.coin_search import discover_alert_candidates, search_comparables
 from app.teams.deep_identification.graph import run_deep_identification_stream
 from app.teams.set_builder import run_set_builder_workflow
 from app.teams.wishlist_featured_summary import generate_wishlist_featured_summary
@@ -133,6 +135,19 @@ async def search_alerts(request: AlertDiscoveryRequest):
         request.alert.max_candidates,
     )
     return await discover_alert_candidates(request)
+
+
+@router.post("/search/comparables", response_model=ComparablesSearchResponse)
+async def search_comparables_route(request: ComparablesSearchRequest):
+    """One bounded dealer search for Quick Identify's price range. Stateless."""
+    logger.info(
+        "POST /search/comparables — provider=%s, model=%s, query=%.80s, limit=%d",
+        request.llm.provider,
+        request.llm.model,
+        request.query,
+        request.limit,
+    )
+    return await search_comparables(request)
 
 
 def _build_messages(message: str, history: list | None = None, system_prompt: str = ""):

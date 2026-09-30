@@ -7,7 +7,7 @@
         :key="entry.provider"
         class="grid min-w-0 grid-cols-1 items-start gap-1 rounded-sm border border-border-subtle bg-card p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center sm:gap-3"
       >
-        <span class="text-sm font-semibold uppercase tracking-[0.08em] text-text-primary">
+        <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-primary">
           {{ providerLabel(entry.provider) }}
         </span>
         <span class="text-sm font-medium" :class="statusClasses(entry.status)">

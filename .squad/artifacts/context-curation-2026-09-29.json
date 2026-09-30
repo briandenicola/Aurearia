@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-29",
+  "sourceCommit": "73d5750c7cdbd28938efff18f92dd4ba9994cb6a",
+  "authority": "Constitution 4.0.0 section 18.3; owner-authorized issue #783 curation (keep 6000-word budget, archive unresolved-review table with pointer)",
+  "representation": "Canonical Git blob bytes at sourceCommit, not checkout line endings. Offsets and lengths are bytes into the destination file; lines are 1-based. Entries partition every original byte, with headings indexed outside fenced code. archive-baseline is the pre-append archive, unchanged and a byte prefix of the new archive.",
+  "interpretation": "Inventory is preservation evidence, not a decision-status ledger. Archived sections (D05 lifecycle reconciliation, unresolved review blocks R352/R353/R-SWIPE/R225/R320/R337/R-RELEASE, located clearance pairs) remain effective unless explicitly cleared by their authorized reviewer.",
+  "records": [
+    {
+      "id": "archive-baseline",
+      "source": ".squad/decisions-archive.md",
+      "destination": ".squad/decisions-archive.md",
+      "offset": 0,
+      "startLine": 1,
+      "length": 1309832,
+      "sha256": "c8689be4948f9a79360853ff140ccf6de6298410535cacd062ec85ef883309c0",
+      "unchanged": true,
+      "entries": []
+    },
+    {
+      "id": "decisions",
+      "source": ".squad/decisions.md",
+      "destination": ".squad/decisions-archive.md",
+      "offset": 1310130,
+      "startLine": 25337,
+      "length": 18535,
+      "sha256": "71e9350a93cf8f10864932f7208698c71f33a0d86d7abd093ebf9c90ed1c2d68",
+      "entries": [
+        {
+          "id": "decisions-L1",
+          "offset": 0,
+          "line": 1,
+          "heading": "# Active Squad Decisions",
+          "length": 263,
+          "sha256": "4c4a1d7634f685481dc356fc00f97bfb4f1594843a9822313f1dd1d55d2543be"
+        },
+        {
+          "id": "decisions-L7",
+          "offset": 263,
+          "line": 7,
+          "heading": "## Authority and preservation",
+          "length": 1106,
+          "sha256": "be7822d236488e5cb522f15e5076fddf190c2dba29bc85f35f7dda1304b9288a"
+        },
+        {
+          "id": "decisions-L27",
+          "offset": 1369,
+          "line": 27,
+          "heading": "## Current cross-cutting decisions",
+          "length": 6585,
+          "sha256": "50f75e132ac80f9ef7d5a220b56b09ae5d0a500529e19ee32af161ed0497959c"
+        },
+        {
+          "id": "decisions-L69",
+          "offset": 7954,
+          "line": 69,
+          "heading": "## D05 lifecycle reconciliation",
+          "length": 2920,
+          "sha256": "5017327e4b5a6a8d8bd2a63667776b557bb85cc3a7e34bd463be9718aa2a2826"
+        },
+        {
+          "id": "decisions-L91",
+          "offset": 10874,
+          "line": 91,
+          "heading": "## Unresolved review and release evidence",
+          "length": 2936,
+          "sha256": "41e0b803d12b04d3b5c5b4b267e61c0d428227f39c79946cae91aa9f5af44933"
+        },
+        {
+          "id": "decisions-L113",
+          "offset": 13810,
+          "line": 113,
+          "heading": "## Located clearance pairs (do not reopen from an old REJECT alone)",
+          "length": 4725,
+          "sha256": "100ab46d5b98352e578243c79df9f35c58c06e7f251be09513036eb1efbc1178"
+        }
+      ]
+    },
+    {
+      "id": "now",
+      "source": ".squad/identity/now.md",
+      "destination": ".squad/decisions-archive.md",
+      "offset": 1328889,
+      "startLine": 25488,
+      "length": 1114,
+      "sha256": "aeabefa16b930d66336c1dd9e47063b121e72ad2cd9c9b7992481702ab5c1e78",
+      "entries": [
+        {
+          "id": "now-L1",
+          "offset": 0,
+          "line": 1,
+          "length": 323,
+          "sha256": "63a34da1ccca67f3f1d5f87aeb9bd827b6faab20278b233bb5626ec4ac3adf6b"
+        },
+        {
+          "id": "now-L11",
+          "offset": 323,
+          "line": 11,
+          "heading": "# Current Work",
+          "length": 479,
+          "sha256": "319122e7e4dbea9c2b26f0f43eb479facbfc2860365ebf14190fd18b39a1743c"
+        },
+        {
+          "id": "now-L22",
+          "offset": 802,
+          "line": 22,
+          "heading": "## Next Action",
+          "length": 312,
+          "sha256": "df139e8f55b3e6b588b0c94b2651336cc5e24e82022fa4eb07fc3fc7a04fab9f"
+        }
+      ]
+    }
+  ]
+}

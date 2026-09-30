@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -40,27 +39,15 @@ func NewReminderScheduler(
 // Start begins the daily loop. Call from a goroutine.
 func (s *ReminderScheduler) Start() {
 	s.logger.Info("scheduler", "Reminder scheduler started")
-
-	// Brief startup delay so the process finishes initializing.
-	select {
-	case <-time.After(30 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	for {
-		wait := s.timeUntilNextRun()
-		s.logger.Info("scheduler", "Next reminder check in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("scheduler", "Reminder scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category:     "scheduler",
+		name:         "reminder check",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 30 * time.Second,
+		next:         func(now time.Time, _ bool) time.Time { return s.nextRun(now) },
+		run:          s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down. Safe to call multiple times.
@@ -92,22 +79,19 @@ func (s *ReminderScheduler) GetStatus() SchedulerStatus {
 // timeUntilNextRun returns the duration until the next daily anchor (HH:MM).
 func (s *ReminderScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
+	return s.nextRun(now).Sub(now)
+}
+
+// nextRun returns the next daily check time in the schedule zone. Each
+// reminder still fires on its own user's calendar date.
+func (s *ReminderScheduler) nextRun(now time.Time) time.Time {
 	h, m := s.getStartTime()
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, now.Location())
-	if anchor.After(now) {
-		return anchor.Sub(now)
-	}
-	return anchor.Add(24 * time.Hour).Sub(now)
+	return dailySchedule{Hour: h, Minute: m, Location: scheduleLocation(s.settingsSvc, s.logger)}.slotAfter(now)
 }
 
 // getStartTime parses HH:MM from settings, defaulting to 08:00.
 func (s *ReminderScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingReminderCheckStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 8, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingReminderCheckStartTime), 8, 0)
 }
 
 // runCycle processes all pending reminders whose remind_date has arrived.

@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-[300] flex items-center justify-center bg-[rgba(0,0,0,0.6)] px-4" @click="$emit('close')">
-      <div class="w-full max-w-[320px] rounded-md border border-border-subtle bg-card p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)]" @click.stop>
+    <div v-if="open" class="fixed inset-0 z-[300] flex items-center justify-center bg-overlay-60 px-4" @click="$emit('close')">
+      <div class="w-full max-w-[320px] rounded-md border border-border-subtle bg-card p-6 shadow-[0_12px_40px_var(--overlay-50)]" @click.stop>
         <h3 class="mb-3 text-base text-heading">Assign Location</h3>
         <div v-if="locations.length" class="flex max-h-[300px] flex-col gap-1.5 overflow-y-auto">
           <button

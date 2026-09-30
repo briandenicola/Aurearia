@@ -39,7 +39,7 @@
             Create Tag
           </button>
         </div>
-        <p v-if="tagError" class="mt-1 text-body text-[var(--cat-byzantine)]">{{ tagError }}</p>
+        <p v-if="tagError" class="mt-1 text-body text-byzantine">{{ tagError }}</p>
 
         <div v-if="tagList.length" class="mt-4 flex flex-col gap-2">
           <div v-for="tag in tagList" :key="tag.id" class="flex flex-wrap items-center gap-2 rounded-sm border border-border-subtle p-2">
@@ -137,7 +137,7 @@
             {{ storageLocationSaving ? 'Saving...' : 'Create Location' }}
           </button>
         </div>
-        <p v-if="storageLocationError" class="mt-1 text-body text-[var(--cat-byzantine)]">{{ storageLocationError }}</p>
+        <p v-if="storageLocationError" class="mt-1 text-body text-byzantine">{{ storageLocationError }}</p>
         <p v-if="storageLocationsLoading" class="mt-4 text-body text-text-secondary">Loading storage locations...</p>
 
         <div v-else-if="storageLocationList.length" class="mt-4 flex flex-col gap-2">
@@ -206,7 +206,7 @@
         <span class="chip-sm shrink-0">{{ userMintLocations.length }} locations</span>
       </div>
 
-      <p v-if="mintLocationError" class="mb-2 text-body text-[var(--cat-byzantine)]">{{ mintLocationError }}</p>
+      <p v-if="mintLocationError" class="mb-2 text-body text-byzantine">{{ mintLocationError }}</p>
       <p v-if="mintLocationsLoading" class="text-body text-text-secondary">Loading...</p>
 
       <div v-else class="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] md:items-start">
@@ -369,7 +369,7 @@
         </p>
       </div>
 
-      <p v-if="migrationError" class="mt-1 text-body text-[var(--cat-byzantine)]">{{ migrationError }}</p>
+      <p v-if="migrationError" class="mt-1 text-body text-byzantine">{{ migrationError }}</p>
     </section>
   </section>
 </template>

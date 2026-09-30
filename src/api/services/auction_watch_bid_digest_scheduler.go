@@ -58,19 +58,20 @@ func (s *AuctionWatchBidDigestScheduler) Start() {
 	s.mu.Unlock()
 
 	s.logger.Info("scheduler", "Auction watch bid digest scheduler started")
-	for {
-		select {
-		case <-s.stopChan:
-			s.logger.Info("scheduler", "Auction watch bid digest scheduler stopped")
-			return
-		case <-time.After(s.timeUntilNextRun()):
+	scheduleLoop{
+		category: "scheduler",
+		name:     "auction watch bid digest",
+		logger:   s.logger,
+		stopCh:   s.stopChan,
+		next:     s.nextRun,
+		run: func() {
 			if !s.isEnabled() {
 				s.logger.Debug("scheduler", "Auction watch bid digest disabled, skipping")
-				continue
+				return
 			}
 			s.runDigest("scheduled", nil)
-		}
-	}
+		},
+	}.Run()
 }
 
 func (s *AuctionWatchBidDigestScheduler) Stop() {
@@ -128,29 +129,23 @@ func (s *AuctionWatchBidDigestScheduler) getIntervalMinutes() int {
 }
 
 func (s *AuctionWatchBidDigestScheduler) timeUntilNextRun() time.Duration {
-	lastRun := s.runRepo.GetLastScheduledRun()
-	interval := time.Duration(s.getIntervalMinutes()) * time.Minute
 	now := time.Now()
+	return max(s.nextRun(now, false).Sub(now), 0)
+}
 
-	if lastRun != nil && lastRun.CompletedAt != nil {
-		nextRun := lastRun.CompletedAt.Add(interval)
-		if nextRun.After(now) {
-			return nextRun.Sub(now)
-		}
-		return 0
+func (s *AuctionWatchBidDigestScheduler) nextRun(now time.Time, catchUp bool) time.Time {
+	var last *time.Time
+	if run := s.runRepo.GetLastScheduledRun(); run != nil {
+		last = run.CompletedAt
 	}
-
-	startTime := s.getStartTime()
-	parsed, err := time.Parse("15:04", startTime)
-	if err != nil {
-		parsed, _ = time.Parse("15:04", "08:00")
+	h, m := parseStartTime(s.getStartTime(), 8, 0)
+	schedule := dailySchedule{
+		Hour:     h,
+		Minute:   m,
+		Interval: time.Duration(s.getIntervalMinutes()) * time.Minute,
+		Location: scheduleLocation(s.settingsSvc, s.logger),
 	}
-
-	nextRun := time.Date(now.Year(), now.Month(), now.Day(), parsed.Hour(), parsed.Minute(), 0, 0, now.Location())
-	if !nextRun.After(now) {
-		nextRun = nextRun.Add(24 * time.Hour)
-	}
-	return nextRun.Sub(now)
+	return schedule.next(now, last, catchUp)
 }
 
 func (s *AuctionWatchBidDigestScheduler) runDigest(triggerType string, triggerUserID *uint) {

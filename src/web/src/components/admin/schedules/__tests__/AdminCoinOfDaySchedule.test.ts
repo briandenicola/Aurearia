@@ -63,4 +63,12 @@ describe('AdminCoinOfDaySchedule time zone', () => {
 
     expect(wrapper.get<HTMLSelectElement>('#coin-of-day-timezone').element.value).toBe('Etc/GMT+6')
   })
+
+  it('falls back to the shared schedule time zone when no override is set', async () => {
+    const { wrapper } = mountSchedule({ ScheduleTimezone: 'America/New_York' })
+    await flushPromises()
+
+    expect(wrapper.get('#coin-of-day-timezone option[value=""]').text()).toBe('Same as schedules (America/New_York)')
+    expect(wrapper.text()).toContain('Runs daily at 12:00 America/New_York.')
+  })
 })

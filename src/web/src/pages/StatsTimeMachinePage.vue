@@ -22,7 +22,7 @@
     </div>
 
     <div v-else-if="error" class="card flex flex-col gap-2">
-      <p class="text-[var(--color-negative)]">{{ error }}</p>
+      <p class="text-loss">{{ error }}</p>
       <button class="btn btn-secondary self-start" @click="init">Try again</button>
     </div>
 
@@ -80,7 +80,7 @@
         <input
           v-model="selectedDate"
           type="date"
-          class="input self-start"
+          class="form-input w-auto self-start"
           :min="bounds.earliestDate"
           :max="bounds.latestDate"
           aria-label="Jump to date"
@@ -99,32 +99,32 @@
         >
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-gold">{{ snapshot.coinCount }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Coins Owned</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Coins Owned</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-gold">{{ formatCurrency(snapshot.totalValue) }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Value</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Value</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ formatCurrency(snapshot.totalInvested) }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Invested</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Invested</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
               class="font-display text-xl font-semibold"
-              :class="snapshot.unrealizedGain >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
+              :class="snapshot.unrealizedGain >= 0 ? 'text-gain' : 'text-loss'"
             >
               {{ snapshot.unrealizedGain >= 0 ? '+' : '' }}{{ formatCurrency(snapshot.unrealizedGain) }}
             </span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Unrealized</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Unrealized</span>
           </div>
           <div v-if="snapshot.healthScore !== null" class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ snapshot.healthScore }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Health Score</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Health Score</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ snapshot.acquiredInYear }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Added That Year</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Added That Year</span>
           </div>
         </div>
 

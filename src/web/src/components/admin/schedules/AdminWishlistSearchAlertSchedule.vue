@@ -6,15 +6,12 @@
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Automatic Checks</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only"
-          type="checkbox"
-          :checked="settings.WishlistSearchAlertsCheckEnabled === 'true'"
-          @change="settings.WishlistSearchAlertsCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Automatic Checks"
+        :model-value="settings.WishlistSearchAlertsCheckEnabled === 'true'"
+        @update:model-value="settings.WishlistSearchAlertsCheckEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily anchor)</label>
@@ -24,6 +21,7 @@
         type="time"
       />
       <span class="form-hint">The daily sweep runs at this time and queues any alerts whose cadence has elapsed since their last run.</span>
+      <AdminScheduleSummary :start-time="settings.WishlistSearchAlertsCheckStartTime" default-start-time="03:00" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
@@ -36,11 +34,11 @@
   <h3 class="mb-4 text-lg font-medium text-heading">Wishlist Search Alert Run History</h3>
 
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
-  <div v-else-if="historyError" class="px-8 py-8 text-center font-sans text-[var(--color-negative)]" role="alert">{{ historyError }}</div>
+  <div v-else-if="historyError" class="px-8 py-8 text-center font-sans text-loss" role="alert">{{ historyError }}</div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No wishlist search alert runs recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-3 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.08em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-3 [&_td]:text-left">
+      <table class="data-table text-body [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -65,7 +63,7 @@
               <td class="hidden md:table-cell">{{ run.triggerType }}</td>
               <td><span class="chip-sm" :class="statusClass(run.status)">{{ run.status }}</span></td>
               <td>{{ run.resultCount }}</td>
-              <td class="font-semibold text-[var(--color-positive)]">{{ run.newCount }}</td>
+              <td class="font-semibold text-gain">{{ run.newCount }}</td>
               <td class="hidden md:table-cell">{{ run.duplicateCount }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
@@ -88,6 +86,8 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, ref } from 'vue'
 import { getAdminWishlistSearchAlertRuns } from '@/api/client'
 import type { AdminWishlistSearchAlertRun, AppSettings } from '@/types'
@@ -133,10 +133,10 @@ async function nextPage() {
 
 function statusClass(status: AdminWishlistSearchAlertRun['status']): string {
   if (status === 'queued') return 'text-gold'
-  if (status === 'running') return 'text-[var(--accent-bronze)]'
-  if (status === 'failed' || status === 'cancelled' || status === 'rate_limited') return 'text-[var(--color-negative)]'
+  if (status === 'running') return 'text-bronze'
+  if (status === 'failed' || status === 'cancelled' || status === 'rate_limited') return 'text-loss'
   if (status === 'partial') return 'text-warning'
-  return 'text-[var(--color-positive)]'
+  return 'text-gain'
 }
 
 function formatDate(date: string): string {

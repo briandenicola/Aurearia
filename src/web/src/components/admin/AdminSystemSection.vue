@@ -113,7 +113,7 @@
             <span class="spinner"></span>
             Loading Numista health
           </div>
-          <p v-else-if="healthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+          <p v-else-if="healthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss" role="alert">
             Numista health is temporarily unavailable. Try again.
           </p>
           <div v-else-if="health && !hasHealthEvents" class="rounded-sm border border-border-subtle bg-card p-4" role="status">
@@ -211,6 +211,29 @@
           </label>
           <span id="coin-copilot-enabled-help" class="mt-1 block text-sm text-text-muted">
             Off by default. Disabling blocks new runs and resumes while keeping existing runs readable and cancellable.
+          </span>
+        </div>
+
+        <div class="form-group min-w-0">
+          <label class="flex items-center gap-3" for="coin-copilot-attribution-enabled">
+            <input
+              id="coin-copilot-attribution-enabled"
+              v-model="localCoinCopilotAttributionEnabled"
+              type="checkbox"
+              name="CoinCopilotAttributionEnabled"
+              aria-describedby="coin-copilot-attribution-enabled-help"
+            />
+            <span class="form-label m-0">Allow Deep Analysis from Coin Copilot</span>
+          </label>
+          <span id="coin-copilot-attribution-enabled-help" class="mt-1 block text-sm text-text-muted">
+            Lets Coin Copilot hand a coin off to Deep Analysis from the chat. Off by default.
+          </span>
+          <span
+            v-if="localCoinCopilotAttributionEnabled && !localDeepIdentificationEnabled"
+            class="mt-1 block text-sm text-gold"
+            data-testid="coin-copilot-attribution-dependency-hint"
+          >
+            Also enable Deep Analysis below for the hand-off to work.
           </span>
         </div>
 
@@ -338,7 +361,7 @@
             <span class="sr-only">Loading OCRE health</span>
             Loading OCRE health
           </div>
-          <p v-else-if="ocreHealthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+          <p v-else-if="ocreHealthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss" role="alert">
             OCRE health is temporarily unavailable. Try again.
           </p>
           <div v-else-if="ocreHealth" class="grid gap-4 md:grid-cols-3" data-testid="ocre-health">
@@ -368,7 +391,7 @@
             </button>
           </div>
           <div v-if="deepMetricsLoading" class="py-6 text-sm text-text-secondary" role="status">Loading Deep Analysis operations</div>
-          <p v-else-if="deepMetricsError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+          <p v-else-if="deepMetricsError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss" role="alert">
             Deep Analysis operations are temporarily unavailable. Try again.
           </p>
           <div v-else-if="deepMetrics" class="grid gap-4" data-testid="deep-observability">
@@ -391,12 +414,12 @@
               </div>
             </div>
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[540px] text-left text-sm">
-                <thead class="text-text-muted">
-                  <tr><th class="p-2">Provider</th><th class="p-2">Outcomes</th><th class="p-2">Latency</th></tr>
+              <table class="data-table min-w-[540px] text-sm [&_th]:p-2">
+                <thead>
+                  <tr><th>Provider</th><th>Outcomes</th><th>Latency</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(metrics, provider) in deepMetrics.providers" :key="provider" class="border-t border-border-subtle">
+                  <tr v-for="(metrics, provider) in deepMetrics.providers" :key="provider">
                     <td class="p-2 font-semibold uppercase text-text-primary">{{ provider }}</td>
                     <td class="p-2 text-text-secondary">{{ formatStatusCounts(metrics.statusCounts) }}</td>
                     <td class="p-2 text-text-secondary">p50 {{ formatDuration(metrics.latency.p50Ms) }} · p95 {{ formatDuration(metrics.latency.p95Ms) }}</td>
@@ -414,14 +437,14 @@
         </section>
       </section>
 
-      <p v-if="msg" class="my-2 text-body" :class="error ? 'text-[var(--color-negative)]' : 'text-gold'">{{ msg }}</p>
+      <p v-if="msg" class="my-2 text-body" :class="error ? 'text-loss' : 'text-gold'">{{ msg }}</p>
       <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
         {{ saving ? 'Saving...' : 'Save System Settings' }}
       </button>
     </form>
 
-    <div class="mt-6 flex items-center gap-2 border-t border-border-subtle pt-4 text-[0.78rem] text-text-muted">
-      <span class="font-semibold uppercase tracking-[0.05em]">Version</span>
+    <div class="mt-6 flex items-center gap-2 border-t border-border-subtle pt-4 text-chip text-text-muted">
+      <span class="font-semibold uppercase tracking-[0.08em]">Version</span>
       <span class="font-mono text-text-secondary">{{ appVersion }}</span>
       <span v-if="buildDate" class="ml-1">Built {{ buildDate }}</span>
     </div>
@@ -453,6 +476,7 @@ const props = withDefaults(defineProps<{
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
   coinCopilotEnabled?: string
+  coinCopilotAttributionEnabled?: string
   coinCopilotWorkerCount?: string
   coinCopilotMaxActivePerUser?: string
   coinCopilotQueueDepth?: string
@@ -498,6 +522,7 @@ const props = withDefaults(defineProps<{
   deepIdentificationMaxProviders: '4',
   deepIdentificationNumistaCallBudget: '4',
   coinCopilotEnabled: 'false',
+  coinCopilotAttributionEnabled: 'false',
   coinCopilotWorkerCount: '1',
   coinCopilotMaxActivePerUser: '1',
   coinCopilotQueueDepth: '16',
@@ -533,6 +558,7 @@ const emit = defineEmits<{
     deepIdentificationOCREEnabled: string
     deepIdentificationOCRECallBudget: string
     coinCopilotEnabled: string
+    coinCopilotAttributionEnabled: string
     coinCopilotWorkerCount: string
     coinCopilotMaxActivePerUser: string
     coinCopilotQueueDepth: string
@@ -583,6 +609,7 @@ const localDeepIdentificationNumistaCallBudget = ref(props.deepIdentificationNum
 const localOCREEnabled = ref((props.deepIdentificationOCREEnabled || 'false') === 'true')
 const localOCRECallBudget = ref(props.deepIdentificationOCRECallBudget || '3')
 const localCoinCopilotEnabled = ref((props.coinCopilotEnabled || 'false') === 'true')
+const localCoinCopilotAttributionEnabled = ref((props.coinCopilotAttributionEnabled || 'false') === 'true')
 const localCoinCopilotWorkerCount = ref(props.coinCopilotWorkerCount)
 const localCoinCopilotMaxActivePerUser = ref(props.coinCopilotMaxActivePerUser)
 const localCoinCopilotQueueDepth = ref(props.coinCopilotQueueDepth)
@@ -724,6 +751,7 @@ function save() {
     deepIdentificationOCREEnabled: localOCREEnabled.value ? 'true' : 'false',
     deepIdentificationOCRECallBudget: localOCRECallBudget.value,
     coinCopilotEnabled: localCoinCopilotEnabled.value ? 'true' : 'false',
+    coinCopilotAttributionEnabled: localCoinCopilotAttributionEnabled.value ? 'true' : 'false',
     coinCopilotWorkerCount: localCoinCopilotWorkerCount.value,
     coinCopilotMaxActivePerUser: localCoinCopilotMaxActivePerUser.value,
     coinCopilotQueueDepth: localCoinCopilotQueueDepth.value,
@@ -862,6 +890,7 @@ watch(() => props.deepIdentificationNumistaCallBudget, (value) => { localDeepIde
 watch(() => props.deepIdentificationOCREEnabled, (value) => { localOCREEnabled.value = (value || 'false') === 'true' })
 watch(() => props.deepIdentificationOCRECallBudget, (value) => { localOCRECallBudget.value = value || '3' })
 watch(() => props.coinCopilotEnabled, (value) => { localCoinCopilotEnabled.value = (value || 'false') === 'true' })
+watch(() => props.coinCopilotAttributionEnabled, (value) => { localCoinCopilotAttributionEnabled.value = (value || 'false') === 'true' })
 watch(() => props.coinCopilotWorkerCount, (value) => { localCoinCopilotWorkerCount.value = value })
 watch(() => props.coinCopilotMaxActivePerUser, (value) => { localCoinCopilotMaxActivePerUser.value = value })
 watch(() => props.coinCopilotQueueDepth, (value) => { localCoinCopilotQueueDepth.value = value })

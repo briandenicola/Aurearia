@@ -12,28 +12,28 @@ import (
 
 func TestCircleGuide_resolve(t *testing.T) {
 	tests := []struct {
-		name    string
-		guide   CircleGuide
-		bounds  image.Rectangle
-		wantCx  float64
-		wantCy  float64
-		wantR   float64
+		name   string
+		guide  CircleGuide
+		bounds image.Rectangle
+		wantCx float64
+		wantCy float64
+		wantR  float64
 	}{
 		{
-			name:    "1000x1000 image with cap - diameter capped at 360",
-			guide:   DefaultGuide,
-			bounds:  image.Rect(0, 0, 1000, 1000),
-			wantCx:  500,
-			wantCy:  520,
-			wantR:   180,
+			name:   "1000x1000 image with cap - diameter capped at 360",
+			guide:  DefaultGuide,
+			bounds: image.Rect(0, 0, 1000, 1000),
+			wantCx: 500,
+			wantCy: 520,
+			wantR:  180,
 		},
 		{
-			name:    "400x400 image no cap hit - diameter 74% of width",
-			guide:   DefaultGuide,
-			bounds:  image.Rect(0, 0, 400, 400),
-			wantCx:  200,
-			wantCy:  208,
-			wantR:   148,
+			name:   "400x400 image no cap hit - diameter 74% of width",
+			guide:  DefaultGuide,
+			bounds: image.Rect(0, 0, 400, 400),
+			wantCx: 200,
+			wantCy: 208,
+			wantR:  148,
 		},
 		{
 			name: "non-zero bounds origin",

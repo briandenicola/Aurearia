@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -35,26 +34,15 @@ func NewShipmentScheduler(shipmentSvc *ShipmentService, settingsSvc *SettingsSer
 
 func (s *ShipmentScheduler) Start() {
 	s.logger.Info("scheduler", "Shipment sync scheduler started")
-
-	select {
-	case <-time.After(30 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	for {
-		wait := s.timeUntilNextRun()
-		s.logger.Info("scheduler", "Next shipment sync in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("scheduler", "Shipment sync scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category:     "scheduler",
+		name:         "shipment sync",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 30 * time.Second,
+		next:         func(now time.Time, _ bool) time.Time { return s.nextRun(now) },
+		run:          s.runCycle,
+	}.Run()
 }
 
 func (s *ShipmentScheduler) Stop() {
@@ -122,26 +110,17 @@ func (s *ShipmentScheduler) isEnabled() bool {
 
 func (s *ShipmentScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	interval := s.getInterval()
-	startHour, startMin := s.getStartTime()
+	return s.nextRun(now).Sub(now)
+}
 
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
-	if anchor.After(now) {
-		return anchor.Sub(now)
-	}
-	elapsed := now.Sub(anchor)
-	periods := int(elapsed/interval) + 1
-	next := anchor.Add(time.Duration(periods) * interval)
-	return next.Sub(now)
+func (s *ShipmentScheduler) nextRun(now time.Time) time.Time {
+	h, m := s.getStartTime()
+	schedule := dailySchedule{Hour: h, Minute: m, Interval: s.getInterval(), Location: scheduleLocation(s.settingsSvc, s.logger)}
+	return schedule.slotAfter(now)
 }
 
 func (s *ShipmentScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingShipmentSyncStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 9, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingShipmentSyncStartTime), 9, 0)
 }
 
 func (s *ShipmentScheduler) getInterval() time.Duration {

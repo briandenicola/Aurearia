@@ -1,5 +1,5 @@
 <template>
-  <div v-if="user" class="fixed inset-0 bg-[rgba(0,0,0,0.6)] flex items-center justify-center z-[200] p-4" @click.self="$emit('close')">
+  <div v-if="user" class="fixed inset-0 bg-overlay-60 flex items-center justify-center z-[200] p-4" @click.self="$emit('close')">
     <div class="card w-full max-w-[400px]">
       <h3 class="mb-4">Reset Password for {{ user.username }}</h3>
       <form @submit.prevent="handleSubmit">
@@ -10,7 +10,7 @@
         <p
           v-if="msg"
           class="text-body my-2"
-          :class="error ? 'text-[#e74c3c]' : 'text-gold'"
+          :class="error ? 'text-loss' : 'text-gold'"
         >
           {{ msg }}
         </p>

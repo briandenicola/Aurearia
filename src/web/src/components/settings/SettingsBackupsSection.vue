@@ -55,7 +55,7 @@
       </div>
     </div>
 
-    <p v-if="dataMsg" class="my-2 text-body" :class="dataError ? 'text-[var(--cat-byzantine)]' : 'text-gold'">{{ dataMsg }}</p>
+    <p v-if="dataMsg" class="my-2 text-body" :class="dataError ? 'text-byzantine' : 'text-gold'">{{ dataMsg }}</p>
   </section>
 </template>
 

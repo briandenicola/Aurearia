@@ -1,13 +1,13 @@
 <template>
   <div class="stats-section card">
-    <h2 class="mb-5 text-[1.1rem]">Collection Distribution</h2>
+    <h2 class="mb-5 text-md">Collection Distribution</h2>
     <div v-if="heatMapEras.length && heatMapCategories.length" class="flex flex-col gap-3">
       <ZoomableSurface :interactive="false" aria-label="Collection distribution heat map">
         <div class="grid min-w-[300px] gap-[2px] p-3 max-[480px]:min-w-0 max-[480px]:gap-px" :style="{ gridTemplateColumns: `minmax(60px, 80px) repeat(${heatMapCategories.length}, 1fr)` }">
           <div></div>
-          <div v-for="cat in heatMapCategories" :key="cat" class="overflow-hidden text-ellipsis whitespace-nowrap px-[0.15rem] py-[0.25rem] text-center text-[0.65rem] font-semibold text-text-secondary max-[480px]:px-[0.1rem] max-[480px]:py-[0.2rem] max-[480px]:text-[0.55rem]">{{ cat }}</div>
+          <div v-for="cat in heatMapCategories" :key="cat" class="overflow-hidden text-ellipsis whitespace-nowrap px-[0.15rem] py-[0.25rem] text-center text-micro font-semibold text-text-secondary max-[480px]:px-[0.1rem] max-[480px]:py-[0.2rem] max-[480px]:text-2xs">{{ cat }}</div>
           <template v-for="era in heatMapEras" :key="era">
-            <div class="flex max-w-[80px] items-center overflow-hidden text-ellipsis whitespace-nowrap pr-[0.35rem] text-[0.65rem] font-semibold text-text-secondary max-[480px]:max-w-[60px] max-[480px]:pr-[0.2rem] max-[480px]:text-[0.55rem]">{{ era }}</div>
+            <div class="flex max-w-[80px] items-center overflow-hidden text-ellipsis whitespace-nowrap pr-[0.35rem] text-micro font-semibold text-text-secondary max-[480px]:max-w-[60px] max-[480px]:pr-[0.2rem] max-[480px]:text-2xs">{{ era }}</div>
             <div
               v-for="cat in heatMapCategories"
               :key="`${era}-${cat}`"
@@ -16,7 +16,7 @@
               :title="`${era} / ${cat}: ${heatMapData[`${era}|${cat}`] ?? 0} coins`"
               @click="navigateToFiltered(era, cat)"
             >
-              <span v-if="(heatMapData[`${era}|${cat}`] ?? 0) > 0" class="text-[0.65rem] font-bold text-text-primary max-[480px]:text-[0.55rem]">{{ heatMapData[`${era}|${cat}`] }}</span>
+              <span v-if="(heatMapData[`${era}|${cat}`] ?? 0) > 0" class="text-micro font-bold text-text-primary max-[480px]:text-2xs">{{ heatMapData[`${era}|${cat}`] }}</span>
             </div>
           </template>
         </div>

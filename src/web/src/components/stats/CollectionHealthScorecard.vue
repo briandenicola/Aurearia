@@ -5,7 +5,7 @@
     </div>
     <div class="flex flex-col gap-6">
       <div class="flex flex-col items-center gap-2 rounded-sm bg-input p-4">
-        <div class="font-display text-[3rem] font-semibold text-gold max-md:text-[2.5rem]">{{ summary.score }}</div>
+        <div class="font-display text-4xl font-semibold text-gold max-md:text-3xl">{{ summary.score }}</div>
         <div
           class="rounded-full border px-[0.8rem] py-1 text-base font-semibold uppercase tracking-[0.08em]"
           :class="summary.grade === 'A'

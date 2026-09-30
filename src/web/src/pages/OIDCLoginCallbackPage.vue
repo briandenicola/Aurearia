@@ -10,8 +10,8 @@
         class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full border bg-input"
         :class="{
           'border-border-subtle text-gold': status === 'loading',
-          'border-[var(--color-positive)] text-[var(--color-positive)]': status === 'success',
-          'border-[var(--color-negative)] text-[var(--color-negative)]': status === 'error',
+          'border-[var(--color-positive)] text-gain': status === 'success',
+          'border-[var(--color-negative)] text-loss': status === 'error',
         }"
       >
         <LoaderCircle v-if="status === 'loading'" :size="28" aria-hidden="true" class="animate-spin" />
@@ -25,7 +25,7 @@
       <p
         v-if="message"
         class="text-body mb-4"
-        :class="status === 'error' ? 'text-[var(--color-negative)]' : 'text-text-secondary'"
+        :class="status === 'error' ? 'text-loss' : 'text-text-secondary'"
       >
         {{ message }}
       </p>

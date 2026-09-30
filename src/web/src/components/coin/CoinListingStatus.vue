@@ -11,7 +11,7 @@
       >{{ listingStatus === 'available' ? 'Available' : listingStatus === 'unavailable' ? 'Unavailable' : 'Unknown' }}</span>
       <button class="btn btn-ghost btn-xs" @click="handleDismiss">Dismiss</button>
     </div>
-    <p v-if="listingCheckReason" class="my-1 text-[0.82rem] text-text-secondary">{{ listingCheckReason }}</p>
+    <p v-if="listingCheckReason" class="my-1 text-chip text-text-secondary">{{ listingCheckReason }}</p>
     <p v-if="listingCheckedAt" class="m-0 text-sm text-text-muted">Last checked: {{ formatDate(listingCheckedAt) }}</p>
   </div>
 </template>

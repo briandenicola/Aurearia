@@ -15,7 +15,7 @@
       <span v-if="wishlist && coin.listingStatus === 'unavailable'" class="absolute top-2 right-2 z-[3] rounded-full bg-red-600/85 px-2 py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em] text-white">Unavailable</span>
       <button
         v-if="wishlist && coin.listingStatus === 'unavailable'"
-        class="absolute right-2 bottom-2 z-[3] rounded-sm border border-border-subtle bg-black/70 px-2 py-[0.15rem] text-[0.65rem] text-text-secondary transition-colors hover:bg-black/85 hover:text-text-primary"
+        class="absolute right-2 bottom-2 z-[3] rounded-sm border border-border-subtle bg-black/70 px-2 py-[0.15rem] text-micro text-text-secondary transition-colors hover:bg-black/85 hover:text-text-primary"
         @click.stop="emit('dismiss-status', coin.id)"
       >
         Dismiss
@@ -28,10 +28,10 @@
       >
         <Check v-if="selected" :size="16" :stroke-width="3" />
       </div>
-      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_rgba(0,0,0,0.2),0_0_20px_var(--accent-gold-glow)]"></div>
+      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_var(--overlay-35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_var(--overlay-20),0_0_20px_var(--accent-gold-glow)]"></div>
     </div>
     <div class="flex flex-1 flex-col gap-1.5 p-4">
-      <h3 class="overflow-hidden text-[1rem] leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+      <h3 class="overflow-hidden text-md leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
         <span
           v-if="wishlist && coin.listingStatus === 'available'"
           class="mr-1.5 inline-block h-2 w-2 shrink-0 align-middle rounded-full bg-gain"
@@ -77,13 +77,13 @@
             :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
           >{{ tag.name }}</span>
         </div>
-        <div class="mt-1 flex flex-col gap-[0.15rem] text-[0.82rem]">
+        <div class="mt-1 flex flex-col gap-[0.15rem] text-chip">
           <div v-if="coin.soldPrice" class="font-semibold text-gold">Sold: {{ formatCurrency(coin.soldPrice) }}</div>
-          <div v-if="coin.purchasePrice" class="text-[0.78rem] text-text-muted">Paid: {{ formatCurrency(coin.purchasePrice) }}</div>
-          <div v-if="coin.soldPrice && coin.purchasePrice" class="text-[0.82rem] font-semibold" :class="coin.soldPrice < coin.purchasePrice ? 'text-loss' : 'text-gain'">
+          <div v-if="coin.purchasePrice" class="text-chip text-text-muted">Paid: {{ formatCurrency(coin.purchasePrice) }}</div>
+          <div v-if="coin.soldPrice && coin.purchasePrice" class="text-chip font-semibold" :class="coin.soldPrice < coin.purchasePrice ? 'text-loss' : 'text-gain'">
             {{ coin.soldPrice >= coin.purchasePrice ? '+' : '' }}{{ formatCurrency(coin.soldPrice - coin.purchasePrice) }}
           </div>
-          <div v-if="coin.soldTo" class="mt-[0.15rem] text-[0.78rem] text-text-secondary">To: {{ coin.soldTo }}</div>
+          <div v-if="coin.soldTo" class="mt-[0.15rem] text-chip text-text-secondary">To: {{ coin.soldTo }}</div>
         </div>
       </template>
       <div v-if="wishlist && (coin.currentValue || coin.purchasePrice)" class="mt-auto text-base font-semibold text-gold">

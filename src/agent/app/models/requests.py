@@ -31,6 +31,9 @@ MAX_PORTFOLIO_LIST_ITEMS = 200
 MAX_TOP_COINS = 100
 MAX_AVAILABILITY_ITEMS = 10
 MAX_ALERT_CANDIDATES = 50
+MAX_COMPARABLES_LISTINGS = 8
+MAX_COMPARABLES_QUERY_LENGTH = 500
+MAX_COMPARABLES_TERMS_LENGTH = 200
 MAX_WISHLIST_FEATURED_SUMMARY_LENGTH = 500
 MAX_SET_BUILDER_PROMPT_LENGTH = 500
 MAX_SET_BUILDER_FEEDBACK_LENGTH = 1000
@@ -81,6 +84,8 @@ DEEP_PROVIDER_NAMES = {"numista", "nomisma", "ngc", "ocre", "rpc"}
 BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
 BoundedHistoryMessage = Annotated[str, StringConstraints(max_length=MAX_HISTORY_MESSAGE_LENGTH)]
 BoundedPrompt = Annotated[str, StringConstraints(max_length=MAX_PROMPT_LENGTH)]
+BoundedComparablesQuery = Annotated[str, StringConstraints(min_length=1, max_length=MAX_COMPARABLES_QUERY_LENGTH)]
+BoundedComparablesTerms = Annotated[str, StringConstraints(max_length=MAX_COMPARABLES_TERMS_LENGTH)]
 ConfiguredSourceHost = Annotated[str, StringConstraints(min_length=3, max_length=253)]
 
 _SOURCE_HOST_PATTERN = re.compile(
@@ -758,6 +763,28 @@ class AlertDiscoveryRequest(StrictRequestModel):
 
     llm: LLMConfig
     alert: AlertDiscoveryDetail
+    dealer_search_sources: list[ConfiguredSourceHost] = Field(
+        default_factory=list, max_length=MAX_SEARCH_SOURCES
+    )
+
+    @field_validator("dealer_search_sources")
+    @classmethod
+    def validate_search_sources(cls, sources: list[str]) -> list[str]:
+        return _validate_search_sources(sources)
+
+
+# Quick Identify comparables DTOs (#779).
+class ComparablesSearchRequest(StrictRequestModel):
+    """One bounded dealer search used to ground a Quick Identify price range.
+
+    Stateless: Go supplies the attribution keywords and the configured dealer
+    hosts, and Python returns current listings without persisting anything.
+    """
+
+    llm: LLMConfig
+    query: BoundedComparablesQuery
+    search_terms: BoundedComparablesTerms = ""
+    limit: int = Field(default=MAX_COMPARABLES_LISTINGS, ge=1, le=MAX_COMPARABLES_LISTINGS)
     dealer_search_sources: list[ConfiguredSourceHost] = Field(
         default_factory=list, max_length=MAX_SEARCH_SOURCES
     )

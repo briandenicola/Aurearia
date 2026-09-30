@@ -49,7 +49,7 @@
           <div
             v-if="anthropicTestResult"
             class="flex items-center gap-2 rounded-sm border px-3 py-[0.6rem] text-body"
-            :class="anthropicTestOk ? 'border-[rgba(46,204,113,0.3)] bg-[rgba(46,204,113,0.1)] text-[var(--color-positive)]' : 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.1)] text-[var(--color-negative)]'"
+            :class="anthropicTestOk ? 'border-status-success-border bg-status-success-tint text-gain' : 'border-status-error-border bg-status-error-tint text-loss'"
           >
             <span class="text-label">{{ anthropicTestOk ? '&#x25CF;' : '&#x25CF;' }}</span>
             {{ anthropicTestResult }}
@@ -94,7 +94,7 @@
         <div
           v-if="ollamaTestResult"
           class="flex items-center gap-2 rounded-sm border px-3 py-[0.6rem] text-body"
-          :class="ollamaTestOk ? 'border-[rgba(46,204,113,0.3)] bg-[rgba(46,204,113,0.1)] text-[var(--color-positive)]' : 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.1)] text-[var(--color-negative)]'"
+          :class="ollamaTestOk ? 'border-status-success-border bg-status-success-tint text-gain' : 'border-status-error-border bg-status-error-tint text-loss'"
         >
           <span class="text-label">{{ ollamaTestOk ? '&#x25CF;' : '&#x25CF;' }}</span>
           {{ ollamaTestResult }}
@@ -102,7 +102,7 @@
         <div
           v-if="searxngTestResult"
           class="mt-3 flex items-center gap-2 rounded-sm border px-3 py-[0.6rem] text-body"
-          :class="searxngTestOk ? 'border-[rgba(46,204,113,0.3)] bg-[rgba(46,204,113,0.1)] text-[var(--color-positive)]' : 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.1)] text-[var(--color-negative)]'"
+          :class="searxngTestOk ? 'border-status-success-border bg-status-success-tint text-gain' : 'border-status-error-border bg-status-error-tint text-loss'"
         >
           <span class="text-label">{{ searxngTestOk ? '&#x25CF;' : '&#x25CF;' }}</span>
           {{ searxngTestResult }}
@@ -208,7 +208,7 @@
         </div>
       </template>
 
-      <p v-if="settingsMsg" class="my-2 text-body text-gold" :class="settingsError ? 'text-[var(--color-negative)]' : ''">{{ settingsMsg }}</p>
+      <p v-if="settingsMsg" class="my-2 text-body text-gold" :class="settingsError ? 'text-loss' : ''">{{ settingsMsg }}</p>
       <div class="flex items-center gap-2">
         <button type="submit" class="btn btn-primary btn-sm" :disabled="settingsSaving">
           {{ settingsSaving ? 'Saving...' : 'Save AI Settings' }}

@@ -15,7 +15,7 @@
             leave-active-class="transition-opacity duration-150 ease-in"
             leave-to-class="opacity-0"
           >
-            <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+            <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_var(--overlay-40)]">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
@@ -36,7 +36,7 @@
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-2 text-[0.78rem] font-medium text-text-secondary transition-colors hover:text-text-primary md:px-4 md:py-2.5 md:text-body"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-2 text-chip font-medium text-text-secondary transition-colors hover:text-text-primary md:px-4 md:py-2.5 md:text-body"
             :class="{ 'bg-[var(--accent-gold-dim)] text-gold hover:text-gold': activeTab === tab.id }"
             @click="selectTab(tab.id)"
           >

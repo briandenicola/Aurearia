@@ -43,7 +43,7 @@
         <textarea id="collector-goals" v-model="form.collectingGoals" class="form-input min-h-11 resize-y" rows="3" placeholder="One goal per line"></textarea>
       </div>
 
-      <p v-if="message" :role="hasError ? 'alert' : 'status'" class="sm:col-span-2 text-sm" :class="hasError ? 'text-[var(--color-negative)]' : 'text-[var(--color-positive)]'">
+      <p v-if="message" :role="hasError ? 'alert' : 'status'" class="sm:col-span-2 text-sm" :class="hasError ? 'text-loss' : 'text-gain'">
         {{ message }}
       </p>
 

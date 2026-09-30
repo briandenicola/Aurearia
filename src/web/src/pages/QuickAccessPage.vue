@@ -21,7 +21,7 @@
 
       <div v-else>
         <div v-if="error" class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-[var(--color-negative)] bg-card p-3" role="alert">
-          <span class="text-body text-[var(--color-negative)]">{{ error }}</span>
+          <span class="text-body text-loss">{{ error }}</span>
           <button class="btn btn-secondary btn-sm" :disabled="loading" @click="refresh">Retry</button>
         </div>
 

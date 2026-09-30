@@ -46,6 +46,47 @@
   --color-confidence-medium: var(--confidence-medium);
   --color-confidence-low:    var(--confidence-low);
 
+  /* Materials */
+  --color-mat-gold:     var(--mat-gold);
+  --color-mat-silver:   var(--mat-silver);
+  --color-mat-bronze:   var(--mat-bronze);
+  --color-mat-copper:   var(--mat-copper);
+  --color-mat-electrum: var(--mat-electrum);
+
+  /* Showcase felts */
+  --color-felt-green-bright: var(--felt-green-bright);
+  --color-felt-navy-bright:  var(--felt-navy-bright);
+  --color-felt-red-bright:   var(--felt-red-bright);
+
+  /* Black scrims (#784 slice 4) — see the overlay block in variables.css */
+  --color-overlay-20:        var(--overlay-20);
+  --color-overlay-30:        var(--overlay-30);
+  --color-overlay-35:        var(--overlay-35);
+  --color-overlay-40:        var(--overlay-40);
+  --color-overlay-45:        var(--overlay-45);
+  --color-overlay-50:        var(--overlay-50);
+  --color-overlay-60:        var(--overlay-60);
+  --color-overlay-dark:      var(--overlay-dark);
+
+  /* Status tones (#784 slice 4) */
+  --color-status-success-bg:     var(--status-success-bg);
+  --color-status-success-fg:     var(--status-success-fg);
+  --color-status-success-border: var(--status-success-border);
+  --color-status-error-bg:       var(--status-error-bg);
+  --color-status-error-fg:       var(--status-error-fg);
+  --color-status-error-border:   var(--status-error-border);
+  --color-status-warning-bg:     var(--status-warning-bg);
+  --color-status-warning-fg:     var(--status-warning-fg);
+  --color-status-warning-border: var(--status-warning-border);
+  --color-status-info-bg:        var(--status-info-bg);
+  --color-status-info-fg:        var(--status-info-fg);
+  --color-status-info-border:    var(--status-info-border);
+  --color-status-neutral-bg:     var(--status-neutral-bg);
+  --color-status-neutral-fg:     var(--status-neutral-fg);
+  --color-status-neutral-border: var(--status-neutral-border);
+  --color-status-success-tint:   var(--status-success-tint);
+  --color-status-error-tint:     var(--status-error-tint);
+
   /* Borders */
   --color-border-subtle: var(--border-subtle);
   --color-border-accent: var(--border-accent);
@@ -56,18 +97,24 @@
 }
 
 @theme {
-  /* Typography — 6-step consolidated scale */
+  /* Typography — consolidated scale. Every size in the app is one of these;
+     `text-[...]` with an arbitrary value is a test failure. */
   --font-sans:    var(--font-family-sans);
   --font-display: var(--font-family-display);
 
-  --text-label: 0.7rem;   /* section labels, uppercase tiny */
+  --text-2xs:   0.55rem;  /* dense data grids at phone widths only */
+  --text-micro: 0.65rem;  /* dense data grids, micro-chips */
+  --text-label: 0.7rem;   /* section labels, table headers, uppercase tiny */
   --text-sm:    0.75rem;  /* badges, chip-sm */
-  --text-chip:  0.8rem;   /* standard chip text */
+  --text-chip:  0.8rem;   /* standard chip text, hints */
   --text-body:  0.85rem;  /* form labels, secondary body */
   --text-base:  0.9rem;   /* primary body, h4 */
+  --text-md:    1.1rem;   /* card and modal titles */
   --text-lg:    1.2rem;   /* h3 */
   --text-xl:    1.5rem;   /* h2 */
-  --text-2xl:   2rem;     /* h1 */
+  --text-2xl:   2rem;     /* h1, stat numerals */
+  --text-3xl:   2.5rem;   /* hero numerals */
+  --text-4xl:   3rem;     /* single headline numeral */
 
   /* Border radii — override Tailwind defaults to match design system */
   --radius-sm:   8px;
@@ -321,6 +368,46 @@
   margin-bottom: 0.5rem;
 }
 
+/*
+ * Shared data-table recipe (#784 slice 3).
+ *
+ * Declared in @layer components so that Tailwind utilities — which live in the
+ * later `utilities` layer — still win on individual cells. That keeps per-cell
+ * overrides such as `<th class="text-right">` or `<td class="align-top">`
+ * working exactly as they did when the recipe was inlined.
+ *
+ * Only the typographic and border parts of the recipe live here. Padding stays
+ * on each table as `[&_th]:` / `[&_td]:` utilities so that table density
+ * remains a per-table decision.
+ *
+ * The class goes on the `<table>` itself, or — where the table is rendered
+ * from markdown and cannot carry a class, as in `HelpSection.vue` — on the
+ * container that wraps it.
+ */
+@layer components {
+  table.data-table,
+  .data-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table th {
+    font-size: var(--text-label);
+    font-weight: 600;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .data-table td {
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+}
+
 /* Form elements */
 .form-group {
   margin-bottom: 1rem;
@@ -332,6 +419,15 @@
   font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--font-family-sans);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 .form-input,
@@ -390,10 +486,11 @@
   align-items: center;
   padding: 0.2rem 0.7rem;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
+  font-size: var(--text-label);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
 }
 
 /* Material badges */

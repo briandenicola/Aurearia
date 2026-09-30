@@ -94,6 +94,7 @@
           :deep-identification-o-c-r-e-enabled="settings.DeepIdentificationOCREEnabled ?? 'false'"
           :deep-identification-o-c-r-e-call-budget="settings.DeepIdentificationOCRECallBudget ?? '3'"
           :coin-copilot-enabled="settings.CoinCopilotEnabled ?? 'false'"
+          :coin-copilot-attribution-enabled="settings.CoinCopilotAttributionEnabled ?? 'false'"
           :coin-copilot-worker-count="settings.CoinCopilotWorkerCount ?? '1'"
           :coin-copilot-max-active-per-user="settings.CoinCopilotMaxActivePerUser ?? '1'"
           :coin-copilot-queue-depth="settings.CoinCopilotQueueDepth ?? '16'"
@@ -441,6 +442,7 @@ function onSystemSave(payload: {
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
   coinCopilotEnabled: string
+  coinCopilotAttributionEnabled: string
   coinCopilotWorkerCount: string
   coinCopilotMaxActivePerUser: string
   coinCopilotQueueDepth: string
@@ -489,6 +491,7 @@ function onSystemSave(payload: {
   settings.value.DeepIdentificationOCREEnabled = payload.deepIdentificationOCREEnabled
   settings.value.DeepIdentificationOCRECallBudget = payload.deepIdentificationOCRECallBudget
   settings.value.CoinCopilotEnabled = payload.coinCopilotEnabled
+  settings.value.CoinCopilotAttributionEnabled = payload.coinCopilotAttributionEnabled
   settings.value.CoinCopilotWorkerCount = payload.coinCopilotWorkerCount
   settings.value.CoinCopilotMaxActivePerUser = payload.coinCopilotMaxActivePerUser
   settings.value.CoinCopilotQueueDepth = payload.coinCopilotQueueDepth

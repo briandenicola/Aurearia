@@ -101,3 +101,14 @@ paths = [
 regexes = [
   '''provider credentials, JWTs/internal tokens'''
 ]
+
+[[allowlists]]
+description = "Schedule time-zone settings test (IANA zone name, not a key)"
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''src/api/handlers/admin_test\.go'''
+]
+regexes = [
+  '''put\(key, "America/Chicago"\)'''
+]

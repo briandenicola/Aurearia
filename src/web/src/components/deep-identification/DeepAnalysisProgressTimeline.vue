@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex min-w-0 flex-wrap items-center gap-2" role="status" aria-live="polite">
         <span
-          class="inline-flex items-center rounded-full border px-[0.7rem] py-1 text-sm font-semibold uppercase tracking-[0.08em]"
+          class="inline-flex items-center rounded-full border px-[0.7rem] py-1 text-label font-semibold uppercase tracking-[0.08em]"
           :class="connectionClasses"
         >{{ connectionLabel }}</span>
         <span v-if="truncated" class="text-sm text-text-secondary">

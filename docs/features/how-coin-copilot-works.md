@@ -53,7 +53,7 @@ flowchart LR
 
     subgraph Outside["Trusted outside sources"]
         direction TB
-        D("🏪 Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Biddr · Catawiki"):::outside
+        D("🏪 Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Catawiki"):::outside
         A("🔨 Auctions<br/>NumisBids · CNG"):::outside
         R("📚 References<br/>Numista · Nomisma / OCRE"):::outside
     end
@@ -99,23 +99,22 @@ Three things are worth knowing about this picture:
 
 ## The helpers
 
-These are the helpers Copilot can call. Each one appears twice in the chat:
-under its **checklist name** in the step list, and under its **result name**
-on the line that reports what it found.
+These are the helpers Copilot can call. Each one uses the same name in the step
+checklist and on the line that reports what it found.
 
-| Checklist name | Result name | What it does for you | Where it looks | Can it change anything? |
-|---|---|---|---|---|
-| **Search owned collection** | Search My Collection | Finds your coins matching a description ("my Constantine folles", "coins with no mint") | Your collection | No |
-| **Read coin details** | Get Coin | Reads one of your coins in full | Your collection | No |
-| **Summarize collection** | Collection Summary | Counts, totals and which fields are missing across the whole collection | Your collection | No |
-| **Review top recorded values** | Top Coins By Value | Lists your highest-valued coins by the values you've recorded | Your collection | No |
-| **Review collection portfolio** | Portfolio Review | A fact sheet from your own records: number of coins, recorded purchase total vs recorded current value, missing information | Your collection summary only (no market prices) | No |
-| **Analyze collection gaps** | Gap Analysis | Finds *data* gaps, e.g. "14 coins are missing an era, 6 have no weight". It does **not** give buying advice | Your collection summary only | No |
-| **Search dealer listings** | Market Search | Finds coins currently for sale, keeps to your budget, and marks each listing's source | Configured dealers (see [How dealer search works](#how-dealer-search-works)) | No |
-| **Search auction lots** | Auction Search | Finds lots in current and upcoming auctions | Configured auction houses; NumisBids is searched directly | No |
-| **Analyze completed-sale price trends** | Price Trends | Looks at recent completed sales and says whether prices look rising, falling or flat, and how many verified sales that's based on | Configured auction houses | No |
-| **Find similar auction lots** | Similar Lots | Finds and ranks auction lots similar to a coin you describe | Configured auction houses | No |
-| **Use existing Deep Analysis** | Deep Analysis Handoff | Starts, checks or re-runs a Deep Analysis identification job for one of your coins or an open Quick Capture draft | Your coin's photos, then reference catalogues | No: the result is a *proposal* you review on the Deep Analysis page |
+| Helper | What it does for you | Where it looks | Can it change anything? |
+|---|---|---|---|
+| **Search owned collection** | Finds your coins matching a description ("my Constantine folles", "coins with no mint") | Your collection | No |
+| **Read coin details** | Reads one of your coins in full | Your collection | No |
+| **Summarize collection** | Counts, totals and which fields are missing across the whole collection | Your collection | No |
+| **Review top recorded values** | Lists your highest-valued coins by the values you've recorded | Your collection | No |
+| **Review collection portfolio** | A fact sheet from your own records: number of coins, recorded purchase total vs recorded current value, missing information | Your collection summary only (no market prices) | No |
+| **Analyze collection gaps** | Finds *data* gaps, e.g. "14 coins are missing an era, 6 have no weight". It does **not** give buying advice | Your collection summary only | No |
+| **Search dealer listings** | Finds coins currently for sale, keeps to your budget, and marks each listing's source | Configured dealers (see [How dealer search works](#how-dealer-search-works)) | No |
+| **Search auction lots** | Finds lots in current and upcoming auctions | Configured auction houses; NumisBids is searched directly | No |
+| **Analyze completed-sale price trends** | Looks at recent completed sales and says whether prices look rising, falling or flat, and how many verified sales that's based on | Configured auction houses | No |
+| **Find similar auction lots** | Finds and ranks auction lots similar to a coin you describe | Configured auction houses | No |
+| **Use existing Deep Analysis** | Starts, checks or re-runs a Deep Analysis identification job for one of your coins or an open Quick Capture draft | Your coin's photos, then reference catalogues | No: the result is a *proposal* you review on the Deep Analysis page |
 
 Copilot calls at most **three helpers at the same time**, and at most **twelve
 per run**. A Deep Analysis start or re-run always runs on its
@@ -158,7 +157,7 @@ sequenceDiagram
             Dealer->>Sites: The dealer's own search
             Sites-->>Dealer: Current listings with prices
         end
-        Dealer->>Dealer: Drop over-budget and other-currency listings<br/>Rank title matches first · alternate dealers
+        Dealer->>Dealer: Drop over-budget and other-currency listings<br/>Rank title matches first · alternate dealers<br/>AI check drops titles that only mention the coin
         Dealer-->>Copilot: 5 listings + "N more matched" + notes
     end
 
@@ -214,7 +213,7 @@ flowchart TD
     Web("🌐 Web search locked to<br/>that dealer's website,<br/>then read the listing pages"):::market
     Budget("💲 Keep listings<br/>at or under budget<br/>in the budget's currency"):::server
     Drop("🚫 Leave out sold,<br/>over-budget, other-currency<br/>and unpriced listings<br/>and say how many"):::server
-    Mix("🔀 Title matches first<br/>dealers take turns"):::server
+    Mix("🔀 Title matches first<br/>dealers take turns<br/>AI check leaves out titles<br/>that only mention the coin"):::server
     Out(["✅ Show 5 listings<br/>up to 10 if you ask<br/>each with its dealer link"]):::copilot
 
     Q --> P --> Split
@@ -249,6 +248,19 @@ flowchart TD
   fairly compare €450 with $500.
 - **Five by default.** You'll see 5 listings. If more matched, Copilot says so
   and offers to show more, up to a maximum of 10.
+- **The original Coin Agent searches the same way.** When Copilot is off, the
+  Coin Agent's coin search also uses each dealer's own search and your budget,
+  and shows up to 10 listings. (Wishlist alert checks still use web search.)
+- **Sold and reserved listings are left out.** A listing page that says it is
+  sold, sold out, reserved, on hold or no longer available is treated as sold.
+  A page only counts as for sale when it has a real "add to cart" or "buy now"
+  button, not just the word "purchase" somewhere on the page.
+- **Dealers that push back get a rest.** If a dealer blocks automated searches
+  (a browser challenge or "too many requests"), Aurearia stops asking it for a
+  while (45 minutes by default, or as long as the dealer asks, up to 6 hours).
+  The answer says that dealer was skipped, and the other dealers' results
+  still show. Repeating the same search within 5 minutes reuses the earlier
+  answer instead of asking the dealer again.
 - **Add to Wishlist** appears on dealer listings. Pressing it asks you to
   confirm; Copilot never adds anything itself.
 
@@ -407,7 +419,12 @@ Your administrator can adjust these in *Admin → System → Coin Copilot Limits
 - **Keyword search can't judge meaning.** Dealers search their own titles and
   descriptions, so a listing that merely *mentions* Caligula (a Germanicus coin
   "struck under Caligula", or a dealer's colourful description) can appear.
-  Listings with the coin in the title are ranked first.
+  Listings with the coin in the title are ranked first. A quick AI check then
+  reads the listing titles: listings about a different coin (a caliph dubbed
+  "the Caligula of the Islamic world") are left out and counted, and coins
+  *related* to the search (the Germanicus struck under Caligula) stay but are
+  shown after direct matches. The check has an 8-second limit; if it fails or
+  times out, the listings are shown unfiltered.
 - **Currencies aren't converted**, so a euro listing that would fit your
   dollar budget is left out (and counted).
 - **Dealers without direct search** can still show listings whose availability
@@ -420,7 +437,7 @@ Your administrator can adjust these in *Admin → System → Coin Copilot Limits
 | What you see | Likely reason | What to try |
 |---|---|---|
 | No **Beta · Coin Copilot** header; answers come in one go | Copilot is off, or the AI model can't run it | Ask your admin to enable *Coin Copilot beta* with an Anthropic model, or an Ollama model that supports tools |
-| "Market Search — Dealer search returned partial evidence; at least one source failed." | One dealer didn't answer (timeout or bot check) | Try again later; the other dealers' results are still valid |
+| "Search dealer listings — Dealer search returned partial evidence; at least one source failed." | One dealer didn't answer (timeout or bot check) | Try again later; the other dealers' results are still valid |
 | Fewer results than expected under a budget | Listings in other currencies, or without a readable price, were left out | Read the note under the results; ask without a budget to see everything |
 | "Stopped" | A limit was reached or the AI service failed | Ask a narrower question, or try again |
 | Copilot won't run Deep Analysis | The hand-off isn't enabled, or it couldn't tell which coin you meant | Name the coin more exactly, or ask your admin (see below) |
@@ -514,10 +531,13 @@ of Copilot, but they're useful to know about.
   quietly uses the original Coin Agent.
 - **Choose sources:** *Admin → System → Dealer Search Sources* and *Auction
   Search Sources*. vCoins, MA-Shops and Harlan J. Berk get direct search when
-  listed; others use web search limited to their site.
+  listed; others use web search limited to their site. Forum Ancient Coins and
+  Catawiki stay on web search on purpose — Forum answers automated requests with
+  a bot challenge and Catawiki refuses them outright. Biddr sells through timed
+  auction lots, so it ships as an auction source rather than a dealer source.
 - **Deep Analysis from the chat** needs *Enable Deep Analysis* (Admin → System)
-  and the `CoinCopilotAttributionEnabled` setting, which has no switch in the
-  admin screen yet and is set through the settings API.
+  and *Allow Deep Analysis from Coin Copilot* (Admin → System → Coin Copilot).
+  It is off by default.
 - **Switching Copilot off** stops new runs and returns the chat to the Coin
   Agent. Existing conversations stay readable.
 

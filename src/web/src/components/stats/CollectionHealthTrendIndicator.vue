@@ -4,17 +4,17 @@
       <h4 class="m-0 text-base text-heading">30-Day Trend</h4>
       <div
         v-if="trend.direction === 'unavailable'"
-        class="inline-flex items-center gap-[0.35rem] rounded-full border border-border-subtle bg-transparent px-[0.7rem] py-[0.2rem] text-sm font-semibold uppercase tracking-[0.08em] text-text-muted"
+        class="inline-flex items-center gap-[0.35rem] rounded-full border border-border-subtle bg-transparent px-[0.7rem] py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em] text-text-muted"
       >
         Insufficient Data
       </div>
       <div
         v-else
-        class="inline-flex items-center gap-[0.35rem] rounded-full border px-[0.7rem] py-[0.2rem] text-sm font-semibold uppercase tracking-[0.08em]"
+        class="inline-flex items-center gap-[0.35rem] rounded-full border px-[0.7rem] py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em]"
         :class="trend.direction === 'up'
-          ? 'border-[rgba(39,174,96,0.3)] bg-[rgba(39,174,96,0.15)] text-green-400'
+          ? 'border-status-success-border bg-status-success-bg text-status-success-fg'
           : trend.direction === 'down'
-            ? 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] text-red-400'
+            ? 'border-status-error-border bg-status-error-bg text-status-error-fg'
             : 'border-border-subtle bg-[var(--accent-gold-glow)] text-text-secondary'"
       >
         <component :is="trendIcon" :size="14" />

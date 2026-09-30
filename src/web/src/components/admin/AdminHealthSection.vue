@@ -13,7 +13,7 @@
 
     <div
       v-else-if="error"
-      class="flex items-center gap-2 rounded-sm border border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] p-4 text-base text-[var(--color-negative)]"
+      class="flex items-center gap-2 rounded-sm border border-status-error-border bg-status-error-bg p-4 text-base text-loss"
     >
       <AlertCircle :size="20" />
       <span>{{ error }}</span>
@@ -21,12 +21,12 @@
 
     <div v-else-if="summary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <div class="flex gap-4 rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] transition-all hover:border-border-accent hover:shadow-[var(--shadow-glow)]">
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-[rgba(52,152,219,0.15)] text-[#3498db]">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-status-info-bg text-status-info-fg">
           <Activity :size="24" />
         </div>
         <div class="flex flex-1 flex-col gap-[0.35rem]">
           <div class="section-label">Median Score</div>
-          <div class="font-display text-[1.75rem] font-bold leading-none text-gold md:text-2xl">{{ summary.medianScore }}</div>
+          <div class="font-display text-2xl font-bold leading-none text-gold">{{ summary.medianScore }}</div>
           <div class="text-base text-text-secondary">
             Across {{ summary.eligibleCoinCount }} active coins
           </div>
@@ -39,7 +39,7 @@
         </div>
         <div class="flex flex-1 flex-col gap-[0.35rem]">
           <div class="section-label">Low-Score Coins</div>
-          <div class="font-display text-[1.75rem] font-bold leading-none text-gold md:text-2xl">{{ summary.lowScorePercentage.toFixed(1) }}%</div>
+          <div class="font-display text-2xl font-bold leading-none text-gold">{{ summary.lowScorePercentage.toFixed(1) }}%</div>
           <div class="text-base text-text-secondary">
             Below {{ summary.lowScoreThreshold }}
           </div>
@@ -47,7 +47,7 @@
       </div>
 
       <div class="flex gap-4 rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] transition-all hover:border-border-accent hover:shadow-[var(--shadow-glow)] md:col-span-2 xl:col-span-3">
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-[rgba(231,76,60,0.15)] text-[#e74c3c]">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-status-error-bg text-loss">
           <FileWarning :size="24" />
         </div>
         <div class="flex flex-1 flex-col gap-[0.35rem]">

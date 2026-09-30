@@ -16,7 +16,7 @@ build_collection_tools. Identity flows through the short-lived internal token.
 
 import logging
 
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from app.llm.provider import get_chat_model
 from app.models.requests import AppContext, LLMConfig
@@ -106,10 +106,10 @@ def create_collection_chat_team(
         prompt = f"{COLLECTION_AGENT_PROMPT}\n\nCurrent app context: {', '.join(context_parts)}."
 
     # Create ReAct agent with the system prompt
-    agent = create_react_agent(
+    agent = create_agent(
         model,
         tools,
-        prompt=prompt,
+        system_prompt=prompt,
     )
 
     logger.debug("Collection chat team built with %d tools", len(tools))

@@ -240,12 +240,13 @@ Run `task --list` to see all targets.
 | **Security** | [`docs/security-principles.md`](docs/security-principles.md) — threat model, hardening |
 | **Incident Response** | [`docs/incident-response.md`](docs/incident-response.md) — breach procedures |
 | **References** | [`docs/references.md`](docs/references.md) — tools, standards, citations |
+| **Design System** | [`docs/design-system.md`](docs/design-system.md) — tokens, typography, shared UI primitives |
 | **Software Design** | [`docs/SDD.md`](docs/SDD.md) — technical specifications |
 | **ADRs** | [`docs/adr/`](docs/adr/) — architecture decision records |
 | **Specs** | [`specs/`](specs/) — in-flight features |
 | **Changelog** | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — version history |
 
-**Design System** — Tokens, typography, components documented in [Copilot Instructions](.github/copilot-instructions.md#design-system) and locked by [ADR 0004](docs/adr/0004-design-token-system.md).
+**Design System** — Tokens, typography, status tones and shared UI primitives are documented in [`docs/design-system.md`](docs/design-system.md) and locked by [ADR 0004](docs/adr/0004-design-token-system.md).
 
 **Product Authority** — Per [Constitution §0](.specify/memory/constitution.md), the hierarchy is: Constitution → PRD → Active Spec → Plan → Tasks → Backlog → Decisions → Agent Judgment.
 

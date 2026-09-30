@@ -76,7 +76,7 @@ LIMIT 1
 
 - **Enable/Disable** — Toggle feature on/off globally
 - **Daily Execution Time** — When to run scheduler (default: 07:00)
-- **Time Zone** — IANA zone the execution time is read in (for example `America/Chicago`); blank means server time, which is UTC in the default Docker image. Daylight saving is handled, and changes apply within a minute of saving without a restart
+- **Time Zone** — IANA zone the execution time is read in (for example `America/Chicago`); blank means the shared Schedule Time Zone at the top of Admin > Schedules, and then server time, which is UTC in the default Docker image. Daylight saving is handled, and changes apply within a minute of saving without a restart
 - **Manual Trigger** — Button to run immediately
 - **Run History** — View past runs:
   - Timestamp
@@ -93,7 +93,8 @@ LIMIT 1
 |---------|---------|---|
 | `CoinOfDayEnabled` | "false" | Feature enabled/disabled |
 | `CoinOfDayStartTime` | "07:00" | Daily execution time (24h format) |
-| `CoinOfDayTimezone` | "" | IANA time zone for `CoinOfDayStartTime`; empty uses server local time. Unknown zones are rejected on save |
+| `CoinOfDayTimezone` | "" | IANA time zone for `CoinOfDayStartTime`; empty uses `ScheduleTimezone`, then server local time. Unknown zones are rejected on save |
+| `ScheduleTimezone` | "" | Shared IANA time zone for every scheduler start time; empty uses server local time |
 
 ### Environment Variables
 

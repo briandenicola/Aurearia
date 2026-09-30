@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -43,27 +42,15 @@ func NewWishlistSearchAlertScheduler(
 // Start begins the daily sweep loop. Call from a goroutine.
 func (s *WishlistSearchAlertScheduler) Start() {
 	s.logger.Info("scheduler", "Wishlist search alert scheduler started")
-
-	// Initial delay to let the app finish startup
-	select {
-	case <-time.After(30 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	for {
-		wait := s.timeUntilNextRun()
-		s.logger.Info("scheduler", "Next wishlist search alert sweep in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("scheduler", "Wishlist search alert scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category:     "scheduler",
+		name:         "wishlist search alert sweep",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 30 * time.Second,
+		next:         func(now time.Time, _ bool) time.Time { return s.nextRun(now) },
+		run:          s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down. Safe to call multiple times.
@@ -96,25 +83,17 @@ func (s *WishlistSearchAlertScheduler) GetStatus() SchedulerStatus {
 // to the configured start time.
 func (s *WishlistSearchAlertScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	startHour, startMin := s.getStartTime()
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
+	return s.nextRun(now).Sub(now)
+}
 
-	if anchor.After(now) {
-		return anchor.Sub(now)
-	}
-
-	next := anchor.Add(24 * time.Hour)
-	return next.Sub(now)
+func (s *WishlistSearchAlertScheduler) nextRun(now time.Time) time.Time {
+	h, m := s.getStartTime()
+	return dailySchedule{Hour: h, Minute: m, Location: scheduleLocation(s.settingsSvc, s.logger)}.slotAfter(now)
 }
 
 // getStartTime parses HH:MM from settings, defaults to 03:00.
 func (s *WishlistSearchAlertScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingWishlistSearchAlertsCheckStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 3, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingWishlistSearchAlertsCheckStartTime), 3, 0)
 }
 
 // runCycle finds every active alert whose cadence interval has elapsed and

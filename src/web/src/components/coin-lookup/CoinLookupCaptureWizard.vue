@@ -37,7 +37,7 @@
         <div>
           <span class="section-label">Step {{ step + 1 }} of 3</span>
           <h2 class="mt-1 text-heading">{{ currentStep.title }}</h2>
-          <p class="mt-1 text-small leading-5 text-text-secondary">{{ currentStep.description }}</p>
+          <p class="mt-1 text-body leading-5 text-text-secondary">{{ currentStep.description }}</p>
         </div>
 
         <div class="capture-evidence" aria-label="Captured evidence">
@@ -76,7 +76,7 @@
               placeholder="Add anything you know about the coin, such as weight, diameter, ruler, inscription, or provenance. Leave blank to use the photos only."
               @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             ></textarea>
-            <span class="text-right text-tiny text-text-muted">{{ notes.length }} / 2000</span>
+            <span class="text-right text-sm text-text-muted">{{ notes.length }} / 2000</span>
           </label>
 
           <label class="price-toggle">
@@ -154,7 +154,7 @@
           <button
             v-if="obverse"
             type="button"
-            class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
+            class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-sm sm:px-5 sm:text-base"
             :disabled="submitting || preparingImage"
             @click="$emit('analyze')"
           >
@@ -167,7 +167,7 @@
           <button
             v-if="obverse && deepAnalysisEnabled"
             type="button"
-            class="btn btn-secondary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
+            class="btn btn-secondary min-w-0 flex-1 justify-center px-2 text-sm sm:px-5 sm:text-base"
             :disabled="submitting || preparingImage || deepAnalysisDisabled"
             :title="deepAnalysisDisabled ? deepAnalysisDisabledTitle : undefined"
             @click="startDeepAnalysis"

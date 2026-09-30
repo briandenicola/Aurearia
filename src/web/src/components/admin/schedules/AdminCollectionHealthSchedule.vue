@@ -5,20 +5,18 @@
   <h3 class="mb-4 text-lg font-medium text-heading">Collection Health Snapshots</h3>
   <p class="mb-4 text-base text-text-secondary">Captures daily health baselines used by the 30-day collection health trend.</p>
   <p v-if="statusLoading" class="mb-4 text-body text-text-muted">Checking server status…</p>
-  <p v-else-if="status" class="mb-4 text-body" :class="status.enabled ? 'text-[var(--color-positive)]' : 'text-text-muted'">
+  <p v-else-if="status" class="mb-4 text-body" :class="status.enabled ? 'text-gain' : 'text-text-muted'">
     Server status: <strong>{{ status.enabled ? 'Enabled' : 'Disabled' }}</strong>{{ status.enabled ? ` — next run in ${formatNextRunIn(status.nextRunIn)}` : '' }}
   </p>
   <div class="mb-4">
     <div class="form-group flex items-center justify-between gap-3">
       <label class="form-label">Enable Daily Snapshots</label>
-      <label class="relative inline-block h-[22px] w-[42px]">
-        <input
-          class="peer sr-only" type="checkbox"
-          :checked="settings.CollectionHealthSnapshotsEnabled === 'true'"
-          @change="settings.CollectionHealthSnapshotsEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
-        />
-        <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
-      </label>
+      <BaseToggle
+        size="sm"
+        label="Enable Daily Snapshots"
+        :model-value="settings.CollectionHealthSnapshotsEnabled === 'true'"
+        @update:model-value="settings.CollectionHealthSnapshotsEnabled = $event ? 'true' : 'false'"
+      />
     </div>
     <div class="form-group">
       <label class="form-label">Start Time (daily)</label>
@@ -28,12 +26,13 @@
         type="time"
       />
       <span class="form-hint">Time of day when collection health baselines are captured for trend calculations.</span>
+      <AdminScheduleSummary :start-time="settings.CollectionHealthSnapshotsStartTime" default-start-time="04:30" :zone="settings.ScheduleTimezone" />
     </div>
     <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
       <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="emit('save')">
         {{ settingsSaving ? 'Saving...' : 'Save Snapshot Settings' }}
       </button>
-      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-[var(--color-negative)]' : ''">{{ settingsMsg }}</span>
+      <span v-if="settingsMsg" class="text-body text-gold md:mr-auto" :class="settingsError ? 'text-loss' : ''">{{ settingsMsg }}</span>
       <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="triggerLoading" @click="triggerManualSnapshots()">
         {{ triggerLoading ? 'Running...' : 'Run Now' }}
       </button>
@@ -46,7 +45,7 @@
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No collection health snapshot runs recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -63,11 +62,11 @@
             <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
             <td class="hidden md:table-cell">{{ run.triggerType }}</td>
             <td>
-              <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ run.status }}</span>
+              <BaseStatusBadge :tone="run.status === 'error' ? 'error' : run.status === 'success' ? 'success' : 'warning'">{{ run.status }}</BaseStatusBadge>
             </td>
             <td>{{ run.usersEligible }}</td>
-            <td class="font-semibold text-[var(--color-positive)]">{{ run.usersSnapshotted }}</td>
-            <td class="hidden font-semibold text-[var(--color-negative)] md:table-cell">{{ run.usersFailed }}</td>
+            <td class="font-semibold text-gain">{{ run.usersSnapshotted }}</td>
+            <td class="hidden font-semibold text-loss md:table-cell">{{ run.usersFailed }}</td>
             <td>{{ formatDuration(run.durationMs) }}</td>
           </tr>
         </tbody>
@@ -76,13 +75,15 @@
 
     <div class="mt-4 flex items-center justify-center gap-3">
       <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="prevPage()">Prev</button>
-      <span class="text-[0.82rem] text-text-secondary">Page {{ page }}</span>
+      <span class="text-chip text-text-secondary">Page {{ page }}</span>
       <button class="btn btn-secondary btn-sm" :disabled="runs.length < 5" @click="nextPage()">Next</button>
     </div>
   </template>
 </template>
 
 <script setup lang="ts">
+import { BaseStatusBadge, BaseToggle } from '@/components/ui'
+import AdminScheduleSummary from '@/components/admin/schedules/AdminScheduleSummary.vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   getCollectionHealthSnapshotRuns,

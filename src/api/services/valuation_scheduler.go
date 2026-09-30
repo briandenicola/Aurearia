@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -56,19 +55,14 @@ func (s *ValuationScheduler) Start() {
 	intervalDays := s.settingsSvc.GetSetting(SettingValuationCheckInterval)
 	s.logger.Info("valuation-scheduler", "Settings — enabled: %s, startTime: %s, intervalDays: %s", enabled, startTime, intervalDays)
 
-	for {
-		wait := s.timeUntilNextRun()
-		s.logger.Info("valuation-scheduler", "Next valuation check in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("valuation-scheduler", "Scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category: "valuation-scheduler",
+		name:     "valuation check",
+		logger:   s.logger,
+		stopCh:   s.stopCh,
+		next:     s.nextRun,
+		run:      s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down. Safe to call multiple times.
@@ -97,50 +91,32 @@ func (s *ValuationScheduler) GetStatus() SchedulerStatus {
 	}
 }
 
-// timeUntilNextRun calculates delay until the next scheduled run.
-// If there is a previous completed scheduled run, uses that as the anchor so
-// app restarts don't reset the schedule. Falls back to the start-time based
-// calculation only when no run history exists.
+// timeUntilNextRun returns the delay until the next scheduled run.
 func (s *ValuationScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	intervalDays := s.getIntervalDays()
-	interval := time.Duration(intervalDays) * 24 * time.Hour
+	return max(s.nextRun(now, false).Sub(now), 0)
+}
 
-	// Check last completed scheduled run
-	lastRun := s.valRepo.GetLastScheduledRun()
-	if lastRun != nil && lastRun.CompletedAt != nil {
-		nextFromLast := lastRun.CompletedAt.Add(interval)
-		if nextFromLast.Before(now) {
-			// Overdue — run immediately
-			s.logger.Info("valuation-scheduler", "Last scheduled run completed %s ago, overdue — running now", now.Sub(*lastRun.CompletedAt).Round(time.Minute))
-			return 0
-		}
-		return nextFromLast.Sub(now)
+// nextRun returns the start time every N days after the last completed
+// scheduled run (so restarts don't reset the schedule), in the schedule zone.
+func (s *ValuationScheduler) nextRun(now time.Time, catchUp bool) time.Time {
+	var last *time.Time
+	if run := s.valRepo.GetLastScheduledRun(); run != nil {
+		last = run.CompletedAt
 	}
-
-	// No previous run — use today's start time as anchor
-	startHour, startMin := s.getStartTime()
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
-
-	if anchor.After(now) {
-		return anchor.Sub(now)
+	h, m := s.getStartTime()
+	schedule := dailySchedule{
+		Hour:     h,
+		Minute:   m,
+		Interval: time.Duration(s.getIntervalDays()) * 24 * time.Hour,
+		Location: scheduleLocation(s.settingsSvc, s.logger),
 	}
-
-	// Find the next occurrence after now
-	elapsed := now.Sub(anchor)
-	periods := int(elapsed/interval) + 1
-	next := anchor.Add(time.Duration(periods) * interval)
-	return next.Sub(now)
+	return schedule.next(now, last, catchUp)
 }
 
 // getStartTime parses HH:MM from settings, defaults to 03:00.
 func (s *ValuationScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingValuationCheckStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 3, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingValuationCheckStartTime), 3, 0)
 }
 
 // getIntervalDays returns the configured check interval in days.

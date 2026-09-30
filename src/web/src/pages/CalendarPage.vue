@@ -1,7 +1,7 @@
 <template>
   <div ref="pullContainer" class="container" :style="pullDistance > 0 ? `transform: translateY(${pullDistance}px); transition: none` : ''">
     <div
-      class="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-subtle bg-card px-4 py-[0.4rem] opacity-0 shadow-[0_2px_12px_rgba(0,0,0,0.3)] transition-opacity"
+      class="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-subtle bg-card px-4 py-[0.4rem] opacity-0 shadow-[0_2px_12px_var(--overlay-30)] transition-opacity"
       :class="{ 'pointer-events-auto opacity-100': pullDistance > 0 || refreshing }"
       :style="`top: ${-50 + pullDistance * 0.6}px; opacity: ${Math.min(pullDistance / 60, 1)}`"
     >
@@ -31,7 +31,7 @@
 
     <!-- Calendar Grid -->
     <div class="mb-8 grid grid-cols-7 gap-px overflow-hidden rounded-md border border-border-subtle bg-border-subtle">
-      <div v-for="day in dayNames" :key="day" class="bg-card px-2 py-2 text-center text-sm font-semibold uppercase tracking-[0.08em] text-text-secondary">{{ day }}</div>
+      <div v-for="day in dayNames" :key="day" class="bg-card px-2 py-2 text-center text-label font-semibold uppercase tracking-[0.08em] text-text-secondary">{{ day }}</div>
       <div
         v-for="(cell, idx) in calendarCells"
         :key="idx"
@@ -193,7 +193,7 @@
                 <span class="flex items-center gap-[0.35rem] text-sm text-text-secondary">
                   <template v-if="lot.lotNumber">Lot {{ lot.lotNumber }}</template>
                   <template v-if="lot.lotNumber && lot.status"> · </template>
-                  <span class="rounded-full bg-gold-glow px-2 py-[0.1rem] text-label font-semibold uppercase" :class="lot.status === 'watching' ? 'text-modern-cat' : lot.status === 'bidding' ? 'text-gold' : lot.status === 'won' ? 'text-greek' : lot.status === 'lost' ? 'text-error-bg' : 'text-text-muted'">{{ lot.status }}</span>
+                  <span class="rounded-full bg-gold-glow px-2 py-[0.1rem] text-label font-semibold tracking-[0.08em] uppercase" :class="lot.status === 'watching' ? 'text-modern-cat' : lot.status === 'bidding' ? 'text-gold' : lot.status === 'won' ? 'text-greek' : lot.status === 'lost' ? 'text-error-bg' : 'text-text-muted'">{{ lot.status }}</span>
                 </span>
               </div>
               <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="shrink-0 p-1 text-text-secondary transition-colors hover:text-gold" @click.stop>

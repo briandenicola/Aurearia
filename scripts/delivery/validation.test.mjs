@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { generate, versionAnnotation } from './openapi.mjs';
+import { unformattedGoFiles } from './gofmt-check.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 function fixture(t) {
@@ -31,7 +32,12 @@ function task(dir, args, env = {}) {
 test('Task expands all required commands without implicit setup', t => {
   const f = fixture(t);
   const expected = {
-    'check:go': ['go build ./...', 'go vet ./...', 'go test -v ./...'].map(cmd => `GOTOOLCHAIN=local GOPROXY=off ${cmd}`),
+    'check:go': [
+      'GOTOOLCHAIN=local GOPROXY=off go build ./...',
+      'GOTOOLCHAIN=local GOPROXY=off go vet ./...',
+      'GOTOOLCHAIN=local GOPROXY=off node ../../scripts/delivery/gofmt-check.mjs',
+      'GOTOOLCHAIN=local GOPROXY=off go test -v ./...',
+    ],
     'check:web': ['lint', 'type-check', 'test', 'build'].map(script => `${process.platform === 'win32' ? 'npm.cmd' : 'npm'} run ${script}`),
     'check:agent': ['uv sync --locked --check --offline --extra dev', 'uv run --no-sync --offline ruff check app/ tests/', 'uv run --no-sync --offline pytest tests/ -v'].map(cmd => `UV_PYTHON_DOWNLOADS=never ${cmd}`),
     'check:openapi': ['node scripts/delivery/openapi.mjs --check'],
@@ -60,7 +66,8 @@ test('command-local policy overrides conflicting inherited Go, race and Python s
   const probe = join(f.dir, 'environment.cjs');
   f.put('environment.cjs', 'console.log(JSON.stringify({ phase: process.argv[2], go: process.env.GOTOOLCHAIN, proxy: process.env.GOPROXY, cgo: process.env.CGO_ENABLED, python: process.env.UV_PYTHON_DOWNLOADS }));\n');
   const substitutions = [
-    ['go build ./...', 'build'], ['go vet ./...', 'vet'], ['go test -v ./...', 'test'],
+    ['go build ./...', 'build'], ['go vet ./...', 'vet'],
+    ['node ../../scripts/delivery/gofmt-check.mjs', 'fmt'], ['go test -v ./...', 'test'],
     ['go test -race ./...', 'race'],
     ['uv sync --locked --check --offline --extra dev', 'lock'],
     ['uv run --no-sync --offline ruff check app/ tests/', 'lint'],
@@ -79,7 +86,7 @@ test('command-local policy overrides conflicting inherited Go, race and Python s
     return result.stdout.trim().split(/\r?\n/).map(line => JSON.parse(line));
   };
   const go = [...execute('check:go'), ...execute('test-race')];
-  assert.deepEqual(go.map(item => item.phase), ['build', 'vet', 'test', 'race']);
+  assert.deepEqual(go.map(item => item.phase), ['build', 'vet', 'fmt', 'test', 'race']);
   for (const item of go) {
     assert.equal(item.go, 'local', item.phase);
     assert.equal(item.proxy, 'off', item.phase);
@@ -91,7 +98,34 @@ test('command-local policy overrides conflicting inherited Go, race and Python s
 
   f.put('Taskfile.yml', source.replaceAll('GOTOOLCHAIN=local GOPROXY=off ', '').replaceAll('UV_PYTHON_DOWNLOADS=never ', ''));
   assert.throws(() => assert.equal(execute('check:go')[0].go, 'local'), assert.AssertionError);
+  assert.notEqual(execute('check:go').find(item => item.phase === 'fmt').go, 'local');
   assert.throws(() => assert.equal(execute('check:agent')[0].python, 'never'), assert.AssertionError);
+});
+test('gofmt check uses the local toolchain gofmt offline and reports unformatted files', () => {
+  const calls = [];
+  const fake = listing => (command, args, options) => {
+    calls.push({ command, args, cwd: options.cwd, go: options.env.GOTOOLCHAIN, proxy: options.env.GOPROXY });
+    return command === 'go' ? { status: 0, stdout: '/opt/go\n' } : { status: 0, stdout: listing };
+  };
+  const previous = { GOTOOLCHAIN: process.env.GOTOOLCHAIN, GOPROXY: process.env.GOPROXY };
+  process.env.GOTOOLCHAIN = 'auto'; process.env.GOPROXY = 'https://proxy.golang.org,direct';
+  try {
+    assert.deepEqual(unformattedGoFiles('/api', { run: fake('a.go\r\nb/c.go\n'), platform: 'linux' }), ['a.go', 'b/c.go']);
+    assert.deepEqual(unformattedGoFiles('/api', { run: fake(''), platform: 'win32' }), []);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) value === undefined ? delete process.env[key] : process.env[key] = value;
+  }
+  assert.deepEqual(calls.map(call => [call.command, call.args.join(' ')]), [
+    ['go', 'env GOROOT'], [join('/opt/go', 'bin', 'gofmt'), '-l .'],
+    ['go', 'env GOROOT'], [join('/opt/go', 'bin', 'gofmt.exe'), '-l .'],
+  ]);
+  for (const call of calls) {
+    assert.equal(call.cwd, '/api');
+    assert.equal(call.go, 'local');
+    assert.equal(call.proxy, 'off');
+  }
+  assert.throws(() => unformattedGoFiles('/api', { run: () => ({ status: 1, stdout: '', stderr: 'no go' }) }), /go env GOROOT failed/);
+  assert.throws(() => unformattedGoFiles('/api', { run: (command) => command === 'go' ? { status: 0, stdout: '/opt/go' } : { status: 2, stderr: 'syntax' } }), /-l \. failed/);
 });
 test('real Task invocation propagates lint failure and never skips a missing linter', t => {
   const f = fixture(t);

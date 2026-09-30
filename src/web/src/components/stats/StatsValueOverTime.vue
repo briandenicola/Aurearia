@@ -125,7 +125,7 @@
       <div class="flex w-full flex-wrap items-start gap-3 md:w-[10.5rem] md:flex-shrink-0 md:flex-col md:gap-4">
         <div class="flex min-w-[8rem] flex-1 flex-col gap-[0.2rem] md:flex-none">
           <p class="section-label">Period Value Change</p>
-          <span class="block font-display text-[1.9rem] font-semibold leading-[1.1]" :class="changeAmount >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
+          <span class="block font-display text-2xl font-semibold leading-[1.1]" :class="changeAmount >= 0 ? 'text-gain' : 'text-loss'">
             <template v-if="changePercent !== null">
               {{ changePercent >= 0 ? '+' : '' }}{{ changePercent.toFixed(1) }}%
             </template>
@@ -150,7 +150,7 @@
           </div>
           <div class="flex min-w-[6rem] flex-1 flex-col gap-[0.15rem] rounded-sm border border-border-subtle bg-input px-3 py-[0.6rem] md:min-w-0 md:flex-none">
             <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Period Change</span>
-            <strong class="overflow-hidden text-body text-ellipsis whitespace-nowrap" :class="changeAmount >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
+            <strong class="overflow-hidden text-body text-ellipsis whitespace-nowrap" :class="changeAmount >= 0 ? 'text-gain' : 'text-loss'">
               {{ changeAmount >= 0 ? '+' : '' }}{{ formatCurrency(changeAmount) }}
             </strong>
           </div>

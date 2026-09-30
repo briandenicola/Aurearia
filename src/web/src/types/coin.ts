@@ -159,6 +159,25 @@ export interface CoinLookupResponse {
   candidateReferences?: CoinReferenceInput[]
   /** Present only when the collector opted in; model guess, not market comps. */
   priceEstimate?: CoinLookupPriceEstimate
+  /** Source-backed range from current dealer listings; preferred over priceEstimate. */
+  priceComparables?: CoinLookupPriceComparables
+}
+
+export interface CoinLookupComparableListing {
+  title: string
+  url: string
+  sourceName?: string
+  price: number
+  currency: string
+}
+
+export interface CoinLookupPriceComparables {
+  low: number
+  high: number
+  currency: string
+  count: number
+  query?: string
+  listings: CoinLookupComparableListing[]
 }
 
 export interface CoinLookupPriceEstimate {

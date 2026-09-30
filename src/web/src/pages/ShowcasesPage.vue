@@ -31,7 +31,7 @@
     <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       <div v-for="sc in showcases" :key="sc.id" class="card flex flex-col gap-3 p-5">
         <div class="flex items-start justify-between gap-2">
-          <h3 class="m-0 text-[1.1rem] text-text-primary">{{ sc.title }}</h3>
+          <h3 class="m-0 text-md text-text-primary">{{ sc.title }}</h3>
           <span class="badge whitespace-nowrap" :class="sc.isActive ? 'bg-[var(--accent-gold-glow)] text-gold' : 'bg-[var(--accent-gold-glow)] text-text-muted'">
             {{ sc.isActive ? 'Active' : 'Inactive' }}
           </span>
@@ -64,7 +64,7 @@
       </div>
     </div>
 
-    <div v-if="copied" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-[var(--bg-primary)]">
+    <div v-if="copied" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-surface">
       Link copied to clipboard
     </div>
 

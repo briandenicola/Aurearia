@@ -270,10 +270,11 @@
         </div>
         <div class="form-group flex items-center gap-3">
           <label class="form-label mb-0">Private Coin</label>
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input v-model="form.isPrivate" type="checkbox" class="peer sr-only" />
-            <span class="relative h-6 w-11 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-border-accent peer-checked:bg-gold-dim after:absolute after:top-[1px] after:left-[1px] after:h-5 after:w-5 after:rounded-full after:bg-text-primary after:content-[''] after:transition-transform peer-checked:after:translate-x-5"></span>
-          </label>
+          <BaseToggle
+            v-model="form.isPrivate"
+            size="sm"
+            label="Private Coin"
+          />
           <span class="text-chip text-text-secondary">Hidden from followers</span>
         </div>
       </fieldset>
@@ -296,6 +297,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { getStorageLocations, getStorageLocationOccupancy, getMintLocations, type MintLocationsResponse } from '@/api/client'
 import type { Coin, StorageLocation, MintLocation, TrayOccupancy } from '@/types'

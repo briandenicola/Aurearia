@@ -40,12 +40,12 @@
           aria-required="true"
           :aria-describedby="validationError ? errorId : undefined"
         />
-        <p v-if="validationError" :id="errorId" role="alert" class="mt-1 text-[0.82rem] text-loss">
+        <p v-if="validationError" :id="errorId" role="alert" class="mt-1 text-chip text-loss">
           {{ validationError }}
         </p>
       </div>
 
-      <p v-if="saveError" role="alert" class="mb-3 text-[0.82rem] text-loss">{{ saveError }}</p>
+      <p v-if="saveError" role="alert" class="mb-3 text-chip text-loss">{{ saveError }}</p>
 
       <div class="mt-5 flex flex-wrap items-center gap-2">
         <button

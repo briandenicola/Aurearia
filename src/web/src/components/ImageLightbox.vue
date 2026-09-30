@@ -15,14 +15,14 @@
               v-if="processedImageUrl"
               :src="processedImageUrl"
               :alt="formatImageType(imageType)"
-              class="max-h-full max-w-full rounded-sm object-contain shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+              class="max-h-full max-w-full rounded-sm object-contain shadow-[0_4px_12px_var(--overlay-30)]"
               :class="{ 'opacity-30 blur-[2px]': processing }"
             />
             <AuthenticatedImage
               v-else
               :media-path="imagePath"
               :alt="formatImageType(imageType)"
-              class="max-h-full max-w-full rounded-sm object-contain shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+              class="max-h-full max-w-full rounded-sm object-contain shadow-[0_4px_12px_var(--overlay-30)]"
               :class="{ 'opacity-30 blur-[2px]': processing }"
             />
 

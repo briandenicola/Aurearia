@@ -1,5 +1,5 @@
 <template>
-  <div v-if="user" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="$emit('close')">
+  <div v-if="user" class="fixed inset-0 z-[200] flex items-center justify-center bg-overlay-60 p-4" @click.self="$emit('close')">
     <div class="card w-full max-w-[520px] p-6">
       <h3 class="mb-4 text-lg font-medium text-heading">Edit {{ user.username }}</h3>
 
@@ -15,7 +15,7 @@
           </button>
         </div>
         <p v-if="isCurrentUser" class="mt-2 text-body text-text-muted">You cannot change your own role.</p>
-        <p v-if="roleMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': roleError }">{{ roleMsg }}</p>
+        <p v-if="roleMsg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': roleError }">{{ roleMsg }}</p>
       </div>
 
       <div class="mb-4">
@@ -32,7 +32,7 @@
             {{ resettingPassword ? 'Resetting...' : 'Reset Password' }}
           </button>
         </div>
-        <p v-if="passwordMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': passwordError }">{{ passwordMsg }}</p>
+        <p v-if="passwordMsg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': passwordError }">{{ passwordMsg }}</p>
       </div>
 
       <div class="mb-4">
@@ -41,7 +41,7 @@
           {{ deletingUser ? 'Deleting...' : 'Delete User' }}
         </button>
         <p v-if="isCurrentUser" class="mt-2 text-body text-text-muted">You cannot delete your own account.</p>
-        <p v-if="deleteMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': deleteError }">{{ deleteMsg }}</p>
+        <p v-if="deleteMsg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': deleteError }">{{ deleteMsg }}</p>
       </div>
 
       <div class="flex justify-end">

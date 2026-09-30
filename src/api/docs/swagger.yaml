@@ -352,6 +352,8 @@ definitions:
       prefilledDraft:
         additionalProperties: {}
         type: object
+      priceComparables:
+        $ref: '#/definitions/handlers.LookupPriceComparablesSwagger'
       priceEstimate:
         $ref: '#/definitions/handlers.LookupPriceEstimateSwagger'
       proposedNumistaQuery:
@@ -848,6 +850,24 @@ definitions:
           $ref: '#/definitions/handlers.LogEntry'
         type: array
     type: object
+  handlers.LookupComparableListingSwagger:
+    properties:
+      currency:
+        example: USD
+        type: string
+      price:
+        example: 180
+        type: number
+      sourceName:
+        example: Example Ancient Coins
+        type: string
+      title:
+        example: Trajan Denarius VF
+        type: string
+      url:
+        example: https://www.vcoins.com/en/stores/example/item
+        type: string
+    type: object
   handlers.LookupExtractedDataSwagger:
     properties:
       coinFields:
@@ -863,6 +883,28 @@ definitions:
         $ref: '#/definitions/handlers.NGCDataSwagger'
       rawAnalysis:
         example: Vision analysis text...
+        type: string
+    type: object
+  handlers.LookupPriceComparablesSwagger:
+    properties:
+      count:
+        example: 2
+        type: integer
+      currency:
+        example: USD
+        type: string
+      high:
+        example: 420
+        type: number
+      listings:
+        items:
+          $ref: '#/definitions/handlers.LookupComparableListingSwagger'
+        type: array
+      low:
+        example: 180
+        type: number
+      query:
+        example: Trajan Denarius Roman
         type: string
     type: object
   handlers.LookupPriceEstimateSwagger:
@@ -11299,7 +11341,8 @@ paths:
         in: formData
         name: notes
         type: string
-      - description: Ask the AI for a rough, unverified price range
+      - description: 'Ask for a price range: current dealer comparables when available,
+          otherwise a rough, unverified AI estimate'
         in: formData
         name: includePriceEstimate
         type: boolean

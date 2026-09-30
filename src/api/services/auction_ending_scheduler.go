@@ -61,27 +61,15 @@ func (s *AuctionEndingScheduler) Start() {
 	// Recover any stale queued/running runs from a previous process lifecycle.
 	s.recoverStaleRuns()
 
-	// Initial delay to let the app finish startup
-	select {
-	case <-time.After(30 * time.Second):
-	case <-s.stopCh:
-		return
-	}
-
-	for {
-		// Wait until the next scheduled time before running
-		wait := s.timeUntilNextRun()
-		s.logger.Info("scheduler", "Next auction ending check in %s", wait)
-
-		select {
-		case <-time.After(wait):
-		case <-s.stopCh:
-			s.logger.Info("scheduler", "Auction ending scheduler stopped")
-			return
-		}
-
-		s.runCycle()
-	}
+	scheduleLoop{
+		category:     "scheduler",
+		name:         "auction ending check",
+		logger:       s.logger,
+		stopCh:       s.stopCh,
+		initialDelay: 30 * time.Second,
+		next:         s.nextRun,
+		run:          s.runCycle,
+	}.Run()
 }
 
 // Stop signals the scheduler to shut down. Safe to call multiple times.
@@ -110,46 +98,27 @@ func (s *AuctionEndingScheduler) GetStatus() SchedulerStatus {
 	}
 }
 
-// timeUntilNextRun calculates the delay until the next scheduled run.
-// Uses the last completed scheduled run as the primary anchor and falls back
-// to AuctionEndingCheckStartTime (HH:MM) when no scheduled history exists.
+// timeUntilNextRun returns the delay until the next scheduled run.
 func (s *AuctionEndingScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	interval := s.getInterval()
+	return max(s.nextRun(now, false).Sub(now), 0)
+}
 
-	lastRun := s.auctionEndingRepo.GetLastScheduledRun()
-	if lastRun != nil && lastRun.CompletedAt != nil {
-		nextFromLast := lastRun.CompletedAt.Add(interval)
-		if nextFromLast.Before(now) {
-			s.logger.Info("scheduler", "Last auction ending run completed %s ago, overdue — running now", now.Sub(*lastRun.CompletedAt).Round(time.Minute))
-			return 0
-		}
-		return nextFromLast.Sub(now)
+// nextRun returns the next start-time/interval slot after the last completed
+// scheduled run, in the schedule zone.
+func (s *AuctionEndingScheduler) nextRun(now time.Time, catchUp bool) time.Time {
+	var last *time.Time
+	if run := s.auctionEndingRepo.GetLastScheduledRun(); run != nil {
+		last = run.CompletedAt
 	}
-
-	startHour, startMin := s.getStartTime()
-	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
-
-	// If anchor is in the future, that's the next run
-	if anchor.After(now) {
-		return anchor.Sub(now)
-	}
-
-	// Find the next occurrence: anchor + N*interval that is still in the future
-	elapsed := now.Sub(anchor)
-	periods := int(elapsed/interval) + 1
-	next := anchor.Add(time.Duration(periods) * interval)
-	return next.Sub(now)
+	h, m := s.getStartTime()
+	schedule := dailySchedule{Hour: h, Minute: m, Interval: s.getInterval(), Location: scheduleLocation(s.settingsSvc, s.logger)}
+	return schedule.next(now, last, catchUp)
 }
 
 // getStartTime parses HH:MM from settings, defaults to 08:00.
 func (s *AuctionEndingScheduler) getStartTime() (int, int) {
-	raw := s.settingsSvc.GetSetting(SettingAuctionEndingCheckStartTime)
-	var h, m int
-	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
-		return 8, 0
-	}
-	return h, m
+	return parseStartTime(s.settingsSvc.GetSetting(SettingAuctionEndingCheckStartTime), 8, 0)
 }
 
 // getInterval returns the configured check interval.

@@ -73,7 +73,7 @@
       <h4 class="mb-2 text-sm font-medium text-text-secondary">Suggested Tags & Sets</h4>
       <div v-if="recommendationsLoading" class="text-sm text-text-muted">Loading suggestions...</div>
       <div v-else-if="recommendationsError" class="flex flex-col items-start gap-2">
-        <p class="text-sm text-[var(--color-negative)]">{{ recommendationsError }}</p>
+        <p class="text-sm text-loss">{{ recommendationsError }}</p>
         <button class="btn btn-ghost btn-xs" type="button" @click="loadRecommendations">Retry</button>
       </div>
       <div v-else-if="!recommendations.length" class="text-sm text-text-muted">No suggestions yet.</div>

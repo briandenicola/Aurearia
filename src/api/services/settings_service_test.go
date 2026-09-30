@@ -1,6 +1,7 @@
 package services
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -59,11 +60,18 @@ func TestSearchSourceDefaultsAreSeparated(t *testing.T) {
 	svc, _ := newTestSettingsService(t)
 	dealers := svc.GetSearchSources(SettingDealerSearchSources)
 	auctions := svc.GetSearchSources(SettingAuctionSearchSources)
-	if len(dealers) != 6 {
+	if len(dealers) != 5 {
 		t.Fatalf("dealer defaults = %#v", dealers)
 	}
-	if len(auctions) != 2 || auctions[0] != "numisbids.com" || auctions[1] != "cngcoins.com" {
+	if len(auctions) != 3 || auctions[0] != "numisbids.com" || auctions[1] != "cngcoins.com" {
 		t.Fatalf("auction defaults = %#v", auctions)
+	}
+	// biddr.com sells through timed auction lots, not dealer stock (#771).
+	if slices.Contains(dealers, "biddr.com") {
+		t.Errorf("biddr.com is still a default dealer source: %#v", dealers)
+	}
+	if !slices.Contains(auctions, "biddr.com") {
+		t.Errorf("biddr.com is missing from the default auction sources: %#v", auctions)
 	}
 }
 

@@ -21,7 +21,7 @@
         >
           <Menu :size="20" />
         </button>
-        <div v-if="menuOpen && result" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]">
+        <div v-if="menuOpen && result" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]">
           <router-link
             to="/sets/emperors/stats"
             class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"

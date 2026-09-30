@@ -314,6 +314,26 @@ def test_dealer_page_availability_uses_purchase_controls_and_sold_markers():
     assert _listing_availability_signal("<p>Contact dealer for details</p>") == "unknown"
 
 
+def test_dealer_page_availability_ignores_bare_purchase_wording():
+    footer = "<nav><a>Purchase policy</a><a>Purchase history</a></nav><footer>How to purchase</footer>"
+    assert _listing_availability_signal(footer) == "unknown"
+    assert _listing_availability_signal("<footer>All rights reserved</footer>") == "unknown"
+    assert _listing_availability_signal("<button>Buy it now</button>") == "available"
+    assert _listing_availability_signal("<button>Purchase now</button>") == "available"
+    assert _listing_availability_signal('<form action="/cart/add" method="post"></form>') == "available"
+
+
+def test_dealer_page_availability_detects_reserved_and_withdrawn_listings():
+    for html in (
+        "<span class='badge'>Reserved</span><a>Purchase policy</a>",
+        "<span>On hold</span>",
+        "<p>This item is no longer for sale.</p>",
+        "<p>This item has sold.</p>",
+        "<p>This coin is reserved for another collector.</p>",
+    ):
+        assert _listing_availability_signal(html) == "sold", html
+
+
 def test_market_search_uses_fetched_page_availability_over_model_guess():
     sold_url = "https://www.vcoins.com/en/stores/a/1/product/sold/1"
     available_url = "https://www.vcoins.com/en/stores/a/1/product/live/2"

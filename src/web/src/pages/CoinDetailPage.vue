@@ -5,7 +5,7 @@
     </div>
 
     <div v-else-if="coin">
-      <div class="md:sticky md:top-[61px] md:z-10 md:border-b md:border-border-subtle md:bg-surface md:px-0 md:py-3 md:shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
+      <div class="md:sticky md:top-[61px] md:z-10 md:border-b md:border-border-subtle md:bg-surface md:px-0 md:py-3 md:shadow-[0_4px_12px_var(--overlay-30)]">
         <CoinDetailHeaderActions
           :is-wishlist="coin.isWishlist"
           :is-sold="coin.isSold"
@@ -66,7 +66,7 @@
           <!-- T012: Title hierarchy -->
           <div class="mb-6">
             <h1 class="mt-2 font-display text-2xl font-semibold text-heading">{{ coin.name }}</h1>
-            <p v-if="coin.ruler" class="mt-1 text-[1.1rem] text-text-secondary">{{ coin.ruler }}</p>
+            <p v-if="coin.ruler" class="mt-1 text-md text-text-secondary">{{ coin.ruler }}</p>
             <div v-if="coin.category" class="mt-3 flex flex-wrap gap-2">
               <span
                 class="badge"

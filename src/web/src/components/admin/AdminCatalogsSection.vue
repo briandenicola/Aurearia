@@ -11,7 +11,7 @@
 
     <div
       v-else-if="error"
-      class="flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-[var(--color-negative)]"
+      class="flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-loss"
       role="alert"
     >
       <AlertCircle :size="20" />
@@ -30,18 +30,18 @@
       </div>
 
       <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse text-body">
+        <table class="data-table text-body [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3 [&_td]:align-top">
           <thead>
             <tr>
-              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Code</th>
-              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Display Name</th>
-              <th class="hidden border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted md:table-cell">Volume Required</th>
-              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Actions</th>
+              <th>Code</th>
+              <th>Display Name</th>
+              <th class="hidden md:table-cell">Volume Required</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="cat in catalogs" :key="cat.id" class="last:[&>td]:border-b-0">
-              <td class="border-b border-border-subtle px-2 py-3 align-top">
+              <td>
                 <div class="flex flex-col items-start gap-[0.35rem]">
                   <div class="font-semibold text-gold">{{ cat.catalog }}</div>
                   <span
@@ -56,19 +56,16 @@
                   </span>
                 </div>
               </td>
-              <td class="border-b border-border-subtle px-2 py-3 align-top text-text-primary">{{ cat.displayName }}</td>
-              <td class="hidden border-b border-border-subtle px-2 py-3 align-top md:table-cell">
-                <label class="relative inline-block h-7 w-[50px] shrink-0" aria-label="Volume required">
-                  <input
-                    type="checkbox"
-                    :checked="cat.volumeRequired"
-                    disabled
-                    class="peer sr-only"
-                  />
-                  <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-disabled:cursor-not-allowed peer-disabled:opacity-60 after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-                </label>
+              <td class="text-text-primary">{{ cat.displayName }}</td>
+              <td class="hidden md:table-cell">
+                <BaseToggle
+                  size="sm"
+                  :model-value="cat.volumeRequired"
+                  disabled
+                  :label="`Volume required for ${cat.displayName}`"
+                />
               </td>
-              <td class="border-b border-border-subtle px-2 py-3 align-top">
+              <td>
                 <div class="flex flex-wrap justify-end gap-[0.35rem]">
                   <button class="btn btn-ghost btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openEditForm(cat)">
                     Edit
@@ -83,7 +80,7 @@
         </table>
       </div>
 
-      <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="closeForm">
+      <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-overlay-60 p-4" @click.self="closeForm">
         <div class="max-h-[90vh] w-full max-w-[500px] overflow-auto rounded-md border border-border-subtle bg-card shadow-[var(--shadow-card)]">
           <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
             <h3 class="m-0 text-lg font-medium text-heading">{{ editingCatalog ? 'Edit Catalog' : 'Add Catalog' }}</h3>
@@ -96,7 +93,7 @@
           </div>
           <form class="p-6" @submit.prevent="saveForm">
             <div class="form-group">
-              <label class="form-label">Catalog Code<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
+              <label class="form-label">Catalog Code<span class="ml-[0.15rem] text-loss">*</span></label>
               <input
                 v-model.trim="formData.catalog"
                 class="form-input"
@@ -106,7 +103,7 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Display Name<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
+              <label class="form-label">Display Name<span class="ml-[0.15rem] text-loss">*</span></label>
               <input
                 v-model.trim="formData.displayName"
                 class="form-input"
@@ -115,7 +112,7 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Era<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
+              <label class="form-label">Era<span class="ml-[0.15rem] text-loss">*</span></label>
               <select v-model="formData.era" class="form-input" required>
                 <option value="" disabled>Select era</option>
                 <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
@@ -123,14 +120,10 @@
             </div>
             <div class="form-group flex items-center justify-between gap-4">
               <label class="form-label mb-0">Volume Required</label>
-              <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
-                <input
-                  v-model="formData.volumeRequired"
-                  type="checkbox"
-                  class="peer sr-only"
-                />
-                <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
-              </label>
+              <BaseToggle
+                v-model="formData.volumeRequired"
+                label="Volume required"
+              />
             </div>
             <div class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
               <button type="button" class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="closeForm">
@@ -142,7 +135,7 @@
             </div>
             <div
               v-if="formError"
-              class="mt-4 flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-sm text-[var(--color-negative)]"
+              class="mt-4 flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-sm text-loss"
               role="alert"
             >
               <AlertCircle :size="16" />
@@ -156,6 +149,7 @@
 </template>
 
 <script setup lang="ts">
+import { BaseToggle } from '@/components/ui'
 import { ref, onMounted } from 'vue'
 import { AlertCircle } from 'lucide-vue-next'
 import { listCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog } from '@/api/client'

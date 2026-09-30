@@ -22,6 +22,10 @@ Apply the [constitution](../../.specify/memory/constitution.md) and selected app
 
 ### Design System
 
+Canonical standard: [design system](../../docs/design-system.md). It is the full
+version of the tables below and additionally covers status tones, shared
+primitives and table styles. When the two disagree, the canonical document wins.
+
 All CSS values **must** use design tokens from `variables.css` and global classes from `main.css`. Never hardcode raw values when a token exists.
 
 #### Design Tokens (variables.css)
@@ -57,28 +61,54 @@ All CSS values **must** use design tokens from `variables.css` and global classe
 
 #### Typography Scale
 
-| Element | Font | Size | Weight |
-|---|---|---|---|
-| h1 | Cinzel | `2rem` | 600 |
-| h2 | Cinzel | `1.5rem` | 500 |
-| h3 | Cinzel | `1.2rem` | 500 |
-| h4 | Cinzel | `0.9rem` | 500 |
-| Body | Inter | `0.9rem` | 400 |
-| Secondary | Inter | `0.85rem` | 400 |
-| Small | Inter | `0.8rem` | 400 |
-| Tiny | Inter | `0.75rem` | 500 |
+One scale, defined in the `@theme` block of `src/web/src/assets/styles/main.css`.
+`text-[0.82rem]` and any other arbitrary absolute size is a test failure. The
+only exception is an `em` value inside rendered markdown.
+
+| Utility | Size | Use for |
+|---|---|---|
+| `text-2xs` | `0.55rem` | Dense data grids, phone widths only |
+| `text-micro` | `0.65rem` | Dense data grids, micro-chips |
+| `text-label` | `0.7rem` | Section labels, table headers |
+| `text-sm` | `0.75rem` | Badges, `.chip-sm` |
+| `text-chip` | `0.8rem` | Chip text, field hints |
+| `text-body` | `0.85rem` | Form labels, secondary body |
+| `text-base` | `0.9rem` | Primary body, h4 |
+| `text-md` | `1.1rem` | Card and modal titles |
+| `text-lg` | `1.2rem` | h3 |
+| `text-xl` | `1.5rem` | h2 |
+| `text-2xl` | `2rem` | h1, stat numerals |
+| `text-3xl` | `2.5rem` | Hero numerals |
+| `text-4xl` | `3rem` | Single headline numeral |
+
+Headings use Cinzel (`font-display`) at weights 600 / 500 / 500 / 500 for
+h1–h4; body copy uses Inter (`font-sans`).
+
+For colour, use the theme utility (`text-loss`), never `text-[var(--color-negative)]`.
+Both render the same, but only the utility is auditable and guard-enforced.
 
 #### Uppercase Labels
 
-All uppercase labels (section headers, info-card labels, sub-headings) use:
-```css
-font-size: 0.7rem;
-font-weight: 600;
-text-transform: uppercase;
-letter-spacing: 0.08em;
-color: var(--text-muted);
-```
-Use the global `.section-label` class or `.info-label` in detail grids.
+Any uppercase element carrying a small size token is a label, and every label
+reads `text-label font-semibold uppercase tracking-[0.08em]`. Only the colour
+and the alignment vary by role. A guard in `design-tokens.test.ts` enforces
+this; elements without a small size token (badges, data cells, uppercasing
+inputs) are out of scope.
+
+Use the global `.section-label` class or `.info-label` in detail grids where
+`--text-muted` is the wanted colour — they bake the colour in. Note `.badge`
+also uppercases in CSS, so template `uppercase` counts undercount.
+
+#### Data Tables
+
+Every data table carries the `data-table` class, which supplies the header
+recipe and the cell borders from `main.css`. Padding stays on the element as
+`[&_th]:` / `[&_td]:` utilities because density is per-table. The class sits in
+`@layer components`, so per-cell utilities such as `<th class="text-right">`
+still win. For markdown-rendered tables, put `data-table` on the wrapper.
+Re-inlining the header recipe fails a guard — both as `[&_th]:` variants and as
+the same classes repeated on each `th`. The guard also fails a `<table>` in a
+template that never mentions `data-table`, though that check is file-scoped.
 
 #### Chip / Pill Hierarchy (global classes in main.css)
 
@@ -123,6 +153,37 @@ Before implementing UI, identify the closest existing page or component pattern 
 | Collection subviews | Gallery and Tray | Keep Gallery and Tray under the Collection submenu; the Collection parent starts collapsed like Stats. |
 | Immersive PWA capture | Camera-first flows in an installed PWA (Add Coin, Identify Coin) | Use `PwaCaptureShell`: fixed full-bleed shell claiming `useImmersiveShellClaim()` so App.vue drops the nav bar and agent button. Close / Add-Identify segments / Quick Capture on top, a three-segment progress rail, one rounded stage with the guide ring, then Library + shutter + Manual (intake) or Deep (identify). Takes all color from the active theme's shared tokens (`--bg-primary`, `--bg-card`, `--bg-input`, `--accent-gold`, `--text-*`, `--border-subtle`) - no private palette and no literal colors. |
 
+#### Shared Primitives (`src/web/src/components/ui`)
+
+Import from `@/components/ui`. Do not hand-roll these:
+
+| Component | Replaces |
+|---|---|
+| `BaseToggle` | Any visually hidden checkbox switch. Sizes: `md` (28x50) default, `sm` (22x42) for indented sub-options and compact table cells. `label` is required; `class`/`style` land on the wrapper, other attributes on the input. |
+| `BaseStatusBadge` | Run status / outcome pills. `tone` is `success`, `error`, `warning`, `info` or `neutral`, backed by `--status-*` tokens - never raw `rgba()`. |
+| `BaseButton`, `BaseChip`, `BaseBadge`, `BaseSpinner`, `BaseEmptyState` | Their respective ad-hoc markup. |
+
+`src/web/src/__tests__/design-tokens.test.ts` fails the build on a hand-rolled
+toggle or status pill, and caps hardcoded template colour literals (`rgba()`,
+`rgb()` and hex) with a **per-file** ratchet budget that may only decrease. It
+is per file rather than a net total so that removing a literal in one component
+cannot pay for adding one in another. A file absent from the budget map must
+have none.
+
+Translucent fills use `--overlay-20` … `--overlay-60` (`bg-overlay-*`). Status
+tones have `--status-*-bg`, `-fg`, `-border` (0.3 alpha) and, for success and
+error, `-tint` (0.1). A guard computes the WCAG ratio from the token values for
+**every** theme state, including bare `:root`, resolving through `var()` and
+through `:root` where a theme does not override. It checks status text both as
+plain text and **composited over its own `--status-*-bg` fill**, which is how a
+badge actually renders and is always the lower ratio, on **all five** `--bg-*`
+surfaces. It derives its cases rather than listing them: surfaces from the
+`--bg-*` tokens in `:root`, and fg/fill pairings from the templates that render
+them, including components that build tokens dynamically. Pairing a status fill
+with a non-token colour (`text-red-400`, arbitrary `bg-[rgba(...)]`) fails the
+guard — it cannot be themed or measured. Adding a theme means checking its
+status foregrounds, not just its backgrounds.
+
 #### Rules for New UI Components
 
 1. **Never hardcode** `border-radius`, colors, or spacing — always use tokens
@@ -130,9 +191,11 @@ Before implementing UI, identify the closest existing page or component pattern 
 3. **Never invent** a new font-size — pick from the typography scale
 4. **All interactive pills** use `.chip` or extend it
 5. **All static tags** use `.chip-sm` sizing (`0.75rem`, `0.15rem 0.5rem`)
-6. **All uppercase labels** use `letter-spacing: 0.08em` — no other value
-7. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
-8. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
+6. **All uppercase labels** use `text-label font-semibold tracking-[0.08em]`
+7. **All data tables** use the `data-table` class — never re-inline the header recipe
+8. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
+9. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
+10. **Translucent fills** use `bg-overlay-*` — never a raw `rgba(0, 0, 0, …)`
 
 ## Completion
 

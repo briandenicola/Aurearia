@@ -604,6 +604,25 @@ class AlertDiscoveryResponse(StrictResponseModel):
     partial: bool = False
 
 
+# Quick Identify comparables DTOs (#779).
+class ComparableListing(StrictResponseModel):
+    """One current dealer listing used to ground a Quick Identify price range."""
+
+    source_url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    source_name: Annotated[str, StringConstraints(max_length=500)] = ""
+    title: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    price: float | None = Field(default=None, ge=0)
+    currency: Annotated[str, StringConstraints(max_length=3)] = ""
+    availability: Literal["available", "sold", "unknown"] = "unknown"
+    verification_state: Literal["verified", "partial", "unverified"] = "unverified"
+
+
+class ComparablesSearchResponse(StrictResponseModel):
+    listings: list[ComparableListing] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    partial: bool = False
+
+
 class IntakeConfidenceSummary(BaseModel):
     """Confidence rollup for the generated intake draft."""
 
