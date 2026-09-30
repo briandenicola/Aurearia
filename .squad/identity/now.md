@@ -99,3 +99,8 @@ echoing the nested `llm.api_key` into returned errors) was fixed on top. Owner
 acceptance of #785 is outstanding. A new beta to main PR is being opened for
 owner review; merge and release need separate explicit owner approval. #787
 (#784 leftovers) and #766 remain open.
+
+**2026-09-30:** The owner merged PR #788 to `main` as `72db0512` (all main
+checks and the Docker Hub publish green) and accepted #785, which is closed.
+Open: #787 (#784 leftovers) and #766 (needs its own spec). No further
+release is authorized.
