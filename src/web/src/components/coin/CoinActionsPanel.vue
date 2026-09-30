@@ -66,7 +66,7 @@
           <div class="mb-3 flex items-center gap-3 max-sm:flex-col max-sm:items-start">
             <span class="text-xl font-bold text-gold">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
             <span
-              class="rounded-full px-[0.6rem] py-[0.2rem] text-sm font-semibold uppercase tracking-[0.03em]"
+              class="rounded-full px-[0.6rem] py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em]"
               :class="{
                 'bg-gold-glow text-gold': valueEstimate.confidence === 'high',
                 'bg-gold-dim text-text-primary': valueEstimate.confidence === 'medium',

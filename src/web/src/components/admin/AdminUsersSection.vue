@@ -5,10 +5,10 @@
     <table v-else class="w-full border-collapse">
       <thead>
         <tr>
-          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Username</th>
-          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Role</th>
-          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Created</th>
-          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Actions</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-label uppercase tracking-[0.08em] text-text-muted font-semibold">Username</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-label uppercase tracking-[0.08em] text-text-muted font-semibold">Role</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-label uppercase tracking-[0.08em] text-text-muted font-semibold">Created</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-label uppercase tracking-[0.08em] text-text-muted font-semibold">Actions</th>
         </tr>
       </thead>
       <tbody>

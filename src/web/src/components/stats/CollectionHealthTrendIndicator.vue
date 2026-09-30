@@ -4,13 +4,13 @@
       <h4 class="m-0 text-base text-heading">30-Day Trend</h4>
       <div
         v-if="trend.direction === 'unavailable'"
-        class="inline-flex items-center gap-[0.35rem] rounded-full border border-border-subtle bg-transparent px-[0.7rem] py-[0.2rem] text-sm font-semibold uppercase tracking-[0.08em] text-text-muted"
+        class="inline-flex items-center gap-[0.35rem] rounded-full border border-border-subtle bg-transparent px-[0.7rem] py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em] text-text-muted"
       >
         Insufficient Data
       </div>
       <div
         v-else
-        class="inline-flex items-center gap-[0.35rem] rounded-full border px-[0.7rem] py-[0.2rem] text-sm font-semibold uppercase tracking-[0.08em]"
+        class="inline-flex items-center gap-[0.35rem] rounded-full border px-[0.7rem] py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em]"
         :class="trend.direction === 'up'
           ? 'border-[rgba(39,174,96,0.3)] bg-[rgba(39,174,96,0.15)] text-green-400'
           : trend.direction === 'down'

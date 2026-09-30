@@ -99,15 +99,15 @@
         >
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-gold">{{ snapshot.coinCount }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Coins Owned</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Coins Owned</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-gold">{{ formatCurrency(snapshot.totalValue) }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Value</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Value</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ formatCurrency(snapshot.totalInvested) }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Invested</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Invested</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
@@ -116,15 +116,15 @@
             >
               {{ snapshot.unrealizedGain >= 0 ? '+' : '' }}{{ formatCurrency(snapshot.unrealizedGain) }}
             </span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Unrealized</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Unrealized</span>
           </div>
           <div v-if="snapshot.healthScore !== null" class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ snapshot.healthScore }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Health Score</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Health Score</span>
           </div>
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span class="font-display text-xl font-semibold text-text-primary">{{ snapshot.acquiredInYear }}</span>
-            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Added That Year</span>
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Added That Year</span>
           </div>
         </div>
 

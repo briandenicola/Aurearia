@@ -144,7 +144,7 @@
         >
           <div class="flex flex-col gap-4">
             <div class="flex justify-center md:justify-center">
-              <label class="inline-flex w-full items-center justify-between gap-3 rounded-full border border-border-subtle bg-[rgba(255,255,255,0.04)] px-3 py-2 text-chip font-semibold uppercase tracking-[0.04em] text-text-secondary md:w-auto md:justify-start">
+              <label class="inline-flex w-full items-center justify-between gap-3 rounded-full border border-border-subtle bg-[rgba(255,255,255,0.04)] px-3 py-2 text-label font-semibold uppercase tracking-[0.08em] text-text-secondary md:w-auto md:justify-start">
                 <span>Coin size</span>
                 <input
                   id="set-tray-size-slider"

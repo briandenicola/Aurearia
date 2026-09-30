@@ -38,7 +38,7 @@
 
         <p v-if="!detailRun.results || detailRun.results.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
         <div v-else class="overflow-x-auto">
-          <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
+          <table class="data-table text-body [&_th]:px-2 [&_th]:py-2 [&_td]:px-2 [&_td]:py-2">
             <thead class="hidden md:table-header-group">
               <tr>
                 <th>Coin</th>
@@ -107,7 +107,7 @@
                 </div>
                 <p v-if="expandedResults.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
                 <div v-else class="overflow-x-auto">
-                  <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-2 [&_td]:text-left">
+                  <table class="data-table text-body [&_th]:px-2 [&_th]:py-2 [&_td]:px-2 [&_td]:py-2">
                     <thead class="hidden md:table-header-group">
                       <tr>
                         <th>Coin</th>

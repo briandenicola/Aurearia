@@ -444,7 +444,7 @@
     </form>
 
     <div class="mt-6 flex items-center gap-2 border-t border-border-subtle pt-4 text-chip text-text-muted">
-      <span class="font-semibold uppercase tracking-[0.05em]">Version</span>
+      <span class="font-semibold uppercase tracking-[0.08em]">Version</span>
       <span class="font-mono text-text-secondary">{{ appVersion }}</span>
       <span v-if="buildDate" class="ml-1">Built {{ buildDate }}</span>
     </div>

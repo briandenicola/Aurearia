@@ -40,7 +40,7 @@
         class="mt-4"
         aria-label="Alternate sign in"
       >
-        <div class="flex items-center gap-3 my-4 mb-2 text-text-muted text-chip uppercase tracking-[0.08em] before:content-[''] before:flex-1 before:border-t before:border-border-subtle after:content-[''] after:flex-1 after:border-t after:border-border-subtle">
+        <div class="flex items-center gap-3 my-4 mb-2 text-text-muted text-label font-semibold uppercase tracking-[0.08em] before:content-[''] before:flex-1 before:border-t before:border-border-subtle after:content-[''] after:flex-1 after:border-t after:border-border-subtle">
           <span>or</span>
         </div>
         <p v-if="oidcError" class="text-loss text-body mb-2 text-left">{{ oidcError }}</p>

@@ -45,7 +45,7 @@
                       : 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] text-red-400'"
             >
               {{ coin.score }}
-              <span class="text-label uppercase tracking-[0.05em]">{{ coin.grade }}</span>
+              <span class="text-label font-semibold uppercase tracking-[0.08em]">{{ coin.grade }}</span>
             </div>
             <div class="text-sm text-text-muted">{{ coin.missingItems.length }} issues</div>
           </div>

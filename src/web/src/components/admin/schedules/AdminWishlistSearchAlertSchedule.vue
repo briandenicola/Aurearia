@@ -38,7 +38,7 @@
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No wishlist search alert runs recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-body [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-3 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.08em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-3 [&_td]:text-left">
+      <table class="data-table text-body [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>

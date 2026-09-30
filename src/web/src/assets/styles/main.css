@@ -339,6 +339,46 @@
   margin-bottom: 0.5rem;
 }
 
+/*
+ * Shared data-table recipe (#784 slice 3).
+ *
+ * Declared in @layer components so that Tailwind utilities — which live in the
+ * later `utilities` layer — still win on individual cells. That keeps per-cell
+ * overrides such as `<th class="text-right">` or `<td class="align-top">`
+ * working exactly as they did when the recipe was inlined.
+ *
+ * Only the typographic and border parts of the recipe live here. Padding stays
+ * on each table as `[&_th]:` / `[&_td]:` utilities so that table density
+ * remains a per-table decision.
+ *
+ * The class goes on the `<table>` itself, or — where the table is rendered
+ * from markdown and cannot carry a class, as in `HelpSection.vue` — on the
+ * container that wraps it.
+ */
+@layer components {
+  table.data-table,
+  .data-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table th {
+    font-size: var(--text-label);
+    font-weight: 600;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .data-table td {
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+}
+
 /* Form elements */
 .form-group {
   margin-bottom: 1rem;

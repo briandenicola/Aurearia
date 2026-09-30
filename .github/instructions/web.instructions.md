@@ -89,15 +89,24 @@ Both render the same, but only the utility is auditable and guard-enforced.
 
 #### Uppercase Labels
 
-All uppercase labels (section headers, info-card labels, sub-headings) use:
-```css
-font-size: 0.7rem;
-font-weight: 600;
-text-transform: uppercase;
-letter-spacing: 0.08em;
-color: var(--text-muted);
-```
-Use the global `.section-label` class or `.info-label` in detail grids.
+Any uppercase element carrying a small size token is a label, and every label
+reads `text-label font-semibold uppercase tracking-[0.08em]`. Only the colour
+and the alignment vary by role. A guard in `design-tokens.test.ts` enforces
+this; elements without a small size token (badges, data cells, uppercasing
+inputs) are out of scope.
+
+Use the global `.section-label` class or `.info-label` in detail grids where
+`--text-muted` is the wanted colour — they bake the colour in. Note `.badge`
+also uppercases in CSS, so template `uppercase` counts undercount.
+
+#### Data Tables
+
+Every data table carries the `data-table` class, which supplies the header
+recipe and the cell borders from `main.css`. Padding stays on the element as
+`[&_th]:` / `[&_td]:` utilities because density is per-table. The class sits in
+`@layer components`, so per-cell utilities such as `<th class="text-right">`
+still win. For markdown-rendered tables, put `data-table` on the wrapper.
+Re-inlining the header recipe fails a guard.
 
 #### Chip / Pill Hierarchy (global classes in main.css)
 
@@ -163,9 +172,10 @@ toggle or status pill, and caps hardcoded template colour literals (`rgba()`,
 3. **Never invent** a new font-size — pick from the typography scale
 4. **All interactive pills** use `.chip` or extend it
 5. **All static tags** use `.chip-sm` sizing (`0.75rem`, `0.15rem 0.5rem`)
-6. **All uppercase labels** use `letter-spacing: 0.08em` — no other value
-7. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
-8. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
+6. **All uppercase labels** use `text-label font-semibold tracking-[0.08em]`
+7. **All data tables** use the `data-table` class — never re-inline the header recipe
+8. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
+9. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
 
 ## Completion
 

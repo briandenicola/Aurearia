@@ -51,7 +51,7 @@
   <div v-else-if="cycles.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No availability cycles recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-chip md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -82,7 +82,7 @@
               <td :colspan="cyclesColspan">
                 <div v-if="expandedChildrenLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
                 <div v-else-if="expandedChildren.length" class="overflow-x-auto">
-                  <table class="w-full border-collapse text-chip md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                  <table class="data-table text-chip md:table-fixed [&_th]:px-2 [&_th]:py-[0.4rem] [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                     <thead>
                       <tr>
                         <th>User</th>
@@ -134,7 +134,7 @@
   <div v-else-if="legacyRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No legacy availability runs recorded.</div>
   <template v-else>
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-chip md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+      <table class="data-table text-chip md:table-fixed [&_th]:px-[0.35rem] [&_th]:py-2 md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:px-[0.35rem] [&_td]:py-2 md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -170,7 +170,7 @@
               <td :colspan="legacyColspan">
                 <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
                 <div v-else-if="expandedResults.length" class="overflow-x-auto">
-                  <table class="w-full border-collapse text-chip md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
+                  <table class="data-table text-chip md:table-fixed [&_th]:px-2 [&_th]:py-[0.4rem] [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                     <thead>
                       <tr>
                         <th>Coin</th>

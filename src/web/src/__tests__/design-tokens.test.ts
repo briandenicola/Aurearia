@@ -345,6 +345,59 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
         `Use the theme colour utility instead of a raw var() text class:\n  ${violations.join('\n  ')}`
       ).toEqual([])
     })
+
+    it('styles every uppercase label with the one documented recipe', () => {
+      // An uppercase element carrying a small size token is a label. All of
+      // them use text-label at 600 weight with 0.08em tracking; only the
+      // colour and the alignment vary by role. Elements without a small size
+      // token are out of scope: they are badges, data cells or inputs that
+      // happen to be uppercased, not section labels.
+      const smallSizes = ['text-label', 'text-sm', 'text-xs', 'text-chip', 'text-micro', 'text-2xs']
+      const violations: string[] = []
+
+      for (const file of vueFiles) {
+        const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
+        if (!template) continue
+        for (const match of template.matchAll(/class="([^"]*\buppercase\b[^"]*)"/g)) {
+          const tokens = match[1].split(/\s+/)
+          if (!tokens.some((token) => smallSizes.includes(token))) continue
+
+          const wrong: string[] = []
+          const size = tokens.find((token) => smallSizes.includes(token))
+          if (size !== 'text-label') wrong.push(`${size} (want text-label)`)
+          if (!tokens.includes('tracking-[0.08em]')) wrong.push('missing tracking-[0.08em]')
+          if (!tokens.includes('font-semibold')) wrong.push('missing font-semibold')
+          if (wrong.length > 0) {
+            violations.push(`${relative(SRC_DIR, file)}: ${wrong.join(', ')}`)
+          }
+        }
+      }
+
+      expect(
+        violations,
+        `Uppercase labels must read "text-label font-semibold tracking-[0.08em] uppercase":\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('styles table headers through .data-table rather than inline recipes', () => {
+      // The header recipe had drifted into five near-identical variants across
+      // 27 tables. It now lives in one place, in main.css. Padding stays on
+      // the element because density is a per-table decision.
+      const violations: string[] = []
+
+      for (const file of vueFiles) {
+        const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
+        if (!template) continue
+        for (const match of template.matchAll(/\[&_th\]:(uppercase|tracking-\[[^\]]+\]|text-text-muted|font-semibold)/g)) {
+          violations.push(`${relative(SRC_DIR, file)}: ${match[0]}`)
+        }
+      }
+
+      expect(
+        violations,
+        `Apply the "data-table" class instead of inlining the header recipe:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
   })
 
   describe('template classes resolve to real styles', () => {

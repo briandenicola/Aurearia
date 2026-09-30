@@ -36,8 +36,12 @@ Owner review of the running app for slice 2. Check the auction lot edit form
 first — eight `form-input` controls change height there. Screenshots were
 waived, so nothing is visually confirmed.
 
-Slice 3 (casing rules and a shared data-table header/cell recipe) is in
-progress on this tree. Three carried items remain for slice 4:
+Slice 3 (casing rules and a shared `.data-table` header/cell recipe) is
+implemented and awaiting review: 27 inlined table header recipes became one
+class, and 38 uppercase label recipes became 17 — all 42 changed label
+elements now read `text-label font-semibold tracking-[0.08em]`. See
+[the slice 3 log](../log/20260930T020000Z-784-slice3-casing-tables.md).
+Three carried items remain for slice 4:
 `COLOR_BUDGET = 139` still rests on the author's count alone, the light-theme
 status-contrast gap in `docs/design-system.md` section 4 is still open, and
 `text-xs` remains a Tailwind built-in duplicating `text-sm` at `0.75rem`

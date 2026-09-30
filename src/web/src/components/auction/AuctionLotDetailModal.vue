@@ -77,7 +77,7 @@
         <div class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
           <span class="text-chip text-text-secondary">Status</span>
           <span
-            class="rounded-full px-[0.55rem] py-[0.15rem] text-sm font-semibold uppercase"
+            class="rounded-full px-[0.55rem] py-[0.15rem] text-label font-semibold tracking-[0.08em] uppercase"
             :class="{
               'bg-[rgba(100,150,255,0.2)] text-[#6496ff]': currentStatus === 'watching',
               'bg-gold-glow text-gold': currentStatus === 'bidding',

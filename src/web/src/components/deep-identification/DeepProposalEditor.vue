@@ -11,7 +11,7 @@
         class="grid min-w-0 gap-2 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
       >
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <span class="text-sm font-semibold uppercase tracking-[0.08em] text-text-primary">{{ fieldLabel(name) }}</span>
+          <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-primary">{{ fieldLabel(name) }}</span>
           <div class="flex flex-wrap items-center gap-2">
             <span
               v-if="isImageDerived(name)"
@@ -20,10 +20,10 @@
             >
               Image only
             </span>
-            <span v-if="entryOf(name).ownerEdited" class="text-xs font-semibold uppercase tracking-[0.08em] text-byzantine">
+            <span v-if="entryOf(name).ownerEdited" class="text-label font-semibold uppercase tracking-[0.08em] text-byzantine">
               Edited by you
             </span>
-            <span v-else class="text-xs font-semibold uppercase tracking-[0.08em] text-gold">AI proposed</span>
+            <span v-else class="text-label font-semibold uppercase tracking-[0.08em] text-gold">AI proposed</span>
           </div>
         </div>
 

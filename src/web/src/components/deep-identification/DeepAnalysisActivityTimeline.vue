@@ -41,7 +41,7 @@
               class="inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-border-subtle px-[0.6rem] py-0.5 text-xs"
             >
               <component :is="stateIcon(row.state)" :size="12" class="shrink-0" :class="stateIconClasses(row.state)" aria-hidden="true" />
-              <span class="font-semibold uppercase tracking-[0.05em] text-text-primary">{{ row.provider }}</span>
+              <span class="font-semibold uppercase tracking-[0.08em] text-text-primary">{{ row.provider }}</span>
               <span :class="stateTextClasses(row.state)">{{ row.statusLabel }}</span>
               <span v-if="row.elapsedLabel" class="text-text-muted">{{ row.elapsedLabel }}</span>
             </li>

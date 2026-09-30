@@ -13,7 +13,7 @@
       >
         <span class="section-label !mb-0 opacity-80">Health Score</span>
         <span class="text-lg font-bold">{{ score }}</span>
-        <span class="text-chip uppercase tracking-[0.05em]">{{ grade }}</span>
+        <span class="text-label font-semibold uppercase tracking-[0.08em]">{{ grade }}</span>
       </div>
     </div>
 

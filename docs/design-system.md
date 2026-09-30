@@ -92,10 +92,30 @@ with known holes, not a proof:
 > `text-micro` rather than redefining `--text-xs`, because that would have
 > silently shrunk all 35. Folding `text-xs` into `text-sm` is a follow-up.
 
-Never invent a font size. Uppercase labels (section headers, info-card labels,
-table headers) always use `text-label` / weight 600 / `tracking-[0.08em]` /
-`--text-muted` — use the `.section-label` or `.info-label` global class, or the
-`text-label` utility with `tracking-[0.08em]`.
+### Uppercase labels
+
+Every uppercase element that carries a small size token is a label, and every
+label reads:
+
+```html
+<span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">
+```
+
+Only the **colour** and the **alignment** vary by role — `text-gold` for an
+accent label, `text-text-primary` for an emphasised one, `text-center` or
+`text-right` to match a column. The size, the weight and the tracking do not
+vary. The `.section-label` and `.info-label` global classes bake the same
+recipe in, including `--text-muted`; use them where that colour is wanted and
+the utilities where it is not.
+
+Elements that are uppercase but carry **no** small size token are out of
+scope — a grade badge at `text-base`, a data cell, or an `<input>` that
+uppercases what the user types. A guard in `design-tokens.test.ts` enforces
+the recipe on in-scope elements only.
+
+> Note: `.badge` sets `text-transform: uppercase` in CSS, so counting
+> `uppercase` classes in templates undercounts what renders uppercase.
+> Badges are governed by `BaseStatusBadge` and section 3 instead.
 
 ### Colours in templates
 
@@ -180,19 +200,34 @@ hidden `<input>`.
 
 ## 6. Tables
 
-Table headers use the uppercase label recipe from section 2:
+Every data table carries the `data-table` class. It supplies the header recipe
+(`text-label`, weight 600, `uppercase`, `0.08em` tracking, `--text-muted`,
+`line-height: 1.4`, left-aligned, bottom border) and the cell borders and
+alignment, from one place in `main.css`.
 
 ```html
-<th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">
+<table class="data-table [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3">
 ```
 
-Cells use `border-b border-border-subtle px-2 py-3 align-top`. Columns that are
-optional on small screens carry `hidden md:table-cell` on both the `th` and the
-matching `td`.
+Padding stays on the element, because density is a per-table decision. The
+class is declared inside `@layer components`, so a Tailwind utility on an
+individual cell still wins:
 
-> Some existing tables still use drifted header styles (`text-sm`,
-> `tracking-[0.05em]`). They are migrated page by page; new tables must use the
-> recipe above.
+```html
+<th class="text-right">Value</th>   <!-- overrides the left alignment -->
+<td class="align-top">…</td>
+```
+
+Where the table is rendered from markdown and cannot carry a class — the help
+content in `HelpSection.vue` — put `data-table` on the container that wraps it.
+`.data-table table` matches descendants for exactly this case.
+
+Columns that are optional on small screens carry `hidden md:table-cell` on both
+the `th` and the matching `td`.
+
+A guard in `design-tokens.test.ts` fails the build if a template re-inlines the
+header recipe (`[&_th]:uppercase`, `[&_th]:tracking-[…]`, `[&_th]:font-semibold`
+or `[&_th]:text-text-muted`).
 
 ## 7. Spacing rhythm
 
@@ -206,6 +241,8 @@ matching `td`.
 1. Never hardcode border radius, colour or spacing — use tokens.
 2. Never duplicate chip, button, badge or toggle markup — use the primitive.
 3. Never invent a font size — pick from the typography scale.
-4. All uppercase labels use `letter-spacing: 0.08em`.
-5. Before implementing UI, find the closest existing page pattern and reuse it.
-6. No emoji in UI text.
+4. All uppercase labels use `text-label font-semibold tracking-[0.08em]`; only
+   the colour and the alignment vary by role.
+5. Every data table uses the `data-table` class.
+6. Before implementing UI, find the closest existing page pattern and reuse it.
+7. No emoji in UI text.

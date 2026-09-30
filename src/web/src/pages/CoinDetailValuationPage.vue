@@ -44,10 +44,10 @@
               <table class="w-full text-sm">
                 <thead class="sticky top-0 z-10 bg-card">
                   <tr class="border-b border-border-subtle">
-                    <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Date</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Value</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Change</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Source</th>
+                    <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Date</th>
+                    <th class="px-3 py-2 text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Value</th>
+                    <th class="px-3 py-2 text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Change</th>
+                    <th class="px-3 py-2 text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Source</th>
                   </tr>
                 </thead>
                 <tbody>

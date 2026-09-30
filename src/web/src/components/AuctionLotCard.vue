@@ -9,7 +9,7 @@
       <div v-else class="text-text-primary/30"><Gavel :size="48" :stroke-width="1" /></div>
       <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_rgba(0,0,0,0.2),0_0_20px_var(--accent-gold-glow)]"></div>
       <span
-        class="absolute top-2 right-2 z-[2] rounded-full px-2.5 py-[0.2rem] text-label font-semibold uppercase tracking-[0.04em]"
+        class="absolute top-2 right-2 z-[2] rounded-full px-2.5 py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em]"
         :class="{
           'bg-input text-text-primary': lot.status === 'watching',
           'bg-gold text-surface': lot.status === 'bidding',
@@ -22,7 +22,7 @@
       </span>
       <span
         v-if="biddingIndicator"
-        class="absolute bottom-2 left-2 z-[2] rounded-full px-2.5 py-[0.2rem] text-label font-semibold uppercase tracking-[0.04em]"
+        class="absolute bottom-2 left-2 z-[2] rounded-full px-2.5 py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em]"
         :class="biddingIndicator.badgeCls"
       >
         {{ biddingIndicator.label }}
