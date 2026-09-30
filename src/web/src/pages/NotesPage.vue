@@ -60,7 +60,7 @@
           v-for="note in notes"
           :key="note.id"
           class="card !p-0 flex w-full items-start gap-3 border-l-[3px] border-l-transparent !px-4 !py-[0.85rem] text-left transition-colors hover:bg-card-hover"
-          :class="selectedId === note.id ? 'border-l-gold bg-[rgba(201,168,76,0.04)]' : ''"
+          :class="selectedId === note.id ? 'border-l-gold bg-gold/4' : ''"
           @click="selectNote(note.id)"
         >
           <div class="mt-[2px] shrink-0 text-text-muted">

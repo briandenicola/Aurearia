@@ -125,6 +125,18 @@ utility is auditable and only it fails when the token is removed. Every colour
 token in `main.css`'s `@theme inline` block has a matching utility; add one
 there rather than reaching for `var()` at a call site.
 
+Hardcoded colour literals (`#hex`, `rgb()`, `rgba()`) are held by three
+per-file ratchets in `design-tokens.test.ts`: one over `<template>`, one over
+`<script>` (class strings built in a computed), and one over `<style scoped>`
+hex (now empty). A file may only go down, and a file not listed may have
+none. A near-duplicate of a status colour maps to the status token, not a new
+literal, and a translucent status fill uses `bg-status-*-bg`, not `bg-gain/15`:
+the token is tuned per theme, the opacity modifier is not. What remains is
+deliberate: the A-F grade ramps, the purple scorecard bar, the white 0.04 lift,
+user-selectable tag colours, and the `BaseButton` danger and `BaseBadge`
+fallback colours, and the fallback set and category colours stored with
+records. Plain `.ts` files are not scanned.
+
 ## 3. Chips, badges and buttons
 
 | Class | Use | Size | Padding |
@@ -188,8 +200,14 @@ matters when you add UI:
   most themes; an earlier version checked only `--bg-card` and `--bg-primary`
   and missed a nested table on `--bg-secondary` where every tone failed.
 - **Pairings** come from the templates. The guard reads each element's class
-  list — and each branch of a `:class` binding separately — and pairs a
-  `bg-status-*-bg` fill with whatever `text-*` colour sits on the same element.
+  list — each branch of a `:class` binding separately, and each string
+  literal in `<script>` (a template literal's `${}` parts are ignored) — and
+  pairs a measured fill with whatever `text-*`
+  colour sits in the same list. Measured fills are `bg-status-*-bg`,
+  `bg-status-*-tint`, and a status foreground painted solid (`bg-gain`,
+  `bg-loss`). Pairs are made per variant, falling back through the chain
+  (`dark:hover:` to `hover:` to resting); a leading or trailing `!` is
+  stripped and a `/NN` opacity is measured, not dropped.
   It also expands a component that builds its tokens dynamically, such as
   `BaseStatusBadge`, across its declared tone union.
 

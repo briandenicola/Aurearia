@@ -4,7 +4,7 @@
       :class="[
         'inline-flex rounded-full border px-2 py-0.5 text-chip',
         alert.isActive
-          ? 'border-[rgba(74,222,128,0.35)] bg-[rgba(74,222,128,0.08)] text-green-400'
+          ? 'border-status-success-border bg-status-success-tint text-status-success-fg'
           : 'border-border-subtle text-text-muted',
       ]"
     >

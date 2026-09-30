@@ -301,7 +301,7 @@ onMounted(loadCoin)
                     />
                   </div>
                   <button
-                    class="flex shrink-0 items-center rounded-[4px] p-1 text-text-muted transition hover:bg-status-error-tint hover:text-[rgb(231,76,60)]"
+                    class="flex shrink-0 items-center rounded-[4px] p-1 text-text-muted transition hover:bg-status-error-tint hover:text-loss"
                     title="Delete comment"
                     @click="handleDeleteComment(comment.id)"
                   >

@@ -70,7 +70,7 @@
 
       <!-- Results State -->
       <div v-if="state === 'results'" class="min-w-0 flex flex-col gap-6">
-        <div v-if="error" class="flex items-center gap-3 rounded-md border border-[rgba(192,57,43,0.3)] bg-[rgba(192,57,43,0.2)] p-4 text-base text-byzantine">
+        <div v-if="error" class="flex items-center gap-3 rounded-md border border-status-error-border bg-status-error-bg p-4 text-base text-status-error-fg">
           <AlertCircle :size="20" />
           <span>{{ error }}</span>
         </div>

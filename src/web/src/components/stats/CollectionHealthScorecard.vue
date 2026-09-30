@@ -35,9 +35,9 @@
               :class="key === 'metadata'
                 ? 'bg-[linear-gradient(90deg,var(--accent-gold),var(--accent-bronze))]'
                 : key === 'imageCoverage'
-                  ? 'bg-[linear-gradient(90deg,#3498db,#2980b9)]'
+                  ? 'bg-linear-to-r from-status-info-fg to-status-info-fg/75'
                   : key === 'valuationFreshness'
-                    ? 'bg-[linear-gradient(90deg,#27ae60,#229954)]'
+                    ? 'bg-linear-to-r from-gain to-gain/75'
                     : 'bg-[linear-gradient(90deg,#9b59b6,#8e44ad)]'"
               :style="{ width: `${value}%` }"
             ></div>

@@ -86,7 +86,7 @@
                 <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
                   {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
                 </span>
-                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-micro text-loss transition-colors hover:bg-status-error-bg" @click.stop="cancelRun(run.id)">Cancel</button>
+                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-status-error-border bg-transparent px-[0.4rem] py-[0.1rem] text-micro text-loss transition-colors hover:bg-status-error-bg" @click.stop="cancelRun(run.id)">Cancel</button>
               </td>
               <td>{{ run.coinsChecked }}</td>
               <td class="hidden font-semibold text-gain md:table-cell">{{ run.coinsUpdated }}</td>

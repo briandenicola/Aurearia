@@ -7,7 +7,7 @@
         <div class="mt-2 grid gap-4 md:grid-cols-2">
           <label
             class="flex cursor-pointer flex-col gap-1 rounded-sm border-2 border-border-subtle bg-surface px-4 py-4 transition-colors hover:border-gold focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2"
-            :class="settings.AIProvider === 'anthropic' ? 'border-gold bg-[rgba(212,168,67,0.08)]' : ''"
+            :class="settings.AIProvider === 'anthropic' ? 'border-gold bg-gold/8' : ''"
           >
             <input v-model="settings.AIProvider" class="sr-only" type="radio" value="anthropic" />
             <span class="text-base font-semibold text-text-primary">Anthropic (Recommended)</span>
@@ -15,7 +15,7 @@
           </label>
           <label
             class="flex cursor-pointer flex-col gap-1 rounded-sm border-2 border-border-subtle bg-surface px-4 py-4 transition-colors hover:border-gold focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2"
-            :class="settings.AIProvider === 'ollama' ? 'border-gold bg-[rgba(212,168,67,0.08)]' : ''"
+            :class="settings.AIProvider === 'ollama' ? 'border-gold bg-gold/8' : ''"
           >
             <input v-model="settings.AIProvider" class="sr-only" type="radio" value="ollama" />
             <span class="text-base font-semibold text-text-primary">Ollama</span>
@@ -24,7 +24,7 @@
         </div>
         <p
           v-if="!settings.AIProvider"
-          class="mt-2 rounded-sm border border-[rgba(231,176,60,0.3)] bg-[rgba(231,176,60,0.1)] px-3 py-2 text-body text-warning"
+          class="mt-2 rounded-sm border border-status-warning-border bg-status-warning-bg px-3 py-2 text-body text-warning"
         >
           Please select an AI provider to enable agent features.
         </p>
@@ -78,7 +78,7 @@
           <span class="mt-1 block text-sm text-text-muted">Required for web search features (coin search, coin shows, valuations).</span>
           <p
             v-if="settings.AIProvider === 'ollama' && !settings.SearXNGURL"
-            class="mt-2 rounded-sm border border-[rgba(231,176,60,0.3)] bg-[rgba(231,176,60,0.1)] px-3 py-2 text-body text-warning"
+            class="mt-2 rounded-sm border border-status-warning-border bg-status-warning-bg px-3 py-2 text-body text-warning"
           >
             Web search features require a SearXNG instance. Configure the URL or switch to Anthropic.
           </p>

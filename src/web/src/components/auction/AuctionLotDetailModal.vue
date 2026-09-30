@@ -68,7 +68,7 @@
         </div>
         <div v-if="lot.winningBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
           <span class="text-chip text-text-secondary">{{ lot.status === 'lost' ? 'Sold For' : 'Winning Bid' }}</span>
-          <span class="min-w-0 text-right font-semibold [overflow-wrap:anywhere]" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-[#4ade80]'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
+          <span class="min-w-0 text-right font-semibold [overflow-wrap:anywhere]" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-gain'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
         </div>
         <div v-if="biddingIndicator" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
           <span class="text-chip text-text-secondary">Bid Status</span>
@@ -79,11 +79,11 @@
           <span
             class="rounded-full px-[0.55rem] py-[0.15rem] text-label font-semibold tracking-[0.08em] uppercase"
             :class="{
-              'bg-[rgba(100,150,255,0.2)] text-[#6496ff]': currentStatus === 'watching',
+              'bg-status-info-bg text-status-info-fg': currentStatus === 'watching',
               'bg-gold-glow text-gold': currentStatus === 'bidding',
-              'bg-[rgba(74,222,128,0.15)] text-[#4ade80]': currentStatus === 'won',
-              'bg-[rgba(248,113,113,0.15)] text-[#f87171]': currentStatus === 'lost',
-              'bg-[rgba(120,120,120,0.15)] text-[#999999]': currentStatus === 'passed',
+              'bg-status-success-bg text-status-success-fg': currentStatus === 'won',
+              'bg-status-error-bg text-status-error-fg': currentStatus === 'lost',
+              'bg-status-neutral-bg text-status-neutral-fg': currentStatus === 'passed',
             }"
           >
             {{ currentStatus }}
@@ -93,7 +93,7 @@
           <span class="text-chip text-text-secondary">Confirmed by</span>
           <span>{{ statusSourceLabel.text }}</span>
         </div>
-        <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-[rgba(245,158,11,0.12)] px-2.5 py-1.5 text-chip font-semibold text-[#f59e0b]">
+        <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-status-warning-bg px-2.5 py-1.5 text-chip font-semibold text-status-warning-fg">
           <AlertTriangle :size="14" /> This lot's auction has closed but its status hasn't been confirmed yet
         </div>
         <div v-if="lot.description" class="mt-3">
@@ -282,7 +282,7 @@
           <span v-else-if="bidRecommendationError" class="text-text-muted">Couldn't load a bid suggestion.</span>
         </div>
         <div v-if="newStatus === 'bidding'" class="text-chip text-text-secondary">
-          <span v-if="!providerConfigured" class="text-[#f59e0b]">
+          <span v-if="!providerConfigured" class="text-warning">
             AI provider not configured. <a href="/admin" class="font-semibold text-gold underline" @click="$emit('close')">Go to Admin Settings</a> to check current market data for this lot.
           </span>
           <template v-else-if="marketSignalLoading">
@@ -358,7 +358,7 @@
           <button v-if="lot.status === 'won'" class="btn btn-primary" :disabled="statusBusy" @click="convertToCoin">
             <ArrowRightCircle :size="14" /> Add to Collection
           </button>
-          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-chip !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" :disabled="statusBusy" @click="removeLot">
+          <button class="btn btn-danger !border-status-error-border !bg-transparent px-[0.9rem] py-2 text-chip !text-status-error-fg hover:!border-status-error-fg hover:!bg-status-error-tint" :disabled="statusBusy" @click="removeLot">
             <Trash2 :size="14" /> Remove
           </button>
         </div>
@@ -437,9 +437,9 @@ const pinLabel = computed(() => lotPinned.value ? 'Unpin auction lot from Quick 
 const biddingIndicator = computed(() => {
   if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
   if (props.lot.maxBid >= props.lot.currentBid) {
-    return { label: 'Winning', cls: 'text-[#4ade80]' }
+    return { label: 'Winning', cls: 'text-gain' }
   }
-  return { label: 'Outbid', cls: 'text-[#f87171]' }
+  return { label: 'Outbid', cls: 'text-loss' }
 })
 const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
 const statusSourceLabel = computed(() => auctionLotStatusSourceLabel(props.lot))

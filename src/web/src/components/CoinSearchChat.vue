@@ -12,7 +12,7 @@
         @close="$emit('close')"
       />
 
-      <div v-if="!providerConfigured" class="shrink-0 flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-3 text-body text-warning">
+      <div v-if="!providerConfigured" class="shrink-0 flex items-center gap-2 border-b border-status-warning-border bg-status-warning-bg px-4 py-3 text-body text-warning">
         <AlertTriangle :size="16" />
         <span>AI provider not configured. <a href="/admin" class="font-semibold text-gold underline" @click="$emit('close')">Go to Admin Settings</a> to select Anthropic or Ollama.</span>
       </div>

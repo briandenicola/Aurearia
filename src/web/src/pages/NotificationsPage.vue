@@ -34,7 +34,7 @@
         v-for="n in notifications"
         :key="n.id"
         class="card !p-0 flex cursor-pointer items-start gap-3 border-l-[3px] border-l-transparent !px-4 !py-[0.85rem] transition-colors hover:bg-card-hover"
-        :class="!n.isRead ? 'border-l-gold bg-[rgba(201,168,76,0.04)]' : ''"
+        :class="!n.isRead ? 'border-l-gold bg-gold/4' : ''"
         @click="handleClick(n)"
       >
         <div
@@ -61,7 +61,7 @@
           <div class="mt-[0.35rem] text-sm text-text-muted">{{ formatTime(n.createdAt) }}</div>
         </div>
         <button
-          class="shrink-0 rounded-sm p-1 text-text-muted transition-colors hover:bg-[rgba(248,113,113,0.1)] hover:text-[rgb(248,113,113)]"
+          class="shrink-0 rounded-sm p-1 text-text-muted transition-colors hover:bg-status-error-tint hover:text-loss"
           title="Delete"
           @click.stop="handleDelete(n.id)"
         >

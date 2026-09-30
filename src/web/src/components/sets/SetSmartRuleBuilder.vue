@@ -549,7 +549,7 @@ async function saveTemplate() {
 }
 
 .rule-error {
-  color: #e74c3c;
+  color: var(--status-error-fg);
   font-size: 0.75rem;
   white-space: nowrap;
 }
@@ -585,7 +585,7 @@ async function saveTemplate() {
 }
 
 .preview-error {
-  color: #e74c3c;
+  color: var(--status-error-fg);
   font-size: 0.8rem;
   margin-top: 0.4rem;
 }
