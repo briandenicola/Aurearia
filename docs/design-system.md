@@ -170,11 +170,17 @@ overrides clear 4.5:1 against **both** `--bg-card` (`#ffffff`) and
 
 A guard in `design-tokens.test.ts` computes the WCAG ratio from the token values
 rather than asserting a number by hand, so it keeps holding if a value changes.
-It iterates **every** `[data-theme]` block, resolves each token through `:root`
-when the theme does not override it, and fails below 4.5:1 on either surface.
-Checking only the light theme would have missed `--color-negative`, which also
-failed on `louvre` (4.10:1) and `modern-greek` (4.48:1) — which is why `:root`
-now carries `#f06a5a` rather than `#e74c3c`.
+It covers **seven theme states** — the six `[data-theme]` blocks and bare
+`:root`, which is the default palette — resolves each token through `:root` and
+through `var()` indirection, and checks both surfaces.
+
+Critically, it measures badge text **composited over its own `--status-*-bg`
+fill**, not against the bare surface. A badge renders its text on a ~0.15 alpha
+fill, which shifts the surface toward the foreground's hue and always reduces
+contrast. Measuring the bare surface certified pairs that were really 4.00:1.
+
+If you add a theme, its status foregrounds are checked automatically. If you
+retune a `--status-*-bg` fill, the composited ratios move — that is intended.
 
 ### Overlays
 

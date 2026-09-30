@@ -165,3 +165,127 @@ changes in this slice, and no one has seen any of it; screenshots were waived
 twice. After that, the 61-literal palette decision above.
 
 No deployment or release is authorized.
+
+
+## Second repair — independent review returned BLOCK
+
+The review blocked at `bb866804`. The blocker was correct and the diagnosis was
+sharper than my own: I had fixed the *scope* of the guard but not its *shape*.
+
+### The blocker — the guard measured the wrong surface
+
+`BaseStatusBadge.vue:15-18` pairs `color: var(--status-{tone}-fg)` with
+`background: var(--status-{tone}-bg)`, and every `-bg` is a ~0.15 alpha fill.
+The text therefore renders on **fill over surface**, not on the bare surface.
+The fill shifts the surface toward the foreground's own hue, so it always
+*reduces* contrast — measuring the bare surface was not conservative, it was
+simply the wrong measurement. The guard was certifying pairs that were really
+4.00:1.
+
+Recomputing with the fill composited found failures the previous two versions
+of this guard both passed:
+
+| Theme | Pair | Composited |
+|---|---|---|
+| `light` | error on `--bg-primary` | 4.00:1 |
+| `light` | success on `--bg-primary` | 4.16:1 |
+| `light` | neutral on `--bg-primary` | 4.29:1 |
+| `light` | info on `--bg-primary` | 4.44:1 |
+| `light` | error on `--bg-card` | 4.49:1 |
+| `default` | info on `--bg-card` | 4.04:1 |
+| `louvre` | info on `--bg-card` | 4.05:1 |
+| `louvre` | error on `--bg-card` | 4.35:1 |
+| `modern-greek` | info on `--bg-card` | 4.36:1 |
+| `british-museum` | info on `--bg-card` | 4.49:1 |
+
+Note `louvre`'s error at 4.35:1. The previous commit raised its *bare* ratio
+from 4.10 to 5.16 and I recorded that as fixed. The badge was still failing.
+
+Five token values were retuned to clear 4.5:1 composited, on both surfaces, in
+all seven theme states:
+
+| Token | Was | Now |
+|---|---|---|
+| `:root --color-negative` | `#f06a5a` | `#fa6e5e` |
+| `:root --status-info-fg` | `#3498db` | `#38a4ed` |
+| light `--color-negative` | `#c0392b` | `#ad3327` |
+| light `--status-info-fg` | `#1f6a9e` | `#1e6698` |
+| light `--status-neutral-fg` | `#5d6d6e` | `#576667` |
+| light `--text-warning` | `#8a6100` | `#875f00` |
+
+The fills themselves are unchanged, so no badge background moves.
+
+### The guard, third version
+
+It now checks three things across **seven** theme states — the six
+`[data-theme]` blocks *and* bare `:root`, which is the default palette and a
+theme users actually see, and which the previous version used only as a
+fallback scope and never iterated:
+
+1. every token resolves to a parseable colour;
+2. status text clears 4.5:1 as plain text on both surfaces;
+3. status text clears 4.5:1 **composited over its own `-bg` fill**.
+
+It also follows `var()` indirection, because `--status-error-fg` is declared as
+`var(--color-negative)`. The previous version matched `#RRGGBB` only and treated
+any non-hex override as no override at all, silently measuring `:root`'s value
+instead. And it now lists the `--status-*-fg` tokens components actually
+consume, not the source tokens they alias to.
+
+Tamper-tested three ways, each injection verified by `grep` before the run and
+reverted:
+- restoring light's `#c0392b` fails at exactly the 4.49 / 4.00 the reviewer
+  computed — the guard now catches what it previously certified;
+- restoring `#3498db` fails naming `default` **and** `louvre`, proving the
+  default palette is really iterated;
+- aliasing a theme's `--status-info-fg` to `var(--bg-card)` fails at 1.00:1,
+  proving indirection is resolved rather than skipped.
+
+### Other findings
+
+**Grade ramps reverted.** `CollectionHealthScorecard.vue` and
+`NeedsAttentionQueue.vue` each render an A-F ramp. I had converted grades B and
+F to status tokens because their values matched, leaving A, C and D as literals
+— the exact value-identity conversion this log refuses two sections earlier,
+and it half-bound a gradient to status semantics. Reverted. **The colour-literal
+count therefore rises 61 to 69, and two budget entries go up.** That is the
+right direction: the conversions were wrong, and a ratchet that has to be paid
+for a correctness fix is worth paying.
+
+**Undeclared delta, now declared.** The eight `#c9a84c` to `var(--accent-gold)`
+conversions in `FollowerCoinDetailPage.vue` change the star colour in every
+theme, not only the light one: `#9a7b2e` light, `#d8d4cc` british-museum,
+`#977b3c` louvre, `#f0bc42` capitoline, `#ffbf00` byzantine, `#ffffff`
+modern-greek. The default theme is unchanged at `#c9a84c`. This is almost
+certainly the intended behaviour — a hardcoded gold ignoring the theme was the
+bug — but it is a visible change in six theme states and belonged in the list.
+
+**`-fg` and `-bg` bases have deliberately diverged.** `--color-negative` is now
+`#fa6e5e` while `--status-error-bg` stays `rgba(231, 76, 60, …)`. Re-deriving
+the fills from the new foregrounds would move every badge background in every
+theme. The comment in `variables.css` now records the divergence as intentional
+rather than describing a convention that no longer holds.
+
+**Duplicate token removed.** `--color-overlay-full` was declared twice in the
+same `@theme inline` block with the same value.
+
+**Known gap, not closed.** The separate hex guard covering `<style scoped>`
+blocks is still a single net total of 190, and a literal moved into `<script>`
+is counted by neither guard. Both are recorded in the test file. Closing them
+is a separate change, not a colour retune.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `npm run type-check` | clean |
+| `npm run lint` | clean at `--max-warnings 0` |
+| `npm run test` | 207 files, 1759 passed, 1 skipped |
+| `npm run build` | succeeded |
+
+### The pattern worth recording
+
+Three versions of this guard, three scoping errors, each found by someone other
+than me: light-theme only, then bare-surface only, then default-theme excluded.
+The colours were never the hard part. Each time I scoped the check to the case I
+had already found rather than to the shape of the thing being checked.

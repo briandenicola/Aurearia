@@ -50,20 +50,25 @@ whose headers were never on the standard and now become uppercase. `.badge`
 its label counts are recorded as approximate and do not reproduce exactly.
 Slice 3 was cleared **PASS** at `8dd0dbb7`.
 
-Slice 4 (colour tokens, overlays, light-theme contrast) is implemented and
-awaiting review. The one real defect it fixes: `[data-theme="light"]` overrode
-no status foreground, so every status colour in the light theme failed WCAG AA
-on a white card — `--color-positive` measured 2.10:1. Eight overrides now clear
-4.5:1 against both `--bg-card` and `--bg-primary`, held by a guard that
-computes the ratio rather than asserting it. Template colour literals went
-139 to 61, and `COLOR_BUDGET` is now a per-file map so a swap cannot net to
-zero. See [the slice 4 log](../log/20260930T040000Z-784-slice4-colour-contrast.md).
+Slice 4 (colour tokens, overlays, theme contrast) is implemented, was reviewed
+**BLOCK**, and has been repaired twice; it is awaiting re-review.
 
-Two items are deliberately **not** done. The `text-xs` fold (35 sites) is
-deferred because `text-xs` and `text-sm` share `0.75rem` but not their
-line-heights, so it is a 7% height change, not a rename. The remaining 61
-literals are an owner decision: the app carries four near-duplicate greens and
-five reds with no single winner, and picking one is a design call.
+The real defect: status text was failing WCAG AA and the guard kept measuring
+the wrong thing. Three versions, three scoping errors, none of them found by
+me — light-theme only, then bare-surface only, then the default palette
+excluded. The last is the substantive one: a badge renders its text on a ~0.15
+alpha `--status-*-bg` fill, so the ratio that matters is against the composite,
+and the bare-surface check was certifying pairs that were really 4.00:1. The
+guard now covers seven theme states, follows `var()` indirection, and
+composites the fill before measuring. Six token values were retuned. Template
+colour literals went 139 to 69, and `COLOR_BUDGET` is a per-file map so a swap
+cannot net to zero. See [the slice 4 log](../log/20260930T040000Z-784-slice4-colour-contrast.md).
+
+The open owner decisions are recorded in
+[the open-issue plans](../../docs/audits/2026-09-29-open-issue-plans.md#g-open-owner-decisions-from-784),
+not only here, because an agent-authored log cannot supply authorization: the
+69-literal palette choice, the outstanding visual pass, the deferred `text-xs`
+fold, and two known guard gaps.
 
 **The owner's visual pass is now overdue across all four slices**, and the
 light theme should be first — its status colours all move in slice 4 and

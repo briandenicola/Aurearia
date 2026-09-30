@@ -291,11 +291,22 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       // literal removed in one file pay for a literal added in another, which
       // is exactly the drift this is meant to stop. A file may only go down,
       // and a file not listed here may have none at all.
+      //
+      // Two entries went *up* in review: the A-F grade ramps in
+      // CollectionHealthScorecard and NeedsAttentionQueue had grades B and F
+      // converted to status tokens because their values matched, while A, C
+      // and D stayed literal. That is the value-identity conversion the slice
+      // otherwise refuses, and it half-bound a gradient to status semantics.
+      // Reverting it is correct and costs 8 literals.
+      //
+      // Known gap, not closed here: the separate hex guard covering
+      // `<style scoped>` blocks is still a single net total, and a literal
+      // moved into `<script>` is counted by neither guard.
       const COLOR_BUDGET = new Map([
         ['components/auction/AuctionLotDetailModal.vue', 16],
-        ['components/stats/CollectionHealthScorecard.vue', 12],
+        ['components/stats/CollectionHealthScorecard.vue', 16],
+        ['components/collection/NeedsAttentionQueue.vue', 10],
         ['components/admin/AdminAISection.vue', 6],
-        ['components/collection/NeedsAttentionQueue.vue', 6],
         ['pages/NotificationsPage.vue', 3],
         ['components/AuctionLotCard.vue', 2],
         ['components/admin/AdminHealthSection.vue', 2],
@@ -561,90 +572,147 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       expect(main).toContain('.btn-primary')
     })
   })
-  describe('every theme meets WCAG AA for status foregrounds', () => {
-    // The status colours are tuned for a near-black surface. The light theme
-    // used to override none of them, so every badge, gain/loss figure and
-    // confidence marker inherited a value that failed AA on a white card.
+  describe('every theme meets WCAG AA for status text', () => {
+    // This guard has been wrong twice, in the same way both times: scoped to
+    // the case already found rather than to the shape of the problem.
     //
-    // The first version of this guard only checked the light theme, which was
-    // the wrong shape: --color-negative also failed on `louvre` (4.10:1) and
-    // `modern-greek` (4.48:1), and nothing would have caught it. Every theme
-    // is checked, against both surfaces status text actually appears on, and
-    // the ratios are computed rather than asserted so a colour edit cannot
-    // quietly reintroduce the gap.
+    // First it checked only `[data-theme="light"]`, and missed --color-negative
+    // failing on `louvre` and `modern-greek`. Then, checking every theme, it
+    // still measured foregrounds against the *bare* surface — but a status
+    // badge renders its text on --status-{tone}-bg, a translucent fill, over
+    // that surface. The ratio a user sees is against the composite. Measuring
+    // the bare surface certified pairs that were really 4.00:1.
+    //
+    // So: every theme including the default, both surfaces status text lands
+    // on, and the alpha fill composited before measuring.
     const variables = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
 
-    function relativeLuminance(hex: string): number {
-      const value = hex.replace('#', '')
-      const channels = [0, 2, 4]
-        .map((i) => parseInt(value.slice(i, i + 2), 16) / 255)
-        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
-      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
-    }
-
-    function contrast(a: string, b: string): number {
-      const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
-      return (lighter + 0.05) / (darker + 0.05)
-    }
-
     const rootScope = /:root\s*\{([\s\S]*?)\n\}/.exec(variables)?.[1] ?? ''
-    const themes = new Map<string, string>()
+    // The default palette lives in bare `:root` with no data-theme attribute.
+    // It is a theme users actually see, so it is iterated, not just used as
+    // the fallback scope.
+    const themes = new Map<string, string>([['default', rootScope]])
     for (const match of variables.matchAll(/\[data-theme="([a-z-]+)"\]\s*\{([\s\S]*?)\n\}/g)) {
       themes.set(match[1], match[2])
     }
 
-    // A theme inherits any token it does not override, so the effective value
-    // is the theme's own or :root's. Resolving it this way is what catches a
-    // dark-theme token that was never overridden because nobody looked.
-    function resolve(scope: string, name: string): string | undefined {
-      const own = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(scope)?.[1]
-      return own ?? new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(rootScope)?.[1]
+    function declaration(scope: string, name: string): string | undefined {
+      return new RegExp(`--${name}:\\s*([^;]+);`).exec(scope)?.[1].trim()
     }
 
-    const foregrounds = [
+    // Follows var() indirection, because --status-error-fg is declared as
+    // var(--color-negative). Reading the literal text would make every such
+    // token unresolvable, and an earlier version treated a non-hex override
+    // as "no override at all" and silently measured :root's value instead.
+    function resolve(scope: string, name: string, depth = 0): string | undefined {
+      const value = declaration(scope, name) ?? declaration(rootScope, name)
+      if (!value) return undefined
+      const indirect = /^var\(--([a-z-]+)\)$/.exec(value)
+      if (indirect && depth < 5) return resolve(scope, indirect[1], depth + 1)
+      return value
+    }
+
+    type Rgba = { rgb: [number, number, number]; alpha: number }
+
+    function parseColor(value: string): Rgba | undefined {
+      if (value.startsWith('#') && /^#[0-9a-fA-F]{6}$/.test(value)) {
+        const hex = value.slice(1)
+        return { rgb: [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number], alpha: 1 }
+      }
+      const parts = /rgba?\(([^)]+)\)/.exec(value)?.[1].split(',').map((p) => parseFloat(p))
+      if (!parts || parts.length < 3 || parts.some((n) => Number.isNaN(n))) return undefined
+      return { rgb: parts.slice(0, 3) as [number, number, number], alpha: parts.length > 3 ? parts[3] : 1 }
+    }
+
+    function composite(over: Rgba, under: Rgba): Rgba {
+      return {
+        rgb: over.rgb.map((c, i) => c * over.alpha + under.rgb[i] * (1 - over.alpha)) as [number, number, number],
+        alpha: 1,
+      }
+    }
+
+    function relativeLuminance(rgb: [number, number, number]): number {
+      const channels = rgb
+        .map((c) => c / 255)
+        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+
+    function contrast(a: Rgba, b: Rgba): number {
+      const [lighter, darker] = [relativeLuminance(a.rgb), relativeLuminance(b.rgb)].sort((x, y) => y - x)
+      return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    const TONES = ['success', 'error', 'warning', 'info', 'neutral']
+    // The tokens components consume, not the source tokens they alias to.
+    const BARE_TEXT = [
       'color-positive',
       'color-negative',
       'text-warning',
-      'status-info-fg',
-      'status-neutral-fg',
       'confidence-high',
       'confidence-medium',
       'confidence-low',
+      ...TONES.map((tone) => `status-${tone}-fg`),
     ]
+    const SURFACES = ['bg-card', 'bg-primary']
+    const AA = 4.5
 
-    it('defines every theme and every status foreground as a resolvable hex', () => {
-      expect(themes.size, 'no [data-theme] blocks were parsed out of variables.css').toBeGreaterThan(0)
-      const missing: string[] = []
+    function required(theme: string, scope: string, name: string): Rgba {
+      const value = resolve(scope, name)
+      expect(value, `${theme}: --${name} does not resolve to a colour`).toBeTruthy()
+      const parsed = parseColor(value!)
+      expect(parsed, `${theme}: --${name} = "${value}" is not a parseable colour`).toBeTruthy()
+      return parsed!
+    }
+
+    it('resolves every status token in every theme', () => {
+      expect(themes.size, 'no theme scopes were parsed out of variables.css').toBeGreaterThan(1)
       for (const [theme, scope] of themes) {
-        for (const name of [...foregrounds, 'bg-card', 'bg-primary']) {
-          if (!resolve(scope, name)) missing.push(`${theme}: --${name}`)
+        for (const name of [...BARE_TEXT, ...SURFACES, ...TONES.map((t) => `status-${t}-bg`)]) {
+          required(theme, scope, name)
         }
       }
-      expect(missing, `Unresolvable tokens:\n  ${missing.join('\n  ')}`).toEqual([])
     })
 
-    it('clears 4.5:1 against the card and the page background in every theme', () => {
+    it('clears 4.5:1 as plain text on the card and the page', () => {
       const failures: string[] = []
-
       for (const [theme, scope] of themes) {
-        const card = resolve(scope, 'bg-card')!
-        const page = resolve(scope, 'bg-primary')!
-        for (const name of foregrounds) {
-          const value = resolve(scope, name)!
-          const onCard = contrast(value, card)
-          const onPage = contrast(value, page)
-          if (onCard < 4.5) {
-            failures.push(`${theme}: --${name} ${value} on --bg-card ${card} is ${onCard.toFixed(2)}:1`)
-          }
-          if (onPage < 4.5) {
-            failures.push(`${theme}: --${name} ${value} on --bg-primary ${page} is ${onPage.toFixed(2)}:1`)
+        for (const surface of SURFACES) {
+          const under = required(theme, scope, surface)
+          for (const name of BARE_TEXT) {
+            const ratio = contrast(required(theme, scope, name), under)
+            if (ratio < AA) {
+              failures.push(`${theme}: --${name} on --${surface} is ${ratio.toFixed(2)}:1`)
+            }
           }
         }
       }
+      expect(failures, `Status text must reach WCAG AA (4.5:1):\n  ${failures.join('\n  ')}`).toEqual([])
+    })
 
+    it('clears 4.5:1 as badge text on the translucent status fill', () => {
+      // BaseStatusBadge pairs --status-{tone}-fg with --status-{tone}-bg, which
+      // is ~0.15 alpha. The fill shifts the surface toward the foreground's own
+      // hue, so it always *reduces* contrast — which is why measuring the bare
+      // surface was not conservative, it was simply the wrong measurement.
+      const failures: string[] = []
+      for (const [theme, scope] of themes) {
+        for (const surface of SURFACES) {
+          const under = required(theme, scope, surface)
+          for (const tone of TONES) {
+            const fill = composite(required(theme, scope, `status-${tone}-bg`), under)
+            const ratio = contrast(required(theme, scope, `status-${tone}-fg`), fill)
+            if (ratio < AA) {
+              failures.push(
+                `${theme}: --status-${tone}-fg on --status-${tone}-bg over --${surface} is ${ratio.toFixed(2)}:1`
+              )
+            }
+          }
+        }
+      }
       expect(
         failures,
-        `Status foregrounds must reach WCAG AA (4.5:1) in every theme:\n  ${failures.join('\n  ')}`
+        `Badge text must reach WCAG AA (4.5:1) against the composited fill:\n  ${failures.join('\n  ')}`
       ).toEqual([])
     })
   })

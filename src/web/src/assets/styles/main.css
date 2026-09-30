@@ -67,7 +67,6 @@
   --color-overlay-50:        var(--overlay-50);
   --color-overlay-60:        var(--overlay-60);
   --color-overlay-dark:      var(--overlay-dark);
-  --color-overlay-full:      var(--overlay-full);
 
   /* Status tones (#784 slice 4) */
   --color-status-success-bg:     var(--status-success-bg);

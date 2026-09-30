@@ -37,12 +37,12 @@
               :class="coin.grade === 'A'
                 ? 'border-[rgba(39,174,96,0.3)] bg-[rgba(39,174,96,0.15)] text-green-400'
                 : coin.grade === 'B'
-                  ? 'border-status-info-border bg-status-info-bg text-sky-400'
+                  ? 'border-[rgba(52,152,219,0.3)] bg-[rgba(52,152,219,0.15)] text-sky-400'
                   : coin.grade === 'C'
                     ? 'border-[rgba(243,156,18,0.3)] bg-[rgba(243,156,18,0.15)] text-amber-400'
                     : coin.grade === 'D'
                       ? 'border-[rgba(230,126,34,0.3)] bg-[rgba(230,126,34,0.15)] text-orange-400'
-                      : 'border-status-error-border bg-status-error-bg text-red-400'"
+                      : 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] text-red-400'"
             >
               {{ coin.score }}
               <span class="text-label font-semibold uppercase tracking-[0.08em]">{{ coin.grade }}</span>

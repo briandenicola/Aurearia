@@ -67,3 +67,32 @@ contract did not change.
 - #780: gofmt -w the 17 files (formatting-only commit) + add gofmt -l to task check:go.
 - #781: migrate provider.py:99 and collection_chat.py:19 to langchain.agents.create_agent; may need dependency lock change (needs approval).
 - #783: rewrite now.md to current focus; archive superseded decisions; make budget warning list per-file counts (+ governance.test.mjs). Budget change itself = owner decision.
+
+## G. Open owner decisions from #784 (blocking "accepted", not "implemented")
+
+These are recorded here rather than only in `.squad/`, because agent-authored
+handoff logs cannot supply owner authorization.
+
+1. **The remaining 69 template colour literals need a palette decision.** They
+   are not oversights. The app carries near-duplicate values with no single
+   winner: greens `#2ecc71` / `#27ae60` / `#229954` / `#4ade80`; reds
+   `#e74c3c` / `#f87171` / `#ef4444` / `#c0392b`; ambers `#f39c12` / `#f59e0b`
+   / `#e67e22` / `#f97316`; greys `#6b7280` / `#7f8c8d` / `#999999`.
+   `AuctionLotDetailModal.vue` holds 16 in a Tailwind-ish palette distinct from
+   the rest of the app; `CollectionHealthScorecard.vue` holds 16, mostly A-F
+   grade-ramp colours that are deliberately *not* status tokens. Picking which
+   green wins is a design call that cannot be made from the source.
+
+2. **The visual pass is outstanding across all four #784 slices.** Screenshots
+   were waived each time. Start in the **light theme**: every status colour in
+   it changed, and the greens darkened noticeably. Then check a dark theme's
+   badges — the error red lightened in all five.
+
+3. **`text-xs` is deferred, not dropped.** It duplicates `text-sm` at
+   `0.75rem` across 35 call sites but carries a different Tailwind line-height
+   (1.3333 vs 1.4286), so folding them is a ~7% height change on those
+   elements, not a rename. It needs its own slice and its own visual check.
+
+4. **Two guard gaps stay open.** The `<style scoped>` hex guard is still a
+   single net total (190), and a colour literal moved into `<script>` is
+   counted by no guard at all. Closing either is a separate change.

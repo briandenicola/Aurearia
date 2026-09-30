@@ -99,7 +99,7 @@
 
   /* Gain/loss semantic colors */
   --color-positive: #2ecc71;
-  --color-negative: #f06a5a;
+  --color-negative: #fa6e5e;
 
   /* Status badge tones */
   --status-success-bg: rgba(46, 204, 113, 0.15);
@@ -109,13 +109,19 @@
   --status-warning-bg: rgba(241, 196, 15, 0.15);
   --status-warning-fg: var(--text-warning);
   --status-info-bg: rgba(52, 152, 219, 0.15);
-  --status-info-fg: #3498db;
+  --status-info-fg: #38a4ed;
   --status-neutral-bg: rgba(149, 165, 166, 0.15);
   --status-neutral-fg: #95a5a6;
 
   /* Status borders (#784 slice 4). The bg/border pair at 0.15 / 0.3 was
    * already the de facto convention inlined across the app; the 0.3 leg
-   * simply had no token. Values are the existing -bg colours at 0.3. */
+   * simply had no token. Values are the existing -bg colours at 0.3.
+   *
+   * These bases are the historical fill colours and are deliberately NOT
+   * re-derived from the foregrounds. The foregrounds moved (#784 slice 4) to
+   * clear WCAG AA when composited over these fills; the fills themselves are
+   * unchanged, so -fg and -bg are no longer the same hue. Changing the fills
+   * would move every badge's background in every theme. */
   --status-success-border: rgba(46, 204, 113, 0.3);
   --status-error-border: rgba(231, 76, 60, 0.3);
   --status-warning-border: rgba(241, 196, 15, 0.3);
@@ -181,10 +187,10 @@
    * are asserted by a test in design-tokens.test.ts, so they cannot drift.
    */
   --color-positive: #157347;
-  --color-negative: #c0392b;
-  --text-warning: #8a6100;
-  --status-info-fg: #1f6a9e;
-  --status-neutral-fg: #5d6d6e;
+  --color-negative: #ad3327;
+  --text-warning: #875f00;
+  --status-info-fg: #1e6698;
+  --status-neutral-fg: #576667;
   --confidence-high: #2f7a4d;
   --confidence-medium: #8a6100;
   --confidence-low: #a32316;

@@ -173,9 +173,12 @@ have none.
 Translucent fills use `--overlay-20` … `--overlay-60` (`bg-overlay-*`). Status
 tones have `--status-*-bg`, `-fg`, `-border` (0.3 alpha) and, for success and
 error, `-tint` (0.1). A guard computes the WCAG ratio from the token values for
-**every** theme — resolving through `:root` where a theme does not override —
-and fails below 4.5:1 against both `--bg-card` and `--bg-primary`. Adding a
-theme means checking its status foregrounds, not just its backgrounds.
+**every** theme state, including bare `:root`, resolving through `var()` and
+through `:root` where a theme does not override. It checks status text both as
+plain text on `--bg-card` / `--bg-primary` and **composited over its own
+`--status-*-bg` fill**, which is how a badge actually renders and is always the
+lower ratio. Adding a theme means checking its status foregrounds, not just its
+backgrounds.
 
 #### Rules for New UI Components
 
