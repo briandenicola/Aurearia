@@ -67,6 +67,25 @@ The only permitted arbitrary size is an `em` value inside rendered markdown
 (`[&_code]:text-[0.88em]`), because that is a ratio to its container rather
 than a scale step.
 
+### What the guards do and do not catch
+
+`design-tokens.test.ts` forbids `text-[Nrem|px|pt]` and `text-[var(--…)]`, but
+it is a regex over the `<template>` block of `.vue` files. Treat it as a net
+with known holes, not a proof:
+
+- **Not scanned at all:** class strings built in `<script>` (this app does
+  that, for example the `statusClass()` helpers in the admin schedule
+  panels), any `.ts`/`.tsx` file, and any `<template>` tag that carries
+  attributes such as `lang="pug"`.
+- **Units not covered:** only `rem`, `px` and `pt` are matched. `text-[1ch]`,
+  `text-[2vw]` and `text-[1cm]` slip through.
+- **Expressions not covered:** `calc()`, `clamp()`, `text-[length:…]`, and
+  anything built dynamically such as `` :class="`text-[${n}rem]`" ``.
+- **Colour forms not covered:** `text-[color:var(--x)]` and a `var()` with a
+  fallback.
+
+`em` values are deliberately allowed, for rendered markdown only.
+
 > Known gap: `text-xs` is **not** a step above. It is Tailwind's built-in
 > utility, which resolves to `0.75rem` — the same size as `text-sm` — and it
 > has 35 existing call sites. The dense-data step is deliberately named

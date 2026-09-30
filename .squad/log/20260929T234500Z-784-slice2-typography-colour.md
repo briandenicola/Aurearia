@@ -67,7 +67,15 @@ Both were tamper-tested: injecting `text-[1.03rem]` and
 `text-[var(--accent-gold)]` into `CoinCard.vue` each failed exactly one test
 naming the file and token, and both injections were reverted.
 
-### 5. Documentation
+### 5. Dead responsive variants removed
+
+Eight admin schedule tables carried `text-[0.82rem] md:table-fixed
+md:text-[0.82rem]`. Both legs mapped to `text-chip`, leaving `md:text-chip` as
+a no-op duplicate of its own base. The dead variant was removed from all
+eight, matching how the now-redundant `md:text-2xl` was handled in
+`AdminHealthSection.vue`. Zero visual change.
+
+### 6. Documentation
 
 `docs/design-system.md` section 2 was rewritten around the 13-step scale and
 gained a template-colour rule. `.github/instructions/web.instructions.md`
@@ -86,6 +94,29 @@ The step was renamed `--text-micro`, and the five dense-grid call sites were
 retargeted by baseline line number. Verification: `text-xs` occurrences are
 **35 before and 35 after**, the built CSS still emits `--text-xs:.75rem`, and
 `text-xs` appears nowhere outside Vue templates.
+
+## Occurrence counts before the commit, for every redefined step name
+
+`text-xs` showed that redefining a Tailwind-default token name silently
+changes every existing call site. These are the baseline (`af2df567`) counts
+under `src/web/src`, so the same trap can be ruled out by inspection rather
+than by trust:
+
+| Name | Baseline uses | Status in this slice |
+|---|---|---|
+| `text-3xl` | **0** | newly defined, 1.875rem → 2.5rem — no call site could be affected |
+| `text-4xl` | **0** | newly defined, 2.25rem → 3rem — no call site could be affected |
+| `text-5xl` | 0 | not defined; still Tailwind's default |
+| `text-xs` | 35 | **left at Tailwind's 0.75rem**; the dense step is `--text-micro` |
+| `text-sm` | 342 | redefined in an earlier slice, unchanged here |
+| `text-base` | 286 | redefined in an earlier slice, unchanged here |
+| `text-lg` | 118 | redefined in an earlier slice, unchanged here |
+| `text-xl` | 47 | redefined in an earlier slice, unchanged here |
+| `text-2xl` | 9 | redefined in an earlier slice, unchanged here |
+
+Only `text-3xl` and `text-4xl` are newly defined by this slice, and both had
+zero prior uses, so neither could shift existing markup. The five names
+redefined by the pre-existing scale are untouched here.
 
 This leaves a real, recorded gap: `text-xs` is a duplicate of `text-sm` at
 `0.75rem` and is not a step on the documented scale. Folding it into
@@ -116,10 +147,16 @@ value-change numeral).
    with every other card title in the app, which are all `1.1rem`.
 2. `SetDashboardCard.vue` set name at `min-[561px]`, `1.35 → text-xl`
    (1.5rem), **+11 per cent**.
-3. `SetDashboardCard.vue` coin count at `min-[561px]`, `2.75 → text-4xl`
-   (3rem), **+9 per cent**.
-4. `CollectionHealthScorecard.vue` score at `max-md`, `2.25 → text-3xl`
-   (2.5rem), **+11 per cent**.
+3. `SetDashboardCard.vue` coin count, **both legs of the responsive pair**:
+   `2.25 → text-3xl` (2.5rem) below 561px, **+11 per cent**, and
+   `2.75 → text-4xl` (3rem) at 561px and above, **+9 per cent**. The numeral
+   therefore grows at every width. An earlier version of this record declared
+   only the upper leg and misattributed the lower one.
+4. `CollectionHealthScorecard.vue` score: **no size change.** `3rem → text-4xl`
+   and `max-md:2.5rem → max-md:text-3xl` are both exact matches. Its only
+   delta is the line-height noted below. An earlier version of this record
+   wrongly attributed the +11 per cent from item 3 to this component, which
+   would have pointed a reviewer at the wrong screen.
 5. and 6. `AdminHealthSection.vue`, both stat numerals, `1.75 → text-2xl`
    (2rem), **+14 per cent at phone widths only**. These already jumped to
    `2rem` at `md`, so the now-redundant `md:text-2xl` was removed and the
@@ -127,36 +164,51 @@ value-change numeral).
    so no hero numeral gets smaller; the values are short (`87`, `12.5%`) in
    a `p-6` card.
 
-**Line-height changes on 37 elements.** This was first recorded as affecting a
-single element. That was wrong, and the corrected figure is below.
+**Line-height changes on 37 elements, including 8 form controls.** This was
+first recorded as affecting a single element. That was wrong twice over — the
+count and the component — and the corrected set is below.
 
-Tailwind-default step names emit a line-height as well as a font size —
-`.text-base{font-size:…;line-height:var(--tw-leading,var(--text-base--line-height))}` —
-whereas the custom names (`2xs`, `micro`, `label`, `chip`, `body`, `md`) emit
-font-size only. So any element that moved from an arbitrary size onto a
-default-named step, and that does **not** set `leading-*` itself, gains a
-line-height it previously inherited from `body { line-height: 1.6 }`.
+Tailwind-default step names emit a line-height as well as a font size, because
+`@theme` overrides only the `--text-N` size key and leaves
+`--text-N--line-height` standing from Tailwind's own theme
+(`node_modules/tailwindcss/theme.css`). The custom names (`2xs`, `micro`,
+`label`, `chip`, `body`, `md`) have no such pairing and emit font-size only.
+So any element that moved onto a default-named step **and does not set
+`leading-*` itself** gains a line-height it previously inherited from
+`body { line-height: 1.6 }`.
 
-45 of the 170 conversions landed on a default-named step. 8 of those set
-`leading-*` explicitly and are unaffected. The remaining **37** change:
+45 of the 170 conversions landed on a default-named step; 8 set `leading-*`
+and are unaffected; **37 change**:
 
-| Step | Elements | Line-height |
-|---|---|---|
-| `text-base` | 33 | 1.6 → 1.5 |
-| `text-sm` | 1 | 1.6 → 1.4286 (`AuctionLotCard.vue:40`) |
-| `text-xl` | 1 | 1.6 → 1.4 (`SetDashboardCard.vue:13`, `min-[561px]` only) |
-| `text-3xl` | 1 | 1.6 → 1.2 (`CollectionHealthScorecard.vue:8`, `max-md` only) |
-| `text-4xl` | 1 | 1.6 → 1.1111 (`CollectionHealthScorecard.vue:8`) |
+| File | Elements | Conversion | Line-height |
+|---|---|---|---|
+| `auction/AuctionLotDetailModal.vue` | 20 | `0.88rem → text-base` | 1.6 → 1.5 |
+| `coin/CoinInfoGrid.vue` | 9 | `0.95rem → text-base` | 1.6 → 1.5 |
+| `pages/FollowersPage.vue` | 3 | `0.95rem → text-base` | 1.6 → 1.5 |
+| `stats/CollectionHealthScorecard.vue` | 2 | `3rem → text-4xl`, `2.5rem → text-3xl` | 1.6 → 1.1111 / 1.2 |
+| `settings/SettingsToolsSection.vue` | 1 | `0.95rem → text-base` | 1.6 → 1.5 |
+| `AuctionLotCard.vue` | 1 | `0.75rem → text-sm` | 1.6 → 1.4286 |
+| `sets/SetDashboardCard.vue` | 1 | `1.35rem → text-xl` (`min-[561px]` only) | 1.6 → 1.4 |
 
-The effect is tighter line spacing, most visibly on multi-line text. It is a
-consistency gain rather than a new inconsistency: `text-base` already had 277
-call sites in the app, all of them rendering at 1.5, so the 33 converted
-elements now match the majority instead of differing from it. The three hero
-numerals that set `leading-none`, `leading-[0.85]` or `leading-[1.1]` are
-untouched.
+**8 of the 20 in `AuctionLotDetailModal.vue` are `<input class="form-input …">`
+controls, so this is a form-layout change, not only a text change.**
+`.form-input` in `main.css` sets padding and `font-size: 0.9rem` but **no**
+`line-height`, so the control inherited `1.6`. It now computes `1.5`, which
+shrinks each control's content box by about `0.09rem` (roughly 1.4px) and
+therefore its rendered height. The two `<textarea>` elements in the same modal
+set `leading-[1.45]` and are unaffected. **Check the lot edit form first when
+reviewing the running app.**
 
-This is the one delta most worth looking at in the running app, because it
-affects paragraph rhythm rather than glyph size.
+One entry in the "No change (exact matches)" list above needs this caveat:
+`0.75 → text-sm` is exact *in font size*, but the single `AuctionLotCard.vue`
+element carrying it has no `leading-*`, so its line box still tightens.
+
+The effect throughout is tighter line spacing, most visible in multi-line
+text. It is a consistency gain rather than a new inconsistency: `text-base`
+already had 286 call sites at baseline, all rendering at 1.5, so the 33
+converted `text-base` elements now match the majority instead of differing
+from it. No test in the suite covers computed line-height, so none of this is
+verified by the gates.
 
 **No colour deltas.** Section 3 above renders identically.
 
