@@ -83,6 +83,44 @@ handoff logs cannot supply owner authorization.
    grade-ramp colours that are deliberately *not* status tokens. Picking which
    green wins is a design call that cannot be made from the source.
 
+1b. **The cumulative palette shift needs an explicit owner record.** Across
+   three review rounds the status colours moved repeatedly, each move driven by
+   a contrast guard that kept widening. This is the whole change, `8dd0dbb7`
+   (before slice 4) to `1600e4f2`, in one place — no user has seen any of it.
+
+   `:root`, which every theme except `light` inherits:
+
+   | Token | Before | After | Seen in |
+   |---|---|---|---|
+   | `--color-negative` | `#e74c3c` | `#fb8476` | all 6 dark themes |
+   | `--status-info-fg` | `#3498db` | `#54b1f0` | all 6 dark themes |
+   | `--status-neutral-fg` | `#95a5a6` | `#a3b1b2` | all 6 dark themes |
+   | `--confidence-high` | `#69b77f` | `#7abf8d` | all 6 dark themes |
+   | `--confidence-low` | `#e08d8d` | `#e19090` | all 6 dark themes |
+
+   The `light` theme previously had **no** status foreground overrides at all —
+   it inherited the dark palette, which is why its badges were failing so badly.
+   All eight are new:
+
+   | Token | Inherited before | Light override now |
+   |---|---|---|
+   | `--color-positive` | `#2ecc71` | `#146e44` |
+   | `--color-negative` | `#e74c3c` | `#a63125` |
+   | `--text-warning` | `#f5c36a` | `#835c00` |
+   | `--status-info-fg` | `#3498db` | `#1d6292` |
+   | `--status-neutral-fg` | `#95a5a6` | `#546364` |
+   | `--confidence-high` | `#69b77f` | `#296b44` |
+   | `--confidence-medium` | `#f0c261` | `#835c00` |
+   | `--confidence-low` | `#e08d8d` | `#a32316` |
+
+   Part of the drift comes from requiring AA on `--bg-input` and
+   `--bg-secondary` **composited**, surfaces where no badge is *demonstrated* to
+   render. Requiring all five surfaces was the conservative choice — proving
+   which surfaces host a badge is exactly the reasoning that failed four times —
+   but it does buy accessibility with saturation. An owner may prefer a narrower
+   surface set and brighter colours. That is a design call, not an engineering
+   one.
+
 2. **The visual pass is outstanding across all four #784 slices.** Screenshots
    were waived each time. Start in the **light theme**: every status colour in
    it changed, and the greens darkened noticeably. Then check a dark theme's
@@ -93,6 +131,22 @@ handoff logs cannot supply owner authorization.
    (1.3333 vs 1.4286), so folding them is a ~7% height change on those
    elements, not a rename. It needs its own slice and its own visual check.
 
-4. **Two guard gaps stay open.** The `<style scoped>` hex guard is still a
+4. **Three guard gaps stay open.** The `<style scoped>` hex guard is still a
    single net total (190), and a colour literal moved into `<script>` is
-   counted by no guard at all. Closing either is a separate change.
+   counted by no guard at all.
+
+   The concrete instance of that second gap is
+   `components/AuctionLotCard.vue:161-165`: `biddingIndicator.badgeCls` builds
+   `'bg-[#4ade80] text-[#052e13]'` / `'bg-[#f87171] text-[#450a0a]'` in
+   `<script>` and applies it at line 25 via `:class="biddingIndicator.badgeCls"`.
+   That "Winning"/"Outbid" pill escapes the contrast guard, the non-token
+   pairing check **and** the template literal budget, all three of which read
+   templates only. It measures **8.57:1**, so there is no accessibility failure
+   today — but it is four hardcoded colours outside every ratchet.
+
+   A related blind spot in the contrast guard: it matches `bg-status-*-bg`
+   fills but not `bg-status-*-tint`, so the tint pairings in
+   `AdminAISection.vue:52, 97, 105` are not derived. Measured at 4.73 and 4.86
+   on light `--bg-secondary`, so again passing, but the fill set is listed
+   rather than derived — the same shape as the defect that took four rounds to
+   fix. Closing any of these is a separate change.

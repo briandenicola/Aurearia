@@ -382,3 +382,41 @@ across 208 files; build succeeded.
 The two budget gaps (the `<style scoped>` hex guard is still a single net total;
 `<script>` literals are counted by neither) remain recorded, not closed. The
 visual pass and the 65-literal palette choice remain owner decisions.
+
+## Review outcome — PASS at `1600e4f2`
+
+The reviewer cleared its own block, having recomputed all twelve retunes by
+hand on the extreme surfaces (light `--bg-secondary`, louvre `--bg-input`).
+Tightest measured pairing is **4.56:1**. It also sanity-checked the extractor
+against four call sites and confirmed the `:class` branches are not merged.
+
+Slice 4 is **implemented and verified-by-author, independently reviewed, and
+not accepted**. No owner decision exists for it.
+
+### Non-binding gaps the reviewer found in the derivation
+
+None is a live accessibility failure; all were measured and pass. Recorded in
+`docs/audits/2026-09-29-open-issue-plans.md` §G item 4 rather than fixed here,
+because changing the guard again would invalidate the review that was just
+obtained.
+
+1. The fill set matches `bg-status-*-bg` but not `bg-status-*-tint`, so the
+   tint pairings in `AdminAISection.vue` are not derived (4.73 / 4.86).
+2. `AuctionLotCard.vue:161-165` builds a status-like pill's classes in
+   `<script>`, invisible to the contrast guard, the non-token check and the
+   template literal budget alike (8.57:1, four hardcoded colours).
+3. A fill in `class` and its colour in `:class` would never be paired. No
+   instance today; it is the natural refactor that would drop a case.
+4. `NON_COLOUR_TEXT` lists `heading` (which *is* a colour utility) and omits
+   `2xs`. Both should be derived from main.css rather than hand-written.
+
+Gaps 1 and 4 are the same shape as the defect that took four rounds to fix: a
+set that is listed rather than derived. Worth closing together, deliberately,
+rather than one at a time under review pressure.
+
+### What this slice cost, and the lesson
+
+Four review rounds, one PASS. Every round found a real defect I had not found
+myself, and every defect was the same error: **the check was scoped to the
+cases already known, not to the shape of the thing being checked.** The colours
+were never the hard part. The guard was.

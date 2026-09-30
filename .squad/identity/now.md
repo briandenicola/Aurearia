@@ -81,6 +81,10 @@ not only here, because an agent-authored log cannot supply authorization: the
 65-literal palette choice, the outstanding visual pass, the deferred `text-xs`
 fold, and two known guard gaps.
 
+Slice 4 is **reviewed PASS at `1600e4f2`** and the block is cleared. All four
+#784 slices are now implemented, gated and independently reviewed — and **none
+of them is accepted**, because no owner decision exists for any of them.
+
 **The owner's visual pass is now overdue across all four slices**, and the
 light theme should be first — its status colours all move in slice 4 and
 nobody has looked at any of it. Then #766, which still needs its own spec.
