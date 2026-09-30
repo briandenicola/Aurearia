@@ -107,7 +107,7 @@ as follow-up work, not as blockers to #784.
   `bg-status-*-bg` fills. The Winning/Outbid pill on the auction card sits on
   the coin photo, so it stays solid: `bg-gain`/`bg-loss` with `text-surface`.
 
-1. **The remaining 65 template colour literals need a palette decision.** They
+1. *(Resolved by #787, see above.)* **The remaining 65 template colour literals need a palette decision.** They
    are not oversights. The app carries near-duplicate values with no single
    winner: greens `#2ecc71` / `#27ae60` / `#229954` / `#4ade80`; reds
    `#e74c3c` / `#f87171` / `#ef4444` / `#c0392b`; ambers `#f39c12` / `#f59e0b`
@@ -160,12 +160,12 @@ as follow-up work, not as blockers to #784.
    it changed, and the greens darkened noticeably. Then check a dark theme's
    badges — the error red lightened in all five.
 
-3. **`text-xs` is deferred, not dropped.** It duplicates `text-sm` at
+3. *(Resolved by #787, see above.)* **`text-xs` is deferred, not dropped.** It duplicates `text-sm` at
    `0.75rem` across 35 call sites but carries a different Tailwind line-height
    (1.3333 vs 1.4286), so folding them is a ~7% height change on those
    elements, not a rename. It needs its own slice and its own visual check.
 
-4. **Three guard gaps stay open.** The `<style scoped>` hex guard is still a
+4. *(Resolved by #787, see above.)* **Three guard gaps stay open.** The `<style scoped>` hex guard is still a
    single net total (190), and a colour literal moved into `<script>` is
    counted by no guard at all.
 
