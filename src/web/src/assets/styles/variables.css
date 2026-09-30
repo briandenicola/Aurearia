@@ -99,7 +99,7 @@
 
   /* Gain/loss semantic colors */
   --color-positive: #2ecc71;
-  --color-negative: #e74c3c;
+  --color-negative: #f06a5a;
 
   /* Status badge tones */
   --status-success-bg: rgba(46, 204, 113, 0.15);

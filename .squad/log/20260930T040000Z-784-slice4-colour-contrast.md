@@ -45,6 +45,39 @@ deleting an override fails. Both reverted.
 Visible delta: **every status colour in the light theme changes.** The greens
 darken noticeably. Nobody has looked at this; see "Next action".
 
+#### Follow-up: the guard was the wrong shape, and the gap was wider
+
+I scoped both the fix and the guard to `[data-theme="light"]`, because that is
+where the failure was obvious. That was wrong. There are six themes, and the
+guard should check the value each theme *resolves* to — its own override, or
+`:root`'s if it has none — rather than assuming only the light theme can fail.
+
+Re-measuring all six with the corrected shape found two more failures that the
+light-only guard could never have caught:
+
+| Theme | Token | On `--bg-card` |
+|---|---|---|
+| `louvre` | `--color-negative` `#e74c3c` | 4.10:1 |
+| `modern-greek` | `--color-negative` `#e74c3c` | 4.48:1 |
+
+`:root`'s `--color-negative` moves `#e74c3c` → `#f06a5a`, which clears 4.5:1 on
+every dark theme's card and page (louvre 5.16/5.97, modern-greek 5.63/6.41) and
+is still recognisably the same red. The light theme keeps its own `#c0392b`.
+One token change fixes both themes; per-theme overrides would have left five
+themes on one red and one on another.
+
+Visible delta: **the error/loss red lightens slightly on all five dark themes**,
+not just the two that failed.
+
+The guard now iterates every `[data-theme]` block, resolves each token through
+`:root`, and checks both surfaces. Tamper-tested twice: restoring `#e74c3c`
+fails naming `louvre` and `modern-greek` specifically, and deleting the light
+theme's `--color-negative` override fails because light then resolves to the
+dark value at 3.04:1. Both reverted.
+
+The lesson is worth recording: the defect was not the colour, it was scoping a
+guard to the one case I had already found.
+
 ### 2. Overlay and status-variant tokens
 
 Added `--overlay-20` … `--overlay-60`, `--status-*-border` (foreground at 0.3)

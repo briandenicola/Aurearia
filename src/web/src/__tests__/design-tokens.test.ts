@@ -561,12 +561,17 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       expect(main).toContain('.btn-primary')
     })
   })
-  describe('light theme meets WCAG AA for status foregrounds', () => {
-    // The dark-theme status colours are tuned for a near-black surface. The
-    // light theme used to override none of them, so every badge, gain/loss
-    // figure and confidence marker inherited a value that failed AA on a
-    // white card. These ratios are computed here rather than asserted by
-    // hand, so a future colour edit cannot quietly reintroduce the gap.
+  describe('every theme meets WCAG AA for status foregrounds', () => {
+    // The status colours are tuned for a near-black surface. The light theme
+    // used to override none of them, so every badge, gain/loss figure and
+    // confidence marker inherited a value that failed AA on a white card.
+    //
+    // The first version of this guard only checked the light theme, which was
+    // the wrong shape: --color-negative also failed on `louvre` (4.10:1) and
+    // `modern-greek` (4.48:1), and nothing would have caught it. Every theme
+    // is checked, against both surfaces status text actually appears on, and
+    // the ratios are computed rather than asserted so a colour edit cannot
+    // quietly reintroduce the gap.
     const variables = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
 
     function relativeLuminance(hex: string): number {
@@ -582,15 +587,18 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       return (lighter + 0.05) / (darker + 0.05)
     }
 
-    function lightThemeToken(name: string): string {
-      const scope = /\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/.exec(variables)?.[1]
-      expect(scope, 'the [data-theme="light"] block must exist').toBeTruthy()
-      const value = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(scope!)?.[1]
-      expect(
-        value,
-        `--${name} must be overridden by the light theme with a hex value; the dark-theme value is unreadable on a light surface`
-      ).toBeTruthy()
-      return value!
+    const rootScope = /:root\s*\{([\s\S]*?)\n\}/.exec(variables)?.[1] ?? ''
+    const themes = new Map<string, string>()
+    for (const match of variables.matchAll(/\[data-theme="([a-z-]+)"\]\s*\{([\s\S]*?)\n\}/g)) {
+      themes.set(match[1], match[2])
+    }
+
+    // A theme inherits any token it does not override, so the effective value
+    // is the theme's own or :root's. Resolving it this way is what catches a
+    // dark-theme token that was never overridden because nobody looked.
+    function resolve(scope: string, name: string): string | undefined {
+      const own = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(scope)?.[1]
+      return own ?? new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(rootScope)?.[1]
     }
 
     const foregrounds = [
@@ -604,28 +612,39 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       'confidence-low',
     ]
 
-    it('overrides every status foreground', () => {
-      for (const name of foregrounds) {
-        expect(lightThemeToken(name)).toMatch(/^#[0-9a-fA-F]{6}$/)
+    it('defines every theme and every status foreground as a resolvable hex', () => {
+      expect(themes.size, 'no [data-theme] blocks were parsed out of variables.css').toBeGreaterThan(0)
+      const missing: string[] = []
+      for (const [theme, scope] of themes) {
+        for (const name of [...foregrounds, 'bg-card', 'bg-primary']) {
+          if (!resolve(scope, name)) missing.push(`${theme}: --${name}`)
+        }
       }
+      expect(missing, `Unresolvable tokens:\n  ${missing.join('\n  ')}`).toEqual([])
     })
 
-    it('clears 4.5:1 against the card and the page background', () => {
-      const card = lightThemeToken('bg-card')
-      const page = lightThemeToken('bg-primary')
+    it('clears 4.5:1 against the card and the page background in every theme', () => {
       const failures: string[] = []
 
-      for (const name of foregrounds) {
-        const value = lightThemeToken(name)
-        const onCard = contrast(value, card)
-        const onPage = contrast(value, page)
-        if (onCard < 4.5) failures.push(`--${name} ${value} on --bg-card ${card}: ${onCard.toFixed(2)}:1`)
-        if (onPage < 4.5) failures.push(`--${name} ${value} on --bg-primary ${page}: ${onPage.toFixed(2)}:1`)
+      for (const [theme, scope] of themes) {
+        const card = resolve(scope, 'bg-card')!
+        const page = resolve(scope, 'bg-primary')!
+        for (const name of foregrounds) {
+          const value = resolve(scope, name)!
+          const onCard = contrast(value, card)
+          const onPage = contrast(value, page)
+          if (onCard < 4.5) {
+            failures.push(`${theme}: --${name} ${value} on --bg-card ${card} is ${onCard.toFixed(2)}:1`)
+          }
+          if (onPage < 4.5) {
+            failures.push(`${theme}: --${name} ${value} on --bg-primary ${page} is ${onPage.toFixed(2)}:1`)
+          }
+        }
       }
 
       expect(
         failures,
-        `Light-theme status foregrounds must reach WCAG AA (4.5:1):\n  ${failures.join('\n  ')}`
+        `Status foregrounds must reach WCAG AA (4.5:1) in every theme:\n  ${failures.join('\n  ')}`
       ).toEqual([])
     })
   })

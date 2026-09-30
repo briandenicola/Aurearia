@@ -170,8 +170,11 @@ overrides clear 4.5:1 against **both** `--bg-card` (`#ffffff`) and
 
 A guard in `design-tokens.test.ts` computes the WCAG ratio from the token values
 rather than asserting a number by hand, so it keeps holding if a value changes.
-It fails if a light-theme status foreground drops below 4.5:1, and it fails if
-an override is deleted.
+It iterates **every** `[data-theme]` block, resolves each token through `:root`
+when the theme does not override it, and fails below 4.5:1 on either surface.
+Checking only the light theme would have missed `--color-negative`, which also
+failed on `louvre` (4.10:1) and `modern-greek` (4.48:1) — which is why `:root`
+now carries `#f06a5a` rather than `#e74c3c`.
 
 ### Overlays
 

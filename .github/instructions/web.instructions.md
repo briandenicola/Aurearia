@@ -172,9 +172,10 @@ have none.
 
 Translucent fills use `--overlay-20` … `--overlay-60` (`bg-overlay-*`). Status
 tones have `--status-*-bg`, `-fg`, `-border` (0.3 alpha) and, for success and
-error, `-tint` (0.1). The light theme overrides every status foreground; a guard
-computes the WCAG ratio from the token values and fails below 4.5:1 against both
-`--bg-card` and `--bg-primary`.
+error, `-tint` (0.1). A guard computes the WCAG ratio from the token values for
+**every** theme — resolving through `:root` where a theme does not override —
+and fails below 4.5:1 against both `--bg-card` and `--bg-primary`. Adding a
+theme means checking its status foregrounds, not just its backgrounds.
 
 #### Rules for New UI Components
 
