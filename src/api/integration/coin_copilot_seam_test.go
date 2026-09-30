@@ -614,7 +614,7 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	secondService, _ := newCoinCopilotSeamService(t, db, server.URL, internalToken, tokenSecret)
+	secondService, secondTokenSvc := newCoinCopilotSeamService(t, db, server.URL, internalToken, tokenSecret)
 	if err := secondService.RecoverAndPrune(); err != nil {
 		t.Fatal(err)
 	}
@@ -720,8 +720,23 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	waitForCoinCopilotRun(t, secondService, cancelRun.ID, func(current *models.CoinCopilotRun) bool {
 		return current.Status == models.CopilotRunRunning && current.CheckpointVersion == 1
 	})
+	_, cancelTokens := agent.snapshot()
+	cancelToken := cancelTokens[len(cancelTokens)-1]
 	stopSecond()
 	waitForCoinCopilotAttempt(t, agent.blockedFinished, 3)
+	// Token revocation runs only after the worker has exited, so no late
+	// usage/heartbeat write can overwrite the simulated stale heartbeat below.
+	cancelTokenRevoked := false
+	for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
+		if _, err := secondTokenSvc.VerifyForCopilotExecution(cancelToken, "collection_summary"); errors.Is(err, services.ErrInvalidInternalToken) {
+			cancelTokenRevoked = true
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !cancelTokenRevoked {
+		t.Fatal("stopped cancellable execution token remained valid")
+	}
 	if err := db.Model(&models.CoinCopilotRun{}).Where("id = ?", cancelRun.ID).
 		Update("heartbeat_at", time.Now().UTC().Add(-time.Minute)).Error; err != nil {
 		t.Fatal(err)
