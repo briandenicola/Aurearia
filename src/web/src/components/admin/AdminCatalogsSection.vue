@@ -30,18 +30,18 @@
       </div>
 
       <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse text-body">
+        <table class="data-table text-body [&_th]:px-2 [&_th]:py-3 [&_td]:px-2 [&_td]:py-3 [&_td]:align-top">
           <thead>
             <tr>
-              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Code</th>
-              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Display Name</th>
-              <th class="hidden border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted md:table-cell">Volume Required</th>
-              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Actions</th>
+              <th>Code</th>
+              <th>Display Name</th>
+              <th class="hidden md:table-cell">Volume Required</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="cat in catalogs" :key="cat.id" class="last:[&>td]:border-b-0">
-              <td class="border-b border-border-subtle px-2 py-3 align-top">
+              <td>
                 <div class="flex flex-col items-start gap-[0.35rem]">
                   <div class="font-semibold text-gold">{{ cat.catalog }}</div>
                   <span
@@ -65,7 +65,7 @@
                   :label="`Volume required for ${cat.displayName}`"
                 />
               </td>
-              <td class="border-b border-border-subtle px-2 py-3 align-top">
+              <td>
                 <div class="flex flex-wrap justify-end gap-[0.35rem]">
                   <button class="btn btn-ghost btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openEditForm(cat)">
                     Edit

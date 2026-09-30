@@ -36,8 +36,11 @@ Two deliberate design choices:
   in the later `utilities` layer, so per-cell overrides — `<th class="text-right">`,
   `<td class="align-top">`, `<td class="whitespace-nowrap">` — still win exactly
   as they did when the recipe was inlined. Declaring it unlayered, as the rest
-  of `main.css` is, would have silently broken 5 right-aligned headers and 4
-  top-aligned cells. This was checked before writing the rule, not after.
+  of `main.css` is, would have silently broken every such override. The
+  mechanism was checked before writing the rule; the counts of affected cells
+  first given here (5 headers, 4 cells) were never substantiated and are
+  withdrawn. The concrete case is `CoinDetailValuationPage.vue`, whose three
+  right-aligned headers survive the migration only because of the layer.
 
 The selector is `table.data-table, .data-table table`. The second half exists
 because the 11 help tables are rendered from markdown and cannot carry a class;
@@ -193,6 +196,18 @@ Counts in non-test `.vue` templates: inlined table header recipes **27 → 0**,
 distinct uppercase label recipes **38 → 17**, non-`0.08em` tracking values
 **26 → 0**.
 
+**Correction (repair commit).** The 27 above counted only tables that inlined
+the recipe as `[&_th]:` variants on the `<table>` element. Five further tables
+spelled the same recipe out on each individual `th`, so the codemod's scan and
+the first version of guard 2 both missed them, and the claim "every data table
+carries `data-table`" was false at the commit that introduced the rule. The
+five — `AdminUsersSection.vue`, `AdminCatalogsSection.vue`,
+`SettingsShipmentsSection.vue`, `CoinDetailValuationPage.vue` and
+`AdminSystemSection.vue` — are migrated in the repair. The true figure is
+**32 → 0**. Guard 2 now also rejects the per-`th` spelling and any `<table>` in
+a template that never mentions `data-table`; both halves were tamper-tested,
+with the injection verified by `grep` before the run this time.
+
 Go, Python and delivery gates were not run: no file outside `src/web`,
 `docs/` and `.github/instructions/` changed.
 
@@ -208,3 +223,80 @@ a no-op despite both resolving to `0.75rem`, because their Tailwind
 line-heights differ (1.333 vs 1.4286). Slice 4 must handle that deliberately.
 
 No deployment or release is authorized.
+
+## Repair (independent review returned BLOCK)
+
+The review blocked on B1 and raised six non-binding findings. All are addressed
+here, in the same slice, by the author. Only the blocking reviewer can clear B1.
+
+### B1 — the rule was false at the commit that introduced it
+
+Five tables inlined the header recipe on each `th` instead of as `[&_th]:`
+variants on the `<table>`. The codemod never saw them, guard 2 never matched
+them, and guard 1 *passed* them, because per-`th` they carry a legitimate
+`text-label` + `font-semibold` + `tracking-[0.08em]`. Worse, the honest caveat
+in `docs/design-system.md` §6 — that some tables still used drifted headers and
+would be migrated page by page — was deleted in the same commit, converting a
+known remainder into a misstatement.
+
+All five are migrated rather than excepted. New visible deltas:
+
+| Table | Delta |
+|---|---|
+| `AdminUsersSection.vue` | Header line-height 1.6 → 1.4. Row rules move from `td` to the shared rule; unchanged visually. |
+| `AdminCatalogsSection.vue` | Same. `align-top` on cells preserved as a `[&_td]:` utility. |
+| `SettingsShipmentsSection.vue` | Same, plus the row rule moves from `tr` `border-t` to `td` `border-b`: identical between rows, but the last row now has a rule under it where it had none. |
+| `CoinDetailValuationPage.vue` | Headers were inheriting `1.4286` from the table's `text-sm`; they now take the explicit `1.4`. The three `text-right` headers keep their alignment — this is the case `@layer components` exists for. The header row's `border-b` moves to the `th`, removing what would have been a doubled rule. |
+| `AdminSystemSection.vue` | **The largest change in the slice.** Its headers were never on the standard at all: `p-2`, `--text-muted` on the `thead`, no uppercase, no tracking, `text-sm`. They now become `0.7rem`, uppercase, `0.08em`, weight 600, with a bottom border. Row rules move from `tr` `border-t` to `td` `border-b`, again adding a rule under the last row. Look at this one first. |
+
+`docs/design-system.md` §6, `.github/instructions/web.instructions.md` and the
+guard now say the same thing, including what the guard does *not* catch: its
+containment check is file-scoped, so a file mixing a migrated and an unmigrated
+table would still pass.
+
+### N1 / N2 — BaseBadge and `.badge`
+
+`BaseBadge.vue` is a shared primitive that was counted as one element. Its real
+reach is **2 call sites**, both status badges (`DeepAnalysisPage.vue:28`,
+`DeepAnalysisHistoryPage.vue:39`) — far smaller than the review feared, but it
+should have been stated, not left implied.
+
+The related divergence was real: `BaseBadge` moved to `0.7rem` / `0.08em` while
+the unlayered `.badge` class in `main.css`, used at **12 sites**, stayed at
+`0.75rem` / `0.05em`. Since #784 names badges explicitly, `.badge` is converged
+onto the same recipe rather than logged as debt. Delta: those 12 badges shrink
+`0.75rem` → `0.7rem` (−6.7%), tracking widens `0.05em` → `0.08em`, and they gain
+an explicit `line-height: 1.4` where they previously inherited `1.6`.
+
+### N3 — the line-height delta table overstates some rows
+
+Line-height inherits. An element converted to `text-label` inside an ancestor
+that sets an explicit `text-sm` lands at `1.4286`, not at `body`'s `1.6`. The
+"+12%" and "+20%" rows above assume no such ancestor and are an upper bound,
+not a universal result. The clearest instance was `CoinDetailValuationPage`'s
+table, and the repair now pins those headers at `1.4` explicitly.
+
+### N4 — two elements gained tracking from `normal`
+
+Two converted elements had no `tracking-*` at all and so were at `normal`,
+rather than moving between two explicit values. `CalendarPage.vue:196` is one
+of them and appeared in no delta row. Going `normal` → `0.08em` on an uppercase
+label is the intended direction, but it is a visible change and belonged in the
+table.
+
+### N5 — the counts do not reproduce
+
+Declared: 42 elements across 20 files. The reviewer counted 43 across 22. A
+count of the commit's own diff finds 36 single-line conversions plus an
+unknown number spread over multi-line `class` attributes, and 33 `.vue` files
+touched in total including table-only changes. None of the three agree. The
+figure is approximate and is recorded as approximate; the guard, not the
+count, is what holds the invariant.
+
+### Verification
+
+`npm run type-check`, `npm run lint`, `npm run test` (207 files, 1756 passed,
+1 skipped) and `npm run build` all pass on the repaired tree. Guard 2 was
+tamper-tested in both of its new halves — removing `data-table` from a table,
+and re-inlining the recipe on a `th` — each verified with `grep` to have
+actually applied before the run, each failing as intended, each reverted.

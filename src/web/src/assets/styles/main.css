@@ -457,10 +457,11 @@
   align-items: center;
   padding: 0.2rem 0.7rem;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
+  font-size: var(--text-label);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
 }
 
 /* Material badges */

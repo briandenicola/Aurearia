@@ -383,19 +383,52 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       // The header recipe had drifted into five near-identical variants across
       // 27 tables. It now lives in one place, in main.css. Padding stays on
       // the element because density is a per-table decision.
+      //
+      // Two spellings have to be caught, because the recipe was inlined both
+      // ways. The `[&_th]:` variant on the table, and — the one that slipped
+      // past the first version of this guard — the same declarations repeated
+      // on every individual `th`. The second form is why this also checks
+      // that every `<table>` carries `data-table` or sits inside a container
+      // that does.
+      //
+      // The containment check is file-scoped, not per-table: it asks whether
+      // the template mentions `data-table` at all. A file holding one migrated
+      // and one unmigrated table would slip through. That is the price of not
+      // parsing the template, and HelpSection.vue needs it — its tables are
+      // rendered from markdown and can only be reached through a wrapper.
       const violations: string[] = []
 
       for (const file of vueFiles) {
         const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
         if (!template) continue
-        for (const match of template.matchAll(/\[&_th\]:(uppercase|tracking-\[[^\]]+\]|text-text-muted|font-semibold)/g)) {
-          violations.push(`${relative(SRC_DIR, file)}: ${match[0]}`)
+        const name = relative(SRC_DIR, file)
+
+        for (const match of template.matchAll(
+          /\[&_th\]:(uppercase|tracking-\[[^\]]+\]|text-text-muted|font-semibold)/g
+        )) {
+          violations.push(`${name}: ${match[0]} — apply "data-table" instead`)
+        }
+
+        const scoped = /\bdata-table\b/.test(template)
+        for (const match of template.matchAll(/<table\b[^>]*>/g)) {
+          if (scoped) continue
+          violations.push(`${name}: ${match[0].slice(0, 60)} — table is not inside a "data-table"`)
+        }
+
+        for (const match of template.matchAll(/<th\b[^>]*class="([^"]*)"/g)) {
+          const tokens = match[1].split(/\s+/)
+          const inlined = ['uppercase', 'text-text-muted', 'font-semibold', 'text-label'].filter((token) =>
+            tokens.includes(token)
+          )
+          if (inlined.length >= 2) {
+            violations.push(`${name}: <th> repeats the header recipe (${inlined.join(' ')})`)
+          }
         }
       }
 
       expect(
         violations,
-        `Apply the "data-table" class instead of inlining the header recipe:\n  ${violations.join('\n  ')}`
+        `Table headers come from the .data-table class in main.css:\n  ${violations.join('\n  ')}`
       ).toEqual([])
     })
   })

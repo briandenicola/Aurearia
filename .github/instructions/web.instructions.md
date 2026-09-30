@@ -106,7 +106,9 @@ recipe and the cell borders from `main.css`. Padding stays on the element as
 `[&_th]:` / `[&_td]:` utilities because density is per-table. The class sits in
 `@layer components`, so per-cell utilities such as `<th class="text-right">`
 still win. For markdown-rendered tables, put `data-table` on the wrapper.
-Re-inlining the header recipe fails a guard.
+Re-inlining the header recipe fails a guard — both as `[&_th]:` variants and as
+the same classes repeated on each `th`. The guard also fails a `<table>` in a
+template that never mentions `data-table`, though that check is file-scoped.
 
 #### Chip / Pill Hierarchy (global classes in main.css)
 

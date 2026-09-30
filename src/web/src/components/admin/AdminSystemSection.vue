@@ -414,12 +414,12 @@
               </div>
             </div>
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[540px] text-left text-sm">
-                <thead class="text-text-muted">
-                  <tr><th class="p-2">Provider</th><th class="p-2">Outcomes</th><th class="p-2">Latency</th></tr>
+              <table class="data-table min-w-[540px] text-sm [&_th]:p-2">
+                <thead>
+                  <tr><th>Provider</th><th>Outcomes</th><th>Latency</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(metrics, provider) in deepMetrics.providers" :key="provider" class="border-t border-border-subtle">
+                  <tr v-for="(metrics, provider) in deepMetrics.providers" :key="provider">
                     <td class="p-2 font-semibold uppercase text-text-primary">{{ provider }}</td>
                     <td class="p-2 text-text-secondary">{{ formatStatusCounts(metrics.statusCounts) }}</td>
                     <td class="p-2 text-text-secondary">p50 {{ formatDuration(metrics.latency.p50Ms) }} · p95 {{ formatDuration(metrics.latency.p95Ms) }}</td>

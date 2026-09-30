@@ -36,11 +36,18 @@ Owner review of the running app for slice 2. Check the auction lot edit form
 first — eight `form-input` controls change height there. Screenshots were
 waived, so nothing is visually confirmed.
 
-Slice 3 (casing rules and a shared `.data-table` header/cell recipe) is
-implemented and awaiting review: 27 inlined table header recipes became one
-class, and 38 uppercase label recipes became 17 — all 42 changed label
-elements now read `text-label font-semibold tracking-[0.08em]`. See
-[the slice 3 log](../log/20260930T020000Z-784-slice3-casing-tables.md).
+Slice 3 (casing rules and a shared `.data-table` header/cell recipe) was
+reviewed **BLOCK** at `8bdbbcb7` and has been repaired; it is awaiting
+re-review. The block: five tables spelled the header recipe out on each `th`
+rather than as `[&_th]:` variants, so the codemod and the guard both missed
+them and the docs' claim that every table carries `data-table` was false at
+the commit that made the claim. All five are now migrated, the guard rejects
+both spellings, and the docs state what it does not catch. The largest single
+visible change in the slice is `AdminSystemSection.vue`'s provider table,
+whose headers were never on the standard and now become uppercase. `.badge`
+(12 sites) was also converged onto `BaseBadge`'s recipe. See
+[the slice 3 log](../log/20260930T020000Z-784-slice3-casing-tables.md);
+its label counts are recorded as approximate and do not reproduce exactly.
 Three carried items remain for slice 4:
 `COLOR_BUDGET = 139` still rests on the author's count alone, the light-theme
 status-contrast gap in `docs/design-system.md` section 4 is still open, and

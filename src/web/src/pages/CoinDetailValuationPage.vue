@@ -41,20 +41,20 @@
           <p class="section-label">Value History</p>
           <div class="rounded-sm border border-border-subtle overflow-hidden">
             <div data-swipe-ignore :class="['overflow-y-auto overflow-x-auto', { 'max-h-[16.5rem]': valueHistoryTableRows.length > 4 }]">
-              <table class="w-full text-sm">
+              <table class="data-table text-sm [&_th]:px-3 [&_th]:py-2">
                 <thead class="sticky top-0 z-10 bg-card">
-                  <tr class="border-b border-border-subtle">
-                    <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Date</th>
-                    <th class="px-3 py-2 text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Value</th>
-                    <th class="px-3 py-2 text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Change</th>
-                    <th class="px-3 py-2 text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Source</th>
+                  <tr>
+                    <th>Date</th>
+                    <th class="text-right">Value</th>
+                    <th class="text-right">Change</th>
+                    <th class="text-right">Source</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="row in valueHistoryTableRows"
                     :key="row.entry.id"
-                    class="border-b border-border-subtle last:border-0"
+                    class="last:[&>td]:border-b-0"
                   >
                     <td class="px-3 py-2 text-text-secondary">{{ formatShortDate(row.entry.recordedAt) }}</td>
                     <td class="px-3 py-2 text-right font-medium text-text-primary">{{ formatCurrency(row.entry.value) }}</td>

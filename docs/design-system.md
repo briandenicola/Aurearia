@@ -226,8 +226,12 @@ Columns that are optional on small screens carry `hidden md:table-cell` on both
 the `th` and the matching `td`.
 
 A guard in `design-tokens.test.ts` fails the build if a template re-inlines the
-header recipe (`[&_th]:uppercase`, `[&_th]:tracking-[…]`, `[&_th]:font-semibold`
-or `[&_th]:text-text-muted`).
+header recipe, in either spelling: on the table as `[&_th]:uppercase`,
+`[&_th]:tracking-[…]`, `[&_th]:font-semibold` or `[&_th]:text-text-muted`, or
+repeated on the individual `th` elements. It also fails a `<table>` in a
+template that never mentions `data-table`. That containment check is file-scoped
+rather than per-table, so a file mixing a migrated and an unmigrated table would
+pass; the guard is a ratchet, not a proof.
 
 ## 7. Spacing rhythm
 

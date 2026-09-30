@@ -17,18 +17,18 @@
         Total active shipments: <strong class="text-text-primary">{{ rows.length }}</strong>
       </p>
       <div v-if="rows.length" class="overflow-x-auto rounded-sm border border-border-subtle">
-        <table class="min-w-full border-collapse">
+        <table class="data-table min-w-full [&_th]:px-3 [&_th]:py-2">
           <thead class="bg-card">
             <tr>
-              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Coin</th>
-              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Status</th>
-              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Carrier</th>
-              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Tracking</th>
-              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">ETA</th>
+              <th>Coin</th>
+              <th>Status</th>
+              <th>Carrier</th>
+              <th>Tracking</th>
+              <th>ETA</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in rows" :key="row.id" class="border-t border-border-subtle">
+            <tr v-for="row in rows" :key="row.id">
               <td class="px-3 py-2 text-sm text-text-primary">
                 <RouterLink :to="`/coin/${row.coinId}/shipment`" class="text-gold hover:underline">
                   {{ row.coinName }}
