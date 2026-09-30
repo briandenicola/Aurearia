@@ -46,9 +46,10 @@ async def cancel_on_disconnect(http_request: Request, work: Awaitable[T]) -> T:
         await asyncio.wait({task, watcher}, return_when=asyncio.FIRST_COMPLETED)
         if task.done():
             return task.result()
-        if watcher.exception() is not None:
+        if watcher.cancelled() or watcher.exception() is not None:
             # A receive failure is not evidence of a disconnect; let the work finish.
-            logger.warning("Disconnect watcher for %s failed: %r", http_request.url.path, watcher.exception())
+            reason = "cancelled" if watcher.cancelled() else repr(watcher.exception())
+            logger.warning("Disconnect watcher for %s failed: %s", http_request.url.path, reason)
             return await task
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)

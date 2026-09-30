@@ -103,6 +103,35 @@ func TestAgentProxyNon200ErrorBodiesDoNotLeakSecrets(t *testing.T) {
 	}
 }
 
+// A Pydantic missing-field error echoes the whole parent object as its input.
+func TestAgentProxyValidationErrorsRedactNestedInputSecrets(t *testing.T) {
+	body := `{"detail":[{"type":"missing","loc":["body","llm","new_field"],"msg":"Field required","input":{"api_key":"` + leakedProviderKey + `","model":"m","provider":"anthropic"}}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+
+	for _, tc := range agentProxyCalls() {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := NewLogger(50)
+			err := tc.call(context.Background(), NewAgentProxy(server.URL, "internal-token", logger))
+			if err == nil {
+				t.Fatal("expected an error for a 422 agent response")
+			}
+			if strings.Contains(err.Error(), "sk-live") {
+				t.Fatalf("returned error leaked provider key: %v", err)
+			}
+			for _, entry := range logger.GetLogs(50) {
+				if strings.Contains(entry.Message, "sk-live") {
+					t.Fatalf("log entry leaked provider key: %s", entry.Message)
+				}
+			}
+		})
+	}
+}
+
 // Non-JSON bodies are truncated, not redacted, in logs; returned errors must never echo them.
 func TestAgentProxyReturnedErrorsNeverEchoPlainTextBodies(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

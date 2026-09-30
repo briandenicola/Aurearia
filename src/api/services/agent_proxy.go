@@ -123,9 +123,12 @@ func validationErrorInput(value any) string {
 	if text, ok := value.(string); ok {
 		return truncateLogText(text, 80)
 	}
+	// Pydantic echoes the parent object (e.g. the whole llm config) as the input
+	// of a missing-field error, so nested sensitive keys must be redacted too.
+	redactSensitiveJSON(value)
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return truncateLogText(fmt.Sprint(value), 80)
+		return "[unprintable]"
 	}
 	return truncateLogText(string(encoded), 80)
 }

@@ -77,6 +77,18 @@ async def test_cancel_on_disconnect_lets_work_finish_when_the_watcher_fails():
     assert await cancel_on_disconnect(_BrokenReceive(None), work()) == "done"
 
 
+async def test_cancel_on_disconnect_lets_work_finish_when_the_watcher_is_cancelled():
+    class _CancelledReceive(_FakeRequest):
+        async def receive(self) -> dict:
+            raise asyncio.CancelledError
+
+    async def work():
+        await asyncio.sleep(0.05)
+        return "done"
+
+    assert await cancel_on_disconnect(_CancelledReceive(None), work()) == "done"
+
+
 async def test_cancel_on_disconnect_awaits_work_when_the_route_is_cancelled():
     started = asyncio.Event()
     finished_cleanup = asyncio.Event()
