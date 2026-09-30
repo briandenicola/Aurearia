@@ -127,12 +127,36 @@ value-change numeral).
    so no hero numeral gets smaller; the values are short (`87`, `12.5%`) in
    a `p-6` card.
 
-**One line-height change.** `CollectionHealthScorecard.vue`'s score had no
-explicit `leading-*`, so it inherited the body line-height. `text-4xl` is a
-Tailwind-default name and carries a line-height ratio of `1.111`, which now
-applies. The numeral's line box tightens. The other three hero numerals all
-set `leading-none`, `leading-[0.85]` or `leading-[1.1]` explicitly and are
-unaffected. The tighter box matches how the others are already styled.
+**Line-height changes on 37 elements.** This was first recorded as affecting a
+single element. That was wrong, and the corrected figure is below.
+
+Tailwind-default step names emit a line-height as well as a font size —
+`.text-base{font-size:…;line-height:var(--tw-leading,var(--text-base--line-height))}` —
+whereas the custom names (`2xs`, `micro`, `label`, `chip`, `body`, `md`) emit
+font-size only. So any element that moved from an arbitrary size onto a
+default-named step, and that does **not** set `leading-*` itself, gains a
+line-height it previously inherited from `body { line-height: 1.6 }`.
+
+45 of the 170 conversions landed on a default-named step. 8 of those set
+`leading-*` explicitly and are unaffected. The remaining **37** change:
+
+| Step | Elements | Line-height |
+|---|---|---|
+| `text-base` | 33 | 1.6 → 1.5 |
+| `text-sm` | 1 | 1.6 → 1.4286 (`AuctionLotCard.vue:40`) |
+| `text-xl` | 1 | 1.6 → 1.4 (`SetDashboardCard.vue:13`, `min-[561px]` only) |
+| `text-3xl` | 1 | 1.6 → 1.2 (`CollectionHealthScorecard.vue:8`, `max-md` only) |
+| `text-4xl` | 1 | 1.6 → 1.1111 (`CollectionHealthScorecard.vue:8`) |
+
+The effect is tighter line spacing, most visibly on multi-line text. It is a
+consistency gain rather than a new inconsistency: `text-base` already had 277
+call sites in the app, all of them rendering at 1.5, so the 33 converted
+elements now match the majority instead of differing from it. The three hero
+numerals that set `leading-none`, `leading-[0.85]` or `leading-[1.1]` are
+untouched.
+
+This is the one delta most worth looking at in the running app, because it
+affects paragraph rhythm rather than glyph size.
 
 **No colour deltas.** Section 3 above renders identically.
 
