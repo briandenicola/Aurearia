@@ -9,7 +9,7 @@
   >
     <div
       v-if="selectedCount > 0"
-      class="fixed bottom-6 left-1/2 z-[200] flex w-[calc(100%-1.5rem)] max-w-max -translate-x-1/2 flex-col gap-3 rounded-md border border-gold-dim bg-card px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)] md:w-auto md:flex-row md:items-center md:gap-4"
+      class="fixed bottom-6 left-1/2 z-[200] flex w-[calc(100%-1.5rem)] max-w-max -translate-x-1/2 flex-col gap-3 rounded-md border border-gold-dim bg-card px-5 py-3 shadow-[0_8px_30px_var(--overlay-50)] md:w-auto md:flex-row md:items-center md:gap-4"
     >
       <span class="text-body font-medium text-text-secondary">{{ selectedCount }} lot{{ selectedCount === 1 ? '' : 's' }} selected</span>
       <div class="flex flex-col gap-2 md:flex-row md:items-center">

@@ -5,7 +5,7 @@
     </div>
 
     <div v-else-if="coin">
-      <div class="md:sticky md:top-[61px] md:z-10 md:border-b md:border-border-subtle md:bg-surface md:px-0 md:py-3 md:shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
+      <div class="md:sticky md:top-[61px] md:z-10 md:border-b md:border-border-subtle md:bg-surface md:px-0 md:py-3 md:shadow-[0_4px_12px_var(--overlay-30)]">
         <CoinDetailHeaderActions
           :is-wishlist="coin.isWishlist"
           :is-sold="coin.isSold"

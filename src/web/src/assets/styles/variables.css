@@ -70,7 +70,25 @@
   --shadow-gold-soft: 0 4px 12px rgba(201, 168, 76, 0.3);
   --shadow-gold-hover: 0 6px 16px rgba(201, 168, 76, 0.4);
 
-  /* Overlays */
+  /* Overlays
+   *
+   * Black scrims, by opacity percentage. Numeric rather than semantic on
+   * purpose: the app uses seven closely spaced values and naming them
+   * "soft" / "medium" / "strong" would invent a hierarchy that the call
+   * sites do not actually follow. The near-duplicate pairs (20/30/35 and
+   * 40/45/50) are left visible so they can be consolidated deliberately
+   * later, as a single decision in this file.
+   *
+   * These are intentionally NOT overridden per theme: a scrim exists to
+   * darken whatever is behind it, in every theme.
+   */
+  --overlay-20: rgba(0, 0, 0, 0.2);
+  --overlay-30: rgba(0, 0, 0, 0.3);
+  --overlay-35: rgba(0, 0, 0, 0.35);
+  --overlay-40: rgba(0, 0, 0, 0.4);
+  --overlay-45: rgba(0, 0, 0, 0.45);
+  --overlay-50: rgba(0, 0, 0, 0.5);
+  --overlay-60: rgba(0, 0, 0, 0.6);
   --overlay-dark: rgba(0, 0, 0, 0.7);
   --overlay-full: rgba(0, 0, 0, 0.85);
 
@@ -94,6 +112,20 @@
   --status-info-fg: #3498db;
   --status-neutral-bg: rgba(149, 165, 166, 0.15);
   --status-neutral-fg: #95a5a6;
+
+  /* Status borders (#784 slice 4). The bg/border pair at 0.15 / 0.3 was
+   * already the de facto convention inlined across the app; the 0.3 leg
+   * simply had no token. Values are the existing -bg colours at 0.3. */
+  --status-success-border: rgba(46, 204, 113, 0.3);
+  --status-error-border: rgba(231, 76, 60, 0.3);
+  --status-warning-border: rgba(241, 196, 15, 0.3);
+  --status-info-border: rgba(52, 152, 219, 0.3);
+  --status-neutral-border: rgba(149, 165, 166, 0.3);
+
+  /* Status tints at 0.1 — the faintest of the three alphas the app uses for
+   * status fills (0.1 / 0.15 / 0.3). Same base colours as the -bg tokens. */
+  --status-success-tint: rgba(46, 204, 113, 0.1);
+  --status-error-tint: rgba(231, 76, 60, 0.1);
 
   /* Confidence indicators */
   --confidence-high: #69b77f;
@@ -135,6 +167,27 @@
   --border-accent: rgba(154, 123, 46, 0.5);
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
   --shadow-glow: 0 0 12px rgba(154, 123, 46, 0.08);
+
+  /* Status foregrounds (#784 slice 4).
+   *
+   * The dark-theme values are tuned for a near-black surface and are
+   * unreadable on this one: #2ecc71 scores 2.10:1 against a white card and
+   * #f5c36a scores 1.63:1, against a WCAG AA requirement of 4.5:1. Until
+   * now the light theme overrode no status token at all, so every badge,
+   * gain/loss figure and confidence marker inherited the dark values.
+   *
+   * Each replacement below is the same hue, darkened until it clears 4.5:1
+   * against both --bg-card (#ffffff) and --bg-primary (#f5f0e8). The ratios
+   * are asserted by a test in design-tokens.test.ts, so they cannot drift.
+   */
+  --color-positive: #157347;
+  --color-negative: #c0392b;
+  --text-warning: #8a6100;
+  --status-info-fg: #1f6a9e;
+  --status-neutral-fg: #5d6d6e;
+  --confidence-high: #2f7a4d;
+  --confidence-medium: #8a6100;
+  --confidence-low: #a32316;
 }
 
 /* British Museum — neoclassical white marble grounds, black field, Portland stone accents */

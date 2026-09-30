@@ -13,7 +13,7 @@
         leave-from-class="translate-y-0 opacity-100"
         leave-to-class="-translate-y-2 opacity-0"
       >
-        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-[100] flex min-w-[260px] flex-col gap-3 rounded-md border border-border-subtle bg-card p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-[100] flex min-w-[260px] flex-col gap-3 rounded-md border border-border-subtle bg-card p-4 shadow-[0_8px_30px_var(--overlay-40)]">
           <div class="flex flex-col gap-[0.4rem]">
             <span class="section-label mb-0">Selection</span>
             <button class="w-full rounded-sm border border-border-subtle bg-card px-[0.7rem] py-2 text-left text-body font-medium text-text-secondary transition-all hover:border-gold" :class="selectMode ? 'border-gold bg-[var(--accent-gold-dim)] text-gold' : ''" @click="$emit('toggle-select-mode')">

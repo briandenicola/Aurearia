@@ -7,7 +7,7 @@
     <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,var(--bg-secondary)_0%,var(--bg-primary)_100%)] [@media(display-mode:standalone)]:aspect-[5/6]">
       <img v-if="proxiedImageUrl" :src="proxiedImageUrl" :alt="lot.title" class="h-full w-full object-cover transition duration-300 group-hover:scale-105 group-hover:brightness-110" loading="lazy" />
       <div v-else class="text-text-primary/30"><Gavel :size="48" :stroke-width="1" /></div>
-      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_rgba(0,0,0,0.2),0_0_20px_var(--accent-gold-glow)]"></div>
+      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_var(--overlay-35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_var(--overlay-20),0_0_20px_var(--accent-gold-glow)]"></div>
       <span
         class="absolute top-2 right-2 z-[2] rounded-full px-2.5 py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em]"
         :class="{

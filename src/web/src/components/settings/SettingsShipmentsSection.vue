@@ -28,7 +28,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in rows" :key="row.id">
+            <tr v-for="row in rows" :key="row.id" class="last:[&>td]:border-b-0">
               <td class="px-3 py-2 text-sm text-text-primary">
                 <RouterLink :to="`/coin/${row.coinId}/shipment`" class="text-gold hover:underline">
                   {{ row.coinName }}

@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-[300] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="handleClose">
-      <div class="flex max-h-[90vh] w-full max-w-[520px] flex-col overflow-hidden rounded-md border border-border-subtle bg-card shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+    <div v-if="open" class="fixed inset-0 z-[300] flex items-center justify-center bg-overlay-60 p-4" @click.self="handleClose">
+      <div class="flex max-h-[90vh] w-full max-w-[520px] flex-col overflow-hidden rounded-md border border-border-subtle bg-card shadow-[0_12px_40px_var(--overlay-50)]">
         <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
           <h3 class="m-0 text-lg font-medium text-heading">Create new mint</h3>
           <button class="inline-flex h-[30px] w-[30px] items-center justify-center p-0 text-text-muted hover:text-text-primary" @click="handleClose">×</button>

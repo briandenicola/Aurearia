@@ -1,7 +1,7 @@
 <template>
   <div ref="pullContainer" :style="pullDistance > 0 ? `transform: translateY(${pullDistance}px); transition: none` : ''">
     <div
-      class="fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-subtle bg-card px-4 py-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+      class="fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-subtle bg-card px-4 py-1.5 shadow-[0_2px_12px_var(--overlay-30)]"
       :class="pullDistance > 0 || refreshing ? 'pointer-events-auto' : 'pointer-events-none'"
       :style="`top: ${-50 + pullDistance * 0.6}px; opacity: ${Math.min(pullDistance / 60, 1)}`"
     >

@@ -22,7 +22,7 @@
               {{ user.role }}
             </span>
           </td>
-          <td class="px-2 py-3 border-b border-border-subtle text-body text-text-secondary">{{ formatDate(user.createdAt) }}</td>
+          <td class="text-body text-text-secondary">{{ formatDate(user.createdAt) }}</td>
           <td>
             <div v-if="user.id !== currentUserId" class="flex gap-[0.4rem]">
               <button class="btn btn-secondary btn-sm" @click="$emit('edit', user)">Edit</button>

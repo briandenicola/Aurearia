@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-[1400] flex h-dvh justify-end bg-black/50" @click.self="$emit('close')">
-    <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_rgba(0,0,0,0.3)] sm:w-[480px]">
+    <div class="flex h-full w-full max-w-full flex-col bg-surface shadow-[-4px_0_20px_var(--overlay-30)] sm:w-[480px]">
       <ChatHeader
         :has-messages="messages.length > 0 && !copilotBusy"
         :saving="saving"

@@ -15,7 +15,7 @@
             leave-active-class="transition-opacity duration-150 ease-in"
             leave-to-class="opacity-0"
           >
-            <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+            <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_var(--overlay-40)]">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"

@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'fs'
-import { join, relative } from 'path'
+import { join, relative, sep } from 'path'
 
 const SRC_DIR = join(__dirname, '..')
 const STYLES_DIR = join(SRC_DIR, 'assets', 'styles')
@@ -284,27 +284,49 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
 
     it('keeps hardcoded colour literals in templates within budget', () => {
       // Budget: remaining pre-existing hardcoded template colour literals
-      // after the #784 toggle and status-badge consolidation. Counts rgba(),
-      // rgb() and hex literals so the ratchet cannot be evaded by switching
-      // notation. It may only decrease.
-      const COLOR_BUDGET = 139
-      let total = 0
-      const details: string[] = []
+      // after the #784 consolidation. Counts rgba(), rgb() and hex literals so
+      // the ratchet cannot be evaded by switching notation.
+      //
+      // The budget is per file, not a single net total. A net total lets a
+      // literal removed in one file pay for a literal added in another, which
+      // is exactly the drift this is meant to stop. A file may only go down,
+      // and a file not listed here may have none at all.
+      const COLOR_BUDGET = new Map([
+        ['components/auction/AuctionLotDetailModal.vue', 16],
+        ['components/stats/CollectionHealthScorecard.vue', 12],
+        ['components/admin/AdminAISection.vue', 6],
+        ['components/collection/NeedsAttentionQueue.vue', 6],
+        ['pages/NotificationsPage.vue', 3],
+        ['components/AuctionLotCard.vue', 2],
+        ['components/admin/AdminHealthSection.vue', 2],
+        ['components/stats/CollectionHealthTrendIndicator.vue', 2],
+        ['components/wishlist-alerts/AlertCriteriaSummary.vue', 2],
+        ['pages/CoinLookupPage.vue', 2],
+        ['pages/WishlistPage.vue', 2],
+        ['components/HelpSection.vue', 1],
+        ['components/admin/schedules/AdminValuationSchedule.vue', 1],
+        ['pages/FollowerCoinDetailPage.vue', 1],
+        ['pages/NotesPage.vue', 1],
+        ['pages/PublicShowcasePage.vue', 1],
+        ['pages/SetDetailPage.vue', 1],
+      ])
+      const violations: string[] = []
 
       for (const file of vueFiles) {
         const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
         if (!template) continue
+        const name = relative(SRC_DIR, file).split(sep).join('/')
         const count = (template.match(/rgba?\(|#[0-9a-fA-F]{3,8}\b/g) ?? []).length
-        if (count > 0) {
-          total += count
-          details.push(`${relative(SRC_DIR, file)}: ${count}`)
+        const allowed = COLOR_BUDGET.get(name) ?? 0
+        if (count > allowed) {
+          violations.push(`${name}: ${count} literals, budget ${allowed} — use a design token`)
         }
       }
 
       expect(
-        total,
-        `Hardcoded template colour literals (${total}) exceed budget (${COLOR_BUDGET}). Use design tokens:\n  ${details.join('\n  ')}`
-      ).toBeLessThanOrEqual(COLOR_BUDGET)
+        violations,
+        `Hardcoded template colour literals exceed their per-file budget:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
     })
 
     it('uses no arbitrary absolute text sizes in templates', () => {
@@ -537,6 +559,74 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       expect(main).toContain('.chip')
       expect(main).toContain('.btn')
       expect(main).toContain('.btn-primary')
+    })
+  })
+  describe('light theme meets WCAG AA for status foregrounds', () => {
+    // The dark-theme status colours are tuned for a near-black surface. The
+    // light theme used to override none of them, so every badge, gain/loss
+    // figure and confidence marker inherited a value that failed AA on a
+    // white card. These ratios are computed here rather than asserted by
+    // hand, so a future colour edit cannot quietly reintroduce the gap.
+    const variables = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
+
+    function relativeLuminance(hex: string): number {
+      const value = hex.replace('#', '')
+      const channels = [0, 2, 4]
+        .map((i) => parseInt(value.slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+
+    function contrast(a: string, b: string): number {
+      const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
+      return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    function lightThemeToken(name: string): string {
+      const scope = /\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/.exec(variables)?.[1]
+      expect(scope, 'the [data-theme="light"] block must exist').toBeTruthy()
+      const value = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(scope!)?.[1]
+      expect(
+        value,
+        `--${name} must be overridden by the light theme with a hex value; the dark-theme value is unreadable on a light surface`
+      ).toBeTruthy()
+      return value!
+    }
+
+    const foregrounds = [
+      'color-positive',
+      'color-negative',
+      'text-warning',
+      'status-info-fg',
+      'status-neutral-fg',
+      'confidence-high',
+      'confidence-medium',
+      'confidence-low',
+    ]
+
+    it('overrides every status foreground', () => {
+      for (const name of foregrounds) {
+        expect(lightThemeToken(name)).toMatch(/^#[0-9a-fA-F]{6}$/)
+      }
+    })
+
+    it('clears 4.5:1 against the card and the page background', () => {
+      const card = lightThemeToken('bg-card')
+      const page = lightThemeToken('bg-primary')
+      const failures: string[] = []
+
+      for (const name of foregrounds) {
+        const value = lightThemeToken(name)
+        const onCard = contrast(value, card)
+        const onPage = contrast(value, page)
+        if (onCard < 4.5) failures.push(`--${name} ${value} on --bg-card ${card}: ${onCard.toFixed(2)}:1`)
+        if (onPage < 4.5) failures.push(`--${name} ${value} on --bg-primary ${page}: ${onPage.toFixed(2)}:1`)
+      }
+
+      expect(
+        failures,
+        `Light-theme status foregrounds must reach WCAG AA (4.5:1):\n  ${failures.join('\n  ')}`
+      ).toEqual([])
     })
   })
 })

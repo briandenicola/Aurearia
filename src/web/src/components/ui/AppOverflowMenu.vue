@@ -3,7 +3,7 @@
     <slot name="trigger" :open="open" :toggle="toggle" :close="close" />
     <div
       v-if="open"
-      class="absolute right-0 top-[calc(100%+0.45rem)] z-30 rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]"
+      class="absolute right-0 top-[calc(100%+0.45rem)] z-30 rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]"
       :class="panelWidthClass"
     >
       <slot :close="close" />

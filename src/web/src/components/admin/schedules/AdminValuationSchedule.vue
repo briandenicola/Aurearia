@@ -86,7 +86,7 @@
                 <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
                   {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
                 </span>
-                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-micro text-loss transition-colors hover:bg-[rgba(231,76,60,0.15)]" @click.stop="cancelRun(run.id)">Cancel</button>
+                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-micro text-loss transition-colors hover:bg-status-error-bg" @click.stop="cancelRun(run.id)">Cancel</button>
               </td>
               <td>{{ run.coinsChecked }}</td>
               <td class="hidden font-semibold text-gain md:table-cell">{{ run.coinsUpdated }}</td>
@@ -115,7 +115,7 @@
                         <td>{{ result.previousValue != null ? `$${result.previousValue.toFixed(2)}` : '--' }}</td>
                         <td class="font-semibold text-gold">{{ result.estimatedValue > 0 ? `$${result.estimatedValue.toFixed(2)}` : '--' }}</td>
                         <td>
-                          <span v-if="result.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="result.confidence === 'high' ? 'bg-[rgba(46,204,113,0.15)] text-confidence-high' : result.confidence === 'medium' ? 'bg-[rgba(241,196,15,0.15)] text-confidence-medium' : 'bg-[rgba(231,76,60,0.15)] text-confidence-low'">{{ result.confidence }}</span>
+                          <span v-if="result.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="result.confidence === 'high' ? 'bg-status-success-bg text-confidence-high' : result.confidence === 'medium' ? 'bg-status-warning-bg text-confidence-medium' : 'bg-status-error-bg text-confidence-low'">{{ result.confidence }}</span>
                           <span v-else>--</span>
                         </td>
                         <td>

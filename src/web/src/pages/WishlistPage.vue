@@ -92,7 +92,7 @@
       <span class="inline-flex rounded-full bg-[rgba(248,113,113,0.15)] px-2.5 py-1 text-chip font-semibold text-red-400">
         {{ checkResult.unavailable }} unavailable
       </span>
-      <span class="inline-flex rounded-full bg-[rgba(241,196,15,0.15)] px-2.5 py-1 text-chip font-semibold text-warning">
+      <span class="inline-flex rounded-full bg-status-warning-bg px-2.5 py-1 text-chip font-semibold text-warning">
         {{ checkResult.unknown }} unknown
       </span>
       <span class="ml-auto text-text-muted">{{ checkResult.coinsChecked }} checked</span>

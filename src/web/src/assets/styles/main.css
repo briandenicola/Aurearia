@@ -58,6 +58,36 @@
   --color-felt-navy-bright:  var(--felt-navy-bright);
   --color-felt-red-bright:   var(--felt-red-bright);
 
+  /* Black scrims (#784 slice 4) — see the overlay block in variables.css */
+  --color-overlay-20:        var(--overlay-20);
+  --color-overlay-30:        var(--overlay-30);
+  --color-overlay-35:        var(--overlay-35);
+  --color-overlay-40:        var(--overlay-40);
+  --color-overlay-45:        var(--overlay-45);
+  --color-overlay-50:        var(--overlay-50);
+  --color-overlay-60:        var(--overlay-60);
+  --color-overlay-dark:      var(--overlay-dark);
+  --color-overlay-full:      var(--overlay-full);
+
+  /* Status tones (#784 slice 4) */
+  --color-status-success-bg:     var(--status-success-bg);
+  --color-status-success-fg:     var(--status-success-fg);
+  --color-status-success-border: var(--status-success-border);
+  --color-status-error-bg:       var(--status-error-bg);
+  --color-status-error-fg:       var(--status-error-fg);
+  --color-status-error-border:   var(--status-error-border);
+  --color-status-warning-bg:     var(--status-warning-bg);
+  --color-status-warning-fg:     var(--status-warning-fg);
+  --color-status-warning-border: var(--status-warning-border);
+  --color-status-info-bg:        var(--status-info-bg);
+  --color-status-info-fg:        var(--status-info-fg);
+  --color-status-info-border:    var(--status-info-border);
+  --color-status-neutral-bg:     var(--status-neutral-bg);
+  --color-status-neutral-fg:     var(--status-neutral-fg);
+  --color-status-neutral-border: var(--status-neutral-border);
+  --color-status-success-tint:   var(--status-success-tint);
+  --color-status-error-tint:     var(--status-error-tint);
+
   /* Borders */
   --color-border-subtle: var(--border-subtle);
   --color-border-accent: var(--border-accent);

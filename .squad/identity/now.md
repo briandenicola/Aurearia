@@ -48,9 +48,24 @@ whose headers were never on the standard and now become uppercase. `.badge`
 (12 sites) was also converged onto `BaseBadge`'s recipe. See
 [the slice 3 log](../log/20260930T020000Z-784-slice3-casing-tables.md);
 its label counts are recorded as approximate and do not reproduce exactly.
-Three carried items remain for slice 4:
-`COLOR_BUDGET = 139` still rests on the author's count alone, the light-theme
-status-contrast gap in `docs/design-system.md` section 4 is still open, and
-`text-xs` remains a Tailwind built-in duplicating `text-sm` at `0.75rem`
-across 35 call sites. Then #766, which still needs its own spec.
+Slice 3 was cleared **PASS** at `8dd0dbb7`.
+
+Slice 4 (colour tokens, overlays, light-theme contrast) is implemented and
+awaiting review. The one real defect it fixes: `[data-theme="light"]` overrode
+no status foreground, so every status colour in the light theme failed WCAG AA
+on a white card — `--color-positive` measured 2.10:1. Eight overrides now clear
+4.5:1 against both `--bg-card` and `--bg-primary`, held by a guard that
+computes the ratio rather than asserting it. Template colour literals went
+139 to 61, and `COLOR_BUDGET` is now a per-file map so a swap cannot net to
+zero. See [the slice 4 log](../log/20260930T040000Z-784-slice4-colour-contrast.md).
+
+Two items are deliberately **not** done. The `text-xs` fold (35 sites) is
+deferred because `text-xs` and `text-sm` share `0.75rem` but not their
+line-heights, so it is a 7% height change, not a rename. The remaining 61
+literals are an owner decision: the app carries four near-duplicate greens and
+five reds with no single winner, and picking one is a design call.
+
+**The owner's visual pass is now overdue across all four slices**, and the
+light theme should be first — its status colours all move in slice 4 and
+nobody has looked at any of it. Then #766, which still needs its own spec.
 No deployment or release is authorized.

@@ -165,7 +165,16 @@ Import from `@/components/ui`. Do not hand-roll these:
 
 `src/web/src/__tests__/design-tokens.test.ts` fails the build on a hand-rolled
 toggle or status pill, and caps hardcoded template colour literals (`rgba()`,
-`rgb()` and hex) with a ratchet budget that may only decrease.
+`rgb()` and hex) with a **per-file** ratchet budget that may only decrease. It
+is per file rather than a net total so that removing a literal in one component
+cannot pay for adding one in another. A file absent from the budget map must
+have none.
+
+Translucent fills use `--overlay-20` … `--overlay-60` (`bg-overlay-*`). Status
+tones have `--status-*-bg`, `-fg`, `-border` (0.3 alpha) and, for success and
+error, `-tint` (0.1). The light theme overrides every status foreground; a guard
+computes the WCAG ratio from the token values and fails below 4.5:1 against both
+`--bg-card` and `--bg-primary`.
 
 #### Rules for New UI Components
 
@@ -178,6 +187,7 @@ toggle or status pill, and caps hardcoded template colour literals (`rgba()`,
 7. **All data tables** use the `data-table` class — never re-inline the header recipe
 8. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
 9. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
+10. **Translucent fills** use `bg-overlay-*` — never a raw `rgba(0, 0, 0, …)`
 
 ## Completion
 

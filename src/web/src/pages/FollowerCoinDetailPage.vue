@@ -235,8 +235,8 @@ onMounted(loadCoin)
                     v-for="i in 5"
                     :key="'avg-' + i"
                     :size="20"
-                    :fill="i <= Math.round(rating.average) ? '#c9a84c' : 'none'"
-                    :stroke="i <= Math.round(rating.average) ? '#c9a84c' : 'var(--text-muted)'"
+                    :fill="i <= Math.round(rating.average) ? 'var(--accent-gold)' : 'none'"
+                    :stroke="i <= Math.round(rating.average) ? 'var(--accent-gold)' : 'var(--text-muted)'"
                   />
                 </div>
                 <span class="text-body text-text-secondary">
@@ -252,8 +252,8 @@ onMounted(loadCoin)
                     :key="'user-' + i"
                     :size="24"
                     class="cursor-pointer transition-transform duration-150 hover:scale-110"
-                    :fill="i <= (hoverUserRating || rating.userRating) ? '#c9a84c' : 'none'"
-                    :stroke="i <= (hoverUserRating || rating.userRating) ? '#c9a84c' : 'var(--text-muted)'"
+                    :fill="i <= (hoverUserRating || rating.userRating) ? 'var(--accent-gold)' : 'none'"
+                    :stroke="i <= (hoverUserRating || rating.userRating) ? 'var(--accent-gold)' : 'var(--text-muted)'"
                     @mouseenter="hoverUserRating = i"
                     @mouseleave="hoverUserRating = 0"
                     @click="handleRate(i)"
@@ -296,12 +296,12 @@ onMounted(loadCoin)
                       v-for="i in 5"
                       :key="'c-' + comment.id + '-' + i"
                       :size="14"
-                      :fill="i <= comment.rating ? '#c9a84c' : 'none'"
-                      :stroke="i <= comment.rating ? '#c9a84c' : 'var(--text-muted)'"
+                      :fill="i <= comment.rating ? 'var(--accent-gold)' : 'none'"
+                      :stroke="i <= comment.rating ? 'var(--accent-gold)' : 'var(--text-muted)'"
                     />
                   </div>
                   <button
-                    class="flex shrink-0 items-center rounded-[4px] p-1 text-text-muted transition hover:bg-[rgba(231,76,60,0.1)] hover:text-[rgb(231,76,60)]"
+                    class="flex shrink-0 items-center rounded-[4px] p-1 text-text-muted transition hover:bg-status-error-tint hover:text-[rgb(231,76,60)]"
                     title="Delete comment"
                     @click="handleDeleteComment(comment.id)"
                   >
@@ -329,8 +329,8 @@ onMounted(loadCoin)
                       :key="'new-' + i"
                       :size="18"
                       class="cursor-pointer transition-transform duration-150 hover:scale-110"
-                      :fill="i <= (hoverRating || newCommentRating) ? '#c9a84c' : 'none'"
-                      :stroke="i <= (hoverRating || newCommentRating) ? '#c9a84c' : 'var(--text-muted)'"
+                      :fill="i <= (hoverRating || newCommentRating) ? 'var(--accent-gold)' : 'none'"
+                      :stroke="i <= (hoverRating || newCommentRating) ? 'var(--accent-gold)' : 'var(--text-muted)'"
                       @mouseenter="hoverRating = i"
                       @mouseleave="hoverRating = 0"
                       @click="newCommentRating = newCommentRating === i ? 0 : i"

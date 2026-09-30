@@ -56,8 +56,8 @@
                   </span>
                 </div>
               </td>
-              <td class="border-b border-border-subtle px-2 py-3 align-top text-text-primary">{{ cat.displayName }}</td>
-              <td class="hidden border-b border-border-subtle px-2 py-3 align-top md:table-cell">
+              <td class="text-text-primary">{{ cat.displayName }}</td>
+              <td class="hidden md:table-cell">
                 <BaseToggle
                   size="sm"
                   :model-value="cat.volumeRequired"
@@ -80,7 +80,7 @@
         </table>
       </div>
 
-      <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="closeForm">
+      <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-overlay-60 p-4" @click.self="closeForm">
         <div class="max-h-[90vh] w-full max-w-[500px] overflow-auto rounded-md border border-border-subtle bg-card shadow-[var(--shadow-card)]">
           <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
             <h3 class="m-0 text-lg font-medium text-heading">{{ editingCatalog ? 'Edit Catalog' : 'Add Catalog' }}</h3>

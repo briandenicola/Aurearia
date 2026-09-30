@@ -72,7 +72,7 @@
           </button>
         </div>
 
-        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]" role="menu">
+        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]" role="menu">
           <button
             class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
             role="menuitem"

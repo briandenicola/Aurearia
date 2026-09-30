@@ -14,7 +14,7 @@
         :class="trend.direction === 'up'
           ? 'border-[rgba(39,174,96,0.3)] bg-[rgba(39,174,96,0.15)] text-green-400'
           : trend.direction === 'down'
-            ? 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] text-red-400'
+            ? 'border-status-error-border bg-status-error-bg text-red-400'
             : 'border-border-subtle bg-[var(--accent-gold-glow)] text-text-secondary'"
       >
         <component :is="trendIcon" :size="14" />

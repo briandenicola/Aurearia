@@ -1,5 +1,5 @@
 <template>
-  <div v-if="user" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="$emit('close')">
+  <div v-if="user" class="fixed inset-0 z-[200] flex items-center justify-center bg-overlay-60 p-4" @click.self="$emit('close')">
     <div class="card w-full max-w-[520px] p-6">
       <h3 class="mb-4 text-lg font-medium text-heading">Edit {{ user.username }}</h3>
 

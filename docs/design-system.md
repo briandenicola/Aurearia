@@ -158,11 +158,27 @@ Run status, availability and outcome pills use the status tokens, never raw
 | `info` | `--status-info-bg` | `--status-info-fg` | running, in progress |
 | `neutral` | `--status-neutral-bg` | `--status-neutral-fg` | skipped, inactive |
 
-> Known gap: the status foregrounds are defined once in `:root`, matching the
-> existing `--color-positive` / `--color-negative` / `--text-warning` pattern.
-> They are tuned for the dark theme and their contrast on light-theme cards is
-> below WCAG AA. Fixing that needs per-theme values and a visual check, which
-> is out of scope for the #784 foundation slice.
+Each tone also has a `--status-*-border` (the foreground at 0.3 alpha) for
+outlined pills, and `success` and `error` have a `--status-*-tint` at 0.1 for
+subtle row highlights.
+
+The `:root` values are tuned for the dark themes. The light theme overrides all
+eight status foregrounds, because the dark-theme values fail WCAG AA on a white
+card — `--color-positive` measured 2.10:1 and `--text-warning` 1.63:1. The
+overrides clear 4.5:1 against **both** `--bg-card` (`#ffffff`) and
+`--bg-primary` (`#f5f0e8`), since status text appears on both.
+
+A guard in `design-tokens.test.ts` computes the WCAG ratio from the token values
+rather than asserting a number by hand, so it keeps holding if a value changes.
+It fails if a light-theme status foreground drops below 4.5:1, and it fails if
+an override is deleted.
+
+### Overlays
+
+Scrims and translucent panel fills use `--overlay-20` through `--overlay-60`,
+exposed as the `bg-overlay-*` utilities. The names are numeric on purpose: the
+call sites do not share a semantic hierarchy, and naming them `scrim` or `veil`
+would invent one.
 
 ## 5. Shared primitives
 

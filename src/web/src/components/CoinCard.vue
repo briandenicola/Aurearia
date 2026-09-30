@@ -28,7 +28,7 @@
       >
         <Check v-if="selected" :size="16" :stroke-width="3" />
       </div>
-      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_rgba(0,0,0,0.2),0_0_20px_var(--accent-gold-glow)]"></div>
+      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_var(--overlay-35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_var(--overlay-20),0_0_20px_var(--accent-gold-glow)]"></div>
     </div>
     <div class="flex flex-1 flex-col gap-1.5 p-4">
       <h3 class="overflow-hidden text-md leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
