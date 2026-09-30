@@ -589,10 +589,7 @@ func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (
 	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "Analyze returned %d: %s", resp.StatusCode, errMsg)
 		return "", agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -629,10 +626,7 @@ func (p *AgentProxy) GradeCoin(ctx context.Context, req GradeProxyRequest) (stri
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "Grade returned %d: %s", resp.StatusCode, errMsg)
 		return "", agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -644,7 +638,7 @@ func (p *AgentProxy) GradeCoin(ctx context.Context, req GradeProxyRequest) (stri
 	return result.Report, nil
 }
 
-func (p *AgentProxy) GenerateIntakeDraft(llmConfig LLMConfig, images []string, coinCardImage *string) (*IntakeProxyDraftResponse, error) {
+func (p *AgentProxy) GenerateIntakeDraft(ctx context.Context, llmConfig LLMConfig, images []string, coinCardImage *string) (*IntakeProxyDraftResponse, error) {
 	body, err := json.Marshal(IntakeProxyDraftRequest{
 		LLM:           llmConfig,
 		Images:        images,
@@ -654,7 +648,7 @@ func (p *AgentProxy) GenerateIntakeDraft(llmConfig LLMConfig, images []string, c
 		return nil, fmt.Errorf("marshal intake draft request: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/intake/draft", bytes.NewReader(body))
@@ -708,10 +702,7 @@ func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityChec
 	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "Availability check returned %d: %s", resp.StatusCode, errMsg)
 		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -751,10 +742,7 @@ func (p *AgentProxy) GetBidMarketSignal(ctx context.Context, req BidMarketSignal
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "Bid market signal returned %d: %s", resp.StatusCode, errMsg)
 		return BidMarketSignalProxyResponse{}, agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -862,10 +850,7 @@ func (p *AgentProxy) DiscoverAlertCandidates(ctx context.Context, req AlertDisco
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "Alert discovery returned %d: %s", resp.StatusCode, errMsg)
 		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -900,10 +885,7 @@ func (p *AgentProxy) SearchComparables(ctx context.Context, req ComparablesProxy
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "Comparables search returned %d: %s", resp.StatusCode, errMsg)
 		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -973,7 +955,10 @@ func (p *AgentProxy) ExtractWishlistURL(ctx context.Context, request WishlistURL
 
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("wishlist URL extraction returned %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+		if p.logger != nil {
+			p.logger.Error("agent-proxy", "Wishlist URL extraction returned %d: %s", resp.StatusCode, sanitizeAgentErrorBodyForLog(responseBody, 200))
+		}
+		return nil, fmt.Errorf("wishlist URL extraction: %w", agentServiceHTTPError(resp.StatusCode, responseBody))
 	}
 
 	var result WishlistURLExtractionResponse
@@ -1065,11 +1050,7 @@ func (p *AgentProxy) proxySSE(ctx context.Context, w http.ResponseWriter, path s
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		// Truncate error body to avoid logging sensitive data (API keys in echoed requests)
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "SSE proxy %s returned %d: %s", path, resp.StatusCode, errMsg)
 		return agentServiceHTTPError(resp.StatusCode, respBody)
 	}
@@ -1133,10 +1114,7 @@ func (p *AgentProxy) collectSSE(ctx context.Context, path string, payload any) (
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		logger.Error("agent-proxy", "collectSSE %s returned %d: %s", path, resp.StatusCode, errMsg)
 		return "", agentServiceHTTPError(resp.StatusCode, respBody)
 	}

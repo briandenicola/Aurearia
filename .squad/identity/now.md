@@ -94,3 +94,8 @@ No deployment or release is authorized.
 (no blockers; log `.squad/log/2026-09-30-beta-release-qc-audit.md`). A beta to
 main PR is open for owner review. Merge and release need separate explicit
 owner approval. #766 remains open and needs its own spec.
+
+**2026-09-30:** #785 (agent cancellation and error-body hygiene) is implemented,
+gated and reviewed PASS on `beta`; see
+[the #785 log](../log/2026-09-30-agent-proxy-cancellation-785.md). Owner
+acceptance is outstanding. #787 (#784 leftovers) and #766 remain open.

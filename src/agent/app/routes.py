@@ -41,6 +41,7 @@ from app.models.responses import (
     WishlistFeaturedSummaryResponse,
     WishlistURLExtractionResponse,
 )
+from app.request_cancellation import ClientDisconnectedError, cancel_on_disconnect
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
 from app.teams.availability_check import (
@@ -73,10 +74,13 @@ router = APIRouter(prefix="/api")
 @router.post("/wishlist-url/extract", response_model=WishlistURLExtractionResponse)
 async def wishlist_url_extract(
     request: WishlistURLExtractionRequest,
+    http_request: Request,
 ) -> WishlistURLExtractionResponse:
     """Extract a transient proposal from one Go-fetched, cleaned listing page."""
     try:
-        return await extract_wishlist_url(request)
+        return await cancel_on_disconnect(http_request, extract_wishlist_url(request))
+    except ClientDisconnectedError:
+        raise
     except Exception as exc:
         logger.exception("Wishlist URL extraction failed")
         raise HTTPException(status_code=502, detail="Listing extraction failed") from exc
@@ -125,7 +129,7 @@ async def execute_coin_copilot(request: CopilotExecuteRequest, http_request: Req
 
 
 @router.post("/search/alerts", response_model=AlertDiscoveryResponse)
-async def search_alerts(request: AlertDiscoveryRequest):
+async def search_alerts(request: AlertDiscoveryRequest, http_request: Request):
     """Discover source-backed wishlist search alert candidates. Stateless; no persistence."""
     logger.info(
         "POST /search/alerts — provider=%s, model=%s, alert_id=%s, max=%d",
@@ -134,11 +138,11 @@ async def search_alerts(request: AlertDiscoveryRequest):
         request.alert.alert_id,
         request.alert.max_candidates,
     )
-    return await discover_alert_candidates(request)
+    return await cancel_on_disconnect(http_request, discover_alert_candidates(request))
 
 
 @router.post("/search/comparables", response_model=ComparablesSearchResponse)
-async def search_comparables_route(request: ComparablesSearchRequest):
+async def search_comparables_route(request: ComparablesSearchRequest, http_request: Request):
     """One bounded dealer search for Quick Identify's price range. Stateless."""
     logger.info(
         "POST /search/comparables — provider=%s, model=%s, query=%.80s, limit=%d",
@@ -147,7 +151,7 @@ async def search_comparables_route(request: ComparablesSearchRequest):
         request.query,
         request.limit,
     )
-    return await search_comparables(request)
+    return await cancel_on_disconnect(http_request, search_comparables(request))
 
 
 def _build_messages(message: str, history: list | None = None, system_prompt: str = ""):
@@ -225,7 +229,7 @@ async def search_shows(request: CoinShowSearchRequest):
 
 
 @router.post("/analyze", response_model=AgentResponse)
-async def analyze_coin(request: AnalyzeRequest):
+async def analyze_coin(request: AnalyzeRequest, http_request: Request):
     """Analyze coin images using vision model. Returns structured response."""
     logger.info(
         "POST /analyze — provider=%s, model=%s, images=%d, side=%s, format_output=%s",
@@ -248,13 +252,18 @@ async def analyze_coin(request: AnalyzeRequest):
     # the nodes use state.get(key, closure_default). Passing empty values
     # here would override the closure defaults.
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": [],
-                "raw_analysis": "",
-                "formatted_analysis": "",
-            }
+        result = await cancel_on_disconnect(
+            http_request,
+            graph.ainvoke(
+                {
+                    "messages": [],
+                    "raw_analysis": "",
+                    "formatted_analysis": "",
+                }
+            ),
         )
+    except ClientDisconnectedError:
+        raise
     except Exception:
         logger.exception("Coin analysis graph execution failed")
         return AgentResponse(
@@ -271,7 +280,7 @@ async def analyze_coin(request: AnalyzeRequest):
 
 
 @router.post("/grade", response_model=GradeResponse)
-async def grade_coin(request: GradeRequest):
+async def grade_coin(request: GradeRequest, http_request: Request):
     """Estimate a coin grade from owner-scoped images. Stateless; no persistence."""
     logger.info(
         "POST /grade — provider=%s, model=%s, coin_id=%s, images=%d",
@@ -286,13 +295,18 @@ async def grade_coin(request: GradeRequest):
         images=request.images,
     )
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": [],
-                "raw_assessment": "",
-                "formatted_assessment": "",
-            }
+        result = await cancel_on_disconnect(
+            http_request,
+            graph.ainvoke(
+                {
+                    "messages": [],
+                    "raw_assessment": "",
+                    "formatted_assessment": "",
+                }
+            ),
         )
+    except ClientDisconnectedError:
+        raise
     except Exception as exc:
         logger.exception("Coin grading graph execution failed")
         raise HTTPException(status_code=502, detail="Coin grading failed") from exc
@@ -308,7 +322,7 @@ async def grade_coin(request: GradeRequest):
 
 
 @router.post("/intake/draft", response_model=IntakeDraftResponse)
-async def intake_draft(request: IntakeDraftRequest):
+async def intake_draft(request: IntakeDraftRequest, http_request: Request):
     """Generate a structured coin intake draft from image evidence."""
     logger.info(
         "POST /intake/draft — provider=%s, model=%s, images=%d, coin_card=%s",
@@ -317,10 +331,13 @@ async def intake_draft(request: IntakeDraftRequest):
         len(request.images),
         "yes" if request.coin_card_image else "no",
     )
-    return await generate_intake_draft(
-        llm_config=request.llm,
-        images=request.images,
-        coin_card_image=request.coin_card_image,
+    return await cancel_on_disconnect(
+        http_request,
+        generate_intake_draft(
+            llm_config=request.llm,
+            images=request.images,
+            coin_card_image=request.coin_card_image,
+        ),
     )
 
 
@@ -350,7 +367,7 @@ async def review_portfolio(request: PortfolioReviewRequest):
 
 
 @router.post("/check-availability", response_model=AvailabilityCheckResponse)
-async def check_availability(request: AvailabilityCheckRequest):
+async def check_availability(request: AvailabilityCheckRequest, http_request: Request):
     """Check listing availability for multiple coin URLs. Returns structured verdicts."""
     logger.info(
         "POST /check-availability — provider=%s, model=%s, items=%d",
@@ -366,14 +383,19 @@ async def check_availability(request: AvailabilityCheckRequest):
     items_data = [{"url": item.url, "coin_name": item.coin_name} for item in request.items]
 
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": [],
-                "items": items_data,
-                "raw_checks": "",
-                "verdicts": "",
-            }
+        result = await cancel_on_disconnect(
+            http_request,
+            graph.ainvoke(
+                {
+                    "messages": [],
+                    "items": items_data,
+                    "raw_checks": "",
+                    "verdicts": "",
+                }
+            ),
         )
+    except ClientDisconnectedError:
+        raise
     except Exception:
         logger.exception("Availability check graph execution failed")
         return AvailabilityCheckResponse(
@@ -413,7 +435,7 @@ async def check_availability(request: AvailabilityCheckRequest):
 
 
 @router.post("/bid-market-signal", response_model=MarketSignalResponse)
-async def bid_market_signal(request: BidMarketSignalRequest):
+async def bid_market_signal(request: BidMarketSignalRequest, http_request: Request):
     """Search current auction market data for a described lot and return a
     structured trend signal. Stateless; always returns 200 (degraded=True on
     any failure) so the Go caller can treat this as an additive, best-effort
@@ -428,7 +450,12 @@ async def bid_market_signal(request: BidMarketSignalRequest):
 
     graph = create_bid_market_signal_team(request.llm, coin=request.coin)
     try:
-        result = await graph.ainvoke({"coin_desc": "", "search_results": "", "signal_raw": ""})
+        result = await cancel_on_disconnect(
+            http_request,
+            graph.ainvoke({"coin_desc": "", "search_results": "", "signal_raw": ""}),
+        )
+    except ClientDisconnectedError:
+        raise
     except Exception:
         logger.exception("Bid market signal graph execution failed")
         return MarketSignalResponse(degraded=True, rationale="Unable to complete the market search right now.")
@@ -442,7 +469,7 @@ async def bid_market_signal(request: BidMarketSignalRequest):
 
 
 @router.post("/collection/wishlist-featured-summary", response_model=WishlistFeaturedSummaryResponse)
-async def wishlist_featured_summary(request: WishlistFeaturedSummaryRequest):
+async def wishlist_featured_summary(request: WishlistFeaturedSummaryRequest, http_request: Request):
     """Generate a concise wishlist featured-coin rationale. Stateless."""
     logger.info(
         "POST /collection/wishlist-featured-summary — provider=%s, model=%s, coin=%.80s",
@@ -451,7 +478,9 @@ async def wishlist_featured_summary(request: WishlistFeaturedSummaryRequest):
         request.coin.name,
     )
     try:
-        summary = await generate_wishlist_featured_summary(request)
+        summary = await cancel_on_disconnect(http_request, generate_wishlist_featured_summary(request))
+    except ClientDisconnectedError:
+        raise
     except Exception as exc:
         logger.exception("Wishlist featured summary generation failed")
         raise HTTPException(status_code=502, detail="Wishlist featured summary failed") from exc
@@ -463,7 +492,7 @@ async def wishlist_featured_summary(request: WishlistFeaturedSummaryRequest):
 # Dynamic Set Builder workflow route anchor:
 # specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
 @router.post("/set-builder/run", response_model=SetBuilderResponse)
-async def set_builder_run(request: SetBuilderRequest):
+async def set_builder_run(request: SetBuilderRequest, http_request: Request):
     """Run the multi-agent set-builder workflow. Stateless; returns structured
     proposal data only — never creates or modifies a set, slot, or coin.
     """
@@ -480,7 +509,7 @@ async def set_builder_run(request: SetBuilderRequest):
         MAX_SET_BUILDER_MAX_SLOTS,
         request.enable_external_lookup,
     )
-    return await run_set_builder_workflow(request)
+    return await cancel_on_disconnect(http_request, run_set_builder_workflow(request))
 
 
 # Deep Agentic Coin Identification streaming route anchor:

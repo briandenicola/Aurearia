@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request
 
 from app.models.browser_exploration import DecisionRequest, DecisionResponse
+from app.request_cancellation import cancel_on_disconnect
 from app.services.browser_exploration import ExplorationDecisionError, decide_browser_action
 
 router = APIRouter(prefix="/internal/browser-exploration", tags=["internal-browser-exploration"])
@@ -25,7 +26,10 @@ def _provider_config(decision: DecisionRequest, http_request: Request) -> dict[s
 @router.post("/decide", response_model=DecisionResponse, response_model_by_alias=True)
 async def decide(request: DecisionRequest, http_request: Request) -> DecisionResponse:
     try:
-        return await decide_browser_action(request, provider_config=_provider_config(request, http_request))
+        return await cancel_on_disconnect(
+            http_request,
+            decide_browser_action(request, provider_config=_provider_config(request, http_request)),
+        )
     except ExplorationDecisionError as exc:
         status = {
             "provider_rate_limited": 429,
