@@ -111,3 +111,7 @@ PASS: palette mapped (template literals 65 to 24, scoped hex 7 to 0),
 AA failures fixed. See
 [the #787 log](../log/2026-09-30-ui-followups-787.md). Next: owner light/dark
 visual pass, then acceptance. #766 still needs its own spec.
+
+**2026-09-30:** The owner passed the light/dark visual pass and accepted #787
+("passes"). A beta to main PR is being opened; merge and release need
+separate explicit owner approval. Open: #766 (needs its own spec).
