@@ -73,6 +73,12 @@ contract did not change.
 These are recorded here rather than only in `.squad/`, because agent-authored
 handoff logs cannot supply owner authorization.
 
+**Owner decision, 2026-09-30:** the owner accepted #784 and reported the visual
+pass complete ("accepted. visual passed."). That resolves item 2 and the
+cumulative palette shift in item 1b as shipped. Items 1 (the 65-literal
+palette choice), 3 and 4 were not addressed by that decision and remain open
+as follow-up work, not as blockers to #784.
+
 1. **The remaining 65 template colour literals need a palette decision.** They
    are not oversights. The app carries near-duplicate values with no single
    winner: greens `#2ecc71` / `#27ae60` / `#229954` / `#4ade80`; reds
