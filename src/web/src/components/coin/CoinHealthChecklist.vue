@@ -4,11 +4,11 @@
       <div
         class="inline-flex items-center gap-2 rounded-sm border px-4 py-2 text-body font-semibold"
         :class="{
-          'border-gain/30 bg-gain/15 text-gain': grade.toLowerCase() === 'a',
+          'border-status-success-border bg-status-success-bg text-gain': grade.toLowerCase() === 'a',
           'border-sky-500/30 bg-sky-500/15 text-sky-400': grade.toLowerCase() === 'b',
-          'border-warning/30 bg-warning/15 text-warning': grade.toLowerCase() === 'c',
+          'border-status-warning-border bg-status-warning-bg text-warning': grade.toLowerCase() === 'c',
           'border-orange-500/30 bg-orange-500/15 text-orange-400': grade.toLowerCase() === 'd',
-          'border-loss/30 bg-loss/15 text-loss': grade.toLowerCase() === 'f',
+          'border-status-error-border bg-status-error-bg text-loss': grade.toLowerCase() === 'f',
         }"
       >
         <span class="section-label !mb-0 opacity-80">Health Score</span>
@@ -19,7 +19,7 @@
 
     <div
       v-if="missingItems.length === 0"
-      class="flex items-center gap-2 rounded-sm border border-gain/30 bg-gain/15 px-3 py-3 text-body font-medium text-gain"
+      class="flex items-center gap-2 rounded-sm border border-status-success-border bg-status-success-bg px-3 py-3 text-body font-medium text-gain"
     >
       <CircleCheck :size="20" />
       <span>All quality checks passed</span>

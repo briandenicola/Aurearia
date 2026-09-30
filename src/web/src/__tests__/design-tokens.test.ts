@@ -81,37 +81,39 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     const HEX_COLOR = /#(?:[0-9a-fA-F]{3,4}){1,2}(?![0-9a-fA-F])/g
     const ALLOWED_HEX = new Set(['#000', '#000000', '#fff', '#ffffff'])
 
-    // Budget: known pre-existing violations as of 2026-06-06 after syncing origin/main.
-    // This number must only decrease over time.
-    const VIOLATION_BUDGET = 190
+    // Per-file budget (#787). This was a single net total of 190 against a
+    // real count of 7, so a file could add roughly 180 literals unnoticed.
+    // #787 then mapped those 7 onto the status tokens, so the map is empty:
+    // any file that adds one fails. Add an entry only with a stated reason.
+    const HEX_BUDGET = new Map<string, number>()
 
-    it('total hex color violations stay within budget', () => {
-      let totalViolations = 0
-      const details: string[] = []
+    it('hex color violations stay within their per-file budget', () => {
+      const violations: string[] = []
 
       for (const file of vueFiles) {
         const content = readFileSync(file, 'utf-8')
         const styles = extractScopedStyles(content)
         if (styles.length === 0) continue
+        const name = relative(SRC_DIR, file).split(sep).join('/')
+        let count = 0
 
         for (const style of styles) {
           const cleaned = style.replace(/\/\*[\s\S]*?\*\//g, '')
           const noVarFallback = cleaned.replace(/var\([^)]*\)/g, '')
-          let match
-          while ((match = HEX_COLOR.exec(noVarFallback)) !== null) {
-            if (!ALLOWED_HEX.has(match[0].toLowerCase())) {
-              totalViolations++
-              details.push(`${relative(SRC_DIR, file)}: ${match[0]}`)
-            }
+          for (const match of noVarFallback.matchAll(HEX_COLOR)) {
+            if (!ALLOWED_HEX.has(match[0].toLowerCase())) count++
           }
         }
+
+        const allowed = HEX_BUDGET.get(name) ?? 0
+        if (count > allowed) violations.push(`${name}: ${count} hex literals, budget ${allowed}`)
       }
 
       expect(
-        totalViolations,
-        `Hex color violations (${totalViolations}) exceed budget (${VIOLATION_BUDGET}). ` +
-        `Use CSS variables from variables.css instead:\n  ${details.join('\n  ')}`
-      ).toBeLessThanOrEqual(VIOLATION_BUDGET)
+        violations,
+        `Scoped-style hex colours exceed their per-file budget. ` +
+        `Use CSS variables from variables.css instead:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
     })
   })
 
@@ -305,23 +307,14 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       // four literals and brought those badges under the contrast guard, which
       // cannot measure a colour that is not in the token system.
       //
-      // Known gap, not closed here: the separate hex guard covering
-      // `<style scoped>` blocks is still a single net total, and a literal
-      // moved into `<script>` is counted by neither guard.
+      // #787 mapped the remaining near-duplicate status colours onto the
+      // status tokens. What is left is deliberate: the A-F grade ramps are a
+      // gradient, not status semantics; the purple bar has no semantic token;
+      // and the white 0.04 lift has no themed equivalent (the overlay tokens
+      // are black scrims).
       const COLOR_BUDGET = new Map([
-        ['components/auction/AuctionLotDetailModal.vue', 16],
-        ['components/stats/CollectionHealthScorecard.vue', 16],
+        ['components/stats/CollectionHealthScorecard.vue', 12],
         ['components/collection/NeedsAttentionQueue.vue', 10],
-        ['components/admin/AdminAISection.vue', 6],
-        ['pages/NotificationsPage.vue', 3],
-        ['components/AuctionLotCard.vue', 2],
-        ['components/admin/AdminHealthSection.vue', 2],
-        ['components/wishlist-alerts/AlertCriteriaSummary.vue', 2],
-        ['pages/CoinLookupPage.vue', 2],
-        ['components/HelpSection.vue', 1],
-        ['components/admin/schedules/AdminValuationSchedule.vue', 1],
-        ['pages/FollowerCoinDetailPage.vue', 1],
-        ['pages/NotesPage.vue', 1],
         ['pages/PublicShowcasePage.vue', 1],
         ['pages/SetDetailPage.vue', 1],
       ])
@@ -341,6 +334,43 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       expect(
         violations,
         `Hardcoded template colour literals exceed their per-file budget:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('keeps hardcoded colour literals in script blocks within budget', () => {
+      // A class string built in <script> (e.g. a computed badgeCls) escaped
+      // both the template and the scoped-style guards (#787). Same per-file
+      // ratchet. What remains is data rather than styling: user-selectable tag
+      // colours, fallback set/category colours stored with records, and the
+      // BaseButton/BaseBadge primitives, which are out of #787's scope.
+      const SCRIPT_BUDGET = new Map([
+        ['components/settings/SettingsDataSection.vue', 12],
+        ['components/ui/BaseButton.vue', 4],
+        ['components/ui/BaseBadge.vue', 3],
+        ['pages/FollowerCoinDetailPage.vue', 2],
+        ['pages/SetProposalReviewPage.vue', 2],
+        ['pages/SetDetailPage.vue', 1],
+        ['pages/TimelinePage.vue', 1],
+      ])
+      const violations: string[] = []
+
+      for (const file of vueFiles) {
+        const content = readFileSync(file, 'utf-8')
+        const name = relative(SRC_DIR, file).split(sep).join('/')
+        let count = 0
+        for (const block of content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)) {
+          const code = block[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+          count += (code.match(/rgba?\(|#[0-9a-fA-F]{3,8}\b/g) ?? []).length
+        }
+        const allowed = SCRIPT_BUDGET.get(name) ?? 0
+        if (count > allowed) {
+          violations.push(`${name}: ${count} literals, budget ${allowed} — use a design token`)
+        }
+      }
+
+      expect(
+        violations,
+        `Hardcoded script colour literals exceed their per-file budget:\n  ${violations.join('\n  ')}`
       ).toEqual([])
     })
 
@@ -685,13 +715,75 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
     const NON_COLOUR_TEXT =
       /^(xs|sm|base|lg|xl|[2-9]xl|left|right|center|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty|body|chip|label|micro|display|heading)$/
 
-    type Pairing = { fg: string; fill: string; sources: Set<string> }
+    // The tokens components consume, not the source tokens they alias to.
+    const TONES = ['success', 'error', 'warning', 'info', 'neutral']
+    const BARE_TEXT = [
+      'color-positive',
+      'color-negative',
+      'text-warning',
+      'confidence-high',
+      'confidence-medium',
+      'confidence-low',
+      ...TONES.map((tone) => `status-${tone}-fg`),
+    ]
+
+    // A fill is measured when it is a status fill, or when it paints a status
+    // foreground token solid (bg-gain, bg-loss). The second set is derived
+    // from BARE_TEXT rather than listed.
+    function isMeasuredFill(utility: string): boolean {
+      const token = utilityToken.get(utility)
+      return !!token && (/^status-[a-z]+-(?:bg|tint)$/.test(token) || BARE_TEXT.includes(token))
+    }
+
+    type ClassPair = { fill: string; fillAlpha: number; text: string; textAlpha: number }
+
+    // Parses one class list into the fill/text pairs that render together.
+    // Pairs are made per variant state: a hover: fill renders with the hover:
+    // text colour if there is one, otherwise with the colour of the next less
+    // specific state (dark:hover: -> hover: -> resting). It never renders with
+    // a resting colour that its own variant replaces. Important markers (a
+    // leading or trailing !) are stripped, and an opacity modifier (/NN) is
+    // carried as an alpha rather than dropped, so neither spelling escapes.
+    function parseClassList(chunk: string, isFill: (utility: string) => boolean): ClassPair[] {
+      type Entry = { name: string; alpha: number }
+      const fills = new Map<string, Entry>()
+      const texts = new Map<string, Entry[]>()
+      for (const cls of chunk.split(/\s+/).filter(Boolean)) {
+        const cut = cls.lastIndexOf(':')
+        const variant = cls.slice(0, cut + 1)
+        const utility = cls.slice(cut + 1).replace(/^!|!$/g, '')
+        const parsed = /^(bg|text)-([a-z0-9-]+)(?:\/([0-9.]+))?$/.exec(utility)
+        if (!parsed) continue
+        const entry = { name: parsed[2], alpha: parsed[3] ? parseFloat(parsed[3]) / 100 : 1 }
+        if (parsed[1] === 'bg' && isFill(entry.name)) fills.set(variant, entry)
+        if (parsed[1] === 'text' && !NON_COLOUR_TEXT.test(entry.name)) {
+          texts.set(variant, [...(texts.get(variant) ?? []), entry])
+        }
+      }
+      function lookup<T>(map: Map<string, T>, variant: string): T | undefined {
+        for (let v = variant; ; v = v.slice(v.indexOf(':') + 1)) {
+          if (map.has(v)) return map.get(v)
+          if (v === '') return undefined
+        }
+      }
+      const pairs: ClassPair[] = []
+      for (const variant of new Set(['', ...fills.keys(), ...texts.keys()])) {
+        const fill = lookup(fills, variant)
+        if (!fill) continue
+        for (const text of lookup(texts, variant) ?? []) {
+          pairs.push({ fill: fill.name, fillAlpha: fill.alpha, text: text.name, textAlpha: text.alpha })
+        }
+      }
+      return pairs
+    }
+
+    type Pairing = { fg: string; fgAlpha: number; fill: string; fillAlpha: number; sources: Set<string> }
     const pairings = new Map<string, Pairing>()
     const nonToken: string[] = []
 
-    function addPairing(fg: string, fill: string, source: string): void {
-      const key = `${fg}|${fill}`
-      if (!pairings.has(key)) pairings.set(key, { fg, fill, sources: new Set() })
+    function addPairing(fg: string, fill: string, source: string, fgAlpha = 1, fillAlpha = 1): void {
+      const key = `${fg}/${fgAlpha}|${fill}/${fillAlpha}`
+      if (!pairings.has(key)) pairings.set(key, { fg, fgAlpha, fill, fillAlpha, sources: new Set() })
       pairings.get(key)!.sources.add(source)
     }
 
@@ -707,23 +799,34 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       return chunks
     }
 
+    // Class strings can also be built in <script>, e.g. a computed
+    // `badgeCls: 'bg-status-success-bg text-status-success-fg'` bound with
+    // :class. Each string literal there is treated as one class list; one
+    // that holds no measured fill yields no pairs.
+    function scriptChunks(text: string): string[] {
+      const chunks: string[] = []
+      for (const block of text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)) {
+        // A template literal's ${} expressions are blanked, so its static
+        // classes are still read and its backticks cannot pair with another's.
+        for (const literal of block[1].matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`]*)`/g)) {
+          chunks.push(literal[1] ?? literal[2] ?? literal[3].replace(/\$\{[^}]*\}/g, ' '))
+        }
+      }
+      return chunks
+    }
+
     for (const file of collectVueFiles(SRC_DIR)) {
       const text = readFileSync(file, 'utf-8')
       const rel = relative(SRC_DIR, file).split(sep).join('/')
-      for (const tag of text.matchAll(/<[a-zA-Z][^>]*>/g)) {
-        for (const chunk of classChunks(tag[0])) {
-          const fill = /(?:^|[\s:])bg-(status-[a-z]+-bg)(?![a-z0-9-])/.exec(chunk)?.[1]
-          if (!fill) continue
-          for (const utility of chunk.matchAll(/(?:^|[\s:])text-([a-z0-9-]+)/g)) {
-            const name = utility[1]
-            if (NON_COLOUR_TEXT.test(name)) continue
-            const token = utilityToken.get(name)
-            if (!token) {
-              nonToken.push(`${rel}: text-${name} on bg-${fill}`)
-              continue
-            }
-            addPairing(token, fill, rel)
+      const chunks = [...[...text.matchAll(/<[a-zA-Z][^>]*>/g)].flatMap((tag) => classChunks(tag[0])), ...scriptChunks(text)]
+      for (const chunk of chunks) {
+        for (const pair of parseClassList(chunk, isMeasuredFill)) {
+          const token = utilityToken.get(pair.text)
+          if (!token) {
+            nonToken.push(`${rel}: text-${pair.text} on bg-${pair.fill}`)
+            continue
           }
+          addPairing(token, utilityToken.get(pair.fill)!, rel, pair.textAlpha, pair.fillAlpha)
         }
       }
       // Components may build the token names dynamically, e.g. BaseStatusBadge:
@@ -738,18 +841,6 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
         for (const tone of tones) addPairing(`status-${tone}-fg`, `status-${tone}-bg`, rel)
       }
     }
-
-    // The tokens components consume, not the source tokens they alias to.
-    const TONES = ['success', 'error', 'warning', 'info', 'neutral']
-    const BARE_TEXT = [
-      'color-positive',
-      'color-negative',
-      'text-warning',
-      'confidence-high',
-      'confidence-medium',
-      'confidence-low',
-      ...TONES.map((tone) => `status-${tone}-fg`),
-    ]
 
     function required(theme: string, scope: string, name: string): Rgba {
       const value = resolve(scope, name)
@@ -769,6 +860,49 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
           required(theme, scope, name)
         }
       }
+    })
+
+    it('parses class lists into the pairs that actually render', () => {
+      const fill = (u: string): boolean => u.startsWith('status-')
+      const pairs = (chunk: string): string[] =>
+        parseClassList(chunk, fill).map(
+          (p) => `${p.text}${p.textAlpha < 1 ? `/${p.textAlpha * 100}` : ''} on ${p.fill}${p.fillAlpha < 1 ? `/${p.fillAlpha * 100}` : ''}`
+        )
+      // Resting fill and colour.
+      expect(pairs('bg-status-error-bg text-loss')).toEqual(['loss on status-error-bg'])
+      // Resting fill with only a hover: colour: both states render on the fill.
+      expect(pairs('bg-status-error-bg text-muted hover:text-loss').sort()).toEqual(
+        ['loss on status-error-bg', 'muted on status-error-bg']
+      )
+      // hover: fill with a resting colour only: the resting colour shows on it.
+      expect(pairs('text-muted hover:bg-status-error-tint')).toEqual(['muted on status-error-tint'])
+      // hover: fill with a hover: colour: the resting colour never shows on it.
+      expect(pairs('text-muted hover:bg-status-error-tint hover:text-loss')).toEqual(['loss on status-error-tint'])
+      // Stacked variants fall back through the chain, not straight to resting.
+      expect(pairs('text-muted hover:bg-status-info-bg hover:text-gold dark:hover:text-loss').sort()).toEqual(
+        ['gold on status-info-bg', 'loss on status-info-bg']
+      )
+      expect(pairs('text-muted group-hover:bg-status-info-bg')).toEqual(['muted on status-info-bg'])
+      // Important markers in either position.
+      expect(pairs('!bg-status-error-bg text-loss!')).toEqual(['loss on status-error-bg'])
+      expect(pairs('bg-status-error-bg! !text-loss')).toEqual(['loss on status-error-bg'])
+      // Opacity modifiers are carried, not dropped.
+      expect(pairs('bg-status-error-bg/50 text-loss/80')).toEqual(['loss/80 on status-error-bg/50'])
+      // Size and alignment utilities are not colours; unmeasured fills pair nothing.
+      expect(pairs('bg-status-error-bg text-sm text-center')).toEqual([])
+      expect(pairs('bg-card text-loss')).toEqual([])
+    })
+
+    it('reads class strings built in <script>', () => {
+      expect(scriptChunks("<script setup>\nconst c = { badgeCls: 'bg-gain text-surface' }\n</script>")).toContain(
+        'bg-gain text-surface'
+      )
+      expect(scriptChunks('<script>\nconst a = `bg-status-error-bg ${x} text-loss`\n</script>')).toContain(
+        'bg-status-error-bg   text-loss'
+      )
+      expect(isMeasuredFill('gain'), 'a solid status foreground used as a fill is measured').toBe(true)
+      expect(isMeasuredFill('status-error-tint')).toBe(true)
+      expect(isMeasuredFill('card')).toBe(false)
     })
 
     it('pairs status fills only with colours from the token system', () => {
@@ -804,12 +938,15 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
       for (const [theme, scope] of themes) {
         for (const surface of SURFACES) {
           const under = required(theme, scope, surface)
-          for (const { fg, fill, sources } of pairings.values()) {
-            const composited = composite(required(theme, scope, fill), under)
-            const ratio = contrast(required(theme, scope, fg), composited)
+          for (const { fg, fgAlpha, fill, fillAlpha, sources } of pairings.values()) {
+            const fillColour = required(theme, scope, fill)
+            const fgColour = required(theme, scope, fg)
+            const composited = composite({ ...fillColour, alpha: fillColour.alpha * fillAlpha }, under)
+            const ratio = contrast({ ...fgColour, alpha: fgColour.alpha * fgAlpha }, composited)
             if (ratio < AA) {
+              const opacity = (alpha: number): string => (alpha < 1 ? ` at ${Math.round(alpha * 100)}%` : '')
               failures.push(
-                `${theme}: --${fg} on --${fill} over --${surface} is ${ratio.toFixed(2)}:1` +
+                `${theme}: --${fg}${opacity(fgAlpha)} on --${fill}${opacity(fillAlpha)} over --${surface} is ${ratio.toFixed(2)}:1` +
                   ` [${[...sources].join(', ')}]`
               )
             }

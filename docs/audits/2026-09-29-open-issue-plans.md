@@ -13,7 +13,8 @@
 | F. #780 | Done (see `.squad/log/2026-09-29-gofmt-780.md`) | commit that adds that log |
 | F. #781 | Done (see `.squad/log/2026-09-29-create-agent-781.md`) | commit that adds that log |
 | #784 | Slice 1 (shared toggle + status-badge primitives, design-system doc) reviewed PASS at `af2df567`. Slice 2 (typography scale + colour utilities, 170 arbitrary sizes and 154 raw `var()` classes to zero) reviewed PASS at `f265ff87`; owner review of the running app still outstanding. Slice 3 (casing + shared `.data-table` recipe) reviewed BLOCK at `8bdbbcb7` — five tables inlined the header recipe per-`th` and escaped both the codemod and the guard — repaired and reviewed PASS at `8dd0dbb7`. Slice 4 (colour tokens, overlays, and the light-theme WCAG AA failure on every status colour) reviewed BLOCK twice, repaired and reviewed PASS at `1600e4f2`: literals 139 to 65, budget now per-file, contrast guard derives its cases from source. Owner accepted #784 with the visual pass on 2026-09-30 (section G). The remaining 65 literals (palette decision), the deferred `text-xs` fold and the named guard gaps are follow-up work | accepted `d4f77459` |
-| #785 | Verified, reviewed PASS; owner acceptance outstanding. Cancellation passes through to the agent for 11 non-streaming routes; every non-200 path sanitized (9 sites in `agent_proxy.go` plus deep-identify, not 8 as the log states); intake ctx threaded; the pre-PR audit fix redacts nested validation inputs (see `.squad/log/2026-09-30-agent-proxy-cancellation-785.md`) | `b68bf534` + audit follow-up commit |
+| #785 | Accepted by the owner and released to main via PR #788 (`72db0512`) on 2026-09-30. Cancellation passes through to the agent for 11 non-streaming routes; every non-200 path sanitized (9 sites in `agent_proxy.go` plus deep-identify, not 8 as the log states); intake ctx threaded; the pre-PR audit fix redacts nested validation inputs (see `.squad/log/2026-09-30-agent-proxy-cancellation-785.md`) | `b68bf534` + audit follow-up commit |
+| #787 | Implemented on beta: palette mapped (template literals 65 to 24), `text-xs` fold dropped, three guard gaps closed (section G). Reviewed PASS; owner visual pass passed and #787 accepted on 2026-09-30 | see `.squad/log/2026-09-30-ui-followups-787.md` |
 
 Owner-approved local setup on 2026-09-29 (this machine): Go 1.27.1,
 `task setup:go`, `task setup:openapi`, Python 3.12 via uv and
@@ -80,7 +81,33 @@ cumulative palette shift in item 1b as shipped. Items 1 (the 65-literal
 palette choice), 3 and 4 were not addressed by that decision and remain open
 as follow-up work, not as blockers to #784.
 
-1. **The remaining 65 template colour literals need a palette decision.** They
+**Owner decisions for #787, 2026-09-30:** items 1, 3 and 4 were carried into
+#787 and decided there.
+
+- **Item 1, palette: map.** Near-duplicate status colours map onto the status
+  tokens; the A-F grade ramps stay literal. Template literals went 65 to 24
+  (the two ramps, 20; the purple scorecard bar, 2; the white 0.04 lift on
+  `PublicShowcasePage` and `SetDetailPage`, 1 each, which has no themed token).
+  `COLOR_BUDGET` lowered to match.
+- **Item 3, `text-xs`: dropped.** Folding it into `text-sm` is a ~7% height
+  change on 35 elements (line-height 1.3333 vs 1.4286) for no visual gain; the
+  two steps stay distinct.
+- **Item 4, guard gaps: closed.** The scoped-style hex guard is per-file (it
+  was a net 190 against a real 7, and those 7 are now status tokens, so the
+  budget is empty). A new per-file guard counts literals in `<script>`
+  blocks. The contrast guard now also reads `<script>` string literals, so
+  `AuctionLotCard`'s `badgeCls` is measured, not just counted; derives `-tint`
+  fills and solid `bg-gain`/`bg-loss` fills; pairs per variant with fallback
+  through the chain; strips `!` in either position; and measures `/NN`
+  opacity. The parser has kept test cases for each.
+- **Found by the widened guard:** `bg-gain/15 text-gain`-style pills in
+  `CoinHealthChecklist`, `CoinListingStatus` and `CoinSearchChat` failed AA in
+  the light and louvre themes (lowest 3.96:1), because 15% of the darker
+  light-theme green is a darker fill than the status token. They now use the
+  `bg-status-*-bg` fills. The Winning/Outbid pill on the auction card sits on
+  the coin photo, so it stays solid: `bg-gain`/`bg-loss` with `text-surface`.
+
+1. *(Resolved by #787, see above.)* **The remaining 65 template colour literals need a palette decision.** They
    are not oversights. The app carries near-duplicate values with no single
    winner: greens `#2ecc71` / `#27ae60` / `#229954` / `#4ade80`; reds
    `#e74c3c` / `#f87171` / `#ef4444` / `#c0392b`; ambers `#f39c12` / `#f59e0b`
@@ -133,12 +160,12 @@ as follow-up work, not as blockers to #784.
    it changed, and the greens darkened noticeably. Then check a dark theme's
    badges — the error red lightened in all five.
 
-3. **`text-xs` is deferred, not dropped.** It duplicates `text-sm` at
+3. *(Resolved by #787, see above.)* **`text-xs` is deferred, not dropped.** It duplicates `text-sm` at
    `0.75rem` across 35 call sites but carries a different Tailwind line-height
    (1.3333 vs 1.4286), so folding them is a ~7% height change on those
    elements, not a rename. It needs its own slice and its own visual check.
 
-4. **Three guard gaps stay open.** The `<style scoped>` hex guard is still a
+4. *(Resolved by #787, see above.)* **Three guard gaps stay open.** The `<style scoped>` hex guard is still a
    single net total (190), and a colour literal moved into `<script>` is
    counted by no guard at all.
 

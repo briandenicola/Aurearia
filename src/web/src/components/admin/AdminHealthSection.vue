@@ -34,7 +34,7 @@
       </div>
 
       <div class="flex gap-4 rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] transition-all hover:border-border-accent hover:shadow-[var(--shadow-glow)]">
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-[rgba(243,156,18,0.15)] text-[#f39c12]">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-status-warning-bg text-warning">
           <AlertTriangle :size="24" />
         </div>
         <div class="flex flex-1 flex-col gap-[0.35rem]">

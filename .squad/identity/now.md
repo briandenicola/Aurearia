@@ -99,3 +99,19 @@ echoing the nested `llm.api_key` into returned errors) was fixed on top. Owner
 acceptance of #785 is outstanding. A new beta to main PR is being opened for
 owner review; merge and release need separate explicit owner approval. #787
 (#784 leftovers) and #766 remain open.
+
+**2026-09-30:** The owner merged PR #788 to `main` as `72db0512` (all main
+checks and the Docker Hub publish green) and accepted #785, which is closed.
+Open: #787 (#784 leftovers) and #766 (needs its own spec). No further
+release is authorized.
+
+**2026-09-30:** #787 (#784 leftovers) is implemented on `beta` and reviewed
+PASS: palette mapped (template literals 65 to 24, scoped hex 7 to 0),
+`text-xs` fold dropped, guard gaps closed, and three pre-existing light-theme
+AA failures fixed. See
+[the #787 log](../log/2026-09-30-ui-followups-787.md). Next: owner light/dark
+visual pass, then acceptance. #766 still needs its own spec.
+
+**2026-09-30:** The owner passed the light/dark visual pass and accepted #787
+("passes"). A beta to main PR is being opened; merge and release need
+separate explicit owner approval. Open: #766 (needs its own spec).

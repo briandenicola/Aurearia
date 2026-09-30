@@ -431,7 +431,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II (337-361 AD),ancient,An
         </ul>
 
         <h4>Cleaning</h4>
-        <p class="my-3 rounded-r-sm border-l-[3px] border-l-warning bg-[rgba(231,76,60,0.08)] px-[0.85rem] py-[0.6rem] text-body text-text-primary">🚫 <strong>Never clean an ancient coin.</strong> Cleaning almost always reduces a coin's value, often dramatically. The natural patina that develops over centuries is considered part of the coin's character and beauty.</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-warning bg-status-error-tint px-[0.85rem] py-[0.6rem] text-body text-text-primary">🚫 <strong>Never clean an ancient coin.</strong> Cleaning almost always reduces a coin's value, often dramatically. The natural patina that develops over centuries is considered part of the coin's character and beauty.</p>
         <ul>
           <li><strong>No brushing, polishing, or chemical dips</strong> — These remove patina permanently</li>
           <li><strong>Avoid "coin cleaning" products</strong> — They are designed for modern coins and will damage ancients</li>

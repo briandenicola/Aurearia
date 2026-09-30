@@ -37,7 +37,7 @@
       </div>
     </div>
     <div class="flex flex-1 flex-col gap-[0.35rem] p-4">
-      <div v-if="needsAttention" class="flex items-center gap-1 text-sm font-semibold text-[#f59e0b]" title="This lot's auction has closed but its status hasn't been confirmed yet">
+      <div v-if="needsAttention" class="flex items-center gap-1 text-sm font-semibold text-warning" title="This lot's auction has closed but its status hasn't been confirmed yet">
         <AlertTriangle :size="13" /> Needs attention
       </div>
       <h3 class="overflow-hidden text-base leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{{ lot.title }}</h3>
@@ -82,7 +82,7 @@
         </div>
         <div v-if="lot.winningBid" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]">
           <span class="text-text-secondary">{{ lot.status === 'lost' ? 'Sold For' : 'Won' }}</span>
-          <span class="font-semibold" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-[#4ade80]'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
+          <span class="font-semibold" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-gain'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
         </div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
@@ -161,9 +161,9 @@ const { label: countdown } = useCountdown(countdownTarget)
 const biddingIndicator = computed(() => {
   if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
   if (props.lot.maxBid >= props.lot.currentBid) {
-    return { label: 'Winning', badgeCls: 'bg-[#4ade80] text-[#052e13]' }
+    return { label: 'Winning', badgeCls: 'bg-gain text-surface' }
   }
-  return { label: 'Outbid', badgeCls: 'bg-[#f87171] text-[#450a0a]' }
+  return { label: 'Outbid', badgeCls: 'bg-loss text-surface' }
 })
 
 const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))

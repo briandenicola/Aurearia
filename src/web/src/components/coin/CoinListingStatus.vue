@@ -4,9 +4,9 @@
       <span
         class="inline-block rounded-full px-[0.6rem] py-[0.2rem] text-sm font-semibold"
         :class="{
-          'bg-gain/15 text-gain': listingStatus === 'available',
-          'bg-loss/15 text-loss': listingStatus === 'unavailable',
-          'bg-warning/15 text-warning': listingStatus === 'unknown',
+          'bg-status-success-bg text-gain': listingStatus === 'available',
+          'bg-status-error-bg text-loss': listingStatus === 'unavailable',
+          'bg-status-warning-bg text-warning': listingStatus === 'unknown',
         }"
       >{{ listingStatus === 'available' ? 'Available' : listingStatus === 'unavailable' ? 'Unavailable' : 'Unknown' }}</span>
       <button class="btn btn-ghost btn-xs" @click="handleDismiss">Dismiss</button>

@@ -80,9 +80,9 @@ function logLevelClass(level: string) {
 /* Log level badge colors — too many color variants to express cleanly as Tailwind
    arbitrary values inside :class bindings; keep as scoped CSS for clarity. */
 .log-error .log-level-badge,
-.log-error .break-words { color: #e74c3c; }
-.log-warn .log-level-badge { color: #f39c12; }
-.log-debug .log-level-badge { color: #3498db; }
-.log-trace .log-level-badge { color: #7f8c8d; }
-.log-info .log-level-badge { color: #2ecc71; }
+.log-error .break-words { color: var(--status-error-fg); }
+.log-warn .log-level-badge { color: var(--status-warning-fg); }
+.log-debug .log-level-badge { color: var(--status-info-fg); }
+.log-trace .log-level-badge { color: var(--status-neutral-fg); }
+.log-info .log-level-badge { color: var(--status-success-fg); }
 </style>
