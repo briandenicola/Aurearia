@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,7 +62,7 @@ type IntakeCommitResponse struct {
 }
 
 type IntakeProxyClient interface {
-	GenerateIntakeDraft(llmConfig LLMConfig, images []string, coinCardImage *string) (*IntakeProxyDraftResponse, error)
+	GenerateIntakeDraft(ctx context.Context, llmConfig LLMConfig, images []string, coinCardImage *string) (*IntakeProxyDraftResponse, error)
 }
 
 type LLMConfigResolver interface {
@@ -98,7 +99,7 @@ func NewCoinIntakeService(
 	}
 }
 
-func (s *CoinIntakeService) CreateDraft(userID uint, req IntakeDraftRequest) (*IntakeDraftResponse, error) {
+func (s *CoinIntakeService) CreateDraft(ctx context.Context, userID uint, req IntakeDraftRequest) (*IntakeDraftResponse, error) {
 	if len(req.Images) == 0 {
 		return nil, fmt.Errorf("at least one image is required")
 	}
@@ -108,7 +109,7 @@ func (s *CoinIntakeService) CreateDraft(userID uint, req IntakeDraftRequest) (*I
 		return nil, err
 	}
 
-	aiDraft, err := s.proxyClient.GenerateIntakeDraft(llmCfg, req.Images, req.CoinCardImage)
+	aiDraft, err := s.proxyClient.GenerateIntakeDraft(ctx, llmCfg, req.Images, req.CoinCardImage)
 	if err != nil {
 		return nil, err
 	}

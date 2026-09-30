@@ -71,7 +71,7 @@ func (h *CoinIntakeHandler) CreateDraft(c *gin.Context) {
 		coinCardImage = &cardURI
 	}
 
-	draft, err := h.service.CreateDraft(userID, services.IntakeDraftRequest{
+	draft, err := h.service.CreateDraft(c.Request.Context(), userID, services.IntakeDraftRequest{
 		Images:        images,
 		CoinCardImage: coinCardImage,
 	})

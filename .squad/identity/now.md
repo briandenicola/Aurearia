@@ -85,12 +85,17 @@ Slice 4 is **reviewed PASS at `1600e4f2`** and the block is cleared. All four
 #784 slices are now implemented, gated and independently reviewed — and the owner
 **accepted #784 on 2026-09-30** with the visual pass complete.
 
-**The owner's visual pass is now overdue across all four slices**, and the
-light theme should be first — its status colours all move in slice 4 and
-nobody has looked at any of it. Then #766, which still needs its own spec.
-No deployment or release is authorized.
+Then #766, which still needs its own spec. No deployment or release is
+authorized.
 
-**2026-09-30:** Release QC audit of `beta` @ `d4f77459` vs `main` returned PASS
-(no blockers; log `.squad/log/2026-09-30-beta-release-qc-audit.md`). A beta to
-main PR is open for owner review. Merge and release need separate explicit
-owner approval. #766 remains open and needs its own spec.
+**2026-09-30:** The previous beta to main release PR (#786) was audited PASS
+and merged by the owner as `fb4322b4`; its Docker Hub publish completed.
+
+**2026-09-30:** #785 (agent cancellation and error-body hygiene) is verified on
+`beta` (`b68bf534`, reviewed PASS twice); see
+[the #785 log](../log/2026-09-30-agent-proxy-cancellation-785.md). The
+pre-PR QC audit found no blockers; its F1 follow-up (a 422 missing-field input
+echoing the nested `llm.api_key` into returned errors) was fixed on top. Owner
+acceptance of #785 is outstanding. A new beta to main PR is being opened for
+owner review; merge and release need separate explicit owner approval. #787
+(#784 leftovers) and #766 remain open.

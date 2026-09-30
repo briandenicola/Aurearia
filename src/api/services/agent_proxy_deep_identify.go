@@ -148,10 +148,7 @@ func (p *AgentProxy) StreamDeepIdentification(ctx context.Context, req DeepIdent
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
-		}
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 200)
 		if logger != nil {
 			logger.Error("agent-proxy", "deep-identify stream returned %d: %s", resp.StatusCode, errMsg)
 		}
