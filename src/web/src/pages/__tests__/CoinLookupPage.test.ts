@@ -255,8 +255,9 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('2 current listings from $180.00 to $420.00')
     expect(wrapper.text()).toContain('Example Coins')
     expect(wrapper.text()).not.toContain('Estimated Price Range')
-    const links = wrapper.findAll('a').filter(link => link.attributes('href')?.startsWith('https://dealer.example'))
-    expect(links).toHaveLength(2)
+    const listingUrls = ['https://dealer.example/a', 'https://dealer.example/b']
+    const links = wrapper.findAll('a').filter(link => listingUrls.includes(link.attributes('href') ?? ''))
+    expect(links.map(link => link.attributes('href'))).toEqual(listingUrls)
     expect(links[0].attributes('rel')).toBe('noopener noreferrer')
 
     const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
