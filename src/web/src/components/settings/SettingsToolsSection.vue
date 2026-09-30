@@ -1,12 +1,12 @@
 <template>
   <section class="card">
-    <h2 class="text-[1.1rem] font-medium mb-5 pb-3 border-b border-border-subtle">Image Processor</h2>
+    <h2 class="text-md font-medium mb-5 pb-3 border-b border-border-subtle">Image Processor</h2>
     <p class="text-sm text-text-muted mb-4">
       Remove backgrounds and crop coin images for your collection.
     </p>
     <ImageProcessor @saved="(coinId: number) => $emit('saved', coinId)" />
 
-    <h3 class="text-[0.95rem] mt-5 mb-3 text-text-secondary">Blocked Users</h3>
+    <h3 class="text-base mt-5 mb-3 text-text-secondary">Blocked Users</h3>
     <p class="text-sm text-text-muted mb-3">
       Blocked users cannot send you follow requests or view your collection.
     </p>

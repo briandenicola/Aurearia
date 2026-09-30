@@ -110,7 +110,7 @@
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="trayFeltColor === 'red'
-            ? 'bg-[var(--felt-red-dim)] text-[var(--felt-red-bright)]'
+            ? 'bg-[var(--felt-red-dim)] text-felt-red-bright'
             : 'bg-transparent text-text-secondary'"
           @click="$emit('set-tray-felt-color', 'red')"
         >
@@ -119,7 +119,7 @@
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="trayFeltColor === 'green'
-            ? 'bg-[var(--felt-green-dim)] text-[var(--felt-green-bright)]'
+            ? 'bg-[var(--felt-green-dim)] text-felt-green-bright'
             : 'bg-transparent text-text-secondary'"
           @click="$emit('set-tray-felt-color', 'green')"
         >
@@ -128,7 +128,7 @@
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="trayFeltColor === 'navy'
-            ? 'bg-[var(--felt-navy-dim)] text-[var(--felt-navy-bright)]'
+            ? 'bg-[var(--felt-navy-dim)] text-felt-navy-bright'
             : 'bg-transparent text-text-secondary'"
           @click="$emit('set-tray-felt-color', 'navy')"
         >
@@ -161,7 +161,7 @@
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-base font-medium">Swipe Navigation</span>
         <span class="text-sm text-text-muted">Swipe left or right on a coin's pages to move between its sections. Applies to the installed app only; it has no effect in a web browser.</span>
-        <span v-if="pwaSwipeNavError" class="mt-1 text-chip text-[var(--color-negative)]">{{ pwaSwipeNavError }}</span>
+        <span v-if="pwaSwipeNavError" class="mt-1 text-chip text-loss">{{ pwaSwipeNavError }}</span>
       </div>
       <BaseToggle
         label="Swipe navigation"

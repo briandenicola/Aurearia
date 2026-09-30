@@ -24,7 +24,7 @@
 
     <div
       v-else-if="loadError"
-      class="flex items-start gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-[var(--color-negative)]"
+      class="flex items-start gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-loss"
       role="alert"
     >
       <AlertCircle :size="18" />
@@ -70,13 +70,13 @@
             v-if="testResults[provider.id]"
             class="flex items-start gap-2 rounded-sm border p-[0.8rem] text-body"
             :class="testResults[provider.id]?.available
-              ? 'border-[var(--color-positive)] bg-[color-mix(in_srgb,var(--color-positive)_14%,transparent)] text-[var(--color-positive)]'
-              : 'border-[var(--color-negative)] bg-[color-mix(in_srgb,var(--color-negative)_14%,transparent)] text-[var(--color-negative)]'"
+              ? 'border-[var(--color-positive)] bg-[color-mix(in_srgb,var(--color-positive)_14%,transparent)] text-gain'
+              : 'border-[var(--color-negative)] bg-[color-mix(in_srgb,var(--color-negative)_14%,transparent)] text-loss'"
           >
             <CheckCircle v-if="testResults[provider.id]?.available" :size="16" />
             <AlertCircle v-else :size="16" />
             <div>
-              <strong :class="testResults[provider.id]?.available ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
+              <strong :class="testResults[provider.id]?.available ? 'text-gain' : 'text-loss'">
                 {{ testResults[provider.id]?.available ? 'Discovery succeeded' : 'Discovery failed' }}
               </strong>
               <p class="mt-[0.15rem] text-text-secondary">{{ testResults[provider.id]?.message }}</p>
@@ -269,7 +269,7 @@
 
           <div
             v-if="formError"
-            class="mb-4 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-body text-[var(--color-negative)]"
+            class="mb-4 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-body text-loss"
             role="alert"
           >
             <div class="flex items-center gap-2">

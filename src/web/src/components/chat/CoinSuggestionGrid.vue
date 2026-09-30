@@ -9,7 +9,7 @@
         <img :src="getSuggestionImageUrl(coin)" :alt="coin.name" class="h-full w-full object-cover" @error="handleImgError" />
       </div>
       <div class="min-w-0 flex-1 p-3">
-        <h4 class="mb-1 text-[0.85rem] leading-snug text-text-primary">{{ coin.name }}</h4>
+        <h4 class="mb-1 text-body leading-snug text-text-primary">{{ coin.name }}</h4>
         <p class="mb-1.5 line-clamp-2 text-sm text-text-secondary">{{ coin.description }}</p>
         <div class="mb-1.5 flex flex-wrap gap-1">
           <span v-if="coin.era" class="chip-sm">{{ coin.era }}</span>

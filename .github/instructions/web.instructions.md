@@ -61,16 +61,31 @@ All CSS values **must** use design tokens from `variables.css` and global classe
 
 #### Typography Scale
 
-| Element | Font | Size | Weight |
-|---|---|---|---|
-| h1 | Cinzel | `2rem` | 600 |
-| h2 | Cinzel | `1.5rem` | 500 |
-| h3 | Cinzel | `1.2rem` | 500 |
-| h4 | Cinzel | `0.9rem` | 500 |
-| Body | Inter | `0.9rem` | 400 |
-| Secondary | Inter | `0.85rem` | 400 |
-| Small | Inter | `0.8rem` | 400 |
-| Tiny | Inter | `0.75rem` | 500 |
+One scale, defined in the `@theme` block of `src/web/src/assets/styles/main.css`.
+`text-[0.82rem]` and any other arbitrary absolute size is a test failure. The
+only exception is an `em` value inside rendered markdown.
+
+| Utility | Size | Use for |
+|---|---|---|
+| `text-2xs` | `0.55rem` | Dense data grids, phone widths only |
+| `text-micro` | `0.65rem` | Dense data grids, micro-chips |
+| `text-label` | `0.7rem` | Section labels, table headers |
+| `text-sm` | `0.75rem` | Badges, `.chip-sm` |
+| `text-chip` | `0.8rem` | Chip text, field hints |
+| `text-body` | `0.85rem` | Form labels, secondary body |
+| `text-base` | `0.9rem` | Primary body, h4 |
+| `text-md` | `1.1rem` | Card and modal titles |
+| `text-lg` | `1.2rem` | h3 |
+| `text-xl` | `1.5rem` | h2 |
+| `text-2xl` | `2rem` | h1, stat numerals |
+| `text-3xl` | `2.5rem` | Hero numerals |
+| `text-4xl` | `3rem` | Single headline numeral |
+
+Headings use Cinzel (`font-display`) at weights 600 / 500 / 500 / 500 for
+h1–h4; body copy uses Inter (`font-sans`).
+
+For colour, use the theme utility (`text-loss`), never `text-[var(--color-negative)]`.
+Both render the same, but only the utility is auditable and guard-enforced.
 
 #### Uppercase Labels
 

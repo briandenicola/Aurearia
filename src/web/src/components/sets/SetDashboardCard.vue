@@ -10,12 +10,12 @@
       aria-hidden="true"
     ></span>
     <span class="flex min-w-0 flex-col gap-1">
-      <span class="truncate font-display text-[1.1rem] font-medium tracking-[0.02em] text-heading min-[561px]:text-[1.35rem]">{{ set.name }}</span>
+      <span class="truncate font-display text-md font-medium tracking-[0.02em] text-heading min-[561px]:text-xl">{{ set.name }}</span>
       <span v-if="setDescription" class="text-body text-text-muted">{{ setDescription }}</span>
     </span>
     <span class="flex items-center justify-end gap-[0.85rem]">
       <span class="flex min-w-14 flex-col items-end whitespace-nowrap">
-        <span class="font-sans text-[2.25rem] leading-[0.85] font-bold text-gold min-[561px]:text-[2.75rem]">{{ set.coinCount }}</span>
+        <span class="font-sans text-3xl leading-[0.85] font-bold text-gold min-[561px]:text-4xl">{{ set.coinCount }}</span>
         <span class="text-sm font-semibold text-gold min-[561px]:text-base">{{ set.coinCount === 1 ? 'Coin' : 'Coins' }}</span>
       </span>
     </span>

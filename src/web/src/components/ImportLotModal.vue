@@ -16,7 +16,7 @@
             placeholder="https://www.numisbids.com/... or https://auctions.cngcoins.com/..."
             :disabled="importing"
           />
-          <p class="mt-1.5 text-[0.78rem] text-text-muted">Paste a lot page URL from NumisBids or CNG Auctions. CNG can sync hosted outcomes where available; NumisBids final outcomes are manual.</p>
+          <p class="mt-1.5 text-chip text-text-muted">Paste a lot page URL from NumisBids or CNG Auctions. CNG can sync hosted outcomes where available; NumisBids final outcomes are manual.</p>
         </div>
 
         <div v-if="error" class="mt-2 text-body text-loss">{{ error }}</div>
@@ -26,8 +26,8 @@
             <img :src="proxiedImageUrl" :alt="preview.title" class="h-[200px] w-full object-contain" />
           </div>
           <div class="p-4">
-            <h4 class="mb-1 text-[0.95rem] leading-[1.3] font-medium text-text-primary">{{ preview.title }}</h4>
-            <p v-if="preview.auctionHouse" class="mb-1 text-[0.82rem] text-text-secondary">{{ preview.auctionHouse }}</p>
+            <h4 class="mb-1 text-base leading-[1.3] font-medium text-text-primary">{{ preview.title }}</h4>
+            <p v-if="preview.auctionHouse" class="mb-1 text-chip text-text-secondary">{{ preview.auctionHouse }}</p>
             <p v-if="preview.estimate" class="text-body text-text-secondary">Estimate: {{ formatCurrency(preview.estimate) }}</p>
             <p v-if="preview.currentBid" class="text-body font-semibold text-gold">Current Bid: {{ formatCurrency(preview.currentBid) }}</p>
           </div>

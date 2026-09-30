@@ -33,7 +33,7 @@
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
               class="font-display text-xl font-semibold"
-              :class="netGainLoss >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
+              :class="netGainLoss >= 0 ? 'text-gain' : 'text-loss'"
             >
               {{ netGainLoss >= 0 ? '+' : '' }}{{ formatCurrency(netGainLoss) }}
             </span>
@@ -42,7 +42,7 @@
           <div v-if="stats.values.totalPurchasePrice" class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
               class="font-display text-xl font-semibold"
-              :class="roi >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
+              :class="roi >= 0 ? 'text-gain' : 'text-loss'"
             >
               {{ roi >= 0 ? '+' : '' }}{{ roi.toFixed(1) }}%
             </span>

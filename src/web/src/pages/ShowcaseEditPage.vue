@@ -42,12 +42,12 @@
         </button>
       </div>
 
-      <div v-if="savedMessage" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-[var(--bg-primary)]">{{ savedMessage }}</div>
+      <div v-if="savedMessage" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-surface">{{ savedMessage }}</div>
 
       <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div class="card flex max-h-[70vh] flex-col overflow-hidden p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="m-0 text-[1.1rem] text-text-primary">Your Collection</h2>
+            <h2 class="m-0 text-md text-text-primary">Your Collection</h2>
             <span class="text-chip text-text-secondary">{{ availableCoins.length }} coins</span>
           </div>
           <div class="mb-3 flex items-center gap-2 rounded-sm border border-border-subtle bg-card px-3 py-2 text-text-secondary">
@@ -81,7 +81,7 @@
 
         <div class="card flex max-h-[70vh] flex-col overflow-hidden p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="m-0 text-[1.1rem] text-text-primary">Showcase Coins</h2>
+            <h2 class="m-0 text-md text-text-primary">Showcase Coins</h2>
             <span class="text-chip text-text-secondary">{{ selectedCoinIds.length }} selected</span>
           </div>
           <div class="flex flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto">
@@ -105,7 +105,7 @@
                 </div>
               </template>
               <span v-else class="min-w-0 flex-1 truncate text-base font-medium text-text-primary">Coin #{{ coinId }}</span>
-              <button class="inline-flex shrink-0 rounded-sm p-1 text-text-secondary transition-colors hover:text-[var(--error-bg)]" @click="removeCoin(coinId)" title="Remove">
+              <button class="inline-flex shrink-0 rounded-sm p-1 text-text-secondary transition-colors hover:text-error-bg" @click="removeCoin(coinId)" title="Remove">
                 <X :size="16" />
               </button>
             </div>

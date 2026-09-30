@@ -61,7 +61,7 @@
         </div>
       </div>
 
-      <p v-if="msg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': error }">{{ msg }}</p>
+      <p v-if="msg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': error }">{{ msg }}</p>
     </form>
 
     <section class="mt-4 rounded-md border border-border-subtle bg-card-hover p-4" aria-labelledby="custom-locations-heading">
@@ -73,7 +73,7 @@
         <span class="chip-sm">{{ mintLocations.length }} locations</span>
       </div>
 
-      <p v-if="mintLocationError" class="mb-2 text-body text-[var(--cat-byzantine)]">{{ mintLocationError }}</p>
+      <p v-if="mintLocationError" class="mb-2 text-body text-byzantine">{{ mintLocationError }}</p>
       <p v-if="mintLocationsLoading" class="text-body text-text-secondary">Loading mint locations...</p>
 
       <div v-else class="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] md:items-start">
@@ -149,7 +149,7 @@
                     </div>
                   </form>
 
-                  <p v-if="nomismaError" class="mt-2 text-body text-[var(--cat-byzantine)]" role="status" aria-live="polite">{{ nomismaError }}</p>
+                  <p v-if="nomismaError" class="mt-2 text-body text-byzantine" role="status" aria-live="polite">{{ nomismaError }}</p>
                   <p v-else-if="nomismaSearchStatus === 'no_match'" class="mt-2 text-body text-text-secondary" role="status" aria-live="polite">
                     No Nomisma candidates found for this query.
                   </p>

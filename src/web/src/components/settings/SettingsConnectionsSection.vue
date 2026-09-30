@@ -23,13 +23,13 @@
     </div>
     <div
       v-else-if="nbValidationError"
-      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-loss"
     >
       {{ nbValidationError }}
     </div>
     <div
       v-else-if="auth.user?.numisBidsConfigured"
-      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
     >
       NumisBids account connected
     </div>
@@ -55,13 +55,13 @@
     </div>
     <div
       v-else-if="cngValidationError"
-      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-loss"
     >
       {{ cngValidationError }}
     </div>
     <div
       v-else-if="auth.user?.cngConfigured"
-      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
     >
       CNG account connected
     </div>
@@ -77,7 +77,7 @@
     </div>
     <div
       v-if="auth.user?.parcelAppConfigured"
-      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
     >
       ParcelApp key connected
     </div>
@@ -93,7 +93,7 @@
     </div>
     <div
       v-if="auth.user?.pushoverEnabled"
-      class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+      class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
     >
       Pushover notifications active
     </div>
@@ -107,7 +107,7 @@
     <p
       v-if="pushoverTestMsg"
       class="mt-1 text-body text-gold"
-      :class="{ 'text-[var(--color-negative)]': pushoverTestError }"
+      :class="{ 'text-loss': pushoverTestError }"
     >
       {{ pushoverTestMsg }}
     </p>
@@ -119,7 +119,7 @@
     >
       {{ nbValidating || cngValidating ? 'Validating...' : profileSaving ? 'Saving...' : 'Save Connections' }}
     </button>
-    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': profileError }">{{ profileMsg }}</p>
+    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-loss': profileError }">{{ profileMsg }}</p>
   </section>
 </template>
 

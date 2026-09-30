@@ -1,6 +1,6 @@
 <template>
   <section class="card">
-    <h2 class="text-[1.1rem] font-medium mb-5 pb-3 border-b border-border-subtle">Saved Conversations</h2>
+    <h2 class="text-md font-medium mb-5 pb-3 border-b border-border-subtle">Saved Conversations</h2>
     <p class="text-sm text-text-muted mb-4">
       Your saved AI coin search conversations. Open one to continue the search or review results.
     </p>

@@ -105,7 +105,7 @@
             </span>
           </button>
           <button
-            class="w-full rounded-sm px-3 py-2 text-left text-body text-[var(--error-bg)] transition-all hover:bg-card-hover"
+            class="w-full rounded-sm px-3 py-2 text-left text-body text-error-bg transition-all hover:bg-card-hover"
             role="menuitem"
             @click="deleteSet"
           >
@@ -124,7 +124,7 @@
       />
 
       <div class="space-y-4">
-        <p v-if="canReorderCoins && coins.length > 1" class="m-0 max-w-none text-left text-body text-text-secondary md:text-right" :class="{ 'text-[var(--confidence-low)]': orderError }" aria-live="polite">
+        <p v-if="canReorderCoins && coins.length > 1" class="m-0 max-w-none text-left text-body text-text-secondary md:text-right" :class="{ 'text-confidence-low': orderError }" aria-live="polite">
           <span v-if="savingOrder">Saving order...</span>
           <span v-else-if="orderError">{{ orderError }}</span>
           <span v-else>Drag rows or use the arrows to arrange this set.</span>
@@ -144,7 +144,7 @@
         >
           <div class="flex flex-col gap-4">
             <div class="flex justify-center md:justify-center">
-              <label class="inline-flex w-full items-center justify-between gap-3 rounded-full border border-border-subtle bg-[rgba(255,255,255,0.04)] px-3 py-2 text-[0.8rem] font-semibold uppercase tracking-[0.04em] text-text-secondary md:w-auto md:justify-start">
+              <label class="inline-flex w-full items-center justify-between gap-3 rounded-full border border-border-subtle bg-[rgba(255,255,255,0.04)] px-3 py-2 text-chip font-semibold uppercase tracking-[0.04em] text-text-secondary md:w-auto md:justify-start">
                 <span>Coin size</span>
                 <input
                   id="set-tray-size-slider"
@@ -259,7 +259,7 @@
         <p class="section-label mb-3">{{ slotTargetLabel }}</p>
         <form @submit.prevent="assignCoinToSlot">
           <SetCoinPicker v-model="slotCoinIdToAssign" :selected-coin="coins.find(coin => coin.id === currentSlotCoinId)" :excluded-ids="assignedToOtherSlots" :allow-wishlist="false" search-id="slotCoinSearch" select-id="slotCoinToAssign" />
-          <p v-if="slotAssignmentError" class="mt-2 text-chip text-[var(--error-bg)]" role="alert">{{ slotAssignmentError }}</p>
+          <p v-if="slotAssignmentError" class="mt-2 text-chip text-error-bg" role="alert">{{ slotAssignmentError }}</p>
           <div class="mt-6 flex justify-end gap-2">
             <button type="button" class="btn btn-ghost" :disabled="slotAssignmentSaving" @click="showAssignSlotModal = false">Cancel</button>
             <button v-if="currentSlotCoinId" type="button" class="btn btn-danger" :disabled="slotAssignmentSaving" @click="clearSlotAssignment">Clear Slot</button>

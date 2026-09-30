@@ -11,7 +11,7 @@
     </div>
 
     <div v-if="loading" class="text-sm text-text-secondary">Loading shipment summary...</div>
-    <p v-else-if="errorMessage" class="text-sm text-[var(--color-negative)]">{{ errorMessage }}</p>
+    <p v-else-if="errorMessage" class="text-sm text-loss">{{ errorMessage }}</p>
     <template v-else>
       <p class="mb-3 text-sm text-text-muted">
         Total active shipments: <strong class="text-text-primary">{{ rows.length }}</strong>
@@ -20,11 +20,11 @@
         <table class="min-w-full border-collapse">
           <thead class="bg-card">
             <tr>
-              <th class="px-3 py-2 text-left text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-text-muted">Coin</th>
-              <th class="px-3 py-2 text-left text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-text-muted">Status</th>
-              <th class="px-3 py-2 text-left text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-text-muted">Carrier</th>
-              <th class="px-3 py-2 text-left text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-text-muted">Tracking</th>
-              <th class="px-3 py-2 text-left text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-text-muted">ETA</th>
+              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Coin</th>
+              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Status</th>
+              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Carrier</th>
+              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Tracking</th>
+              <th class="px-3 py-2 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">ETA</th>
             </tr>
           </thead>
           <tbody>
@@ -33,7 +33,7 @@
                 <RouterLink :to="`/coin/${row.coinId}/shipment`" class="text-gold hover:underline">
                   {{ row.coinName }}
                 </RouterLink>
-                <p v-if="row.lastSyncError" class="m-0 mt-1 text-xs text-[var(--color-negative)]">
+                <p v-if="row.lastSyncError" class="m-0 mt-1 text-xs text-loss">
                   {{ row.lastSyncError }}
                 </p>
               </td>

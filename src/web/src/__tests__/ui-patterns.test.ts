@@ -148,13 +148,14 @@ describe('UI pattern recipes', () => {
 
     // These CSS values now come from Tailwind utilities: `min-h-20` = 5rem,
     // `h-16` = 4rem (Tailwind's default 0.25rem spacing scale), `items-end` =
-    // align-items: flex-end, `text-[2.75rem]` is the literal font size, and
-    // `rounded-md` resolves to the app's `--radius-md` theme token.
+    // align-items: flex-end, `text-4xl` is the 3rem top step of the app's
+    // typography scale, and `rounded-md` resolves to the app's `--radius-md`
+    // theme token.
     expect(setCard).toContain('Standard set')
     expect(setCard).toContain('min-[561px]:min-h-20')
     expect(setCard).toContain('min-[561px]:h-16')
     expect(setCard).toContain('items-end')
-    expect(setCard).toContain('min-[561px]:text-[2.75rem]')
+    expect(setCard).toContain('min-[561px]:text-4xl')
     expect(setCard).toContain('rounded-md')
     expect(setCard).not.toContain('completion-meter')
     expect(setCard).not.toContain('Completion set')

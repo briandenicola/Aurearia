@@ -73,7 +73,7 @@
                   class="h-12 w-12 shrink-0 rounded-full border-2 border-border-subtle object-cover"
                 />
                 <div class="min-w-0 flex-1">
-                  <span class="block truncate text-[0.95rem] font-semibold text-text-primary">{{ user.username }}</span>
+                  <span class="block truncate text-base font-semibold text-text-primary">{{ user.username }}</span>
                   <p v-if="user.bio" class="mt-[0.2rem] truncate text-chip leading-[1.3] text-text-muted">{{ truncate(user.bio, 80) }}</p>
                   <div class="mt-[0.3rem]">
                     <span
@@ -120,7 +120,7 @@
                   class="h-12 w-12 shrink-0 rounded-full border-2 border-border-subtle object-cover"
                 />
                 <div class="min-w-0 flex-1">
-                  <span class="block truncate text-[0.95rem] font-semibold text-text-primary">{{ user.username }}</span>
+                  <span class="block truncate text-base font-semibold text-text-primary">{{ user.username }}</span>
                   <p v-if="user.bio" class="mt-[0.2rem] truncate text-chip leading-[1.3] text-text-muted">{{ truncate(user.bio, 80) }}</p>
                   <span
                     v-if="user.status === 'pending'"
@@ -202,7 +202,7 @@
                     class="h-12 w-12 shrink-0 rounded-full border-2 border-border-subtle object-cover"
                   />
                   <div class="min-w-0 flex-1">
-                    <span class="block truncate text-[0.95rem] font-semibold text-text-primary">{{ user.username }}</span>
+                    <span class="block truncate text-base font-semibold text-text-primary">{{ user.username }}</span>
                     <p v-if="user.bio" class="mt-[0.2rem] truncate text-chip leading-[1.3] text-text-muted">{{ truncate(user.bio, 60) }}</p>
                   </div>
                 </div>
@@ -221,7 +221,7 @@
                   </span>
                   <span
                     v-else-if="user.followStatus === 'blocked'"
-                    class="inline-flex rounded-full bg-[var(--accent-gold-glow)] px-2 py-[0.15rem] text-label font-medium text-[var(--error-bg)]"
+                    class="inline-flex rounded-full bg-[var(--accent-gold-glow)] px-2 py-[0.15rem] text-label font-medium text-error-bg"
                   >
                     Blocked
                   </span>

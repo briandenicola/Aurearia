@@ -64,8 +64,8 @@
                         row.change === null
                           ? 'text-text-muted'
                           : row.change >= 0
-                            ? 'text-[var(--color-positive)]'
-                            : 'text-[var(--color-negative)]'"
+                            ? 'text-gain'
+                            : 'text-loss'"
                     >
                       {{ row.change === null ? '—' : (row.change >= 0 ? '+' : '') + formatCurrency(row.change) }}
                     </td>

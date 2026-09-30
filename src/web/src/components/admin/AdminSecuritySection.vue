@@ -13,7 +13,7 @@
 
       <div
         v-if="error"
-        class="mb-4 flex items-start gap-2 rounded-sm border border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] p-3 text-body text-[var(--color-negative)]"
+        class="mb-4 flex items-start gap-2 rounded-sm border border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] p-3 text-body text-loss"
         role="alert"
       >
         <AlertTriangle :size="18" />

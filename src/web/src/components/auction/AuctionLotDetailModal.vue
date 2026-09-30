@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-[1000] flex overflow-x-hidden overflow-y-auto bg-overlay-full p-4 [-webkit-overflow-scrolling:touch]" @click.self="$emit('close')">
     <div class="card mx-auto my-auto w-full min-w-0 max-w-[560px] p-0">
       <div class="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
-        <h2 class="min-w-0 text-[1.1rem] leading-[1.35] [overflow-wrap:anywhere]">{{ lot.title }}</h2>
+        <h2 class="min-w-0 text-md leading-[1.35] [overflow-wrap:anywhere]">{{ lot.title }}</h2>
         <div class="header-actions shrink-0 gap-1">
           <button
             v-if="canPin"
@@ -30,52 +30,52 @@
       </div>
 
       <div v-if="!isEditing" class="px-6 py-5">
-        <div v-if="lot.auctionHouse" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Auction House</span>
+        <div v-if="lot.auctionHouse" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Auction House</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ lot.auctionHouse }}</span>
         </div>
-        <div v-if="lot.saleName" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Sale</span>
+        <div v-if="lot.saleName" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Sale</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ lot.saleName }}</span>
         </div>
-        <div v-if="lot.lotNumber" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Lot #</span>
+        <div v-if="lot.lotNumber" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Lot #</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ lot.lotNumber }}</span>
         </div>
-        <div v-if="lot.saleDate" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Sale Date</span>
+        <div v-if="lot.saleDate" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Sale Date</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ formatDate(lot.saleDate) }}</span>
         </div>
-        <div v-if="lot.auctionEndTime" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Ends</span>
+        <div v-if="lot.auctionEndTime" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Ends</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ formatDateTime(lot.auctionEndTime) }}</span>
         </div>
-        <div v-if="lot.estimate" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Estimate</span>
+        <div v-if="lot.estimate" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Estimate</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ formatCurrency(lot.estimate, lot.currency) }}</span>
         </div>
-        <div v-if="lot.initialBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Initial Bid</span>
+        <div v-if="lot.initialBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Initial Bid</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ formatCurrency(lot.initialBid, lot.currency) }}</span>
         </div>
-        <div v-if="lot.currentBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Current Bid</span>
+        <div v-if="lot.currentBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Current Bid</span>
           <span class="min-w-0 text-right font-semibold text-gold [overflow-wrap:anywhere]">{{ formatCurrency(lot.currentBid, lot.currency) }}</span>
         </div>
-        <div v-if="lot.maxBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Max Bid</span>
+        <div v-if="lot.maxBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Max Bid</span>
           <span class="min-w-0 text-right font-semibold text-gold/80 [overflow-wrap:anywhere]">{{ formatCurrency(lot.maxBid, lot.currency) }}</span>
         </div>
-        <div v-if="lot.winningBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">{{ lot.status === 'lost' ? 'Sold For' : 'Winning Bid' }}</span>
+        <div v-if="lot.winningBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">{{ lot.status === 'lost' ? 'Sold For' : 'Winning Bid' }}</span>
           <span class="min-w-0 text-right font-semibold [overflow-wrap:anywhere]" :class="lot.status === 'lost' ? 'text-text-primary' : 'text-[#4ade80]'">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
         </div>
-        <div v-if="biddingIndicator" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Bid Status</span>
+        <div v-if="biddingIndicator" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Bid Status</span>
           <span class="min-w-0 text-right font-semibold [overflow-wrap:anywhere]" :class="biddingIndicator.cls">{{ biddingIndicator.label }}</span>
         </div>
-        <div class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
-          <span class="text-[0.82rem] text-text-secondary">Status</span>
+        <div class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-base">
+          <span class="text-chip text-text-secondary">Status</span>
           <span
             class="rounded-full px-[0.55rem] py-[0.15rem] text-sm font-semibold uppercase"
             :class="{
@@ -89,26 +89,26 @@
             {{ currentStatus }}
           </span>
         </div>
-        <div v-if="statusSourceLabel" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.82rem] text-text-muted" :title="statusSourceLabel.title">
-          <span class="text-[0.82rem] text-text-secondary">Confirmed by</span>
+        <div v-if="statusSourceLabel" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-chip text-text-muted" :title="statusSourceLabel.title">
+          <span class="text-chip text-text-secondary">Confirmed by</span>
           <span>{{ statusSourceLabel.text }}</span>
         </div>
-        <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-[rgba(245,158,11,0.12)] px-2.5 py-1.5 text-[0.82rem] font-semibold text-[#f59e0b]">
+        <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-[rgba(245,158,11,0.12)] px-2.5 py-1.5 text-chip font-semibold text-[#f59e0b]">
           <AlertTriangle :size="14" /> This lot's auction has closed but its status hasn't been confirmed yet
         </div>
         <div v-if="lot.description" class="mt-3">
-          <span class="text-[0.82rem] text-text-secondary">Description</span>
+          <span class="text-chip text-text-secondary">Description</span>
           <p class="mt-1.5 text-body leading-6 text-text-secondary [overflow-wrap:anywhere]">{{ lot.description }}</p>
         </div>
         <div v-if="lot.notes" class="mt-3">
-          <span class="text-[0.82rem] text-text-secondary">Notes</span>
+          <span class="text-chip text-text-secondary">Notes</span>
           <p class="mt-1.5 text-body leading-6 text-text-secondary [overflow-wrap:anywhere]">{{ lot.notes }}</p>
         </div>
 
         <section v-if="canManageAlerts" class="mt-4 grid gap-3 border-t border-border-subtle pt-4">
           <div class="grid gap-2">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[0.82rem] text-text-secondary">Price Alerts</span>
+              <span class="text-chip text-text-secondary">Price Alerts</span>
               <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }}</span>
             </div>
             <div v-if="priceAlerts.length" class="grid gap-[0.35rem]">
@@ -142,7 +142,7 @@
 
           <div class="grid gap-2">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[0.82rem] text-text-secondary">Bid Reminders</span>
+              <span class="text-chip text-text-secondary">Bid Reminders</span>
               <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }}</span>
             </div>
             <div v-if="bidReminders.length" class="grid gap-[0.35rem]">
@@ -166,63 +166,63 @@
               <button class="btn btn-secondary btn-sm control-btn control-btn-fixed" :disabled="reminderBusy || !canCreateReminder" @click="saveReminder">Add Reminder</button>
             </div>
           </div>
-          <p v-if="alertMessage" class="m-0 text-chip" :class="alertError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ alertMessage }}</p>
+          <p v-if="alertMessage" class="m-0 text-chip" :class="alertError ? 'text-loss' : 'text-gold'">{{ alertMessage }}</p>
         </section>
       </div>
 
       <div v-else class="flex flex-col gap-[0.85rem] px-6 py-5">
         <div class="form-group">
-          <label class="text-[0.82rem] text-text-secondary">Title</label>
-          <input v-model="editForm.title" type="text" class="form-input w-full text-[0.88rem]" />
+          <label class="text-chip text-text-secondary">Title</label>
+          <input v-model="editForm.title" type="text" class="form-input w-full text-base" />
         </div>
         <div class="form-group">
-          <label class="text-[0.82rem] text-text-secondary">Auction URL</label>
-          <input v-model="editForm.numisBidsUrl" type="url" class="form-input w-full text-[0.88rem]" placeholder="https://..." />
+          <label class="text-chip text-text-secondary">Auction URL</label>
+          <input v-model="editForm.numisBidsUrl" type="url" class="form-input w-full text-base" placeholder="https://..." />
         </div>
         <div class="grid gap-[0.85rem] md:grid-cols-2">
           <div class="form-group">
-            <label class="text-[0.82rem] text-text-secondary">Auction House</label>
-            <input v-model="editForm.auctionHouse" type="text" class="form-input w-full text-[0.88rem]" />
+            <label class="text-chip text-text-secondary">Auction House</label>
+            <input v-model="editForm.auctionHouse" type="text" class="form-input w-full text-base" />
           </div>
           <div class="form-group">
-            <label class="text-[0.82rem] text-text-secondary">Sale Name</label>
-            <input v-model="editForm.saleName" type="text" class="form-input w-full text-[0.88rem]" />
-          </div>
-        </div>
-        <div class="grid gap-[0.85rem] md:grid-cols-2">
-          <div class="form-group">
-            <label class="text-[0.82rem] text-text-secondary">Lot #</label>
-            <input v-model.number="editForm.lotNumber" type="number" class="form-input w-full text-[0.88rem]" min="0" />
-          </div>
-          <div class="form-group">
-            <label class="text-[0.82rem] text-text-secondary">Estimate</label>
-            <input v-model.number="editForm.estimate" type="number" class="form-input w-full text-[0.88rem]" min="0" step="0.01" />
+            <label class="text-chip text-text-secondary">Sale Name</label>
+            <input v-model="editForm.saleName" type="text" class="form-input w-full text-base" />
           </div>
         </div>
         <div class="grid gap-[0.85rem] md:grid-cols-2">
           <div class="form-group">
-            <label class="text-[0.82rem] text-text-secondary">Sale Date</label>
-            <input v-model="editForm.saleDate" type="date" class="form-input w-full text-[0.88rem]" />
+            <label class="text-chip text-text-secondary">Lot #</label>
+            <input v-model.number="editForm.lotNumber" type="number" class="form-input w-full text-base" min="0" />
           </div>
           <div class="form-group">
-            <label class="text-[0.82rem] text-text-secondary">End Date / Time</label>
-            <input v-model="editForm.auctionEndTime" type="datetime-local" class="form-input w-full text-[0.88rem]" />
+            <label class="text-chip text-text-secondary">Estimate</label>
+            <input v-model.number="editForm.estimate" type="number" class="form-input w-full text-base" min="0" step="0.01" />
+          </div>
+        </div>
+        <div class="grid gap-[0.85rem] md:grid-cols-2">
+          <div class="form-group">
+            <label class="text-chip text-text-secondary">Sale Date</label>
+            <input v-model="editForm.saleDate" type="date" class="form-input w-full text-base" />
+          </div>
+          <div class="form-group">
+            <label class="text-chip text-text-secondary">End Date / Time</label>
+            <input v-model="editForm.auctionEndTime" type="datetime-local" class="form-input w-full text-base" />
           </div>
         </div>
         <div class="form-group">
-          <label class="text-[0.82rem] text-text-secondary">Description</label>
-          <textarea v-model="editForm.description" class="form-input w-full resize-y text-[0.88rem] leading-[1.45]" rows="3" />
+          <label class="text-chip text-text-secondary">Description</label>
+          <textarea v-model="editForm.description" class="form-input w-full resize-y text-base leading-[1.45]" rows="3" />
         </div>
         <div class="form-group">
-          <label class="text-[0.82rem] text-text-secondary">Notes</label>
+          <label class="text-chip text-text-secondary">Notes</label>
           <textarea
             v-model="editForm.notes"
-            class="form-input w-full resize-y text-[0.88rem] leading-[1.45]"
+            class="form-input w-full resize-y text-base leading-[1.45]"
             rows="4"
             placeholder="Personal notes about this auction lot..."
           />
         </div>
-        <p v-if="editError" class="m-0 text-[0.82rem] text-[var(--color-negative)]">{{ editError }}</p>
+        <p v-if="editError" class="m-0 text-chip text-loss">{{ editError }}</p>
         <div class="mt-2 flex justify-end gap-2">
           <button class="btn btn-secondary" :disabled="editSaving" @click="cancelEdit">Cancel</button>
           <button class="btn btn-primary" :disabled="editSaving" @click="saveEdit">
@@ -247,7 +247,7 @@
         <p
           v-if="statusMessage"
           class="m-0 text-chip"
-          :class="statusError ? 'text-[var(--color-negative)]' : 'text-gold'"
+          :class="statusError ? 'text-loss' : 'text-gold'"
           :role="statusError ? 'alert' : 'status'"
           :aria-live="statusError ? 'assertive' : 'polite'"
           aria-atomic="true"
@@ -255,7 +255,7 @@
           {{ statusMessage }}
         </p>
         <div v-if="newStatus === 'bidding'" class="grid gap-1.5">
-          <label class="text-[0.82rem] text-text-secondary">Max Bid</label>
+          <label class="text-chip text-text-secondary">Max Bid</label>
           <input
             v-model.number="maxBidInput"
             type="number"
@@ -266,7 +266,7 @@
             step="1"
           />
         </div>
-        <div v-if="newStatus === 'bidding'" class="text-[0.78rem] text-text-secondary">
+        <div v-if="newStatus === 'bidding'" class="text-chip text-text-secondary">
           <template v-if="bidRecommendation?.suggestedMaxBid">
             <button
               type="button"
@@ -281,7 +281,7 @@
           <span v-else-if="bidRecommendation" class="text-text-muted">{{ bidRecommendation.rationale }}</span>
           <span v-else-if="bidRecommendationError" class="text-text-muted">Couldn't load a bid suggestion.</span>
         </div>
-        <div v-if="newStatus === 'bidding'" class="text-[0.78rem] text-text-secondary">
+        <div v-if="newStatus === 'bidding'" class="text-chip text-text-secondary">
           <span v-if="!providerConfigured" class="text-[#f59e0b]">
             AI provider not configured. <a href="/admin" class="font-semibold text-gold underline" @click="$emit('close')">Go to Admin Settings</a> to check current market data for this lot.
           </span>
@@ -311,7 +311,7 @@
           </template>
         </div>
         <div v-if="newStatus === 'won' || newStatus === 'lost'" class="grid gap-1.5">
-          <label class="text-[0.82rem] text-text-secondary">{{ winningBidLabel }}</label>
+          <label class="text-chip text-text-secondary">{{ winningBidLabel }}</label>
           <input
             v-model.number="winningBidInput"
             type="number"
@@ -323,7 +323,7 @@
           />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="inline-flex items-center gap-[0.35rem] text-[0.82rem] text-text-secondary"><CalendarDays :size="14" /> Calendar Event</label>
+          <label class="inline-flex items-center gap-[0.35rem] text-chip text-text-secondary"><CalendarDays :size="14" /> Calendar Event</label>
           <div class="control-row">
             <select v-model="selectedEventId" class="form-input control-input">
               <option value="">None</option>
@@ -341,7 +341,7 @@
           </div>
         </div>
         <div v-if="lot.status === 'won'" class="rounded-sm border border-border-subtle bg-card-hover p-3">
-          <label class="mb-2 inline-flex items-center gap-2 text-[0.82rem] text-text-secondary">
+          <label class="mb-2 inline-flex items-center gap-2 text-chip text-text-secondary">
             <input v-model="attachShipment" type="checkbox" />
             Add shipment tracking when converting
           </label>
@@ -358,7 +358,7 @@
           <button v-if="lot.status === 'won'" class="btn btn-primary" :disabled="statusBusy" @click="convertToCoin">
             <ArrowRightCircle :size="14" /> Add to Collection
           </button>
-          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-[0.82rem] !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" :disabled="statusBusy" @click="removeLot">
+          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-chip !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" :disabled="statusBusy" @click="removeLot">
             <Trash2 :size="14" /> Remove
           </button>
         </div>

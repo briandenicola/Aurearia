@@ -13,7 +13,7 @@
 
     <div
       v-else-if="error"
-      class="flex items-center gap-2 rounded-sm border border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] p-4 text-base text-[var(--color-negative)]"
+      class="flex items-center gap-2 rounded-sm border border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] p-4 text-base text-loss"
     >
       <AlertCircle :size="20" />
       <span>{{ error }}</span>
@@ -26,7 +26,7 @@
         </div>
         <div class="flex flex-1 flex-col gap-[0.35rem]">
           <div class="section-label">Median Score</div>
-          <div class="font-display text-[1.75rem] font-bold leading-none text-gold md:text-2xl">{{ summary.medianScore }}</div>
+          <div class="font-display text-2xl font-bold leading-none text-gold">{{ summary.medianScore }}</div>
           <div class="text-base text-text-secondary">
             Across {{ summary.eligibleCoinCount }} active coins
           </div>
@@ -39,7 +39,7 @@
         </div>
         <div class="flex flex-1 flex-col gap-[0.35rem]">
           <div class="section-label">Low-Score Coins</div>
-          <div class="font-display text-[1.75rem] font-bold leading-none text-gold md:text-2xl">{{ summary.lowScorePercentage.toFixed(1) }}%</div>
+          <div class="font-display text-2xl font-bold leading-none text-gold">{{ summary.lowScorePercentage.toFixed(1) }}%</div>
           <div class="text-base text-text-secondary">
             Below {{ summary.lowScoreThreshold }}
           </div>

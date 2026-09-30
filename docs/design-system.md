@@ -40,21 +40,51 @@ and section accents.
 
 ## 2. Typography
 
-| Element | Font | Size | Weight |
-|---|---|---|---|
-| h1 | Cinzel | `2rem` | 600 |
-| h2 | Cinzel | `1.5rem` | 500 |
-| h3 | Cinzel | `1.2rem` | 500 |
-| h4 | Cinzel | `0.9rem` | 500 |
-| Body | Inter | `0.9rem` | 400 |
-| Secondary | Inter | `0.85rem` | 400 |
-| Small | Inter | `0.8rem` | 400 |
-| Tiny | Inter | `0.75rem` | 500 |
+One scale. Every font size in the app is a step on it — `text-[0.82rem]` and
+friends are a test failure. Steps are defined in the `@theme` block of
+`src/web/src/assets/styles/main.css`.
+
+| Utility | Size | Use for |
+|---|---|---|
+| `text-2xs` | `0.55rem` | Dense data grids at phone widths only |
+| `text-micro` | `0.65rem` | Dense data grids, micro-chips |
+| `text-label` | `0.7rem` | Section labels, table headers, uppercase tiny |
+| `text-sm` | `0.75rem` | Badges, `.chip-sm` |
+| `text-chip` | `0.8rem` | Standard chip text, field hints |
+| `text-body` | `0.85rem` | Form labels, secondary body |
+| `text-base` | `0.9rem` | Primary body, h4 |
+| `text-md` | `1.1rem` | Card and modal titles |
+| `text-lg` | `1.2rem` | h3 |
+| `text-xl` | `1.5rem` | h2 |
+| `text-2xl` | `2rem` | h1, stat numerals |
+| `text-3xl` | `2.5rem` | Hero numerals |
+| `text-4xl` | `3rem` | Single headline numeral |
+
+Headings also carry a font: h1–h4 use Cinzel (`font-display`) at weights
+600 / 500 / 500 / 500; body copy uses Inter (`font-sans`).
+
+The only permitted arbitrary size is an `em` value inside rendered markdown
+(`[&_code]:text-[0.88em]`), because that is a ratio to its container rather
+than a scale step.
+
+> Known gap: `text-xs` is **not** a step above. It is Tailwind's built-in
+> utility, which resolves to `0.75rem` — the same size as `text-sm` — and it
+> has 35 existing call sites. The dense-data step is deliberately named
+> `text-micro` rather than redefining `--text-xs`, because that would have
+> silently shrunk all 35. Folding `text-xs` into `text-sm` is a follow-up.
 
 Never invent a font size. Uppercase labels (section headers, info-card labels,
-table headers) always use `0.7rem` / weight 600 / `letter-spacing: 0.08em` /
+table headers) always use `text-label` / weight 600 / `tracking-[0.08em]` /
 `--text-muted` — use the `.section-label` or `.info-label` global class, or the
-`text-label` Tailwind size with `tracking-[0.08em]`.
+`text-label` utility with `tracking-[0.08em]`.
+
+### Colours in templates
+
+Use the theme utility, never a raw `var()` class: `text-loss`, not
+`text-[var(--color-negative)]`. The two render identically, but only the
+utility is auditable and only it fails when the token is removed. Every colour
+token in `main.css`'s `@theme inline` block has a matching utility; add one
+there rather than reaching for `var()` at a call site.
 
 ## 3. Chips, badges and buttons
 

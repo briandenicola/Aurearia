@@ -46,6 +46,18 @@
   --color-confidence-medium: var(--confidence-medium);
   --color-confidence-low:    var(--confidence-low);
 
+  /* Materials */
+  --color-mat-gold:     var(--mat-gold);
+  --color-mat-silver:   var(--mat-silver);
+  --color-mat-bronze:   var(--mat-bronze);
+  --color-mat-copper:   var(--mat-copper);
+  --color-mat-electrum: var(--mat-electrum);
+
+  /* Showcase felts */
+  --color-felt-green-bright: var(--felt-green-bright);
+  --color-felt-navy-bright:  var(--felt-navy-bright);
+  --color-felt-red-bright:   var(--felt-red-bright);
+
   /* Borders */
   --color-border-subtle: var(--border-subtle);
   --color-border-accent: var(--border-accent);
@@ -56,18 +68,24 @@
 }
 
 @theme {
-  /* Typography — 6-step consolidated scale */
+  /* Typography — consolidated scale. Every size in the app is one of these;
+     `text-[...]` with an arbitrary value is a test failure. */
   --font-sans:    var(--font-family-sans);
   --font-display: var(--font-family-display);
 
-  --text-label: 0.7rem;   /* section labels, uppercase tiny */
+  --text-2xs:   0.55rem;  /* dense data grids at phone widths only */
+  --text-micro: 0.65rem;  /* dense data grids, micro-chips */
+  --text-label: 0.7rem;   /* section labels, table headers, uppercase tiny */
   --text-sm:    0.75rem;  /* badges, chip-sm */
-  --text-chip:  0.8rem;   /* standard chip text */
+  --text-chip:  0.8rem;   /* standard chip text, hints */
   --text-body:  0.85rem;  /* form labels, secondary body */
   --text-base:  0.9rem;   /* primary body, h4 */
+  --text-md:    1.1rem;   /* card and modal titles */
   --text-lg:    1.2rem;   /* h3 */
   --text-xl:    1.5rem;   /* h2 */
-  --text-2xl:   2rem;     /* h1 */
+  --text-2xl:   2rem;     /* h1, stat numerals */
+  --text-3xl:   2.5rem;   /* hero numerals */
+  --text-4xl:   3rem;     /* single headline numeral */
 
   /* Border radii — override Tailwind defaults to match design system */
   --radius-sm:   8px;

@@ -29,7 +29,7 @@
             <input
               v-model="imageUrl"
               type="url"
-              class="form-input action-input min-w-0 flex-1 text-[0.82rem]"
+              class="form-input action-input min-w-0 flex-1 text-chip"
               placeholder="Or paste an image URL..."
               @keydown.enter="handleUrlUpload"
             />

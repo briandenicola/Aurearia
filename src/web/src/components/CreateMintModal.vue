@@ -51,7 +51,7 @@
             <input v-model="region" class="form-input" placeholder="e.g. Pannonia" />
           </div>
 
-          <p v-if="error" class="text-body text-[var(--color-negative)]">{{ error }}</p>
+          <p v-if="error" class="text-body text-loss">{{ error }}</p>
         </div>
 
         <div class="flex justify-end gap-2 border-t border-border-subtle px-5 py-4">

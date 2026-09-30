@@ -45,8 +45,8 @@
         <div class="space-y-[0.35rem] p-3">
           <h3 class="truncate text-base leading-[1.3] text-text-primary">{{ coin.name }}</h3>
           <div class="flex flex-wrap gap-x-2 gap-y-1">
-            <span v-if="coin.ruler" class="text-[0.78rem] text-text-secondary">{{ coin.ruler }}</span>
-            <span v-if="coin.era" class="text-[0.78rem] text-text-secondary">{{ coin.era }}</span>
+            <span v-if="coin.ruler" class="text-chip text-text-secondary">{{ coin.ruler }}</span>
+            <span v-if="coin.era" class="text-chip text-text-secondary">{{ coin.era }}</span>
           </div>
           <div v-if="coin.category">
             <span

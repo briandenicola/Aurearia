@@ -36,7 +36,7 @@
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-2 text-[0.78rem] font-medium text-text-secondary transition-colors hover:text-text-primary md:px-4 md:py-2.5 md:text-body"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-2 text-chip font-medium text-text-secondary transition-colors hover:text-text-primary md:px-4 md:py-2.5 md:text-body"
             :class="{ 'bg-[var(--accent-gold-dim)] text-gold hover:text-gold': activeTab === tab.id }"
             @click="selectTab(tab.id)"
           >

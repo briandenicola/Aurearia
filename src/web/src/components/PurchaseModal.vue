@@ -39,7 +39,7 @@
         />
       </div>
 
-      <p class="mb-3 text-[0.78rem] text-text-secondary">All fields are optional. You can update these later.</p>
+      <p class="mb-3 text-chip text-text-secondary">All fields are optional. You can update these later.</p>
 
       <div class="mb-3 rounded-sm border border-border-subtle bg-card-hover p-3">
         <label class="mb-2 inline-flex items-center gap-2 text-body text-text-secondary">
@@ -53,7 +53,7 @@
         </div>
       </div>
 
-      <div v-if="error" class="mb-3 text-[0.82rem] text-loss">{{ error }}</div>
+      <div v-if="error" class="mb-3 text-chip text-loss">{{ error }}</div>
 
       <div class="mt-6 flex justify-end gap-3">
         <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>

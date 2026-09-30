@@ -14,7 +14,7 @@
           <p class="m-0"><strong class="text-text-primary">Tracking:</strong> {{ shipment.trackingNumber }}</p>
           <p v-if="shipment.notes" class="m-0"><strong class="text-text-primary">Notes:</strong> {{ shipment.notes }}</p>
           <p class="m-0"><strong class="text-text-primary">Status:</strong> {{ statusLabel(shipment.currentStatus) }}</p>
-          <p v-if="shipment.lastSyncError" class="m-0 text-[var(--color-negative)]"><strong>ParcelApp:</strong> {{ shipment.lastSyncError }}</p>
+          <p v-if="shipment.lastSyncError" class="m-0 text-loss"><strong>ParcelApp:</strong> {{ shipment.lastSyncError }}</p>
         </div>
 
         <div class="mb-4 grid gap-2 border-t border-border-subtle pt-4">
@@ -68,7 +68,7 @@
         </div>
       </template>
 
-      <p v-if="message" class="mt-3 mb-0 text-body" :class="messageError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ message }}</p>
+      <p v-if="message" class="mt-3 mb-0 text-body" :class="messageError ? 'text-loss' : 'text-gold'">{{ message }}</p>
     </div>
   </section>
 </template>

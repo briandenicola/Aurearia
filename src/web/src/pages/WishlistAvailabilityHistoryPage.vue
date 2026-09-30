@@ -30,10 +30,10 @@
 
         <div class="mb-4 flex flex-wrap items-center gap-4 text-body text-text-secondary">
           <span>{{ detailRun.coinsChecked }} checked</span>
-          <span class="font-semibold text-[var(--color-positive)]">{{ detailRun.available }} available</span>
-          <span class="font-semibold text-[var(--color-negative)]">{{ detailRun.unavailable }} unavailable</span>
+          <span class="font-semibold text-gain">{{ detailRun.available }} available</span>
+          <span class="font-semibold text-loss">{{ detailRun.unavailable }} unavailable</span>
           <span class="font-semibold text-warning">{{ detailRun.unknown }} unknown</span>
-          <span v-if="detailRun.failMessage" class="text-[var(--color-negative)]">{{ detailRun.failMessage }}</span>
+          <span v-if="detailRun.failMessage" class="text-loss">{{ detailRun.failMessage }}</span>
         </div>
 
         <p v-if="!detailRun.results || detailRun.results.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
@@ -92,7 +92,7 @@
               </div>
               <div class="flex flex-wrap items-center gap-3 text-body text-text-secondary">
                 <span>{{ run.coinsChecked }} checked</span>
-                <span class="font-semibold text-[var(--color-negative)]">{{ run.unavailable }} unavail</span>
+                <span class="font-semibold text-loss">{{ run.unavailable }} unavail</span>
                 <span class="chip-sm" :class="statusClass(run.status)">{{ run.status === 'completed' ? 'done' : run.status }}</span>
               </div>
             </div>
@@ -101,9 +101,9 @@
               <div v-if="expandedLoading" class="flex justify-center py-4"><div class="spinner"></div></div>
               <template v-else>
                 <div class="mb-3 flex flex-wrap items-center gap-4 text-body text-text-secondary">
-                  <span class="font-semibold text-[var(--color-positive)]">{{ run.available }} available</span>
+                  <span class="font-semibold text-gain">{{ run.available }} available</span>
                   <span class="font-semibold text-warning">{{ run.unknown }} unknown</span>
-                  <span v-if="run.failMessage" class="text-[var(--color-negative)]">{{ run.failMessage }}</span>
+                  <span v-if="run.failMessage" class="text-loss">{{ run.failMessage }}</span>
                 </div>
                 <p v-if="expandedResults.length === 0" class="py-4 text-center text-text-muted">No results for this run.</p>
                 <div v-else class="overflow-x-auto">
@@ -184,14 +184,14 @@ function isUnauthorizedError(err: unknown): boolean {
 
 function statusClass(status: string): string {
   if (status === 'queued') return 'text-gold'
-  if (status === 'running') return 'text-[var(--accent-bronze)]'
-  if (status === 'failed' || status === 'partial_failure') return 'text-[var(--color-negative)]'
-  return 'text-[var(--color-positive)]'
+  if (status === 'running') return 'text-bronze'
+  if (status === 'failed' || status === 'partial_failure') return 'text-loss'
+  return 'text-gain'
 }
 
 function resultStatusClass(status: string): string {
-  if (status === 'available') return 'text-[var(--color-positive)]'
-  if (status === 'unavailable') return 'text-[var(--color-negative)]'
+  if (status === 'available') return 'text-gain'
+  if (status === 'unavailable') return 'text-loss'
   return 'text-warning'
 }
 

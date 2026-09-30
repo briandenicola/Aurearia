@@ -22,7 +22,7 @@
     </div>
 
     <div v-else-if="error" class="card flex flex-col gap-2">
-      <p class="text-[var(--color-negative)]">{{ error }}</p>
+      <p class="text-loss">{{ error }}</p>
       <button class="btn btn-secondary self-start" @click="init">Try again</button>
     </div>
 
@@ -112,7 +112,7 @@
           <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
               class="font-display text-xl font-semibold"
-              :class="snapshot.unrealizedGain >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
+              :class="snapshot.unrealizedGain >= 0 ? 'text-gain' : 'text-loss'"
             >
               {{ snapshot.unrealizedGain >= 0 ? '+' : '' }}{{ formatCurrency(snapshot.unrealizedGain) }}
             </span>

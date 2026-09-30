@@ -306,6 +306,45 @@ describe('Design Token Enforcement (Constitution Principle VI)', () => {
         `Hardcoded template colour literals (${total}) exceed budget (${COLOR_BUDGET}). Use design tokens:\n  ${details.join('\n  ')}`
       ).toBeLessThanOrEqual(COLOR_BUDGET)
     })
+
+    it('uses no arbitrary absolute text sizes in templates', () => {
+      // Every font size must be a step on the scale in main.css. `em` values
+      // are allowed: they size rendered markdown relative to its container,
+      // which is a ratio rather than a scale step.
+      const violations: string[] = []
+
+      for (const file of vueFiles) {
+        const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
+        if (!template) continue
+        for (const match of template.matchAll(/text-\[[0-9.]+(rem|px|pt)\]/g)) {
+          violations.push(`${relative(SRC_DIR, file)}: ${match[0]}`)
+        }
+      }
+
+      expect(
+        violations,
+        `Arbitrary font sizes bypass the typography scale. Use a text-* step from main.css:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
+
+    it('uses theme colour utilities rather than raw var() text classes', () => {
+      // `text-[var(--x)]` and a `text-x` utility render identically, but only
+      // the utility is auditable and only it fails when the token disappears.
+      const violations: string[] = []
+
+      for (const file of vueFiles) {
+        const template = /<template>([\s\S]*)<\/template>/.exec(readFileSync(file, 'utf-8'))?.[1]
+        if (!template) continue
+        for (const match of template.matchAll(/text-\[var\(--[a-z0-9-]+\)\]/g)) {
+          violations.push(`${relative(SRC_DIR, file)}: ${match[0]}`)
+        }
+      }
+
+      expect(
+        violations,
+        `Use the theme colour utility instead of a raw var() text class:\n  ${violations.join('\n  ')}`
+      ).toEqual([])
+    })
   })
 
   describe('template classes resolve to real styles', () => {

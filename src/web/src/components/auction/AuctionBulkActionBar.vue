@@ -13,7 +13,7 @@
     >
       <span class="text-body font-medium text-text-secondary">{{ selectedCount }} lot{{ selectedCount === 1 ? '' : 's' }} selected</span>
       <div class="flex flex-col gap-2 md:flex-row md:items-center">
-        <select v-model="localEventId" class="form-input text-[0.82rem] md:min-w-40">
+        <select v-model="localEventId" class="form-input text-chip md:min-w-40">
           <option value="">Unlink Event</option>
           <option v-for="evt in calendarEvents" :key="evt.id" :value="evt.id">
             {{ evt.title }}

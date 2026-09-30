@@ -75,13 +75,13 @@
       </div>
       <div
         v-else-if="nbValidationError"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-loss"
       >
         {{ nbValidationError }}
       </div>
       <div
         v-else-if="auth.user?.numisBidsConfigured"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         NumisBids account connected
       </div>
@@ -107,13 +107,13 @@
       </div>
       <div
         v-else-if="cngValidationError"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-loss"
       >
         {{ cngValidationError }}
       </div>
       <div
         v-else-if="auth.user?.cngConfigured"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         CNG account connected
       </div>
@@ -129,7 +129,7 @@
       </div>
       <div
         v-if="auth.user?.parcelAppConfigured"
-        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         ParcelApp key connected
       </div>
@@ -145,7 +145,7 @@
       </div>
       <div
         v-if="auth.user?.pushoverEnabled"
-        class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+        class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
       >
         Pushover notifications active
       </div>
@@ -159,7 +159,7 @@
       <p
         v-if="pushoverTestMsg"
         class="mt-1 text-body text-gold"
-        :class="{ 'text-[var(--color-negative)]': pushoverTestError }"
+        :class="{ 'text-loss': pushoverTestError }"
       >
         {{ pushoverTestMsg }}
       </p>
@@ -249,7 +249,7 @@
     >
       {{ saveLabel }}
     </button>
-    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': profileError }">{{ profileMsg }}</p>
+    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-loss': profileError }">{{ profileMsg }}</p>
 
     <!-- Privacy Warning Modal -->
     <Teleport to="body">
@@ -291,7 +291,7 @@
         <label class="form-label">Confirm New Password</label>
         <input v-model="confirmPassword" type="password" class="form-input" required />
       </div>
-      <p v-if="passwordMsg" class="my-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': passwordError }">{{ passwordMsg }}</p>
+      <p v-if="passwordMsg" class="my-2 text-body text-gold" :class="{ 'text-loss': passwordError }">{{ passwordMsg }}</p>
       <button
         type="submit"
         class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
@@ -306,7 +306,7 @@
       Link an external provider after signing in locally. This avoids unsafe automatic account merges.
     </p>
 
-    <div v-if="oidcMsg" class="my-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': oidcError }" role="status">
+    <div v-if="oidcMsg" class="my-2 text-body text-gold" :class="{ 'text-loss': oidcError }" role="status">
       {{ oidcMsg }}
     </div>
 
@@ -325,7 +325,7 @@
               <span class="text-base font-medium text-text-primary">{{ identity.providerDisplayName }}</span>
               <span
                 class="chip-sm"
-                :class="identity.emailVerified ? 'border-[var(--color-positive)] text-[var(--color-positive)]' : 'border-[var(--color-negative)] text-[var(--color-negative)]'"
+                :class="identity.emailVerified ? 'border-[var(--color-positive)] text-gain' : 'border-[var(--color-negative)] text-loss'"
               >
                 {{ identity.emailVerified ? 'Email verified' : 'Email unverified' }}
               </span>
@@ -381,7 +381,7 @@
         <LockKeyhole v-if="!registeringCredential" :size="16" aria-hidden="true" />
         {{ registeringCredential ? 'Registering...' : 'Register Biometric' }}
       </button>
-      <p v-if="credentialMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': credentialError }">{{ credentialMsg }}</p>
+      <p v-if="credentialMsg" class="mt-2 text-body text-gold" :class="{ 'text-loss': credentialError }">{{ credentialMsg }}</p>
 
       <div v-if="webauthnCredentials.length" class="mt-4 flex flex-col gap-2">
         <div

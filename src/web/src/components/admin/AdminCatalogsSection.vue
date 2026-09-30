@@ -11,7 +11,7 @@
 
     <div
       v-else-if="error"
-      class="flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-[var(--color-negative)]"
+      class="flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-loss"
       role="alert"
     >
       <AlertCircle :size="20" />
@@ -93,7 +93,7 @@
           </div>
           <form class="p-6" @submit.prevent="saveForm">
             <div class="form-group">
-              <label class="form-label">Catalog Code<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
+              <label class="form-label">Catalog Code<span class="ml-[0.15rem] text-loss">*</span></label>
               <input
                 v-model.trim="formData.catalog"
                 class="form-input"
@@ -103,7 +103,7 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Display Name<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
+              <label class="form-label">Display Name<span class="ml-[0.15rem] text-loss">*</span></label>
               <input
                 v-model.trim="formData.displayName"
                 class="form-input"
@@ -112,7 +112,7 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Era<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
+              <label class="form-label">Era<span class="ml-[0.15rem] text-loss">*</span></label>
               <select v-model="formData.era" class="form-input" required>
                 <option value="" disabled>Select era</option>
                 <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
@@ -135,7 +135,7 @@
             </div>
             <div
               v-if="formError"
-              class="mt-4 flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-sm text-[var(--color-negative)]"
+              class="mt-4 flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-sm text-loss"
               role="alert"
             >
               <AlertCircle :size="16" />

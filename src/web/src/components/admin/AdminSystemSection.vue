@@ -113,7 +113,7 @@
             <span class="spinner"></span>
             Loading Numista health
           </div>
-          <p v-else-if="healthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+          <p v-else-if="healthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss" role="alert">
             Numista health is temporarily unavailable. Try again.
           </p>
           <div v-else-if="health && !hasHealthEvents" class="rounded-sm border border-border-subtle bg-card p-4" role="status">
@@ -361,7 +361,7 @@
             <span class="sr-only">Loading OCRE health</span>
             Loading OCRE health
           </div>
-          <p v-else-if="ocreHealthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+          <p v-else-if="ocreHealthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss" role="alert">
             OCRE health is temporarily unavailable. Try again.
           </p>
           <div v-else-if="ocreHealth" class="grid gap-4 md:grid-cols-3" data-testid="ocre-health">
@@ -391,7 +391,7 @@
             </button>
           </div>
           <div v-if="deepMetricsLoading" class="py-6 text-sm text-text-secondary" role="status">Loading Deep Analysis operations</div>
-          <p v-else-if="deepMetricsError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+          <p v-else-if="deepMetricsError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-loss" role="alert">
             Deep Analysis operations are temporarily unavailable. Try again.
           </p>
           <div v-else-if="deepMetrics" class="grid gap-4" data-testid="deep-observability">
@@ -437,13 +437,13 @@
         </section>
       </section>
 
-      <p v-if="msg" class="my-2 text-body" :class="error ? 'text-[var(--color-negative)]' : 'text-gold'">{{ msg }}</p>
+      <p v-if="msg" class="my-2 text-body" :class="error ? 'text-loss' : 'text-gold'">{{ msg }}</p>
       <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
         {{ saving ? 'Saving...' : 'Save System Settings' }}
       </button>
     </form>
 
-    <div class="mt-6 flex items-center gap-2 border-t border-border-subtle pt-4 text-[0.78rem] text-text-muted">
+    <div class="mt-6 flex items-center gap-2 border-t border-border-subtle pt-4 text-chip text-text-muted">
       <span class="font-semibold uppercase tracking-[0.05em]">Version</span>
       <span class="font-mono text-text-secondary">{{ appVersion }}</span>
       <span v-if="buildDate" class="ml-1">Built {{ buildDate }}</span>

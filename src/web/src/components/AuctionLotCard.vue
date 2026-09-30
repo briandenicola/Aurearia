@@ -37,29 +37,29 @@
       </div>
     </div>
     <div class="flex flex-1 flex-col gap-[0.35rem] p-4">
-      <div v-if="needsAttention" class="flex items-center gap-1 text-[0.75rem] font-semibold text-[#f59e0b]" title="This lot's auction has closed but its status hasn't been confirmed yet">
+      <div v-if="needsAttention" class="flex items-center gap-1 text-sm font-semibold text-[#f59e0b]" title="This lot's auction has closed but its status hasn't been confirmed yet">
         <AlertTriangle :size="13" /> Needs attention
       </div>
-      <h3 class="overflow-hidden text-[0.95rem] leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{{ lot.title }}</h3>
+      <h3 class="overflow-hidden text-base leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{{ lot.title }}</h3>
       <div class="flex flex-wrap gap-2">
-        <span v-if="lot.auctionHouse" class="text-[0.78rem] text-text-secondary">{{ lot.auctionHouse }}</span>
-        <span v-if="lot.saleName" class="text-[0.78rem] text-text-secondary">{{ lot.saleName }}</span>
+        <span v-if="lot.auctionHouse" class="text-chip text-text-secondary">{{ lot.auctionHouse }}</span>
+        <span v-if="lot.saleName" class="text-chip text-text-secondary">{{ lot.saleName }}</span>
       </div>
       <div class="flex flex-wrap gap-2">
-        <span class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem] text-text-secondary">{{ providerLabel }}</span>
+        <span class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-label text-text-secondary">{{ providerLabel }}</span>
         <span
           v-if="lot.category"
-          class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem]"
+          class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-label"
           :style="{ color: colorForLabel(lot.category) }"
         >
           {{ lot.category }}
         </span>
-        <span v-if="lot.currency && lot.currency !== 'USD'" class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem] text-text-secondary">{{ lot.currency }}</span>
+        <span v-if="lot.currency && lot.currency !== 'USD'" class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-label text-text-secondary">{{ lot.currency }}</span>
       </div>
-      <div v-if="countdown" class="flex items-center gap-1.5 text-[1.05rem] font-semibold text-bronze">
+      <div v-if="countdown" class="flex items-center gap-1.5 text-md font-semibold text-bronze">
         <Timer :size="18" /> {{ countdown }}
       </div>
-      <div v-if="hasLotSummaryRows" class="mt-auto overflow-hidden rounded-sm border border-border-subtle bg-surface/40 text-[0.82rem]">
+      <div v-if="hasLotSummaryRows" class="mt-auto overflow-hidden rounded-sm border border-border-subtle bg-surface/40 text-chip">
         <div v-if="lot.lotNumber" class="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-[0.45rem]">
           <span class="text-text-secondary">Lot</span>
           <span class="font-semibold text-text-primary">{{ lot.lotNumber }}</span>
@@ -89,11 +89,11 @@
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
         <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }} {{ bidReminders.length === 1 ? 'reminder' : 'reminders' }}</span>
       </div>
-      <div v-if="statusSourceLabel" class="text-[0.78rem] text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
+      <div v-if="statusSourceLabel" class="text-chip text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
       <SafeExternalLink
         v-if="externalUrl"
         :href="externalUrl"
-        class="mt-1 text-[0.78rem] text-gold hover:underline"
+        class="mt-1 text-chip text-gold hover:underline"
         target="_blank"
         rel="noopener noreferrer"
         @click.stop

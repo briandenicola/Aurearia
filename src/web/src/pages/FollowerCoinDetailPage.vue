@@ -161,14 +161,14 @@ onMounted(loadCoin)
             />
             <div v-if="sortedImages.length > 1" class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent p-2">
               <button
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-[var(--accent-gold)] hover:text-[var(--bg-primary)]"
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-[var(--accent-gold)] hover:text-surface"
                 @click.stop="prevImage"
               >
                 <ChevronLeft :size="20" />
               </button>
               <span class="text-chip text-white/80">{{ currentImageIndex + 1 }} / {{ sortedImages.length }}</span>
               <button
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-[var(--accent-gold)] hover:text-[var(--bg-primary)]"
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-[var(--accent-gold)] hover:text-surface"
                 @click.stop="nextImage"
               >
                 <ChevronRight :size="20" />
@@ -208,11 +208,11 @@ onMounted(loadCoin)
                   :class="[
                     'text-base font-medium',
                     {
-                      'text-[var(--mat-gold)]': coin.material.toLowerCase() === 'gold',
-                      'text-[var(--mat-silver)]': coin.material.toLowerCase() === 'silver',
-                      'text-[var(--mat-bronze)]': coin.material.toLowerCase() === 'bronze',
-                      'text-[var(--mat-copper)]': coin.material.toLowerCase() === 'copper',
-                      'text-[var(--mat-electrum)]': coin.material.toLowerCase() === 'electrum',
+                      'text-mat-gold': coin.material.toLowerCase() === 'gold',
+                      'text-mat-silver': coin.material.toLowerCase() === 'silver',
+                      'text-mat-bronze': coin.material.toLowerCase() === 'bronze',
+                      'text-mat-copper': coin.material.toLowerCase() === 'copper',
+                      'text-mat-electrum': coin.material.toLowerCase() === 'electrum',
                     },
                   ]"
                 >

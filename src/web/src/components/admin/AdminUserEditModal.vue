@@ -15,7 +15,7 @@
           </button>
         </div>
         <p v-if="isCurrentUser" class="mt-2 text-body text-text-muted">You cannot change your own role.</p>
-        <p v-if="roleMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': roleError }">{{ roleMsg }}</p>
+        <p v-if="roleMsg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': roleError }">{{ roleMsg }}</p>
       </div>
 
       <div class="mb-4">
@@ -32,7 +32,7 @@
             {{ resettingPassword ? 'Resetting...' : 'Reset Password' }}
           </button>
         </div>
-        <p v-if="passwordMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': passwordError }">{{ passwordMsg }}</p>
+        <p v-if="passwordMsg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': passwordError }">{{ passwordMsg }}</p>
       </div>
 
       <div class="mb-4">
@@ -41,7 +41,7 @@
           {{ deletingUser ? 'Deleting...' : 'Delete User' }}
         </button>
         <p v-if="isCurrentUser" class="mt-2 text-body text-text-muted">You cannot delete your own account.</p>
-        <p v-if="deleteMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': deleteError }">{{ deleteMsg }}</p>
+        <p v-if="deleteMsg" class="mt-2 text-body text-gold" :class="{ 'text-byzantine': deleteError }">{{ deleteMsg }}</p>
       </div>
 
       <div class="flex justify-end">

@@ -35,7 +35,7 @@
         <span class="font-semibold text-gold">{{ formatCurrency(coin.purchasePrice) }}</span>
       </div>
 
-      <div v-if="error" class="mb-3 text-[0.82rem] text-loss">{{ error }}</div>
+      <div v-if="error" class="mb-3 text-chip text-loss">{{ error }}</div>
 
       <div class="mt-6 flex justify-end gap-3">
         <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>

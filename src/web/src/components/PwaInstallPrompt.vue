@@ -12,27 +12,27 @@
         </div>
         <div class="min-w-0 flex-1">
           <h4 class="mb-[0.3rem] text-base text-gold">Aurearia - Coin Collection</h4>
-          <p v-if="platform === 'ios-safari'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
+          <p v-if="platform === 'ios-safari'" class="m-0 text-chip leading-6 text-text-secondary">
             Tap the <strong>Share</strong> button
             <Share :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Home Screen"</strong>
           </p>
-          <p v-else-if="platform === 'ios-edge'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
+          <p v-else-if="platform === 'ios-edge'" class="m-0 text-chip leading-6 text-text-secondary">
             Tap the <strong>menu</strong> button
             <MoreHorizontal :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Phone"</strong>
           </p>
-          <p v-else-if="platform === 'ios-other'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
+          <p v-else-if="platform === 'ios-other'" class="m-0 text-chip leading-6 text-text-secondary">
             For the best experience, open in <strong>Safari</strong>, tap
             <Share :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Home Screen"</strong>
           </p>
-          <p v-else-if="platform === 'android'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
+          <p v-else-if="platform === 'android'" class="m-0 text-chip leading-6 text-text-secondary">
             Tap the <strong>menu</strong>
             <MoreVertical :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong>
           </p>
-          <p v-else class="m-0 text-[0.82rem] leading-6 text-text-secondary">
+          <p v-else class="m-0 text-chip leading-6 text-text-secondary">
             Use your browser menu to <strong>"Install"</strong> or <strong>"Add to Home Screen"</strong>
           </p>
         </div>

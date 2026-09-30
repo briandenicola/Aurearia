@@ -34,7 +34,7 @@
   <h3 class="mb-4 text-lg font-medium text-heading">Wishlist Search Alert Run History</h3>
 
   <div v-if="loading" class="flex justify-center py-8"><div class="spinner"></div></div>
-  <div v-else-if="historyError" class="px-8 py-8 text-center font-sans text-[var(--color-negative)]" role="alert">{{ historyError }}</div>
+  <div v-else-if="historyError" class="px-8 py-8 text-center font-sans text-loss" role="alert">{{ historyError }}</div>
   <div v-else-if="runs.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No wishlist search alert runs recorded yet.</div>
   <template v-else>
     <div class="overflow-x-auto">
@@ -63,7 +63,7 @@
               <td class="hidden md:table-cell">{{ run.triggerType }}</td>
               <td><span class="chip-sm" :class="statusClass(run.status)">{{ run.status }}</span></td>
               <td>{{ run.resultCount }}</td>
-              <td class="font-semibold text-[var(--color-positive)]">{{ run.newCount }}</td>
+              <td class="font-semibold text-gain">{{ run.newCount }}</td>
               <td class="hidden md:table-cell">{{ run.duplicateCount }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
@@ -133,10 +133,10 @@ async function nextPage() {
 
 function statusClass(status: AdminWishlistSearchAlertRun['status']): string {
   if (status === 'queued') return 'text-gold'
-  if (status === 'running') return 'text-[var(--accent-bronze)]'
-  if (status === 'failed' || status === 'cancelled' || status === 'rate_limited') return 'text-[var(--color-negative)]'
+  if (status === 'running') return 'text-bronze'
+  if (status === 'failed' || status === 'cancelled' || status === 'rate_limited') return 'text-loss'
   if (status === 'partial') return 'text-warning'
-  return 'text-[var(--color-positive)]'
+  return 'text-gain'
 }
 
 function formatDate(date: string): string {
