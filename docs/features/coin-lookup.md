@@ -14,10 +14,24 @@ Coin Lookup is designed for in-person acquisition workflows. When you see a coin
 ## Lookup Flow
 
 1. Capture one or more photos with the device camera, or upload existing images
-2. The Go API sends the images to the configured vision provider through the agent proxy
-3. The response extracts visible slab/label text, candidate coin fields, and NGC certification data when present
-4. The results page shows extracted details, verification links, and possible catalog matches
-5. Save the result to the Wish List or Collection
+2. Optionally type or dictate editable identification notes
+3. The Go API sends the images and reviewed notes to the configured vision provider through the agent proxy
+4. The response extracts visible slab/label text, candidate coin fields, and NGC certification data when present
+5. The results page shows extracted details, verification links, and possible catalog matches
+6. Save the result to the Wish List or Collection
+
+## Voice Notes
+
+On supported browsers, the optional notes step includes push-to-talk English
+dictation. Start dictation, review or edit the resulting text, and then use the
+existing **Analyze Photos** or **Deep Analysis** action. Recognition never
+submits analysis automatically.
+
+Speech recognition may send audio to the browser or device provider. Aurearia
+does not upload or retain raw audio; only the reviewed transcript is handled as
+ordinary notes after explicit submission. Browser support varies, and typing
+remains the complete fallback when the microphone control is unavailable or
+permission is denied. Notes retain the existing 2,000-character limit.
 
 ## NGC Ancients Verification
 

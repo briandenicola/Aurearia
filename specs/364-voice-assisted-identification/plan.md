@@ -241,7 +241,13 @@ field extraction, spoken responses, or voice input outside identification.
 ## Lifecycle Evidence
 
 - **Specified/planned**: This spec, plan, and task set.
-- **Implemented**: Not started.
-- **Verified**: Not started.
-- **Accepted**: Pending owner approval of the final spec/plan and accepted ADR.
+- **Implemented**: Shared browser recognition lifecycle, reusable control,
+  desktop/PWA Quick Identify integration, and saved-coin Deep Analysis
+  integration are complete on the feature branch.
+- **Verified**: Focused Vitest, deterministic mobile Playwright, full
+  `task check:web`, and both required tamper guards pass on the implementation
+  candidate. Real-microphone verification remains pending.
+- **Accepted**: ADR 0020 and implementation scope were owner-accepted through
+  PR #801. Final candidate acceptance remains pending manual evidence and
+  independent review.
 - **Released**: Not authorized.

@@ -20,10 +20,10 @@ The [spec](../../specs/364-voice-assisted-identification/spec.md),
 [plan](../../specs/364-voice-assisted-identification/plan.md), and
 [tasks](../../specs/364-voice-assisted-identification/tasks.md) are drafted.
 [ADR 0020](../../docs/adr/0020-browser-speech-identification-notes.md) is
-Proposed.
+Accepted through owner-merged PR #801.
 
 ## Next Action
 
-Commit and push the planning artifacts on
-`364-voice-assisted-identification`, open the ADR/spec PR into `beta`, and wait
-for owner merge/ADR acceptance before starting implementation task T004.
+Freeze the verified implementation candidate, run the required software QC
+audit and independent read-only review, then reconcile the remaining manual
+browser evidence and owner acceptance boundary.

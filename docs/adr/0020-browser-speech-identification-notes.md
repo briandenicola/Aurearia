@@ -1,7 +1,9 @@
 # ADR 0020: Browser Speech Recognition for Identification Notes
 
 Date: 2026-10-01
-Status: Proposed
+Status: Accepted
+Accepted: 2026-10-01 via [PR #801](https://github.com/briandenicola/coin-collection-app/pull/801)
+Merge commit: `150eb23d`
 
 ## Context
 
