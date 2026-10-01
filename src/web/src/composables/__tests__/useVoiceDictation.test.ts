@@ -158,6 +158,43 @@ describe('useVoiceDictation', () => {
     expect(onFinalText).not.toHaveBeenCalled()
   })
 
+  it('ignores retained callbacks after explicit Stop completes', () => {
+    const { api, recognition, onFinalText } = mountComposable()
+
+    api.start()
+    const staleResult = recognition.onresult
+    const staleError = recognition.onerror
+    api.stop()
+    recognition.onend?.()
+    staleResult?.({
+      resultIndex: 0,
+      results: [result('late stopped transcript', true)],
+    })
+    staleError?.({ error: 'network' })
+
+    expect(api.status.value).toBe('idle')
+    expect(api.error.value).toBe('')
+    expect(onFinalText).not.toHaveBeenCalled()
+  })
+
+  it('ignores retained callbacks after natural recognition completion', () => {
+    const { api, recognition, onFinalText } = mountComposable()
+
+    api.start()
+    const staleResult = recognition.onresult
+    const staleError = recognition.onerror
+    recognition.onend?.()
+    staleResult?.({
+      resultIndex: 0,
+      results: [result('late natural transcript', true)],
+    })
+    staleError?.({ error: 'no-speech' })
+
+    expect(api.status.value).toBe('idle')
+    expect(api.error.value).toBe('')
+    expect(onFinalText).not.toHaveBeenCalled()
+  })
+
   it('reports unsupported browsers without constructing recognition', () => {
     vi.stubGlobal('SpeechRecognition', undefined)
     vi.stubGlobal('webkitSpeechRecognition', undefined)

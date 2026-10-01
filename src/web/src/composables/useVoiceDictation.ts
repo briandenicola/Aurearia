@@ -120,6 +120,7 @@ export function useVoiceDictation(options: UseVoiceDictationOptions) {
       active.onend = () => {
         if (session !== generation) return
         recognition = null
+        generation += 1
         status.value = 'idle'
       }
       active.onresult = (event) => {
