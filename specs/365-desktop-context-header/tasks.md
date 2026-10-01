@@ -58,6 +58,9 @@
   e2e/workflows/add-coin-capture.spec.ts` — 6 passed, covering the 768/769px
   boundary, installed-PWA local headers at desktop width, normal desktop Add
   Coin behavior, and the crowded four-action Wishlist header.
+- Hosted Feature 362 compatibility selector — 12 passed after updating the
+  Deep Analysis intake assertion to use the shared `#desktop-page-title`
+  contract instead of the removed local desktop heading.
 - Independent read-only re-review — PASS for candidate patch SHA-256
   `a29dc341be1cca6b434eea1def84cd4ce1067805023484a0cd776619238eaef4`;
   the prior Add Coin disabled-state block is cleared.

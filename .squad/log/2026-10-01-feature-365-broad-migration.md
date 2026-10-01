@@ -32,6 +32,10 @@
   boundary, normal desktop, installed PWA at desktop width, and the crowded
   four-action Wishlist header. The boundary test also found and drove a CSS
   specificity repair that now keeps shared title/actions hidden at 768 pixels.
+- PR CI exposed one stale Deep Analysis Playwright selector that still expected
+  the removed local desktop `Identify Coin` heading. The assertion now targets
+  `#desktop-page-title`; the exact hosted compatibility selector passed 12/12
+  locally.
 - Independent re-review passed for repaired candidate patch SHA-256
   `a29dc341be1cca6b434eea1def84cd4ce1067805023484a0cd776619238eaef4`
   with no remaining high-confidence blocker.
