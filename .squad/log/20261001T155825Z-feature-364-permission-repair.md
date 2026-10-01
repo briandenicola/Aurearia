@@ -43,6 +43,20 @@ same block, so either layer could prevent browser permission UI from succeeding.
   the permission/track-release test; restoring the requester passed it.
 - Policy tamper proof: restoring `microphone=()` failed the exact middleware
   header test; restoring `microphone=(self)` passed it.
+- Hosted Feature 362 Compatibility run
+  [36890888087](https://github.com/briandenicola/Aurearia/actions/runs/36890888087)
+  failed only because the deterministic voice fixture did not grant the newly
+  required permission preflight before emitting transcript text.
+- The fixture now returns a fake microphone stream, proves its track is stopped,
+  and waits for the recognition control to enter its started state.
+- The focused Playwright voice workflow passed 1/1 and the exact hosted selector
+  passed 13/13 locally.
+- Per owner direction, the voice workflow remains as focused regression coverage
+  but is no longer included in the unrelated Feature 362 Compatibility selector.
+- After the selector change, the retained voice workflow passed 1/1, the reduced
+  Feature 362 selector passed 12/12, and `task check:web` passed when run
+  sequentially. Parallel local Playwright runs were discarded because they
+  share one dev server and `test-results` directory.
 
 ## Remaining
 

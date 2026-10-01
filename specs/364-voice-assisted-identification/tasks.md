@@ -186,6 +186,12 @@ optional `notes` value.
   access only to Aurearia's own origin in both the Go security header and the
   documented nginx configuration. Keep geolocation and unrelated capabilities
   disabled.
+- [x] T033 Update the deterministic Playwright voice fixture to grant a fake
+  microphone stream, prove its temporary track is stopped, and wait for
+  recognition startup before emitting the final transcript.
+- [x] T034 Keep the voice workflow as focused regression coverage but remove it
+  from the unrelated Feature 362 Compatibility hosted selector per owner
+  direction.
 
 ## Dependencies and Execution
 
@@ -223,3 +229,5 @@ optional `notes` value.
 | T027-T030 | Explicit `getUserMedia({ audio: true })` permission preflight added; temporary tracks are stopped before recognition; 82 focused tests and `task check:web` passed; disabling the preflight failed the permission guard and restoration passed | Dirty tree based on `09f39e22` | Repair implemented and automated verification complete |
 | T031 | Real Chrome, Edge, and Firefox-build behavior | Pending | Requires beta deployment/manual browser evidence |
 | T032 | Root cause found in `Permissions-Policy: microphone=()`; changed to same-origin only and synchronized the nginx deployment example; focused middleware tests plus full Go/web/delivery gates passed; restoring the blocking policy failed the guard and restoration passed | Dirty tree based on `045b995e` | Policy repair implemented and verified |
+| T033 | Hosted run 36890888087 exposed the missing permission fixture; the focused voice workflow and prior 13-test selector both pass after modeling grant, track release, and recognition readiness | Dirty tree based on `afdfe46e` | Browser regression repaired |
+| T034 | Owner selected removal from the Feature 362 selector only; the voice Playwright file remains available for focused execution | Dirty tree based on `afdfe46e` | Hosted selector scope corrected |

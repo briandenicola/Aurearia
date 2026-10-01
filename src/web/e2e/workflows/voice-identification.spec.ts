@@ -53,6 +53,17 @@ test('mobile Identify Coin keeps voice notes editable and explicitly submitted',
 
     Object.defineProperty(window, 'SpeechRecognition', { value: MockSpeechRecognition })
     Object.defineProperty(navigator, 'standalone', { value: true })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{
+            stop: () => {
+              document.documentElement.dataset.voicePermissionTrackStopped = 'true'
+            },
+          }],
+        }),
+      },
+    })
     const testWindow = window as VoiceTestWindow
     testWindow.__voiceEmitFinal = (text) => MockSpeechRecognition.latest?.onresult?.({
       resultIndex: 0,
@@ -75,6 +86,8 @@ test('mobile Identify Coin keeps voice notes editable and explicitly submitted',
   await page.getByRole('button', { name: 'Add notes' }).click()
 
   await page.getByRole('button', { name: 'Start voice dictation' }).click()
+  await expect(page.getByRole('button', { name: 'Stop voice dictation' })).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-voice-permission-track-stopped', 'true')
   await page.evaluate(() => {
     (window as Window & typeof globalThis & { __voiceEmitFinal: (text: string) => void })
       .__voiceEmitFinal('Laureate bust right.')

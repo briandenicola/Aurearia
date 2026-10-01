@@ -22,6 +22,6 @@ retains complete typed fallback when recognition is unsupported.
 
 ## Next Action
 
-Run the required Go, web, and delivery checks; commit and push the policy repair
-to `beta`; update the deployed nginx header; then record Chrome, Edge, and
+Push the corrected CI selector and permission fixture to `beta`, update the
+deployed nginx header to `microphone=(self)`, then record Chrome, Edge, and
 Firefox-build behavior for the exact candidate.
