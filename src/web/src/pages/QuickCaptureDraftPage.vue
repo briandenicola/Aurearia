@@ -1,14 +1,21 @@
 <template>
   <div class="container">
     <div class="form-wrapper grid min-w-0 gap-4">
-      <div class="page-header">
-        <h1>Draft</h1>
-        <div class="pwa-actions">
-          <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
-            <List :size="22" />
-          </RouterLink>
+      <DesktopPageContext title="Draft">
+        <template #actions>
+          <AppIconButton to="/quick-capture/drafts" title="All drafts">
+            <List :size="20" />
+          </AppIconButton>
+        </template>
+        <div class="page-header">
+          <h1>Draft</h1>
+          <div class="pwa-actions">
+            <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
+              <List :size="22" />
+            </RouterLink>
+          </div>
         </div>
-      </div>
+      </DesktopPageContext>
 
       <p v-if="loading" class="m-0 text-chip text-text-secondary">Loading draft...</p>
       <p v-else-if="loadError" class="m-0 text-chip text-warning">{{ loadError }}</p>
@@ -205,6 +212,8 @@ import {
 } from '@/utils/numistaLookup'
 import type { NumistaCandidate, NumistaEvidence } from '@/types'
 import { useAuthStore } from '@/stores/auth'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const route = useRoute()
 const router = useRouter()

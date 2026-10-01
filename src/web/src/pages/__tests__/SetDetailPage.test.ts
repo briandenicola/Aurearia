@@ -96,6 +96,15 @@ const defaultStubs = {
   SetCompletionChecklist: true,
   MuseumTray: true,
   TrayControls: true,
+  DesktopPageContext: {
+    props: ['title'],
+    template: '<div><slot /><slot name="actions" /><slot name="desktop" /></div>',
+  },
+  AppIconButton: {
+    props: ['active', 'disabled', 'title'],
+    emits: ['click'],
+    template: '<button :disabled="disabled" :title="title" @click="$emit(\'click\')"><slot /></button>',
+  },
 }
 
 function mockSetDetailLoad(coins = [

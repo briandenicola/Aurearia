@@ -1,23 +1,29 @@
 <template>
   <div class="container py-6">
-    <div class="page-header !mb-8 !justify-start gap-4">
-      <button class="btn btn-ghost !h-10 !w-10 !shrink-0 !justify-center !p-0" @click="router.back()">
-        <ArrowLeft :size="20" />
-      </button>
-      <div v-if="profile" class="flex min-w-0 items-center gap-3">
-        <AuthenticatedImage
-          :media-path="profile.avatarPath ? profile.avatarPath : '/coin-logo.jpg'"
-          alt="Avatar"
-          class="h-12 w-12 rounded-full border-2 border-border-accent object-cover"
-        />
-        <div class="min-w-0">
-          <h1 class="truncate text-xl font-semibold text-heading">{{ profile.username }}</h1>
-          <p v-if="profile.bio" class="mt-[0.15rem] text-body leading-[1.4] text-text-secondary">
-            {{ profile.bio }}
-          </p>
+    <DesktopPageContext :title="profile?.username ?? 'Follower Collection'">
+      <template #actions>
+        <AppIconButton title="Back" @click="router.back()"><ArrowLeft :size="20" /></AppIconButton>
+      </template>
+      <div class="page-header !mb-8 !justify-start gap-4">
+        <button class="btn btn-ghost !h-10 !w-10 !shrink-0 !justify-center !p-0" @click="router.back()">
+          <ArrowLeft :size="20" />
+        </button>
+        <div v-if="profile" class="flex min-w-0 items-center gap-3">
+          <AuthenticatedImage
+            :media-path="profile.avatarPath ? profile.avatarPath : '/coin-logo.jpg'"
+            alt="Avatar"
+            class="h-12 w-12 rounded-full border-2 border-border-accent object-cover"
+          />
+          <div class="min-w-0">
+            <h1 class="truncate text-xl font-semibold text-heading">{{ profile.username }}</h1>
+            <p v-if="profile.bio" class="mt-[0.15rem] text-body leading-[1.4] text-text-secondary">{{ profile.bio }}</p>
+          </div>
         </div>
       </div>
-    </div>
+      <template #desktop>
+        <p v-if="profile?.bio" class="mb-6 text-body text-text-secondary">{{ profile.bio }}</p>
+      </template>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
@@ -77,6 +83,8 @@ import { getPublicProfile, getFollowingCoins } from '@/api/client'
 import type { LimitedCoin, PublicProfile } from '@/types'
 import { CATEGORY_COLORS } from '@/types'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const route = useRoute()
 const router = useRouter()

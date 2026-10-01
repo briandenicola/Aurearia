@@ -1,19 +1,26 @@
 <template>
   <div class="container">
     <div class="form-wrapper grid gap-4">
-      <div class="page-header">
-        <h1>Quick Capture</h1>
-        <div v-if="isPwa" class="pwa-actions">
-          <RouterLink class="pwa-icon-btn" to="/quick-capture" title="New capture" aria-label="New capture">
-            <CirclePlus :size="22" />
-          </RouterLink>
+      <DesktopPageContext title="Quick Capture Drafts">
+        <template #actions>
+          <AppIconButton to="/quick-capture" title="New capture">
+            <CirclePlus :size="20" />
+          </AppIconButton>
+        </template>
+        <div class="page-header">
+          <h1>Quick Capture</h1>
+          <div v-if="isPwa" class="pwa-actions">
+            <RouterLink class="pwa-icon-btn" to="/quick-capture" title="New capture" aria-label="New capture">
+              <CirclePlus :size="22" />
+            </RouterLink>
+          </div>
+          <div v-else class="header-actions">
+            <RouterLink class="btn btn-primary" to="/quick-capture">
+              <Plus :size="16" /> New
+            </RouterLink>
+          </div>
         </div>
-        <div v-else class="header-actions">
-          <RouterLink class="btn btn-primary" to="/quick-capture">
-            <Plus :size="16" /> New
-          </RouterLink>
-        </div>
-      </div>
+      </DesktopPageContext>
       <p v-if="loading" class="m-0 text-base text-text-secondary">Loading drafts...</p>
       <p v-else-if="error" class="m-0 text-chip text-warning">{{ error }}</p>
       <p v-else-if="drafts.length === 0" class="m-0 text-base text-text-secondary">No active drafts yet.</p>
@@ -32,6 +39,8 @@ import { getApiErrorMessage, listQuickCaptureDrafts } from '@/api/client'
 import type { QuickCaptureDraft } from '@/types'
 import QuickCaptureDraftCard from '@/components/quick-capture/QuickCaptureDraftCard.vue'
 import { usePwa } from '@/composables/usePwa'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const drafts = ref<QuickCaptureDraft[]>([])
 const loading = ref(true)

@@ -1,17 +1,27 @@
 <template>
   <div class="container min-w-0 overflow-x-hidden">
     <div class="mx-auto min-w-0 max-w-[900px]">
-      <div class="page-header">
-        <h1>Deep Analysis</h1>
-        <div class="pwa-actions">
-          <RouterLink class="pwa-icon-btn" to="/deep-analysis/history" title="Analysis History" aria-label="Analysis History">
-            <History :size="22" />
-          </RouterLink>
-          <RouterLink class="pwa-icon-btn" to="/lookup" title="Identify Coin" aria-label="Identify Coin">
-            <Search :size="22" />
-          </RouterLink>
+      <DesktopPageContext title="Deep Analysis">
+        <template #actions>
+          <AppIconButton to="/deep-analysis/history" title="Analysis History">
+            <History :size="20" />
+          </AppIconButton>
+          <AppIconButton to="/lookup" title="Identify Coin">
+            <Search :size="20" />
+          </AppIconButton>
+        </template>
+        <div class="page-header">
+          <h1>Deep Analysis</h1>
+          <div class="pwa-actions">
+            <RouterLink class="pwa-icon-btn" to="/deep-analysis/history" title="Analysis History" aria-label="Analysis History">
+              <History :size="22" />
+            </RouterLink>
+            <RouterLink class="pwa-icon-btn" to="/lookup" title="Identify Coin" aria-label="Identify Coin">
+              <Search :size="22" />
+            </RouterLink>
+          </div>
         </div>
-      </div>
+      </DesktopPageContext>
 
       <p v-if="!jobId" class="rounded-md border border-border-subtle bg-card p-6 text-base text-text-secondary shadow-[var(--shadow-card)]">
         Start a Deep Analysis from Identify Coin or an existing saved coin to see progress here.
@@ -154,6 +164,8 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Search, RefreshCw, History, Trash2 } from 'lucide-vue-next'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 import DeepAnalysisProgressTimeline from '@/components/deep-identification/DeepAnalysisProgressTimeline.vue'
 import DeepReportPanel from '@/components/deep-identification/DeepReportPanel.vue'
 import DeepProposalEditor from '@/components/deep-identification/DeepProposalEditor.vue'

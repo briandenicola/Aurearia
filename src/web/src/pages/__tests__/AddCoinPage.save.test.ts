@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, type PropType } from 'vue'
+import { defineComponent, nextTick, type PropType } from 'vue'
 import type { Coin } from '@/types'
 import AddCoinPage from '../AddCoinPage.vue'
 import CoinLookupCaptureWizard from '@/components/coin-lookup/CoinLookupCaptureWizard.vue'
@@ -10,7 +10,14 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(), update: vi.fn(), extract: vi.fn(), normalize: vi.fn(), stopCamera: vi.fn(), isPwa: true,
   confirm: vi.fn(),
 }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: mocks.push }) }))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRoute: () => ({ query: {} }),
+    useRouter: () => ({ push: mocks.push }),
+  }
+})
 vi.mock('@/stores/coins', () => ({ useCoinsStore: () => ({ addCoin: mocks.add }) }))
 vi.mock('@/composables/usePwa', () => ({ usePwa: () => ({ isPwa: mocks.isPwa }) }))
 vi.mock('@/utils/galleryImage', () => ({ normalizeGalleryImage: mocks.normalize }))
@@ -95,6 +102,43 @@ describe('Add Coin save workflow', () => {
     const payload = mocks.commit.mock.calls[0]?.[0]
     expect(payload.overrides.era).toBe('')
     expect(payload.overrides.notes).toContain('Roman Imperial')
+    wrapper.unmount()
+  })
+
+  it('disables teleported mode actions while intake analysis is running', async () => {
+    mocks.isPwa = false
+    let resolveDraft!: (value: unknown) => void
+    mocks.draft.mockReturnValueOnce(new Promise(resolve => {
+      resolveDraft = resolve
+    }))
+    const wrapper = render()
+
+    const assistedMode = document.querySelector<HTMLButtonElement>('#desktop-page-actions [aria-label="AI Assist Mode"]')
+    assistedMode?.click()
+    await nextTick()
+    wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo, 'obverse')
+    await flushPromises()
+    const analyze = wrapper.findAll('button').find(button => button.text().includes('Generate Intake Draft'))
+    expect(analyze).toBeDefined()
+    await analyze!.trigger('click')
+    await nextTick()
+
+    const manualMode = document.querySelector<HTMLButtonElement>('#desktop-page-actions [aria-label="Manual Mode"]')
+    expect(manualMode?.disabled).toBe(true)
+    expect(assistedMode?.disabled).toBe(true)
+
+    manualMode?.click()
+    await nextTick()
+    expect(wrapper.findComponent(CoinLookupCaptureWizard).exists()).toBe(true)
+    expect(wrapper.findComponent(CoinFormStub).exists()).toBe(false)
+
+    resolveDraft({ data: {
+      draftId: 7,
+      coin: { name: 'Denarius', category: 'Roman', material: 'Silver', era: 'Roman Imperial' },
+      confidenceSummary: { overall: 'medium' },
+      unresolvedFields: [],
+    } })
+    await flushPromises()
     wrapper.unmount()
   })
 

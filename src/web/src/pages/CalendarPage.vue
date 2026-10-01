@@ -8,19 +8,26 @@
       <div class="h-[18px] w-[18px] rounded-full border-2 border-border-subtle border-t-gold" :class="{ 'animate-spin': refreshing }" :style="refreshing ? '' : `transform: rotate(${pullDistance * 3}deg)`"></div>
       <span class="whitespace-nowrap text-sm text-text-secondary">{{ refreshing ? 'Refreshing...' : pullDistance >= 60 ? 'Release to refresh' : 'Pull to refresh' }}</span>
     </div>
-    <div class="page-header">
-      <h1>Auction Calendar</h1>
-      <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" @click="showAddEvent = true" title="Add Event">
-          <CirclePlus :size="22" />
-        </button>
+    <DesktopPageContext title="Auction Calendar">
+      <template #actions>
+        <AppIconButton title="Add Event" @click="showAddEvent = true">
+          <CirclePlus :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <h1>Auction Calendar</h1>
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn" title="Add Event" @click="showAddEvent = true">
+            <CirclePlus :size="22" />
+          </button>
+        </div>
+        <div v-else class="header-actions">
+          <button class="btn btn-primary" @click="showAddEvent = true">
+            <Plus :size="16" /> Add Event
+          </button>
+        </div>
       </div>
-      <div v-else class="header-actions">
-        <button class="btn btn-primary" @click="showAddEvent = true">
-          <Plus :size="16" /> Add Event
-        </button>
-      </div>
-    </div>
+    </DesktopPageContext>
 
     <!-- Month Navigation -->
     <div class="mb-5 flex items-center justify-center gap-6">
@@ -266,6 +273,8 @@ import { usePwa } from '@/composables/usePwa'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useToast } from '@/composables/useToast'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 interface CalendarLot {
   id: number

@@ -38,7 +38,10 @@ SPARQL.
 1. Start from Coin Lookup/new intake or a saved coin with obverse and reverse
    images.
 2. Optionally provide notes, hint images, or adjust the backend-eligible
-   provider set. Only providers that can actually be automated are selectable.
+   provider set. On supported browsers, saved-coin notes can be entered with
+   push-to-talk English dictation and edited before submission. Coin Lookup
+   reuses its already reviewed notes without showing a duplicate voice control.
+   Only providers that can actually be automated are selectable.
 3. The router selects available providers within configured limits and records
    its rationale.
 4. Provider progress and exact coverage states stream to the UI and remain
@@ -80,6 +83,10 @@ claims, reports, tokens, or per-job identifiers.
 - Full provider claims are consumed internally for synthesis; replayable public
   events contain bounded status and count data.
 - Hint images are ephemeral and are not promoted into the coin image gallery.
+- Browser speech recognition may send audio to the browser or device provider.
+  Aurearia does not upload or retain raw audio; after explicit submission, the
+  reviewed transcript is handled as ordinary job notes. Typing remains
+  available when recognition is unsupported or permission is denied.
 
 ## Related Decisions
 

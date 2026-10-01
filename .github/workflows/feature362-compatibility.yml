@@ -15,7 +15,7 @@ env:
 
 jobs:
   browser-acceptance:
-    name: Coin Copilot browser acceptance
+    name: AI and identification browser acceptance
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,7 +35,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run Coin Copilot, Deep Analysis and capture workflows
+      - name: Run AI and capture workflows
         run: npx playwright test "coin-copilot-deep-analysis|deep-analysis|add-coin-capture" --project=chromium
 
   guard-release:

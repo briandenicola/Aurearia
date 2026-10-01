@@ -1,20 +1,28 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container flex flex-col gap-6">
-      <header class="page-header flex flex-nowrap items-center justify-between gap-4">
-        <div>
-          <p class="section-label">Collection Insights</p>
-          <h1>Value Details</h1>
-          <p class="mt-[0.35rem] text-base text-text-secondary">Your collection's value breakdown and history.</p>
-        </div>
-        <router-link
-          class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
-          to="/stats"
-          aria-label="Back to Stats"
-        >
-          <ArrowLeft :size="20" />
-        </router-link>
-      </header>
+      <DesktopPageContext title="Value Details">
+        <template #actions>
+          <AppIconButton to="/stats" title="Back to Stats"><ArrowLeft :size="20" /></AppIconButton>
+        </template>
+        <header class="page-header flex flex-nowrap items-center justify-between gap-4">
+          <div>
+            <p class="section-label">Collection Insights</p>
+            <h1>Value Details</h1>
+            <p class="mt-[0.35rem] text-base text-text-secondary">Your collection's value breakdown and history.</p>
+          </div>
+          <router-link
+            class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+            to="/stats"
+            aria-label="Back to Stats"
+          >
+            <ArrowLeft :size="20" />
+          </router-link>
+        </header>
+        <template #desktop>
+          <p class="text-base text-text-secondary">Your collection's value breakdown and history.</p>
+        </template>
+      </DesktopPageContext>
 
       <div v-if="isLoading" class="loading-overlay">
         <div class="spinner"></div>
@@ -97,6 +105,8 @@ import PullToRefresh from '@/components/PullToRefresh.vue'
 import StatsValueOverTime from '@/components/stats/StatsValueOverTime.vue'
 import StatsPurchasesPerYear from '@/components/stats/StatsPurchasesPerYear.vue'
 import { formatCurrency } from '@/utils/format'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const store = useCoinsStore()
 const isLoading = ref(true)

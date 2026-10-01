@@ -1,11 +1,18 @@
 <template>
   <div class="container">
-    <div class="page-header">
-      <h1>Deep Analysis History</h1>
-      <RouterLink class="pwa-icon-btn" to="/lookup" title="Identify Coin" aria-label="Identify Coin">
-        <Search :size="22" />
-      </RouterLink>
-    </div>
+    <DesktopPageContext title="Deep Analysis History">
+      <template #actions>
+        <AppIconButton to="/lookup" title="Identify Coin">
+          <Search :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <h1>Deep Analysis History</h1>
+        <RouterLink class="pwa-icon-btn" to="/lookup" title="Identify Coin" aria-label="Identify Coin">
+          <Search :size="22" />
+        </RouterLink>
+      </div>
+    </DesktopPageContext>
 
     <div v-if="loading && jobs.length === 0" class="py-12 text-center text-text-secondary">
       Loading Deep Analysis runs...
@@ -61,6 +68,8 @@ import { ChevronRight, ScanSearch, Search } from 'lucide-vue-next'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import { listDeepIdentificationJobs, getApiErrorMessage } from '@/api/client'
 import type { DeepJob, DeepJobSource } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const router = useRouter()
 

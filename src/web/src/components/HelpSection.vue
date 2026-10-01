@@ -98,6 +98,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II (337-361 AD),ancient,An
         <ul>
           <li><strong>Where to start</strong> — Both intake flows live under <strong>Identify Coin</strong> in the sidebar; the drafts list is the <strong>All drafts</strong> action on that page.</li>
           <li><strong>Coin Lookup</strong> — Photograph a coin or NGC Ancients slab, review extracted details, and save the result to your collection or wish list. <strong>Identify Coin → Analysis History</strong> keeps past deep identification jobs, including their artifacts and provider runs.</li>
+          <li><strong>Voice notes</strong> — On supported browsers, use <strong>Dictate notes</strong> in Quick Identify or saved-coin Deep Analysis, review the English transcript, then submit with the existing action. Your browser or device provider may process the audio; Aurearia does not store it. Typing remains available.</li>
           <li><strong>Quick Capture</strong> — Save show-floor photos and notes as drafts, resume them later, and promote a completed draft into either your collection or wish list. Drafts stay out of collection, wish list, stats, and health totals until promotion.</li>
         </ul>
 

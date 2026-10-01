@@ -1,8 +1,10 @@
 <template>
   <div class="container">
-    <div class="page-header">
-      <h1>Admin</h1>
-    </div>
+    <DesktopPageContext title="Admin">
+      <div class="page-header">
+        <h1>Admin</h1>
+      </div>
+    </DesktopPageContext>
 
     <div v-if="!auth.isAdmin" class="empty-state">
       <h3>Access Denied</h3>
@@ -239,6 +241,7 @@ import AdminCoinPropertiesSection from '@/components/admin/AdminCoinPropertiesSe
 import AdminSecuritySection from '@/components/admin/AdminSecuritySection.vue'
 import AdminOIDCSection from '@/components/admin/AdminOIDCSection.vue'
 import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2, ShieldAlert, KeyRound } from 'lucide-vue-next'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
 type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'oidc' | 'security' | 'schedules' | 'health' | 'logs'
 type AdminGroupId = 'configuration' | 'operations'

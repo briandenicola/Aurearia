@@ -67,6 +67,12 @@
         placeholder="Anything providers should know (mint marks, inscriptions, provenance, etc.)"
       />
     </label>
+    <VoiceDictationButton
+      v-if="!reuseCapturedEvidence"
+      :disabled="submitting"
+      @transcript="appendDictatedNotes"
+    />
+    <p v-if="!reuseCapturedEvidence && voiceNotice" class="m-0 text-sm text-warning" role="status">{{ voiceNotice }}</p>
 
     <fieldset class="grid gap-2 rounded-sm border border-border-subtle p-3">
       <legend class="px-1 text-base font-semibold text-heading">Providers (optional override)</legend>
@@ -100,6 +106,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
+import { appendVoiceTranscript } from '@/composables/useVoiceDictation'
 import type { CreateDeepIdentificationJobInput, DeepProviderId } from '@/types'
 
 const MAX_DEEP_HINT_IMAGES = 3
@@ -158,9 +166,18 @@ const hintImages = ref<File[]>([...props.initialHintImages])
 const notes = ref(props.initialNotes)
 const selectedProviders = ref<DeepProviderId[]>([])
 const validationError = ref('')
+const voiceNotice = ref('')
 
 const obverseUrl = ref('')
 const reverseUrl = ref('')
+
+function appendDictatedNotes(transcript: string) {
+  const result = appendVoiceTranscript(notes.value, transcript)
+  notes.value = result.value
+  voiceNotice.value = result.truncated
+    ? 'The transcript was shortened to the 2,000-character notes limit.'
+    : ''
+}
 
 function refreshUrl(target: 'obverse' | 'reverse', file: File | null) {
   const current = target === 'obverse' ? obverseUrl : reverseUrl

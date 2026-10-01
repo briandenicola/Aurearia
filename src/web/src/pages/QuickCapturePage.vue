@@ -1,19 +1,26 @@
 <template>
   <div class="container">
     <div class="form-wrapper grid gap-4">
-      <div class="page-header">
-        <h1>Quick Capture</h1>
-        <div v-if="isPwa" class="pwa-actions">
-          <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All captures" aria-label="All captures">
-            <List :size="22" />
-          </RouterLink>
+      <DesktopPageContext title="Quick Capture">
+        <template #actions>
+          <AppIconButton to="/quick-capture/drafts" title="All captures">
+            <List :size="20" />
+          </AppIconButton>
+        </template>
+        <div class="page-header">
+          <h1>Quick Capture</h1>
+          <div v-if="isPwa" class="pwa-actions">
+            <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All captures" aria-label="All captures">
+              <List :size="22" />
+            </RouterLink>
+          </div>
+          <div v-else class="header-actions">
+            <RouterLink class="btn btn-secondary" to="/quick-capture/drafts">
+              <List :size="16" /> All
+            </RouterLink>
+          </div>
         </div>
-        <div v-else class="header-actions">
-          <RouterLink class="btn btn-secondary" to="/quick-capture/drafts">
-            <List :size="16" /> All
-          </RouterLink>
-        </div>
-      </div>
+      </DesktopPageContext>
       <p class="m-0 text-base text-text-secondary">Capture sparse coin details quickly. Drafts remain active and incomplete until you finish them later.</p>
       <QuickCaptureForm @saved="onSaved" />
       <div v-if="lastDraft" class="card grid gap-1">
@@ -31,6 +38,8 @@ import { List } from 'lucide-vue-next'
 import QuickCaptureForm from '@/components/quick-capture/QuickCaptureForm.vue'
 import type { QuickCaptureDraft } from '@/types'
 import { usePwa } from '@/composables/usePwa'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const lastDraft = ref<QuickCaptureDraft | null>(null)
 const { isPwa } = usePwa()

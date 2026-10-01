@@ -1,21 +1,29 @@
 <template>
   <div class="container flex flex-col gap-6">
-    <header class="page-header flex flex-nowrap items-center justify-between gap-4">
-      <div>
-        <p class="section-label">Emperors</p>
-        <h1>Stats</h1>
-        <p class="mt-[0.35rem] text-base text-text-secondary">
-          Completion and coverage metrics for your Emperor tracker.
-        </p>
-      </div>
-      <router-link
-        class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
-        to="/sets/emperors"
-        aria-label="Back to Emperors"
-      >
-        <ArrowLeft :size="20" />
-      </router-link>
-    </header>
+    <DesktopPageContext title="Emperor Stats">
+      <template #actions>
+        <AppIconButton to="/sets/emperors" title="Back to Emperors"><ArrowLeft :size="20" /></AppIconButton>
+      </template>
+      <header class="page-header flex flex-nowrap items-center justify-between gap-4">
+        <div>
+          <p class="section-label">Emperors</p>
+          <h1>Stats</h1>
+          <p class="mt-[0.35rem] text-base text-text-secondary">
+            Completion and coverage metrics for your Emperor tracker.
+          </p>
+        </div>
+        <router-link
+          class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+          to="/sets/emperors"
+          aria-label="Back to Emperors"
+        >
+          <ArrowLeft :size="20" />
+        </router-link>
+      </header>
+      <template #desktop>
+        <p class="text-base text-text-secondary">Completion and coverage metrics for your Emperor tracker.</p>
+      </template>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
@@ -82,6 +90,8 @@ import { computed, onMounted, ref } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
 import { getApiErrorMessage, getEmperorTrackerProgress } from '@/api/client'
 import type { CategoryProgress, DynastyProgress, EmperorTrackerResult } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const loading = ref(true)
 const errorMessage = ref('')

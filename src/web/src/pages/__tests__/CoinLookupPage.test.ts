@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
 import { createDeepIdentificationJob, createQuickCaptureDraft, listDeepIdentificationJobs, lookupCoin, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
 import { normalizeGalleryImage } from '@/utils/galleryImage'
@@ -90,6 +91,14 @@ describe('CoinLookupPage', () => {
       value: undefined,
       configurable: true,
     })
+    document.body.innerHTML = `
+      <div id="desktop-page-title"></div>
+      <div id="desktop-page-actions"></div>
+    `
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('normalizes a gallery image before starting identification', async () => {
@@ -169,6 +178,40 @@ describe('CoinLookupPage', () => {
       reverseImage: null,
       detailImages: [notesImage],
     }))
+  })
+
+  it('submits the reviewed dictated transcript through the existing notes request', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [obverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+
+    wrapper.getComponent(VoiceDictationButton).vm.$emit('transcript', 'Laureate bust right.')
+    await wrapper.vm.$nextTick()
+    await wrapper.get('textarea').setValue('Laureate bust right; legend incomplete.')
+
+    expect(lookupCoin).not.toHaveBeenCalled()
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupCoin).toHaveBeenCalledWith(
+      [obverse],
+      'Laureate bust right; legend incomplete.',
+      ['obverse'],
+      false,
+    )
   })
 
   it('requests and shows an opt-in price range and carries it into the draft notes', async () => {
@@ -451,9 +494,9 @@ describe('CoinLookupPage', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Identify Coin')
-    expect(wrapper.find('[aria-label="All drafts"]').exists()).toBe(true)
-    expect(wrapper.find('.pwa-icon-btn').exists()).toBe(true)
+    expect(document.querySelector('#desktop-page-title')?.textContent).toContain('Identify Coin')
+    expect(document.querySelector('#desktop-page-actions [aria-label="All drafts"]')).not.toBeNull()
+    expect(wrapper.find('.desktop-page-context-local .pwa-icon-btn').exists()).toBe(true)
   })
 
   it('labels the photo workflow Analyze Photos and retains Save as Draft', async () => {
@@ -542,6 +585,9 @@ describe('CoinLookupPage', () => {
     Object.defineProperty(input.element, 'files', { value: [reverse], configurable: true })
     await input.trigger('change')
     await flushPromises()
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    wrapper.getComponent(VoiceDictationButton).vm.$emit('transcript', 'Silver, 3.4 g.')
+    await wrapper.vm.$nextTick()
 
     const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
     await deepAnalysisButton!.trigger('click')
@@ -558,6 +604,7 @@ describe('CoinLookupPage', () => {
     expect(createDeepIdentificationJob).toHaveBeenCalledWith(expect.objectContaining({
       obverseImage: obverse,
       reverseImage: reverse,
+      notes: 'Silver, 3.4 g.',
     }))
     expect(lookupCoin).not.toHaveBeenCalled()
     expect(routerPush).toHaveBeenCalledWith('/deep-analysis/42')

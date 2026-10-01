@@ -324,6 +324,8 @@ describe('AuctionsPage', () => {
       expect(wrapper.findAllComponents({ name: 'AuctionLotCard' }).length).toBe(4)
       const toggle = wrapper.find('[aria-label="Auction grouping"] button')
       expect(toggle.attributes('aria-pressed')).toBe('true')
+      expect(toggle.text()).toBe('Group by Auction')
+      expect(toggle.element.closest('[data-testid="auction-filter-row"]')).not.toBeNull()
     })
 
     it('preserves an explicit user choice to turn grouping off for the rest of the visit', async () => {

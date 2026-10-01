@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DeepAnalysisStartPanel from '../DeepAnalysisStartPanel.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
 
 function makeFile(name: string) {
   return new File(['data'], name, { type: 'image/jpeg' })
@@ -87,6 +88,33 @@ describe('DeepAnalysisStartPanel', () => {
     expect(payload.providers).toEqual(['nomisma'])
   })
 
+  it('appends dictated notes and waits for explicit submission', async () => {
+    const wrapper = mountPanel({ initialNotes: 'Weight 4.1 g.' })
+
+    wrapper.getComponent(VoiceDictationButton).vm.$emit('transcript', 'Partial legend IMP.')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value)
+      .toBe('Weight 4.1 g. Partial legend IMP.')
+
+    await setFile(wrapper, 0, makeFile('obverse.jpg'))
+    await setFile(wrapper, 1, makeFile('reverse.jpg'))
+    await wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))!.trigger('click')
+
+    const payload = wrapper.emitted('submit')?.[0]?.[0] as { notes: string }
+    expect(payload.notes).toBe('Weight 4.1 g. Partial legend IMP.')
+  })
+
+  it('keeps typed notes available when voice is unsupported and disables voice while submitting', () => {
+    const available = mountPanel()
+    expect(available.find('textarea').exists()).toBe(true)
+    expect(available.find('[aria-label="Start voice dictation"]').exists()).toBe(false)
+
+    const submitting = mountPanel({ submitting: true })
+    expect(submitting.getComponent(VoiceDictationButton).props('disabled')).toBe(true)
+  })
+
   it('offers only backend-eligible providers for override', () => {
     const wrapper = mount(DeepAnalysisStartPanel, {
       props: { eligibleProviders: ['numista', 'ocre'] },
@@ -141,6 +169,7 @@ describe('DeepAnalysisStartPanel', () => {
       .toContain('obverse, reverse, 1 supporting image, notes')
     expect(wrapper.findAll('input[type="file"]')).toHaveLength(0)
     expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.findComponent(VoiceDictationButton).exists()).toBe(false)
 
     await wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))!.trigger('click')
     const payload = wrapper.emitted('submit')?.[0]?.[0] as {
