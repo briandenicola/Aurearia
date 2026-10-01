@@ -78,6 +78,11 @@
             ></textarea>
             <span class="text-right text-sm text-text-muted">{{ notes.length }} / 2000</span>
           </label>
+          <VoiceDictationButton
+            :disabled="submitting || preparingImage"
+            @transcript="appendDictatedNotes"
+          />
+          <p v-if="voiceNotice" class="m-0 text-sm text-warning" role="status">{{ voiceNotice }}</p>
 
           <label class="price-toggle">
             <input
@@ -199,7 +204,9 @@ import { computed, ref, watch } from 'vue'
 import { AlertCircle, Camera, Check, ChevronLeft, ChevronRight, Microscope, Search, X } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import PwaCaptureShell from '@/components/coin-lookup/PwaCaptureShell.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
 import { usePwa } from '@/composables/usePwa'
+import { appendVoiceTranscript } from '@/composables/useVoiceDictation'
 import type { CoinLookupImageRole } from '@/types'
 
 interface CaptureImage {
@@ -282,6 +289,7 @@ const steps = computed(() => [
 
 const step = ref(0)
 const deepRequirementError = ref('')
+const voiceNotice = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 const currentStep = computed(() => {
@@ -295,6 +303,14 @@ const currentImage = computed(() => {
   return props.notesImage
 })
 const showNotesEditor = computed(() => props.purpose === 'identify' && currentStep.value.role === 'notes')
+
+function appendDictatedNotes(transcript: string) {
+  const result = appendVoiceTranscript(props.notes, transcript)
+  emit('update:notes', result.value)
+  voiceNotice.value = result.truncated
+    ? 'The transcript was shortened to the 2,000-character notes limit.'
+    : ''
+}
 
 function stepImage(role: CoinLookupImageRole) {
   if (role === 'obverse') return props.obverse

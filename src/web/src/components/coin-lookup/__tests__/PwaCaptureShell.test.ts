@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import PwaCaptureShell from '../PwaCaptureShell.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
 import { useImmersiveShell } from '@/composables/useImmersiveShell'
+import type {
+  VoiceRecognition,
+  VoiceRecognitionErrorEvent,
+  VoiceRecognitionEvent,
+} from '@/composables/useVoiceDictation'
 
 const mocks = vi.hoisted(() => ({ push: vi.fn(), confirm: vi.fn(), alert: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
@@ -24,6 +30,25 @@ const cameraStub = {
 
 const photo = { file: new File(['o'], 'obverse.jpg', { type: 'image/jpeg' }), preview: 'blob:obverse' }
 
+class FakeRecognition implements VoiceRecognition {
+  static latest: FakeRecognition | null = null
+  lang = ''
+  continuous = true
+  interimResults = false
+  maxAlternatives = 0
+  onstart: (() => void) | null = null
+  onend: (() => void) | null = null
+  onresult: ((event: VoiceRecognitionEvent) => void) | null = null
+  onerror: ((event: VoiceRecognitionErrorEvent) => void) | null = null
+  start = vi.fn(() => this.onstart?.())
+  stop = vi.fn()
+  abort = vi.fn()
+
+  constructor() {
+    FakeRecognition.latest = this
+  }
+}
+
 function render(props: Record<string, unknown> = {}) {
   return mount(PwaCaptureShell, {
     props: {
@@ -39,6 +64,11 @@ describe('PwaCaptureShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.confirm.mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    FakeRecognition.latest = null
   })
 
   it('renders the mockup chrome and locks later steps until the obverse exists', () => {
@@ -113,8 +143,39 @@ describe('PwaCaptureShell', () => {
     const intake = render({ purpose: 'intake', obverse: photo })
     await intake.get('[aria-label="Add coin card"]').trigger('click')
     expect(intake.find('textarea').exists()).toBe(false)
+    expect(intake.findComponent(VoiceDictationButton).exists()).toBe(false)
     wrapper.unmount()
     intake.unmount()
+  })
+
+  it('appends dictated notes without submitting analysis', async () => {
+    const wrapper = render({
+      purpose: 'identify',
+      obverse: photo,
+      notes: 'Diameter 22 mm.',
+    })
+
+    await wrapper.get('[aria-label="Add notes"]').trigger('click')
+    wrapper.getComponent(VoiceDictationButton).vm.$emit('transcript', 'Victory reverse.')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('update:notes')).toEqual([['Diameter 22 mm. Victory reverse.']])
+    expect(wrapper.emitted('analyze')).toBeUndefined()
+    expect(wrapper.emitted('deepAnalyze')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('aborts active dictation when leaving the Notes step', async () => {
+    vi.stubGlobal('SpeechRecognition', FakeRecognition)
+    const wrapper = render({ purpose: 'identify', obverse: photo })
+
+    await wrapper.get('[aria-label="Add notes"]').trigger('click')
+    await wrapper.get('[aria-label="Start voice dictation"]').trigger('click')
+    expect(FakeRecognition.latest?.start).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('[aria-label="Add reverse image"]').trigger('click')
+    expect(FakeRecognition.latest?.abort).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
   })
 
   it('analyzes without notes and offers the price toggle on the details step', async () => {

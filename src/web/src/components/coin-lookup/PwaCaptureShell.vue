@@ -66,6 +66,11 @@
               @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             ></textarea>
           </label>
+          <VoiceDictationButton
+            :disabled="submitting || preparingImage"
+            @transcript="appendDictatedNotes"
+          />
+          <p v-if="voiceNotice" class="m-0 text-sm text-warning" role="status">{{ voiceNotice }}</p>
           <div class="stage-notes-row">
             <label class="stage-price-toggle">
               <input
@@ -204,8 +209,10 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AlertCircle, Images, Microscope, Pencil, X, Zap } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
 import { useDialog } from '@/composables/useDialog'
 import { useImmersiveShellClaim } from '@/composables/useImmersiveShell'
+import { appendVoiceTranscript } from '@/composables/useVoiceDictation'
 import type { CoinLookupImageRole } from '@/types'
 
 interface CaptureImage {
@@ -251,6 +258,7 @@ useImmersiveShellClaim()
 
 const step = ref(0)
 const deepRequirementError = ref('')
+const voiceNotice = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 
@@ -289,6 +297,14 @@ const showNotesField = computed(() => props.purpose === 'identify' && currentSte
 const showGuideRing = computed(() => currentStep.value.role !== 'notes')
 const busy = computed(() => props.submitting || props.preparingImage)
 const stageError = computed(() => deepRequirementError.value || props.uploadError)
+
+function appendDictatedNotes(transcript: string) {
+  const result = appendVoiceTranscript(props.notes, transcript)
+  emit('update:notes', result.value)
+  voiceNotice.value = result.truncated
+    ? 'The transcript was shortened to the 2,000-character notes limit.'
+    : ''
+}
 
 const actionLabel = computed(() => {
   if (props.submitting) return 'Analyzing...'

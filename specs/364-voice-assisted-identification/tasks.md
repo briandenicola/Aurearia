@@ -19,15 +19,15 @@ alone proves implementation, verification, acceptance, or release.
 
 ## Phase 1: Scope, Authority, and Existing Foundations
 
-- [ ] T001 Confirm the owner-approved Feature 364 criteria and non-goals against
+- [x] T001 Confirm the owner-approved Feature 364 criteria and non-goals against
   Feature 348, Feature 344/351, ADR 0018, current active decisions, and any open
   review restrictions. Record the implementation candidate base and verify that
   `beta` is the authorized work branch.
-- [ ] T002 Draft `docs/adr/0020-browser-speech-identification-notes.md` covering
+- [x] T002 Draft `docs/adr/0020-browser-speech-identification-notes.md` covering
   browser/platform audio processing, disclosure, no Aurearia audio persistence,
   English-only MVP, typed fallback, unsupported browsers, and the separately
   scoped future self-hosted path. Obtain required owner acceptance before T004.
-- [ ] T003 Reconfirm the actual notes consumers and sibling workflows in
+- [x] T003 Reconfirm the actual notes consumers and sibling workflows in
   `CoinLookupCaptureWizard.vue`, `PwaCaptureShell.vue`, `CoinLookupPage.vue`, and
   `DeepAnalysisStartPanel.vue`; verify no API, Go, Python, schema, settings, or
   dependency change is needed. Stop and re-scope if that assumption is false.
@@ -43,29 +43,29 @@ text, errors, disabled-state abort, and unmount cleanup.
 
 ### Verification
 
-- [ ] T004 [US3] Add failing focused tests in
+- [x] T004 [US3] Add failing focused tests in
   `src/web/src/composables/__tests__/useVoiceDictation.test.ts` for unavailable
   APIs, `en-US`, user-triggered start, final-only text, multiple final segments,
   duplicate/late callback suppression, Stop, abort, permission/no-speech/network
   errors, disabled-state cleanup, and unmount cleanup.
-- [ ] T005 [US4] Add failing component tests in
+- [x] T005 [US4] Add failing component tests in
   `src/web/src/components/voice/__tests__/VoiceDictationButton.test.ts` for
   accessible Start/Stop names, visible/listed recording state, keyboard use,
   disabled/loading behavior, privacy disclosure, and bounded error output.
 
 ### Implementation
 
-- [ ] T006 [US3] Implement
+- [x] T006 [US3] Implement
   `src/web/src/composables/useVoiceDictation.ts` with repository-owned minimal
   TypeScript interfaces for standard/prefixed browser recognition, injected
   factory support for tests, component-scoped state, normalized errors, and
   abort-on-disable/unmount. Do not use `any`, global singleton state, storage, or
   direct `getUserMedia`.
-- [ ] T007 [US4] Implement
+- [x] T007 [US4] Implement
   `src/web/src/components/voice/VoiceDictationButton.vue` using existing button,
   icon, status, typography, and color patterns. Emit final text only; never own
   notes or invoke analysis submission.
-- [ ] T008 [US3] Run the focused composable/component tests and tamper the
+- [x] T008 [US3] Run the focused composable/component tests and tamper the
   abort-on-unmount guard to prove it fails, then restore it. Record the exact
   candidate/tree and result before workflow integration.
 
@@ -81,32 +81,32 @@ only from the existing Analyze/Deep action.
 
 ### Verification
 
-- [ ] T009 [US1] Extend
+- [x] T009 [US1] Extend
   `src/web/src/components/coin-lookup/__tests__/CoinLookupCaptureWizard.test.ts`
   with failing cases for empty/prefilled append, readable spacing,
   2,000-character truncation feedback, unsupported fallback, submitting state,
   `purpose="intake"` exclusion, and no auto-analysis.
-- [ ] T010 [US1] Extend the existing `PwaCaptureShell` tests with the same voice
+- [x] T010 [US1] Extend the existing `PwaCaptureShell` tests with the same voice
   notes contract at mobile layout, including active-listening cleanup when the
   shell unmounts or leaves the Notes step.
-- [ ] T011 [US1] Extend
+- [x] T011 [US1] Extend
   `src/web/src/pages/__tests__/CoinLookupPage.test.ts` to prove the final edited
   transcript reaches the existing Quick Identify notes request and the existing
   captured-evidence Deep Analysis handoff without a second value or submit path.
 
 ### Implementation
 
-- [ ] T012 [US1] Add one shared, pure append helper under the voice composable or
+- [x] T012 [US1] Add one shared, pure append helper under the voice composable or
   a focused utility: preserve existing notes, normalize only join spacing,
   append final transcript text, cap at 2,000 characters, and return whether
   truncation occurred. Do not alter user text beyond the bounded join.
-- [ ] T013 [US1] Integrate `VoiceDictationButton` beside the existing notes field
+- [x] T013 [US1] Integrate `VoiceDictationButton` beside the existing notes field
   in `CoinLookupCaptureWizard.vue`, emitting only through the existing
   `update:notes` contract and disabling/aborting with submission or step exit.
-- [ ] T014 [US1] Integrate the same control in `PwaCaptureShell.vue` without
+- [x] T014 [US1] Integrate the same control in `PwaCaptureShell.vue` without
   changing immersive camera ownership, image roles, step navigation, price
   toggle, or `purpose="intake"` behavior.
-- [ ] T015 [US1] Run the focused Quick Identify/PWA/page tests. Tamper the
+- [x] T015 [US1] Run the focused Quick Identify/PWA/page tests. Tamper the
   no-auto-submit guard so recognition completion invokes analysis, prove the
   test fails, then restore it.
 
@@ -121,43 +121,43 @@ optional `notes` value.
 
 ### Verification
 
-- [ ] T016 [US2] Extend
+- [x] T016 [US2] Extend
   `src/web/src/components/deep-identification/__tests__/DeepAnalysisStartPanel.test.ts`
   with failing cases for saved-coin dictated notes, typed-plus-dictated append,
   empty optional notes, unsupported fallback, submitting cleanup, and absence of
   the control when `reuseCapturedEvidence` is true.
-- [ ] T017 [US2] Confirm existing Coin Lookup tests continue to prove that
+- [x] T017 [US2] Confirm existing Coin Lookup tests continue to prove that
   Identify Coin notes, including dictated text, are reused by Deep Analysis and
   that no duplicate notes editor/control appears in reused-evidence mode.
 
 ### Implementation
 
-- [ ] T018 [US2] Integrate `VoiceDictationButton` into
+- [x] T018 [US2] Integrate `VoiceDictationButton` into
   `DeepAnalysisStartPanel.vue` only when its notes textarea is rendered. Preserve
   saved-coin image reuse, hint images, provider overrides, validation, and the
   existing `CreateDeepIdentificationJobInput.notes` contract.
-- [ ] T019 [US2] Run the focused Deep Analysis tests and verify the no-notes path
+- [x] T019 [US2] Run the focused Deep Analysis tests and verify the no-notes path
   still submits normally with valid obverse/reverse evidence.
 
 ## Phase 5: Compatibility, Documentation, and Acceptance
 
-- [ ] T020 [P] Add a deterministic browser workflow using the existing
+- [x] T020 [P] Add a deterministic browser workflow using the existing
   Playwright infrastructure and a mocked recognition constructor at a mobile
   viewport. Prove Start, final transcript, edit, explicit Analyze, Stop/error,
   and navigation cleanup without requiring a real microphone in CI.
-- [ ] T021 Update directly affected help/design documentation with the
+- [x] T021 Update directly affected help/design documentation with the
   push-to-talk behavior, typed fallback, English-only limit, browser support
   boundary, privacy disclosure, and the fact that Aurearia stores transcript
   notes but not audio. Do not advertise the future self-hosted fallback as
   implemented.
-- [ ] T022 Run `task check:web` and the verified targeted browser selector on the
+- [x] T022 Run `task check:web` and the verified targeted browser selector on the
   exact candidate. Record supported-runtime hosted checks as pending until CI;
   missing tools or authorization remain incomplete.
 - [ ] T023 With explicit owner authorization, manually verify one supported
   desktop/mobile PWA browser: permission grant, denial, natural silence end,
   Stop, navigation cleanup, editable transcript, Quick Identify submission, and
   Deep Analysis submission. Record browser/version and exact candidate.
-- [ ] T024 Run the required software QC audit for microphone/privacy/PWA scope,
+- [x] T024 Run the required software QC audit for microphone/privacy/PWA scope,
   covering browser-provider disclosure, no raw audio persistence/logging,
   unsupported fallback, state isolation, accessibility, and rollback.
 - [ ] T025 Obtain independent read-only review of the exact commit/tree with the
@@ -191,11 +191,12 @@ optional `notes` value.
 
 | Criterion / task | Evidence and command/result | Commit/tree | State / reviewer |
 |------------------|-----------------------------|-------------|------------------|
-| T001-T003 | Pending scope/ADR prerequisite record | Pending | Planned |
-| T004-T008 | Pending focused lifecycle tests and tamper proof | Pending | Planned |
-| T009-T015 | Pending Quick Identify desktop/PWA evidence | Pending | Planned |
-| T016-T019 | Pending Deep Analysis evidence | Pending | Planned |
-| T020-T023 | Pending browser, full web, and manual compatibility evidence | Pending | Planned |
-| T024 | Pending software QC audit | Pending | Planned |
-| T025 | Pending independent exact-candidate verdict | Pending | Planned |
+| T001-T003 | PR #801 merged as `150eb23d`; ADR 0020 accepted and scope authorized | `150eb23d` | Complete |
+| T004-T008 | Focused lifecycle/control suite passed; removing unmount abort failed 1 expected test, then restoration passed | Implementation candidate | Complete |
+| T009-T015 | Desktop/PWA/page focused suites passed; adding transcript-triggered Analyze failed the explicit-submit guards, then restoration passed | Implementation candidate | Complete |
+| T016-T019 | Deep Analysis focused suite passed, including dictated, empty-notes, disabled, unsupported, and reused-evidence paths | Implementation candidate | Complete |
+| T020-T022 | Mocked mobile Playwright workflow passed; `task check:web` passed lint, strict type-check, full tests, and production build | Implementation candidate | Complete |
+| T023 | Real supported-browser microphone permission/provider behavior | Pending | Requires explicit manual environment evidence |
+| T024 | Exact-candidate software QC audit found no code blocker; verdict INCOMPLETE only for T023 real-microphone evidence and hosted-run receipt | `0ed5f442` | Audit complete; acceptance evidence incomplete |
+| T025 | Restricted reviewer cleared the post-`onend` blocker on successor `0ed5f442`; verdict INCOMPLETE pending T023 and completed audit receipt | `0ed5f442` | Re-review required after T023 evidence |
 | T026 | Pending owner acceptance and handoff | Pending | Planned |

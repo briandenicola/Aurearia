@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CoinLookupCaptureWizard from '../CoinLookupCaptureWizard.vue'
+import VoiceDictationButton from '@/components/voice/VoiceDictationButton.vue'
 
 function image(name: string) {
   return {
@@ -82,6 +83,51 @@ describe('CoinLookupCaptureWizard', () => {
     expect(textarea.attributes('required')).toBeUndefined()
     expect(textarea.attributes('placeholder')).toContain('weight, diameter, ruler')
     expect(textarea.attributes('placeholder')).toContain('Leave blank')
+    expect(wrapper.find('[aria-label="Start voice dictation"]').exists()).toBe(false)
+  })
+
+  it('disables dictation while the identification workflow is submitting', async () => {
+    const wrapper = mountWizard({
+      obverse: image('obverse.jpg'),
+      submitting: true,
+    })
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+
+    expect(wrapper.getComponent(VoiceDictationButton).props('disabled')).toBe(true)
+  })
+
+  it('appends dictated notes without starting analysis', async () => {
+    const wrapper = mountWizard({
+      obverse: image('obverse.jpg'),
+      notes: 'Weight 3.2 g.',
+    })
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    wrapper.getComponent(VoiceDictationButton).vm.$emit('transcript', 'Mint mark below bust.')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('update:notes')).toEqual([['Weight 3.2 g. Mint mark below bust.']])
+    expect(wrapper.emitted('analyze')).toBeUndefined()
+    expect(wrapper.emitted('deepAnalyze')).toBeUndefined()
+  })
+
+  it('reports when dictated notes reach the existing length limit', async () => {
+    const wrapper = mountWizard({
+      obverse: image('obverse.jpg'),
+      notes: 'a'.repeat(1998),
+    })
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    wrapper.getComponent(VoiceDictationButton).vm.$emit('transcript', 'legend')
+    await wrapper.vm.$nextTick()
+
+    const emitted = wrapper.emitted('update:notes')?.[0]?.[0] as string
+    expect(emitted).toHaveLength(2000)
+    expect(wrapper.get('[role="status"]').text()).toContain('2,000-character')
   })
 
   it('offers an opt-in price range toggle on the identify notes step only', async () => {
@@ -102,6 +148,7 @@ describe('CoinLookupCaptureWizard', () => {
     await intake.find('[aria-label="Add reverse image"]').trigger('click')
     await intake.find('[aria-label="Add coin card"]').trigger('click')
     expect(intake.find('input[type="checkbox"]').exists()).toBe(false)
+    expect(intake.findComponent(VoiceDictationButton).exists()).toBe(false)
   })
 
   it('hides each camera after that step has an image', async () => {

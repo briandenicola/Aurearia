@@ -4,7 +4,7 @@
 **Working branch**: `beta`
 **Lane**: High risk (microphone permission, browser-provider audio processing, and mobile/PWA behavior)
 **Created**: 2026-10-01  
-**Status**: Draft; scope decisions are owner-approved, implementation is not yet authorized  
+**Status**: Approved for implementation; ADR 0020 accepted via PR #801
 **Input**: User wants voice input to quickly enter evidence for coin identification. Owner-selected MVP: Quick Identify and Deep Analysis, browser-first transcription with a future self-hosted seam, editable notes with explicit submission, English only.
 
 This specification is subordinate to Constitution 4.0.0, ADR 0019, Feature 348,
@@ -42,8 +42,8 @@ Feature 344 as amended by Feature 351, and accepted ADR 0018.
   - ADR 0018 preserves optional collector notes as evidence for Deep Analysis.
   - A new ADR must document the browser speech-recognition privacy, compatibility,
     fallback, and no-audio-persistence decision before implementation.
-- **Lifecycle evidence**: Planning only. No implementation, verification,
-  acceptance, release, or deployment is authorized by this draft.
+- **Lifecycle evidence**: Scope and implementation are owner-authorized through
+  PR #801. Verification, acceptance, release, and deployment remain pending.
 
 ## User Scenarios & Testing
 
