@@ -61,6 +61,19 @@ describe('useVoiceDictation', () => {
     expect(api.status.value).toBe('idle')
   })
 
+  it('prevents overlapping starts and allows Stop while browser startup is pending', () => {
+    const { api, recognition } = mountComposable()
+    recognition.start.mockImplementation(() => undefined)
+
+    api.start()
+    api.start()
+
+    expect(recognition.start).toHaveBeenCalledTimes(1)
+    expect(api.status.value).toBe('listening')
+    api.stop()
+    expect(recognition.stop).toHaveBeenCalledTimes(1)
+  })
+
   it('configures English recognition and emits only new final results', () => {
     const { api, recognition, onFinalText } = mountComposable()
 

@@ -141,6 +141,7 @@ export function useVoiceDictation(options: UseVoiceDictationOptions) {
         status.value = 'idle'
         if (event.error !== 'aborted') error.value = errorMessage(event.error)
       }
+      status.value = 'listening'
       active.start()
     } catch {
       recognition = null
