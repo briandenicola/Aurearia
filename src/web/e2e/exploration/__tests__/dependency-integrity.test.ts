@@ -75,8 +75,9 @@ describe('Feature 360 dependency integrity', () => {
     }
 
     expect(lockedVersion('langchain')).toBe('1.4.0')
-    expect(lockedVersion('langchain-anthropic')).toBe('1.7.2')
+    expect(lockedVersion('langchain-anthropic')).toBe('1.7.4')
     expect(lockedVersion('langchain-ollama')).toBe('1.1.0')
-    expect(lockedVersion('langgraph')).toBe('1.2.11')
+    expect(lockedVersion('langgraph')).toBe('1.2.12')
+    expect(lockedVersion('ruff')).toBe('0.16.9')
   })
 })
