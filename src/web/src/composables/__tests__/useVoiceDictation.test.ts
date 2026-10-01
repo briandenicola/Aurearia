@@ -90,6 +90,25 @@ describe('useVoiceDictation', () => {
     expect(api.error.value).toContain('browser site permissions')
   })
 
+  it('does not start recognition when disabled during the permission request', async () => {
+    let grantPermission!: () => void
+    const requestPermission = vi.fn(() => new Promise<void>((resolve) => {
+      grantPermission = resolve
+    }))
+    const { api, recognition, disabled, wrapper } = mountComposable(ref(false), requestPermission)
+
+    const startPromise = api.start()
+    expect(api.status.value).toBe('requesting')
+
+    disabled.value = true
+    await wrapper.vm.$nextTick()
+    grantPermission()
+    await startPromise
+
+    expect(recognition.start).not.toHaveBeenCalled()
+    expect(api.status.value).toBe('idle')
+  })
+
   it('prevents overlapping starts and allows Stop while browser startup is pending', () => {
     const { api, recognition } = mountComposable()
     recognition.start.mockImplementation(() => undefined)

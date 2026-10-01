@@ -206,7 +206,7 @@ export function useVoiceDictation(options: UseVoiceDictationOptions) {
 
   if (options.disabled) {
     watch(options.disabled, (disabled) => {
-      if (disabled && recognition) abort()
+      if (disabled && status.value !== 'idle') abort()
     })
   }
   onBeforeUnmount(abort)
