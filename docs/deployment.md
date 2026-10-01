@@ -348,7 +348,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header X-Frame-Options "DENY" always;
-    add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()" always;
+    add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()" always;
 
     # Keep in sync with the API upload cap (10 MB multipart baseline in Constitution Principle V).
     client_max_body_size 10m;

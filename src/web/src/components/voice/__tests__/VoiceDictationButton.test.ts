@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import VoiceDictationButton from '../VoiceDictationButton.vue'
 import type {
@@ -32,8 +32,21 @@ afterEach(() => {
 })
 
 describe('VoiceDictationButton', () => {
+  function grantMicrophonePermission() {
+    const stop = vi.fn()
+    const getUserMedia = vi.fn(async () => ({
+      getTracks: () => [{ stop }],
+    }))
+    vi.stubGlobal('navigator', {
+      ...window.navigator,
+      mediaDevices: { getUserMedia },
+    })
+    return { getUserMedia, stop }
+  }
+
   it('shows disclosure and toggles accessible listening state', async () => {
     vi.stubGlobal('SpeechRecognition', FakeRecognition)
+    grantMicrophonePermission()
     const wrapper = mount(VoiceDictationButton)
 
     expect(wrapper.text()).toContain('browser or device provider')
@@ -41,6 +54,7 @@ describe('VoiceDictationButton', () => {
     expect(button.attributes('aria-label')).toBe('Start voice dictation')
 
     await button.trigger('click')
+    await flushPromises()
     expect(FakeRecognition.latest?.start).toHaveBeenCalledTimes(1)
     expect(button.attributes('aria-label')).toBe('Stop voice dictation')
     expect(wrapper.text()).toContain('Listening')
@@ -52,9 +66,11 @@ describe('VoiceDictationButton', () => {
 
   it('emits final transcript text and renders actionable errors', async () => {
     vi.stubGlobal('webkitSpeechRecognition', FakeRecognition)
+    grantMicrophonePermission()
     const wrapper = mount(VoiceDictationButton)
 
     await wrapper.get('button').trigger('click')
+    await flushPromises()
     FakeRecognition.latest?.onresult?.({
       resultIndex: 0,
       results: [{ isFinal: true, 0: { transcript: 'Victory reverse' }, length: 1 }],
@@ -76,12 +92,45 @@ describe('VoiceDictationButton', () => {
 
   it('aborts active recognition when disabled', async () => {
     vi.stubGlobal('SpeechRecognition', FakeRecognition)
+    grantMicrophonePermission()
     const wrapper = mount(VoiceDictationButton, { props: { disabled: false } })
 
     await wrapper.get('button').trigger('click')
+    await flushPromises()
     await wrapper.setProps({ disabled: true })
 
     expect(FakeRecognition.latest?.abort).toHaveBeenCalledTimes(1)
     expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+  })
+
+  it('requests microphone permission from the user action and releases the temporary track', async () => {
+    vi.stubGlobal('SpeechRecognition', FakeRecognition)
+    const { getUserMedia, stop } = grantMicrophonePermission()
+    const wrapper = mount(VoiceDictationButton)
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: true })
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(FakeRecognition.latest?.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows browser permission guidance without starting recognition when access is denied', async () => {
+    vi.stubGlobal('SpeechRecognition', FakeRecognition)
+    const getUserMedia = vi.fn(async () => {
+      throw new DOMException('denied', 'NotAllowedError')
+    })
+    vi.stubGlobal('navigator', {
+      ...window.navigator,
+      mediaDevices: { getUserMedia },
+    })
+    const wrapper = mount(VoiceDictationButton)
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(FakeRecognition.latest).toBeNull()
+    expect(wrapper.get('[role="alert"]').text()).toContain('browser site permissions')
   })
 })

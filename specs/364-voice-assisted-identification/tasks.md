@@ -167,6 +167,32 @@ optional `notes` value.
   directly affected docs, `.squad/log/`, and `.squad/identity/now.md`. Do not
   merge, publish, deploy, or release without separate owner authorization.
 
+## Post-Merge Permission Repair
+
+- [x] T027 Reproduce the Edge-over-HTTPS report that relying on
+  `SpeechRecognition.start()` can return `not-allowed` without showing a
+  microphone prompt.
+- [x] T028 Request microphone permission from the same explicit dictation click,
+  immediately stop every temporary media track, then start recognition.
+- [x] T029 Keep the implementation browser-neutral: standard/prefixed
+  recognition support, complete typed fallback, and no control when recognition
+  is unavailable.
+- [x] T030 Add focused permission-grant, track-release, denial, and no-start
+  regression tests; run focused affected suites and `task check:web`.
+- [ ] T031 Re-test the exact repair candidate in supported Chrome and Edge over
+  HTTPS. Record Firefox behavior as supported recognition or typed fallback,
+  depending on the browser build.
+- [x] T032 Remove the application-owned policy conflict by allowing microphone
+  access only to Aurearia's own origin in both the Go security header and the
+  documented nginx configuration. Keep geolocation and unrelated capabilities
+  disabled.
+- [x] T033 Update the deterministic Playwright voice fixture to grant a fake
+  microphone stream, prove its temporary track is stopped, and wait for
+  recognition startup before emitting the final transcript.
+- [x] T034 Keep the voice workflow as focused regression coverage but remove it
+  from the unrelated Feature 362 Compatibility hosted selector per owner
+  direction.
+
 ## Dependencies and Execution
 
 - T001-T003 are prerequisites for implementation.
@@ -200,3 +226,8 @@ optional `notes` value.
 | T024 | Exact-candidate software QC audit found no code blocker; verdict INCOMPLETE only for T023 real-microphone evidence and hosted-run receipt | `0ed5f442` | Audit complete; acceptance evidence incomplete |
 | T025 | Restricted reviewer cleared the post-`onend` blocker on successor `0ed5f442`; verdict INCOMPLETE pending T023 and completed audit receipt | `0ed5f442` | Re-review required after T023 evidence |
 | T026 | Pending owner acceptance and handoff | Pending | Planned |
+| T027-T030 | Explicit `getUserMedia({ audio: true })` permission preflight added; temporary tracks are stopped before recognition; 82 focused tests and `task check:web` passed; disabling the preflight failed the permission guard and restoration passed | Dirty tree based on `09f39e22` | Repair implemented and automated verification complete |
+| T031 | Real Chrome, Edge, and Firefox-build behavior | Pending | Requires beta deployment/manual browser evidence |
+| T032 | Root cause found in `Permissions-Policy: microphone=()`; changed to same-origin only and synchronized the nginx deployment example; focused middleware tests plus full Go/web/delivery gates passed; restoring the blocking policy failed the guard and restoration passed | Dirty tree based on `045b995e` | Policy repair implemented and verified |
+| T033 | Hosted run 36890888087 exposed the missing permission fixture; the focused voice workflow and prior 13-test selector both pass after modeling grant, track release, and recognition readiness | Dirty tree based on `afdfe46e` | Browser regression repaired |
+| T034 | Owner selected removal from the Feature 362 selector only; the voice Playwright file remains available for focused execution | Dirty tree based on `afdfe46e` | Hosted selector scope corrected |
