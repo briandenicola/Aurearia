@@ -29,7 +29,9 @@ container, or runtime behavior changed.
 
 ## Blockers
 
-None.
+| ID | Domain | File : Line | Finding | Required Remediation |
+|----|--------|-------------|---------|----------------------|
+| B1 | Release governance | `.squad/decisions.md` (R-RELEASE) | The owner-appointed read-only successor returned INCOMPLETE for candidate `04c3b123` because organization content exclusion prevented it from reading the constitution and required `.squad` evidence. It explicitly left R-RELEASE blocking for opening the beta-to-main pull request. | Provide an owner-approved independent review mechanism that can access the required governance evidence without bypassing content exclusion, then obtain an exact-candidate PASS/clearance. |
 
 ## Follow-Ups
 
@@ -74,10 +76,20 @@ the full web gate passed. The pull request's Node 24.15.0 job is therefore the
 authoritative supported-runtime result. Hosted CodeQL, Gitleaks, container
 scans, and release guards also remain pending until the pull request runs.
 
+## Independent Review
+
+The owner approved one bounded `task review:read-only` lease against candidate
+`04c3b123`. The reviewer returned **INCOMPLETE**: organization content exclusion
+blocked its required constitution and `.squad` reads, so it could not verify the
+canonical completion record, R-RELEASE clearance authority, exact candidate
+diff, or the applicability delta from application commit `3768657e`. It did not
+clear R-RELEASE.
+
 ## Verdict and Confidence
 
-**PASS for opening the beta-to-main pull request; 9/10 confidence.** The audited
-application candidate has no blocker or follow-up, and every locally available
-completion/release check passed. This is not merge, owner acceptance,
-publication, deployment, or release authorization. Merge readiness remains
-conditional on exact-candidate hosted checks and owner review.
+**INCOMPLETE; opening the beta-to-main pull request remains blocked.** The
+application candidate has no observed software blocker and every locally
+available completion/release check passed, but the binding independent release
+review is incomplete. Do not open, merge, publish, deploy, release, or close
+#792-#799 as superseded until an authorized independent reviewer returns
+exact-candidate clearance.
