@@ -1,16 +1,19 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
-      <div class="page-header">
+      <DesktopPageContext title="Followers">
+        <template #actions>
+          <AppIconButton title="Find Users" @click="showSearchModal = true">
+            <UserPlus :size="20" />
+          </AppIconButton>
+        </template>
+      </DesktopPageContext>
+
+      <div v-if="isPwa" class="page-header">
         <h1 class="flex-1">Followers</h1>
-        <div v-if="isPwa" class="pwa-actions">
+        <div class="pwa-actions">
           <button class="pwa-icon-btn" @click="showSearchModal = true" title="Find Users">
             <UserPlus :size="22" />
-          </button>
-        </div>
-        <div v-else class="header-actions">
-          <button class="btn btn-primary" @click="showSearchModal = true">
-            <UserPlus :size="16" /> Add
           </button>
         </div>
       </div>
@@ -260,6 +263,8 @@ import {
 import type { FollowUser } from '@/types'
 import { usePwa } from '@/composables/usePwa'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const activeTab = ref<'following' | 'followers'>('following')
 const { isPwa } = usePwa()

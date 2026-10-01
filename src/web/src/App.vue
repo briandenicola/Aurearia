@@ -2,29 +2,43 @@
   <div class="min-h-screen">
     <!-- Nav bar — brand + hamburger for both desktop and PWA -->
     <nav v-if="auth.isAuthenticated && !immersive" class="fixed inset-x-0 top-0 z-[100] border-b border-border-subtle bg-surface/95 backdrop-blur-md">
-      <div class="mx-auto flex h-[60px] max-w-[1200px] items-center justify-between gap-4 px-4">
-        <button class="flex shrink-0 cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 py-1.5 transition-colors hover:bg-gold-glow" @click="sidebarOpen = !sidebarOpen">
-          <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="h-9 w-9 rounded-full border-2 border-gold-dim object-cover" />
-          <span class="font-display text-lg font-semibold whitespace-nowrap text-gold">Aurearia<span v-if="!isPwa" class="hidden sm:inline"> - Coin Collection</span></span>
-        </button>
-        <div class="flex items-center gap-1">
-          <template v-if="showCollectionActions">
-            <button 
-              class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary transition-colors hover:bg-gold-glow hover:text-gold"
-              :class="{ 'bg-gold-glow text-gold': bulkSelectActive }"
-              :aria-label="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
-              :title="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
-              @click="toggleCollectionSelectMode"
-            >
-              <CheckSquare :size="20" />
-            </button>
-            <router-link to="/quick-access" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" active-class="bg-gold-glow text-gold" aria-label="Quick Access" title="Quick Access">
-              <Pin :size="20" />
-            </router-link>
-            <router-link to="/add" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" aria-label="Add Coin" title="Add Coin">
-              <CirclePlus :size="20" />
-            </router-link>
-          </template>
+      <div class="mx-auto flex h-[60px] max-w-[1200px] items-center justify-between gap-2 px-4">
+        <div class="flex min-w-0 flex-1 items-center">
+          <button class="flex shrink-0 cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 py-1.5 transition-colors hover:bg-gold-glow" @click="sidebarOpen = !sidebarOpen">
+            <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="h-9 w-9 rounded-full border-2 border-gold-dim object-cover" />
+            <span class="font-display text-lg font-semibold whitespace-nowrap text-gold">Aurearia</span>
+          </button>
+          <div v-if="!isPwa" class="desktop-page-title-group min-w-0 items-center gap-2">
+            <span class="text-text-muted" aria-hidden="true">|</span>
+            <div id="desktop-page-title" class="min-w-0 truncate font-display text-md font-medium text-text-primary"></div>
+          </div>
+        </div>
+        <div class="flex shrink-0 items-center gap-1">
+          <div
+            v-if="!isPwa"
+            class="desktop-page-actions-group items-center gap-1"
+            :class="{ 'has-collection-actions': showCollectionActions }"
+          >
+            <template v-if="showCollectionActions">
+              <button
+                class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary transition-colors hover:bg-gold-glow hover:text-gold"
+                :class="{ 'bg-gold-glow text-gold': bulkSelectActive }"
+                :aria-label="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
+                :title="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
+                @click="toggleCollectionSelectMode"
+              >
+                <CheckSquare :size="20" />
+              </button>
+              <router-link to="/quick-access" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" active-class="bg-gold-glow text-gold" aria-label="Quick Access" title="Quick Access">
+                <Pin :size="20" />
+              </router-link>
+              <router-link to="/add" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" aria-label="Add Coin" title="Add Coin">
+                <CirclePlus :size="20" />
+              </router-link>
+            </template>
+            <div id="desktop-page-actions" class="flex items-center gap-1"></div>
+            <span class="mx-1 h-6 w-px bg-border-subtle" aria-hidden="true"></span>
+          </div>
           <router-link v-if="isPwa || !isCollectionPage" to="/quick-access" class="relative flex items-center justify-center rounded-sm p-1.5 text-text-secondary no-underline transition-colors hover:bg-gold-glow hover:text-gold" active-class="bg-gold-glow text-gold" aria-label="Quick Access" title="Quick Access">
             <Pin :size="20" />
           </router-link>
@@ -670,6 +684,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.desktop-page-title-group,
+.desktop-page-actions-group {
+  display: none;
+}
+
+.desktop-page-title-group:has(#desktop-page-title:not(:empty)) {
+  display: flex;
+}
+
+.desktop-page-actions-group.has-collection-actions,
+.desktop-page-actions-group:has(#desktop-page-actions:not(:empty)) {
+  display: flex;
+}
+
 .sortable-ghost {
   background: var(--accent-gold-glow);
   border-right: 3px solid var(--accent-gold);

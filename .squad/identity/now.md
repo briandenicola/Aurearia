@@ -1,29 +1,25 @@
 ---
 updated_at: 2026-10-01
-focus_area: Feature 364 voice-assisted identification planning
+focus_area: Feature 365 desktop context header
 owner: Copilot CLI implementation owner; repository owner accepts results
-work_branch: 364-voice-assisted-identification
-baseline_commit: 8f11df00
-work_artifact: specs/364-voice-assisted-identification/spec.md
-tasks_artifact: specs/364-voice-assisted-identification/tasks.md
+work_branch: 365-desktop-context-header
+baseline_commit: 09f39e22
+work_artifact: specs/365-desktop-context-header/spec.md
+tasks_artifact: specs/365-desktop-context-header/tasks.md
 ---
 
 # Current Work
 
-Feature 364 plans push-to-talk browser dictation into the existing optional
-notes fields for Quick Identify and Deep Analysis. The transcript remains
-editable and analysis starts only from the existing explicit action. Typed
-notes remain the fallback; the MVP adds no backend transcription or audio
-persistence.
+Feature 365 moves desktop page titles and page-owned actions into the shared
+application bar as `Aurearia | Page Title`, while preserving existing local
+headers in mobile/PWA layouts. Pages retain ownership of callbacks, routing,
+loading state, and modal state through lifecycle-bound deferred Teleports.
 
-The [spec](../../specs/364-voice-assisted-identification/spec.md),
-[plan](../../specs/364-voice-assisted-identification/plan.md), and
-[tasks](../../specs/364-voice-assisted-identification/tasks.md) are drafted.
-[ADR 0020](../../docs/adr/0020-browser-speech-identification-notes.md) is
-Accepted through owner-merged PR #801.
+The first usable slice implements the shared shell and migrates Wishlist,
+Followers, Identify Coin, and Stats. Focused tests and `task check:web` pass on
+the dirty tree based on `09f39e22`; the deferred-Teleport guard was tamper-tested.
 
 ## Next Action
 
-Record real supported-browser microphone behavior for exact candidate
-`0ed5f442`, then return the unchanged candidate and completed QC audit to the
-restricted reviewer for the final verdict.
+Capture and review the representative slice at normal and narrow desktop widths,
+then migrate the remaining standalone page headers by page family.

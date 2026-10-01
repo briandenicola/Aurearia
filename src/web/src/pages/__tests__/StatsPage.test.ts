@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import StatsPage from '@/pages/StatsPage.vue'
 import type { StatsResponse } from '@/types'
 
@@ -30,6 +30,17 @@ vi.mock('@/stores/coins', () => ({
 }))
 
 describe('StatsPage', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="desktop-page-title"></div>
+      <div id="desktop-page-actions"></div>
+    `
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
   it('renders summary metrics and distribution charts; excludes value detail block', () => {
     store.stats = stats
 

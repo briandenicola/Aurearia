@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import type { Coin, PurchaseReminder } from '@/types'
 import WishlistPage from '../WishlistPage.vue'
@@ -99,6 +99,9 @@ function mountPage() {
     global: {
       stubs: {
         RouterLink: routerLinkStub,
+        DesktopPageContext: false,
+        AppIconButton: false,
+        Teleport: false,
       },
     },
   })
@@ -113,6 +116,14 @@ describe('WishlistPage', () => {
     mockIsPwa = false
     mockListPurchaseReminders.mockReset()
     mockListPurchaseReminders.mockResolvedValue({ data: { reminders: [] } })
+    document.body.innerHTML = `
+      <div id="desktop-page-title"></div>
+      <div id="desktop-page-actions"></div>
+    `
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('does not show the empty state when wishlist coins are present on a single page', () => {
@@ -148,23 +159,26 @@ describe('WishlistPage', () => {
   it('opens the desktop add dialog with URL and image-analysis choices', async () => {
     const wrapper = mountPage()
 
-    await wrapper.get('.header-actions button:last-child').trigger('click')
+    const addButton = document.querySelector<HTMLButtonElement>('#desktop-page-actions button[title="Add to wishlist"]')
+    expect(addButton).not.toBeNull()
+    addButton?.click()
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.get('[role="dialog"]').text()).toContain('Add from URL')
     expect(wrapper.get('[role="dialog"]').text()).toContain('Add from image analysis')
     expect(wrapper.get('a[href="/lookup"]').text()).toContain('Add from image analysis')
   })
 
-  it('shows the desktop search alerts action with text when wishlist coins are present', () => {
+  it('shows the desktop search alerts icon when wishlist coins are present', () => {
     mockStore.coins = [createCoin(1)]
     mockStore.total = 1
 
-    const wrapper = mountPage()
+    mountPage()
 
-    const finderLink = wrapper.find('.header-actions a[href="/wishlist/search-alerts"]')
-    expect(finderLink.exists()).toBe(true)
-    expect(finderLink.attributes('href')).toBe('/wishlist/search-alerts')
-    expect(finderLink.text()).toContain('Search Alerts')
+    const finderLink = document.querySelector<HTMLAnchorElement>('#desktop-page-actions a[href="/wishlist/search-alerts"]')
+    expect(finderLink).not.toBeNull()
+    expect(finderLink?.getAttribute('href')).toBe('/wishlist/search-alerts')
+    expect(finderLink?.getAttribute('title')).toBe('Search Alerts')
   })
 
   it('opens the add dialog from the PWA plus icon', async () => {

@@ -166,6 +166,16 @@ describe('App sidebar pinned sets', () => {
 
   async function mountApp(initialPath = '/') {
     const QuickAccessPage = (await import('../pages/QuickAccessPage.vue')).default
+    const DesktopPageContext = (await import('../components/DesktopPageContext.vue')).default
+    const ContextPage = {
+      components: { DesktopPageContext },
+      template: `
+        <DesktopPageContext title="Wishlist">
+          <template #actions><button aria-label="Add to wishlist">Add</button></template>
+        </DesktopPageContext>
+        <div>Context page</div>
+      `,
+    }
     router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -174,6 +184,8 @@ describe('App sidebar pinned sets', () => {
         { path: '/sets/emperors', name: 'emperors', component: { template: '<div />' } },
         { path: '/sets/:id', name: 'set-detail', component: { template: '<div />' } },
         { path: '/quick-access', name: 'quick-access', component: QuickAccessPage },
+        { path: '/context', name: 'context', component: ContextPage },
+        { path: '/plain', name: 'plain', component: { template: '<div>Plain page</div>' } },
         { path: '/notes', name: 'notes', component: { template: '<div />' } },
         { path: '/login', name: 'login', component: { template: '<div />' } },
         { path: '/:pathMatch(.*)*', name: 'catch-all', component: { template: '<div />' } },
@@ -299,6 +311,23 @@ describe('App sidebar pinned sets', () => {
     await wrapper!.get('[role="status"] button').trigger('click')
     await flushPromises()
     expect(wrapper!.find('[role="status"]').exists()).toBe(false)
+  })
+
+  it('renders page-owned desktop context before global actions and clears it on navigation', async () => {
+    await mountApp('/context')
+
+    expect(wrapper!.get('#desktop-page-title').text()).toBe('Wishlist')
+    expect(wrapper!.get('#desktop-page-actions [aria-label="Add to wishlist"]').text()).toBe('Add')
+
+    const pageActions = wrapper!.get('#desktop-page-actions').element
+    const quickAccess = wrapper!.get('nav a[aria-label="Quick Access"]').element
+    expect(pageActions.compareDocumentPosition(quickAccess) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await router.push('/plain')
+    await flushPromises()
+
+    expect(wrapper!.get('#desktop-page-title').text()).toBe('')
+    expect(wrapper!.get('#desktop-page-actions').text()).toBe('')
   })
 
   it('appends pinned sets after the static children and links them to /sets/:id', async () => {

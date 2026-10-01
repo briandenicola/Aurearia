@@ -1,7 +1,15 @@
 <template>
   <div class="container">
     <div class="mx-auto min-w-0 max-w-[900px]">
-      <div v-if="!isPwa || state !== 'capture'" class="page-header">
+      <DesktopPageContext title="Identify Coin">
+        <template #actions>
+          <AppIconButton to="/quick-capture/drafts" title="All drafts">
+            <List :size="20" />
+          </AppIconButton>
+        </template>
+      </DesktopPageContext>
+
+      <div v-if="isPwa && state !== 'capture'" class="page-header">
         <h1>Identify Coin</h1>
         <div class="pwa-actions">
           <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
@@ -313,6 +321,7 @@ import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 import { useDeepAnalysisLauncher } from '@/composables/useDeepAnalysisLauncher'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
 import { normalizeGalleryImage } from '@/utils/galleryImage'

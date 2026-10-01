@@ -1,13 +1,19 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container flex flex-col gap-6">
-      <header class="page-header mb-0">
+      <DesktopPageContext title="Stats" />
+
+      <header v-if="isPwa" class="page-header mb-0">
         <div>
           <p class="section-label">Collection Insights</p>
           <h1>Stats</h1>
           <p class="mt-[0.35rem] text-base text-text-secondary">Your collection summary at a glance.</p>
         </div>
       </header>
+      <div v-else>
+        <p class="section-label">Collection Insights</p>
+        <p class="mt-[0.35rem] text-base text-text-secondary">Your collection summary at a glance.</p>
+      </div>
 
       <div v-if="!stats" class="loading-overlay">
         <div class="spinner"></div>
@@ -69,8 +75,11 @@ import type { BarItem } from '@/components/stats/StatsBarChart.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
 import StatsCoinFlowChart from '@/components/stats/StatsCoinFlowChart.vue'
 import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import { usePwa } from '@/composables/usePwa'
 
 const store = useCoinsStore()
+const { isPwa } = usePwa()
 const stats = computed(() => store.stats)
 const heatMapRef = ref<InstanceType<typeof StatsHeatMap>>()
 
