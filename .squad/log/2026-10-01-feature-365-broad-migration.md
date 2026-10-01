@@ -47,9 +47,12 @@
 
 - Implementation and evidence committed as `17830a56`.
 - Branch `365-desktop-context-header` pushed to GitHub.
-- Merge into `beta` requires separate owner approval.
+- PR #803 merged the reviewed feature into `beta` as `162d172d`.
+- The owner-requested auction filter-row refinement passed focused tests, lint,
+  strict type-check, and the full web gate; commit `9f0ba22c` was merged into
+  and pushed on `beta` as `6a231e16`.
 
 ## Next Action
 
-Request separate owner approval before merging `365-desktop-context-header`
-into `beta`.
+Run and resolve the required beta-wide software quality audit before preparing
+the final `beta` to `main` release PR.

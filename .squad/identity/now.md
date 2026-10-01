@@ -1,9 +1,9 @@
 ---
 updated_at: 2026-10-01
-focus_area: Feature 365 desktop context header
+focus_area: Beta release-candidate quality audit
 owner: Copilot CLI implementation owner; repository owner accepts results
-work_branch: 365-desktop-context-header
-baseline_commit: 63247d1a
+work_branch: beta
+baseline_commit: 6a231e16
 work_artifact: specs/365-desktop-context-header/spec.md
 tasks_artifact: specs/365-desktop-context-header/tasks.md
 ---
@@ -21,16 +21,16 @@ actions remain lifecycle-bound, and ordinary narrow browsers plus installed
 PWAs retain local headers. The specialized owned-coin detail shell remains
 unchanged because its action bar and content title are integral to that layout.
 
-The candidate is synchronized with `beta` through `63247d1a`. `task check:web`,
-the affected contextual-header Playwright workflows, and `task check:delivery`
-pass on the current uncommitted tree. Independent re-review passed for repaired
-candidate patch SHA-256
+Feature 365 is merged into `beta`. `task check:web`, the affected
+contextual-header Playwright workflows, and `task check:delivery` passed before
+merge. Independent re-review passed for repaired candidate patch SHA-256
 `a29dc341be1cca6b434eea1def84cd4ce1067805023484a0cd776619238eaef4`.
 The repository owner accepted the visual evidence on 2026-10-01 and authorized
-commit/push of the feature branch. The completed implementation is committed as
-`17830a56` and pushed to `origin/365-desktop-context-header`.
+the feature-to-beta merge. PR #803 merged as `162d172d`; the final validated
+auction filter-row refinement was merged and pushed to `beta` as `6a231e16`.
 
 ## Next Action
 
-Request separate owner approval before merging `365-desktop-context-header`
-into `beta`.
+Run and resolve the required beta-wide software quality audit. If the audit
+passes, prepare the final `beta` to `main` release PR; do not merge `main`
+without separate owner authorization.
