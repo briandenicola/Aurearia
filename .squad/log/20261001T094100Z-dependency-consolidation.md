@@ -33,8 +33,9 @@ commit `f1a8952c`.
 
 ## Boundary and next action
 
-Push `beta`, but do not open the beta-to-main pull request or close #792-#799.
-Obtain an owner-approved independent review mechanism that can read the required
-governance evidence without bypassing content exclusion, then rerun the bounded
-exact-candidate review. Merge, release, publication, and deployment remain
-unauthorized.
+The owner explicitly directed opening beta-to-main PR #800 for hosted checks
+and review after the incomplete reviewer verdict. Obtain an owner-approved
+independent review mechanism that can read the required governance evidence
+without bypassing content exclusion, then rerun the bounded exact-candidate
+review. Do not merge or close #792-#799 as superseded until R-RELEASE is
+cleared. Release, publication, and deployment remain unauthorized.

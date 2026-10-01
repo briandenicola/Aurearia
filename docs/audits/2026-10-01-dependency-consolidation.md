@@ -87,9 +87,10 @@ clear R-RELEASE.
 
 ## Verdict and Confidence
 
-**INCOMPLETE; opening the beta-to-main pull request remains blocked.** The
+**INCOMPLETE; merge and release remain blocked.** The
 application candidate has no observed software blocker and every locally
 available completion/release check passed, but the binding independent release
-review is incomplete. Do not open, merge, publish, deploy, release, or close
-#792-#799 as superseded until an authorized independent reviewer returns
-exact-candidate clearance.
+review is incomplete. The owner subsequently directed that PR #800 be opened
+for hosted checks and review; that direction does not clear R-RELEASE. Do not
+merge, publish, deploy, release, or close #792-#799 as superseded until an
+authorized independent reviewer returns exact-candidate clearance.

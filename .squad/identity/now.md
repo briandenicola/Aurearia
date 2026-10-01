@@ -19,15 +19,16 @@ All locally available completion and release checks pass. Hosted Node 24,
 CodeQL, Gitleaks, container, audit, and release-guard evidence remains pending.
 The owner-approved read-only successor review returned INCOMPLETE because
 organization content exclusion blocked required constitution and `.squad`
-evidence. R-RELEASE remains blocking. Merge, publication, deployment, and
-release are not authorized by this record.
+evidence. The owner subsequently directed that beta-to-main PR #800 be opened
+for hosted checks and review. R-RELEASE remains blocking. Merge, publication,
+deployment, and release are not authorized by this record.
 
 ## Next Action
 
-Push `beta`, but do not open the beta-to-main pull request or close #792-#799.
-Obtain an owner-approved independent review path that can access required
-governance evidence without bypassing content exclusion, then rerun the bounded
-exact-candidate review.
+Monitor PR #800's hosted checks. Obtain an owner-approved independent review
+path that can access required governance evidence without bypassing content
+exclusion, then rerun the bounded exact-candidate review. Do not merge or close
+#792-#799 as superseded until the release block is cleared.
 
 ## Prior Work Context
 
