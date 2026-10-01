@@ -160,10 +160,10 @@ optional `notes` value.
 - [x] T024 Run the required software QC audit for microphone/privacy/PWA scope,
   covering browser-provider disclosure, no raw audio persistence/logging,
   unsupported fallback, state isolation, accessibility, and rollback.
-- [ ] T025 Obtain independent read-only review of the exact commit/tree with the
+- [x] T025 Obtain independent read-only review of the exact commit/tree with the
   accepted ADR and all evidence. Only that reviewer or an owner-appointed
   independent successor may clear a block.
-- [ ] T026 Reconcile the Feature 364 lifecycle state, task evidence, ADR index,
+- [x] T026 Reconcile the Feature 364 lifecycle state, task evidence, ADR index,
   directly affected docs, `.squad/log/`, and `.squad/identity/now.md`. Do not
   merge, publish, deploy, or release without separate owner authorization.
 
@@ -224,8 +224,8 @@ optional `notes` value.
 | T020-T022 | Mocked mobile Playwright workflow passed; `task check:web` passed lint, strict type-check, full tests, and production build | Implementation candidate | Complete |
 | T023 | Owner manually verified permission grant, permission denial/fallback, natural silence end, Stop, navigation cleanup, editable transcript, Quick Identify submission, and Deep Analysis submission in Chrome and Edge over HTTPS | `a09f5db1` | Complete; owner evidence recorded 2026-10-01 |
 | T024 | Exact-candidate software QC audit found no code blocker; verdict INCOMPLETE only for T023 real-microphone evidence and hosted-run receipt | `0ed5f442` | Audit complete; acceptance evidence incomplete |
-| T025 | Restricted reviewer cleared the post-`onend` blocker on successor `0ed5f442`; verdict INCOMPLETE pending T023 and completed audit receipt | `0ed5f442` | Re-review required after T023 evidence |
-| T026 | Pending owner acceptance and handoff | Pending | Planned |
+| T025 | Owner-appointed independent successor cleared Feature 364/365 blockers B2-B4 and found the code release-quality; release verdict remained BLOCK only for historical R-RELEASE | `105240c3` receipt / `a09f5db1` code | Complete; independent re-review 2026-10-01 |
+| T026 | Tasks, current-work pointer, remediation log, and active decisions reconciled; owner granted a scoped R-RELEASE exception for this beta-to-main PR only | `105240c3` plus receipt delta | Complete; no merge/release authorization inferred |
 | T027-T030 | Explicit `getUserMedia({ audio: true })` permission preflight added; temporary tracks are stopped before recognition; 82 focused tests and `task check:web` passed; disabling the preflight failed the permission guard and restoration passed | Dirty tree based on `09f39e22` | Repair implemented and automated verification complete |
 | T031 | Owner manually verified Chrome and Edge over HTTPS on the repaired candidate. Firefox remains browser-neutral: the control is absent when the recognition API is unavailable and typed notes remain usable, covered by the unsupported-browser regression test | `a09f5db1` | Complete; owner evidence recorded 2026-10-01 |
 | T032 | Root cause found in `Permissions-Policy: microphone=()`; changed to same-origin only and synchronized the nginx deployment example; focused middleware tests plus full Go/web/delivery gates passed; restoring the blocking policy failed the guard and restoration passed | Dirty tree based on `045b995e` | Policy repair implemented and verified |

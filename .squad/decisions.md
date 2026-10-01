@@ -22,6 +22,7 @@ revokes a decision or clears a block.
 | GOV-004 | Accepted (#737) | Taskfile `check:*` targets are shared with CI; setup is separate; missing tools or lint fail. Offline checks validate structural references, not approvals. Small work may cite an issue instead of a spec. See [testing](../docs/testing.md#6-running-tests-locally-vs-ci). |
 | GOV-005 | Verified (#739, #740) | Scoped instructions and native skills replace eager guidance. Required review uses `task review:read-only`; installed-client limitations require explicit tool exclusions and matching-file loads. SpecKit upgrade is deferred, not installed. #739's merge does not retroactively certify its failing gate. See [P4 record](decisions/inbox/copilot-p4-native-integration.md). |
 | GOV-006 | Merged (#741); runtime approval proof pending | Acceptance uses one criterion/evidence/candidate record. Main protections follow the [control guide](../docs/agentic-acceptance-controls.md) and [P5 record](decisions/inbox/copilot-p5-acceptance-controls.md); owner kept environment admin bypass while retaining actual owner approval and all exact-candidate checks ([receipt](../docs/audits/2026-09-21.md)). Beta publishing and Ralph are unchanged. Stale proof, open review blocks or missing owner approval cannot support acceptance. No promotion or deployment is inferred. |
+| GOV-007 | Owner exception (2026-10-01) | R-RELEASE is excepted only for beta receipt candidate `105240c3` and its beta-to-main PR. The missing Feature 362/363 combined audit remains unperformed; the exception is not audit completion, merge permission, deployment approval, or a waiver for later releases. See [exception record](decisions/inbox/release-exception-2026-10-01.md). |
 | ENG-001 | Active | Go owns auth, durable state, data access and typed contracts; Python stays stateless (Principles I-III). A framework or role memory is not permission to cross a service/data boundary. |
 | ENG-002 | Active | Prove the exact changed workflow, sibling paths and negative cases per section 17. Do not substitute local Windows evidence for a required Linux/browser gate. Checked tasks and old transcripts are not current verification. |
 | UI-001 | Active | Reuse local components, tokens and navigation. Narrow tables scroll horizontally; swipe consumers share one primitive ([tables][tables], [swipe][swipe]). |
@@ -33,7 +34,9 @@ revokes a decision or clears a block.
 ## Open review blocks
 
 Unresolved records (details and located clearance pairs in the 2026-09-29
-snapshot): R352, R353, R-SWIPE, R225, R320, R337, R-RELEASE. Only the original
+snapshot): R352, R353, R-SWIPE, R225, R320, R337. R-RELEASE has a scoped owner
+exception for candidate `105240c3`; its underlying Feature 362/363 audit remains
+unperformed. Only the original
 reviewer, or an owner-appointed independent successor after re-review, can clear
 one, unless that reviewer set an automatic evidence condition (for example
 R-SWIPE B1). Assignment or reassignment is not clearance. Historical author and

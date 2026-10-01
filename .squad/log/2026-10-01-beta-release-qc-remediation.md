@@ -54,8 +54,16 @@ Firefox remains browser-neutral: when the recognition API is unavailable, the
 dictation control is absent and typed notes remain available. The unsupported
 browser regression test covers that fallback.
 
-## Remaining boundary
+## Independent re-review and owner disposition
 
-T025/T026 and R-RELEASE require the appointed independent successor's read-only
-re-review. This record is evidence, not reviewer clearance, merge permission,
-release authorization, or deployment approval.
+The owner-appointed independent successor reviewed receipt candidate `105240c3`
+and explicitly cleared B2, B3, and B4. The reviewer found the Features 364/365
+code technically sound and release-quality. The only remaining release block was
+historical R-RELEASE because Feature 363 T044's separately tracked combined
+Feature 362/363 audit was never recorded.
+
+The repository owner granted a scoped exception for candidate `105240c3` and
+its beta-to-main PR. The exception is recorded in
+`.squad/decisions/inbox/release-exception-2026-10-01.md`. It does not mark T044
+complete, claim the missing audit occurred, or authorize merge, publishing,
+deployment, or release.
