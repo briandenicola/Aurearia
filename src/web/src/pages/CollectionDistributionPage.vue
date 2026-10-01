@@ -1,9 +1,11 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
-      <div class="page-header">
-        <h1>Collection Stats</h1>
-      </div>
+      <DesktopPageContext title="Collection Stats">
+        <div class="page-header">
+          <h1>Collection Stats</h1>
+        </div>
+      </DesktopPageContext>
 
       <div v-if="!stats" class="loading-overlay">
         <div class="spinner"></div>
@@ -85,6 +87,7 @@ import StatsBarChart from '@/components/stats/StatsBarChart.vue'
 import type { BarItem } from '@/components/stats/StatsBarChart.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
 import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
 const store = useCoinsStore()
 const stats = computed(() => store.stats)

@@ -1,35 +1,37 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
-      <div class="page-header !flex-nowrap !items-center">
-        <h1>Settings</h1>
-        <div v-if="isPwa" class="relative">
-          <button class="btn btn-secondary btn-sm gap-1.5 text-body" @click="settingsMenuOpen = !settingsMenuOpen">
-            <component :is="tabIcons[activeTab]" :size="16" />
-            {{ tabs.find(t => t.id === activeTab)?.label }}
-            <Menu :size="16" />
-          </button>
-          <Transition
-            enter-active-class="transition-opacity duration-150 ease-out"
-            enter-from-class="opacity-0"
-            leave-active-class="transition-opacity duration-150 ease-in"
-            leave-to-class="opacity-0"
-          >
-            <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_var(--overlay-40)]">
-              <button
-                v-for="tab in tabs"
-                :key="tab.id"
-                class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-body font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
-                :class="{ 'bg-[var(--accent-gold-dim)] text-gold hover:bg-[var(--accent-gold-dim)] hover:text-gold': activeTab === tab.id }"
-                @click="selectTab(tab.id); settingsMenuOpen = false"
-              >
-                <component :is="tabIcons[tab.id]" :size="16" />
-                {{ tab.label }}
-              </button>
-            </div>
-          </Transition>
+      <DesktopPageContext title="Settings">
+        <div class="page-header !flex-nowrap !items-center">
+          <h1>Settings</h1>
+          <div v-if="isPwa" class="relative">
+            <button class="btn btn-secondary btn-sm gap-1.5 text-body" @click="settingsMenuOpen = !settingsMenuOpen">
+              <component :is="tabIcons[activeTab]" :size="16" />
+              {{ tabs.find(t => t.id === activeTab)?.label }}
+              <Menu :size="16" />
+            </button>
+            <Transition
+              enter-active-class="transition-opacity duration-150 ease-out"
+              enter-from-class="opacity-0"
+              leave-active-class="transition-opacity duration-150 ease-in"
+              leave-to-class="opacity-0"
+            >
+              <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_var(--overlay-40)]">
+                <button
+                  v-for="tab in tabs"
+                  :key="tab.id"
+                  class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-body font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+                  :class="{ 'bg-[var(--accent-gold-dim)] text-gold hover:bg-[var(--accent-gold-dim)] hover:text-gold': activeTab === tab.id }"
+                  @click="selectTab(tab.id); settingsMenuOpen = false"
+                >
+                  <component :is="tabIcons[tab.id]" :size="16" />
+                  {{ tab.label }}
+                </button>
+              </div>
+            </Transition>
+          </div>
         </div>
-      </div>
+      </DesktopPageContext>
 
       <div class="mx-auto flex max-w-[800px] flex-col gap-6">
         <div v-if="!isPwa" class="flex flex-wrap gap-1 rounded-md border border-border-subtle bg-card p-[0.3rem]">
@@ -128,6 +130,7 @@ import SettingsShipmentsSection from '@/components/settings/SettingsShipmentsSec
 import SettingsConnectionsSection from '@/components/settings/SettingsConnectionsSection.vue'
 import CollectorProfileSection from '@/components/settings/CollectorProfileSection.vue'
 import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive, KeyRound, Truck, Link } from 'lucide-vue-next'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
 const tabIcons: Record<string, Component> = {
   account: User,

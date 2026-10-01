@@ -1,29 +1,29 @@
 <template>
   <div class="container">
-    <div class="page-header">
-      <div>
-        <h1>Wishlist Search Alerts</h1>
-        <p class="mt-1 text-body text-text-muted">Discovery alerts find acquisition ideas. Availability checking for saved wishlist URLs remains separate.</p>
-      </div>
-      <div v-if="isPwa" class="pwa-actions">
-        <button
-          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-          type="button"
-          title="New Search Alert"
-          @click="startCreate"
-        >
-          <Search :size="22" />
+    <DesktopPageContext title="Wishlist Search Alerts">
+      <template #actions>
+        <AppIconButton title="New Search Alert" @click="startCreate">
+          <Search :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <div>
+          <h1>Wishlist Search Alerts</h1>
+          <p class="mt-1 text-body text-text-muted">Discovery alerts find acquisition ideas. Availability checking for saved wishlist URLs remains separate.</p>
+        </div>
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" title="New Search Alert" @click="startCreate">
+            <Search :size="22" />
+          </button>
+        </div>
+        <button v-else class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" @click="startCreate">
+          <Search :size="16" /> New Search Alert
         </button>
       </div>
-      <button
-        v-else
-        class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-        type="button"
-        @click="startCreate"
-      >
-        <Search :size="16" /> New Search Alert
-      </button>
-    </div>
+      <template #desktop>
+        <p class="mb-4 text-body text-text-muted">Discovery alerts find acquisition ideas. Availability checking for saved wishlist URLs remains separate.</p>
+      </template>
+    </DesktopPageContext>
 
     <p v-if="error" class="mb-4 text-body text-bronze">{{ error }}</p>
     <div v-if="loading" class="loading-overlay"><div class="spinner"></div></div>
@@ -187,6 +187,8 @@ import {
   updateWishlistSearchAlert,
 } from '@/api/client'
 import type { AlertCandidate, AlertCandidateState, AlertRun, CandidateDismissalReason, CandidateProvenanceStatus, CoinMutationPayload, WishlistSearchAlert, WishlistSearchAlertInput } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const alerts = ref<WishlistSearchAlert[]>([])
 const selectedAlertId = ref<number | null>(null)

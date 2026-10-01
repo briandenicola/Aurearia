@@ -1,19 +1,30 @@
 <template>
   <PullToRefresh :on-refresh="refresh">
     <div class="container mx-auto max-w-[900px]">
-      <header class="page-header">
-        <h1>Quick Access</h1>
-        <button
-          class="btn btn-ghost btn-sm"
-          :disabled="loading"
-          :aria-busy="loading"
-          :aria-label="loading ? 'Refreshing Quick Access' : 'Refresh Quick Access'"
-          @click="refresh"
-        >
-          <RefreshCw :size="16" :class="{ 'animate-spin': loading }" />
-          {{ loading ? 'Refreshing...' : 'Refresh' }}
-        </button>
-      </header>
+      <DesktopPageContext title="Quick Access">
+        <template #actions>
+          <AppIconButton
+            :title="loading ? 'Refreshing Quick Access' : 'Refresh Quick Access'"
+            :disabled="loading"
+            @click="refresh"
+          >
+            <RefreshCw :size="20" :class="{ 'animate-spin': loading }" />
+          </AppIconButton>
+        </template>
+        <header class="page-header">
+          <h1>Quick Access</h1>
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="loading"
+            :aria-busy="loading"
+            :aria-label="loading ? 'Refreshing Quick Access' : 'Refresh Quick Access'"
+            @click="refresh"
+          >
+            <RefreshCw :size="16" :class="{ 'animate-spin': loading }" />
+            {{ loading ? 'Refreshing...' : 'Refresh' }}
+          </button>
+        </header>
+      </DesktopPageContext>
 
       <div v-if="loading && !items.length" class="loading-overlay" role="status" aria-live="polite" aria-label="Loading Quick Access">
         <div class="spinner"></div>
@@ -92,6 +103,8 @@ import { CalendarDays, CircleDot, Coins, Crown, Gavel, Landmark, Layers3, Pin, P
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import BaseEmptyState from '@/components/ui/BaseEmptyState.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useToast } from '@/composables/useToast'
 import type { QuickAccessItem, QuickAccessTargetType } from '@/types'

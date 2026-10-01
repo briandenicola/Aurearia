@@ -14,7 +14,7 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   await installWorkflowApiMocks(page)
 
   await page.goto('/lookup')
-  await expect(page.getByRole('heading', { name: 'Identify Coin' })).toBeVisible()
+  await expect(page.locator('#desktop-page-title')).toHaveText('Identify Coin')
 
   await page.getByRole('button', { name: 'Upload Image' }).click()
   await page.locator('input[type="file"]').setInputFiles({

@@ -1,28 +1,28 @@
 <template>
   <div class="container">
     <div class="mx-auto min-w-0 max-w-[900px]">
-      <fieldset :disabled="saving || committingDraft || intakeLoading || preparingImage || savedCoinId !== null" class="min-w-0 border-0 p-0">
-        <header class="page-header">
-          <h1>Add Coin</h1>
-          <div v-if="!isPwa" class="ml-auto flex shrink-0 gap-[0.35rem]">
-            <button
-              type="button"
-              class="chip border border-border-subtle"
-              :class="{ 'border-gold': entryMode === 'manual' }"
-              @click="entryMode = 'manual'"
-            >
-              Manual Mode
-            </button>
-            <button
-              type="button"
-              class="chip border border-border-subtle"
-              :class="{ 'border-gold': entryMode === 'agentic' }"
-              @click="entryMode = 'agentic'"
-            >
-              AI Assist Mode
-            </button>
-          </div>
-        </header>
+      <fieldset :disabled="formDisabled" class="min-w-0 border-0 p-0">
+        <DesktopPageContext title="Add Coin">
+          <template #actions>
+            <AppIconButton :active="entryMode === 'manual'" :disabled="formDisabled" title="Manual Mode" @click="entryMode = 'manual'">
+              <PencilLine :size="20" />
+            </AppIconButton>
+            <AppIconButton :active="entryMode === 'agentic'" :disabled="formDisabled" title="AI Assist Mode" @click="entryMode = 'agentic'">
+              <Sparkles :size="20" />
+            </AppIconButton>
+          </template>
+          <header class="page-header">
+            <h1>Add Coin</h1>
+            <div v-if="!isPwa" class="ml-auto flex shrink-0 gap-[0.35rem]">
+              <button type="button" class="chip border border-border-subtle" :class="{ 'border-gold': entryMode === 'manual' }" @click="entryMode = 'manual'">
+                Manual Mode
+              </button>
+              <button type="button" class="chip border border-border-subtle" :class="{ 'border-gold': entryMode === 'agentic' }" @click="entryMode = 'agentic'">
+                AI Assist Mode
+              </button>
+            </div>
+          </header>
+        </DesktopPageContext>
 
         <section v-if="entryMode === 'agentic'" class="relative grid gap-4">
           <!-- Loading overlay for AI analysis -->
@@ -197,6 +197,9 @@ import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
 import CoinLookupCaptureWizard from '@/components/coin-lookup/CoinLookupCaptureWizard.vue'
 import { normalizeGalleryImage } from '@/utils/galleryImage'
+import { PencilLine, Sparkles } from 'lucide-vue-next'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 type EntryMode = 'manual' | 'agentic'
 
@@ -217,6 +220,13 @@ const intakeError = ref('')
 const intakeWarning = ref('')
 const savedCoinId = ref<number | null>(null)
 const saveCompletionError = ref('')
+const formDisabled = computed(() =>
+  saving.value
+  || committingDraft.value
+  || intakeLoading.value
+  || preparingImage.value
+  || savedCoinId.value !== null,
+)
 type PendingImage = { file: File; face: 'obverse' | 'reverse'; primary: boolean; circleClip: boolean }
 const pendingImages: PendingImage[] = []
 let pendingCard: File | null = null

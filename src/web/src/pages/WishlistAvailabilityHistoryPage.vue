@@ -1,11 +1,18 @@
 <template>
   <div class="container">
-    <header class="page-header">
-      <h1>Availability Run History</h1>
-      <RouterLink class="btn btn-secondary btn-sm" to="/wishlist">
-        <ArrowLeft :size="16" /> Back to Wishlist
-      </RouterLink>
-    </header>
+    <DesktopPageContext title="Availability Run History">
+      <template #actions>
+        <AppIconButton to="/wishlist" title="Back to Wishlist">
+          <ArrowLeft :size="20" />
+        </AppIconButton>
+      </template>
+      <header class="page-header">
+        <h1>Availability Run History</h1>
+        <RouterLink class="btn btn-secondary btn-sm" to="/wishlist">
+          <ArrowLeft :size="16" /> Back to Wishlist
+        </RouterLink>
+      </header>
+    </DesktopPageContext>
 
     <div v-if="unauthorized" class="empty-state card">
       <h3>Sign in required</h3>
@@ -153,6 +160,8 @@ import { getMyAvailabilityRunDetail, listMyAvailabilityRuns } from '@/api/client
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import type { AvailabilityResult, AvailabilityRun } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const route = useRoute()
 

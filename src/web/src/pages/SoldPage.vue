@@ -1,9 +1,11 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
-      <div class="page-header">
-        <h1>Sold Coins</h1>
-      </div>
+      <DesktopPageContext title="Sold Coins">
+        <div class="page-header">
+          <h1>Sold Coins</h1>
+        </div>
+      </DesktopPageContext>
 
       <div v-if="store.loading" class="loading-overlay">
         <div class="spinner"></div>
@@ -32,6 +34,7 @@ import { ref, watch } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import CoinCard from '@/components/CoinCard.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
 const store = useCoinsStore()
 const page = ref(1)

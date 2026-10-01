@@ -12,9 +12,13 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: authUser }),
 }))
 
-vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: mockPush }),
-}))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRouter: () => ({ push: mockPush }),
+  }
+})
 
 vi.mock('@/api/client', () => ({
   getEmperorTrackerProgress: () => mockGetProgress(),

@@ -6,41 +6,43 @@
     </div>
 
     <template v-else-if="showcase">
-      <div class="page-header items-start gap-4">
-        <div class="min-w-0 flex-1">
-          <router-link to="/showcases" class="mb-2 inline-flex items-center gap-1 text-body text-text-secondary no-underline transition-colors hover:text-gold"><ArrowLeft :size="16" /> Showcases</router-link>
-          <div v-if="!editingTitle" class="group flex cursor-pointer items-center gap-2" @click="startEditTitle">
-            <h1>{{ showcase.title }}</h1>
-            <Pencil :size="14" class="text-text-secondary opacity-40 transition-opacity group-hover:opacity-100" />
-          </div>
-          <div v-else class="flex flex-wrap items-center gap-2">
-            <input
-              v-model="editTitle"
-              type="text"
-              class="form-input min-w-0 flex-1 text-lg font-bold"
-              @keyup.enter="saveTitle"
-              @keyup.escape="editingTitle = false"
-              ref="titleInput"
-            />
-            <button class="btn btn-primary btn-sm" @click="saveTitle">Save</button>
-            <button class="btn btn-secondary btn-sm" @click="editingTitle = false">Cancel</button>
-          </div>
-          <div v-if="!editingDesc" class="group mt-1 flex cursor-pointer items-center gap-1.5" @click="startEditDesc">
-            <p class="m-0 text-body text-text-secondary">{{ showcase.description || 'No description' }}</p>
-            <Pencil :size="12" class="text-text-secondary opacity-40 transition-opacity group-hover:opacity-100" />
-          </div>
-          <div v-else class="mt-1">
-            <textarea v-model="editDesc" rows="2" class="form-input" @keyup.escape="editingDesc = false"></textarea>
-            <div class="mt-1.5 flex gap-2">
-              <button class="btn btn-primary btn-sm" @click="saveDesc">Save</button>
-              <button class="btn btn-secondary btn-sm" @click="editingDesc = false">Cancel</button>
+      <DesktopPageContext :title="showcase.title">
+        <template #actions>
+          <AppIconButton to="/showcases" title="Back to Showcases"><ArrowLeft :size="20" /></AppIconButton>
+          <AppIconButton :disabled="saving" title="Save Coins" @click="saveCoins"><Save :size="20" /></AppIconButton>
+        </template>
+        <div class="page-header items-start gap-4">
+          <div class="min-w-0 flex-1">
+            <router-link to="/showcases" class="mb-2 inline-flex items-center gap-1 text-body text-text-secondary no-underline transition-colors hover:text-gold"><ArrowLeft :size="16" /> Showcases</router-link>
+            <div v-if="!editingTitle" class="group flex cursor-pointer items-center gap-2" @click="startEditTitle">
+              <h1>{{ showcase.title }}</h1>
+              <Pencil :size="14" class="text-text-secondary opacity-40 transition-opacity group-hover:opacity-100" />
+            </div>
+            <div v-else class="flex flex-wrap items-center gap-2">
+              <input ref="titleInput" v-model="editTitle" type="text" class="form-input min-w-0 flex-1 text-lg font-bold" @keyup.enter="saveTitle" @keyup.escape="editingTitle = false" />
+              <button class="btn btn-primary btn-sm" @click="saveTitle">Save</button>
+              <button class="btn btn-secondary btn-sm" @click="editingTitle = false">Cancel</button>
+            </div>
+            <div v-if="!editingDesc" class="group mt-1 flex cursor-pointer items-center gap-1.5" @click="startEditDesc">
+              <p class="m-0 text-body text-text-secondary">{{ showcase.description || 'No description' }}</p>
+              <Pencil :size="12" class="text-text-secondary opacity-40 transition-opacity group-hover:opacity-100" />
+            </div>
+            <div v-else class="mt-1">
+              <textarea v-model="editDesc" rows="2" class="form-input" @keyup.escape="editingDesc = false"></textarea>
+              <div class="mt-1.5 flex gap-2">
+                <button class="btn btn-primary btn-sm" @click="saveDesc">Save</button>
+                <button class="btn btn-secondary btn-sm" @click="editingDesc = false">Cancel</button>
+              </div>
             </div>
           </div>
+          <button class="btn btn-primary" :disabled="saving" @click="saveCoins">
+            <Save :size="16" /> {{ saving ? 'Saving...' : 'Save Coins' }}
+          </button>
         </div>
-        <button class="btn btn-primary" :disabled="saving" @click="saveCoins">
-          <Save :size="16" /> {{ saving ? 'Saving...' : 'Save Coins' }}
-        </button>
-      </div>
+        <template #desktop>
+          <p class="mb-4 text-body text-text-secondary">{{ showcase.description || 'No description' }}</p>
+        </template>
+      </DesktopPageContext>
 
       <div v-if="savedMessage" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-surface">{{ savedMessage }}</div>
 
@@ -130,6 +132,8 @@ import { useRoute } from 'vue-router'
 import { ArrowLeft, Pencil, Save, Search, Plus, X, Coins } from 'lucide-vue-next'
 import { getShowcase, updateShowcase, setShowcaseCoins, getCoins } from '@/api/client'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 interface CoinImage {
   id: number

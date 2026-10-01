@@ -14,6 +14,10 @@ const routerLinkStub = {
   props: ['to'],
   template: '<a :href="to"><slot /></a>',
 }
+const desktopPageContextStub = {
+  props: ['title'],
+  template: '<div><h1>{{ title }}</h1><slot /><slot name="actions" /><slot name="desktop" /></div>',
+}
 
 async function flushMountedPromises() {
   await flushPromises()
@@ -40,6 +44,7 @@ describe('MintMapPage', () => {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
+          DesktopPageContext: desktopPageContextStub,
           MintMapLeaflet: true,
           MintCoinDrawer: true,
           UnattributedMintBucket: true,
@@ -66,6 +71,7 @@ describe('MintMapPage', () => {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
+          DesktopPageContext: desktopPageContextStub,
           MintMapLeaflet: true,
           MintCoinDrawer: true,
           UnattributedMintBucket: true,
@@ -100,6 +106,7 @@ describe('MintMapPage', () => {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
+          DesktopPageContext: desktopPageContextStub,
           MintMapLeaflet: true,
           MintCoinDrawer: true,
           UnattributedMintBucket: true,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
@@ -91,6 +91,14 @@ describe('CoinLookupPage', () => {
       value: undefined,
       configurable: true,
     })
+    document.body.innerHTML = `
+      <div id="desktop-page-title"></div>
+      <div id="desktop-page-actions"></div>
+    `
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('normalizes a gallery image before starting identification', async () => {
@@ -486,9 +494,9 @@ describe('CoinLookupPage', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Identify Coin')
-    expect(wrapper.find('[aria-label="All drafts"]').exists()).toBe(true)
-    expect(wrapper.find('.pwa-icon-btn').exists()).toBe(true)
+    expect(document.querySelector('#desktop-page-title')?.textContent).toContain('Identify Coin')
+    expect(document.querySelector('#desktop-page-actions [aria-label="All drafts"]')).not.toBeNull()
+    expect(wrapper.find('.desktop-page-context-local .pwa-icon-btn').exists()).toBe(true)
   })
 
   it('labels the photo workflow Analyze Photos and retains Save as Draft', async () => {

@@ -5,23 +5,36 @@
     </div>
 
     <div v-else-if="set" class="space-y-6">
-      <div class="page-header items-start">
-        <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
-          <span class="h-11 w-1 shrink-0 rounded-full shadow-[0_0_16px_var(--accent-gold-glow)]" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
-          <div class="min-w-0">
-            <h1>{{ set.name }}</h1>
-            <p class="section-label mb-0 mt-1 inline-flex items-center gap-1.5">
-              <Info :size="13" />
-              Set information
-            </p>
+      <DesktopPageContext :title="set.name">
+        <template #actions>
+          <AppIconButton title="Back to Set" @click="router.push({ name: 'set-detail', params: { id: setId } })">
+            <ArrowLeft :size="20" />
+          </AppIconButton>
+        </template>
+        <div class="page-header items-start">
+          <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
+            <span class="h-11 w-1 shrink-0 rounded-full shadow-[0_0_16px_var(--accent-gold-glow)]" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
+            <div class="min-w-0">
+              <h1>{{ set.name }}</h1>
+              <p class="section-label mb-0 mt-1 inline-flex items-center gap-1.5">
+                <Info :size="13" />
+                Set information
+              </p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-ghost" @click="router.push({ name: 'set-detail', params: { id: setId } })">
+              <ArrowLeft :size="16" /> Back to Set
+            </button>
           </div>
         </div>
-        <div class="header-actions">
-          <button class="btn btn-ghost" @click="router.push({ name: 'set-detail', params: { id: setId } })">
-            <ArrowLeft :size="16" /> Back to Set
-          </button>
-        </div>
-      </div>
+        <template #desktop>
+          <p class="section-label mb-0 inline-flex items-center gap-1.5">
+            <Info :size="13" />
+            Set information
+          </p>
+        </template>
+      </DesktopPageContext>
 
       <section v-if="analytics" class="card p-6">
         <h2 class="mt-0">Analytics</h2>
@@ -57,6 +70,8 @@ import { ArrowLeft, Info } from 'lucide-vue-next'
 import { createSetSnapshot, getSet, getSetAnalytics, getSetTrends } from '@/api/client'
 import type { CoinSetAnalytics, CoinSetDetail, CoinSetSnapshot } from '@/types'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const router = useRouter()
 const route = useRoute()
