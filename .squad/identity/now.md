@@ -27,9 +27,10 @@ pass on the current uncommitted tree. Independent re-review passed for repaired
 candidate patch SHA-256
 `a29dc341be1cca6b434eea1def84cd4ce1067805023484a0cd776619238eaef4`.
 The repository owner accepted the visual evidence on 2026-10-01 and authorized
-commit/push of the feature branch.
+commit/push of the feature branch. The completed implementation is committed as
+`17830a56` and pushed to `origin/365-desktop-context-header`.
 
 ## Next Action
 
-Commit and push the feature branch, then request separate approval before
-merging it into `beta`.
+Request separate owner approval before merging `365-desktop-context-header`
+into `beta`.

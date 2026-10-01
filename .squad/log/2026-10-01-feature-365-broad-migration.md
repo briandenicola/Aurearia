@@ -39,12 +39,13 @@
   header, installed-PWA local header, and crowded Wishlist action screenshots
   on 2026-10-01 and authorized commit/push of the feature branch.
 
-## Incomplete
+## Persistence
 
-- Commit and push remain pending. Merge into `beta` requires separate owner
-  approval.
+- Implementation and evidence committed as `17830a56`.
+- Branch `365-desktop-context-header` pushed to GitHub.
+- Merge into `beta` requires separate owner approval.
 
 ## Next Action
 
-Commit and push the feature branch, then request separate approval before
-merging it into `beta`.
+Request separate owner approval before merging `365-desktop-context-header`
+into `beta`.
