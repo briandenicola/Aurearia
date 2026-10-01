@@ -153,7 +153,7 @@ optional `notes` value.
 - [x] T022 Run `task check:web` and the verified targeted browser selector on the
   exact candidate. Record supported-runtime hosted checks as pending until CI;
   missing tools or authorization remain incomplete.
-- [ ] T023 With explicit owner authorization, manually verify one supported
+- [x] T023 With explicit owner authorization, manually verify one supported
   desktop/mobile PWA browser: permission grant, denial, natural silence end,
   Stop, navigation cleanup, editable transcript, Quick Identify submission, and
   Deep Analysis submission. Record browser/version and exact candidate.
@@ -179,7 +179,7 @@ optional `notes` value.
   is unavailable.
 - [x] T030 Add focused permission-grant, track-release, denial, and no-start
   regression tests; run focused affected suites and `task check:web`.
-- [ ] T031 Re-test the exact repair candidate in supported Chrome and Edge over
+- [x] T031 Re-test the exact repair candidate in supported Chrome and Edge over
   HTTPS. Record Firefox behavior as supported recognition or typed fallback,
   depending on the browser build.
 - [x] T032 Remove the application-owned policy conflict by allowing microphone
@@ -222,12 +222,12 @@ optional `notes` value.
 | T009-T015 | Desktop/PWA/page focused suites passed; adding transcript-triggered Analyze failed the explicit-submit guards, then restoration passed | Implementation candidate | Complete |
 | T016-T019 | Deep Analysis focused suite passed, including dictated, empty-notes, disabled, unsupported, and reused-evidence paths | Implementation candidate | Complete |
 | T020-T022 | Mocked mobile Playwright workflow passed; `task check:web` passed lint, strict type-check, full tests, and production build | Implementation candidate | Complete |
-| T023 | Owner manually verified permission grant, editable transcript, Quick Identify submission, and Deep Analysis submission in Chrome and Edge over HTTPS. Permission denial, natural silence end, Stop, and navigation cleanup remain pending | Repair candidate through `f8a788b3` | Partial owner evidence recorded 2026-10-01; exact post-race-fix verification pending |
+| T023 | Owner manually verified permission grant, permission denial/fallback, natural silence end, Stop, navigation cleanup, editable transcript, Quick Identify submission, and Deep Analysis submission in Chrome and Edge over HTTPS | `a09f5db1` | Complete; owner evidence recorded 2026-10-01 |
 | T024 | Exact-candidate software QC audit found no code blocker; verdict INCOMPLETE only for T023 real-microphone evidence and hosted-run receipt | `0ed5f442` | Audit complete; acceptance evidence incomplete |
 | T025 | Restricted reviewer cleared the post-`onend` blocker on successor `0ed5f442`; verdict INCOMPLETE pending T023 and completed audit receipt | `0ed5f442` | Re-review required after T023 evidence |
 | T026 | Pending owner acceptance and handoff | Pending | Planned |
 | T027-T030 | Explicit `getUserMedia({ audio: true })` permission preflight added; temporary tracks are stopped before recognition; 82 focused tests and `task check:web` passed; disabling the preflight failed the permission guard and restoration passed | Dirty tree based on `09f39e22` | Repair implemented and automated verification complete |
-| T031 | Owner manually verified the normal Chrome and Edge flow over HTTPS. Firefox remains browser-neutral: the control is absent when the recognition API is unavailable and typed notes remain usable, covered by the unsupported-browser regression test | Repair candidate through `f8a788b3` | Partial owner evidence recorded 2026-10-01; exact post-race-fix verification pending |
+| T031 | Owner manually verified Chrome and Edge over HTTPS on the repaired candidate. Firefox remains browser-neutral: the control is absent when the recognition API is unavailable and typed notes remain usable, covered by the unsupported-browser regression test | `a09f5db1` | Complete; owner evidence recorded 2026-10-01 |
 | T032 | Root cause found in `Permissions-Policy: microphone=()`; changed to same-origin only and synchronized the nginx deployment example; focused middleware tests plus full Go/web/delivery gates passed; restoring the blocking policy failed the guard and restoration passed | Dirty tree based on `045b995e` | Policy repair implemented and verified |
 | T033 | Hosted run 36890888087 exposed the missing permission fixture; the focused voice workflow and prior 13-test selector both pass after modeling grant, track release, and recognition readiness | Dirty tree based on `afdfe46e` | Browser regression repaired |
 | T034 | Owner selected removal from the Feature 362 selector only; the voice Playwright file remains available for focused execution | Dirty tree based on `afdfe46e` | Hosted selector scope corrected |
