@@ -46,7 +46,7 @@
         {{ syncMessage }}
       </div>
 
-      <div class="mb-4 flex flex-wrap items-center gap-3">
+      <div data-testid="auction-filter-row" class="mb-4 flex flex-wrap items-center gap-3">
         <div class="flex min-w-0 flex-1 flex-wrap gap-[0.35rem]" aria-label="Auction source filter">
           <button
             v-for="source in sourceOptions"
@@ -65,19 +65,21 @@
           >
             <AlertTriangle :size="13" /> Attention
           </button>
+          <template v-if="groupingAvailable">
+            <span class="mx-1 h-6 w-px self-center bg-border-subtle" aria-hidden="true"></span>
+            <div class="flex" aria-label="Auction grouping">
+              <button
+                class="chip"
+                :class="{ active: groupingEnabled }"
+                :aria-pressed="groupingEnabled"
+                @click="groupingEnabled = !groupingEnabled"
+              >
+                Group by Auction
+              </button>
+            </div>
+          </template>
         </div>
         <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
-      </div>
-
-      <div v-if="groupingAvailable" class="mb-4 flex flex-wrap gap-[0.35rem]" aria-label="Auction grouping">
-        <button
-          class="chip"
-          :class="{ active: groupingEnabled }"
-          :aria-pressed="groupingEnabled"
-          @click="groupingEnabled = !groupingEnabled"
-        >
-          Group by Auction House &amp; Sale
-        </button>
       </div>
 
       <div v-if="selectMode" class="mb-4 flex flex-wrap items-center gap-[0.6rem]">
