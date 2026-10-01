@@ -24,6 +24,6 @@ Accepted through owner-merged PR #801.
 
 ## Next Action
 
-Freeze the verified implementation candidate, run the required software QC
-audit and independent read-only review, then reconcile the remaining manual
-browser evidence and owner acceptance boundary.
+Record real supported-browser microphone behavior for exact candidate
+`0ed5f442`, then return the unchanged candidate and completed QC audit to the
+restricted reviewer for the final verdict.

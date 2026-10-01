@@ -157,7 +157,7 @@ optional `notes` value.
   desktop/mobile PWA browser: permission grant, denial, natural silence end,
   Stop, navigation cleanup, editable transcript, Quick Identify submission, and
   Deep Analysis submission. Record browser/version and exact candidate.
-- [ ] T024 Run the required software QC audit for microphone/privacy/PWA scope,
+- [x] T024 Run the required software QC audit for microphone/privacy/PWA scope,
   covering browser-provider disclosure, no raw audio persistence/logging,
   unsupported fallback, state isolation, accessibility, and rollback.
 - [ ] T025 Obtain independent read-only review of the exact commit/tree with the
@@ -197,6 +197,6 @@ optional `notes` value.
 | T016-T019 | Deep Analysis focused suite passed, including dictated, empty-notes, disabled, unsupported, and reused-evidence paths | Implementation candidate | Complete |
 | T020-T022 | Mocked mobile Playwright workflow passed; `task check:web` passed lint, strict type-check, full tests, and production build | Implementation candidate | Complete |
 | T023 | Real supported-browser microphone permission/provider behavior | Pending | Requires explicit manual environment evidence |
-| T024 | Pending software QC audit | Pending | Planned |
-| T025 | Pending independent exact-candidate verdict | Pending | Planned |
+| T024 | Exact-candidate software QC audit found no code blocker; verdict INCOMPLETE only for T023 real-microphone evidence and hosted-run receipt | `0ed5f442` | Audit complete; acceptance evidence incomplete |
+| T025 | Restricted reviewer cleared the post-`onend` blocker on successor `0ed5f442`; verdict INCOMPLETE pending T023 and completed audit receipt | `0ed5f442` | Re-review required after T023 evidence |
 | T026 | Pending owner acceptance and handoff | Pending | Planned |
