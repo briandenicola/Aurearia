@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   appendVoiceTranscript,
   useVoiceDictation,
+  type VoiceMicrophonePermissionRequester,
   type VoiceRecognition,
   type VoiceRecognitionErrorEvent,
   type VoiceRecognitionEvent,
@@ -31,7 +32,10 @@ function result(transcript: string, isFinal: boolean) {
   }
 }
 
-function mountComposable(disabled = ref(false)) {
+function mountComposable(
+  disabled = ref(false),
+  requestPermission: VoiceMicrophonePermissionRequester | null = null,
+) {
   const recognition = new FakeRecognition()
   const onFinalText = vi.fn()
   let api!: ReturnType<typeof useVoiceDictation>
@@ -40,6 +44,7 @@ function mountComposable(disabled = ref(false)) {
       api = useVoiceDictation({
         disabled,
         factory: () => recognition,
+        requestPermission,
         onFinalText,
       })
       return () => h('div')
@@ -59,6 +64,30 @@ describe('useVoiceDictation', () => {
     expect(api.supported.value).toBe(true)
     expect(recognition.start).not.toHaveBeenCalled()
     expect(api.status.value).toBe('idle')
+  })
+
+  it('requests microphone permission before starting recognition', async () => {
+    const requestPermission = vi.fn(async () => undefined)
+    const { api, recognition } = mountComposable(ref(false), requestPermission)
+
+    await api.start()
+
+    expect(requestPermission).toHaveBeenCalledTimes(1)
+    expect(recognition.start).toHaveBeenCalledTimes(1)
+    expect(requestPermission.mock.invocationCallOrder[0]).toBeLessThan(recognition.start.mock.invocationCallOrder[0]!)
+  })
+
+  it('does not start recognition when microphone permission is denied', async () => {
+    const requestPermission = vi.fn(async () => {
+      throw new DOMException('denied', 'NotAllowedError')
+    })
+    const { api, recognition } = mountComposable(ref(false), requestPermission)
+
+    await api.start()
+
+    expect(recognition.start).not.toHaveBeenCalled()
+    expect(api.status.value).toBe('idle')
+    expect(api.error.value).toContain('browser site permissions')
   })
 
   it('prevents overlapping starts and allows Stop while browser startup is pending', () => {
@@ -118,13 +147,13 @@ describe('useVoiceDictation', () => {
     expect(recognition.abort).toHaveBeenCalledTimes(2)
   })
 
-  it('maps recognition failures to typed-fallback messages', () => {
+  it('maps recognition failures to typed-fallback messages', async () => {
     const { api, recognition, onFinalText } = mountComposable()
 
-    api.start()
+    await api.start()
     recognition.onerror?.({ error: 'not-allowed' })
 
-    expect(api.error.value).toContain('permission was denied')
+    expect(api.error.value).toContain('browser site permissions')
     expect(api.status.value).toBe('idle')
     expect(onFinalText).not.toHaveBeenCalled()
   })

@@ -5,7 +5,7 @@
       variant="secondary"
       size="sm"
       class="min-h-11 justify-self-start"
-      :disabled="disabled"
+      :disabled="disabled || status === 'requesting'"
       :aria-label="buttonLabel"
       :aria-pressed="status !== 'idle'"
       @click="toggle"
@@ -51,13 +51,14 @@ const {
 const buttonLabel = computed(() =>
   status.value === 'idle' ? 'Start voice dictation' : 'Stop voice dictation')
 const visibleLabel = computed(() => {
+  if (status.value === 'requesting') return 'Requesting microphone'
   if (status.value === 'listening') return 'Listening'
   if (status.value === 'stopping') return 'Stopping'
   return 'Dictate notes'
 })
 
 function toggle() {
-  if (status.value === 'idle') start()
+  if (status.value === 'idle') return start()
   else stop()
 }
 </script>

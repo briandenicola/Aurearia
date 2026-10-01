@@ -31,7 +31,11 @@ Speech recognition may send audio to the browser or device provider. Aurearia
 does not upload or retain raw audio; only the reviewed transcript is handled as
 ordinary notes after explicit submission. Browser support varies, and typing
 remains the complete fallback when the microphone control is unavailable or
-permission is denied. Notes retain the existing 2,000-character limit.
+permission is denied. The first dictation action requests microphone permission
+through the browser and immediately releases the temporary permission-check
+audio track before recognition starts. If access is blocked, allow the
+microphone in the browser's site permissions and try again. Notes retain the
+existing 2,000-character limit.
 
 ## NGC Ancients Verification
 
