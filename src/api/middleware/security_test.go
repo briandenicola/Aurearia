@@ -33,6 +33,9 @@ func TestSecurityHeadersEnableCrossOriginIsolationForWASM(t *testing.T) {
 	if got := w.Header().Get("Cross-Origin-Embedder-Policy"); got != "credentialless" {
 		t.Fatalf("expected COEP credentialless, got %q", got)
 	}
+	if got := w.Header().Get("Permissions-Policy"); got != "camera=(self), microphone=(self), geolocation=()" {
+		t.Fatalf("expected same-origin camera and microphone policy, got %q", got)
+	}
 }
 
 func TestIPDenyRulesBlocksPublicAndProtectedRoutes(t *testing.T) {

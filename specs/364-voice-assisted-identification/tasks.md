@@ -182,6 +182,10 @@ optional `notes` value.
 - [ ] T031 Re-test the exact repair candidate in supported Chrome and Edge over
   HTTPS. Record Firefox behavior as supported recognition or typed fallback,
   depending on the browser build.
+- [x] T032 Remove the application-owned policy conflict by allowing microphone
+  access only to Aurearia's own origin in both the Go security header and the
+  documented nginx configuration. Keep geolocation and unrelated capabilities
+  disabled.
 
 ## Dependencies and Execution
 
@@ -218,3 +222,4 @@ optional `notes` value.
 | T026 | Pending owner acceptance and handoff | Pending | Planned |
 | T027-T030 | Explicit `getUserMedia({ audio: true })` permission preflight added; temporary tracks are stopped before recognition; 82 focused tests and `task check:web` passed; disabling the preflight failed the permission guard and restoration passed | Dirty tree based on `09f39e22` | Repair implemented and automated verification complete |
 | T031 | Real Chrome, Edge, and Firefox-build behavior | Pending | Requires beta deployment/manual browser evidence |
+| T032 | Root cause found in `Permissions-Policy: microphone=()`; changed to same-origin only and synchronized the nginx deployment example; focused middleware tests plus full Go/web/delivery gates passed; restoring the blocking policy failed the guard and restoration passed | Dirty tree based on `045b995e` | Policy repair implemented and verified |
