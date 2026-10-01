@@ -9,114 +9,69 @@
       <button class="btn btn-secondary" @click="loadSetDetails">Retry</button>
     </div>
     <div v-else-if="set" class="space-y-6">
-      <div class="page-header relative items-start">
-        <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
-          <span class="h-11 w-1 shrink-0 rounded-full shadow-[0_0_16px_var(--accent-gold-glow)]" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
-          <div class="min-w-0">
-            <h1>{{ set.name }}</h1>
-            <p v-if="set.description" class="mt-0.5 truncate text-base text-text-secondary">{{ set.description }}</p>
+      <DesktopPageContext :title="set.name">
+        <template #actions>
+          <AppIconButton :active="setPinned" :disabled="pinDisabled" :aria-busy="setPinBusy" :aria-pressed="setPinned" :title="pinButtonLabel" @click="togglePin">
+            <PinOff v-if="setPinned" :size="20" />
+            <Pin v-else :size="20" />
+          </AppIconButton>
+          <AppIconButton title="Back to Sets" @click="router.push({ name: 'sets' })"><ArrowLeft :size="20" /></AppIconButton>
+          <div class="relative">
+            <AppIconButton :active="menuOpen" title="Set actions" @click="menuOpen = !menuOpen"><Menu :size="20" /></AppIconButton>
+            <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]" role="menu">
+              <button class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary" role="menuitem" @click="openSetInfoPage">
+                <span class="inline-flex items-center gap-2"><Info :size="15" /> Analytics & Value Trend</span>
+              </button>
+              <button v-if="canManageMembership" class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary" role="menuitem" @click="openAddCoinModal">
+                <span class="inline-flex items-center gap-2"><CirclePlus :size="15" /> Add Coin</span>
+              </button>
+              <button class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary" role="menuitem" @click="openEditModal">
+                <span class="inline-flex items-center gap-2"><Pencil :size="15" /> Edit Set</span>
+              </button>
+              <button class="w-full rounded-sm px-3 py-2 text-left text-body text-error-bg transition-all hover:bg-card-hover" role="menuitem" @click="deleteSet">
+                <span class="inline-flex items-center gap-2"><Trash2 :size="15" /> Delete Set</span>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <div class="page-header relative items-start">
+          <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
+            <span class="h-11 w-1 shrink-0 rounded-full shadow-[0_0_16px_var(--accent-gold-glow)]" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
+            <div class="min-w-0">
+              <h1>{{ set.name }}</h1>
+              <p v-if="set.description" class="mt-0.5 truncate text-base text-text-secondary">{{ set.description }}</p>
+            </div>
+          </div>
+          <div v-if="isPwa" class="pwa-actions">
+            <button class="pwa-icon-btn" :class="{ 'text-gold': setPinned }" :disabled="pinDisabled" :aria-busy="setPinBusy" :aria-pressed="setPinned" :aria-label="pinButtonLabel" :title="pinButtonLabel" @click="togglePin">
+              <PinOff v-if="setPinned" :size="22" />
+              <Pin v-else :size="22" />
+            </button>
+            <button class="pwa-icon-btn" title="Back to Sets" @click="router.push({ name: 'sets' })"><ArrowLeft :size="22" /></button>
+            <button class="pwa-icon-btn" :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''" title="Set actions" aria-label="Set actions" @click="menuOpen = !menuOpen"><Menu :size="22" /></button>
+          </div>
+          <div v-else class="header-actions">
+            <button class="btn btn-ghost" :class="{ 'text-gold': setPinned }" :disabled="pinDisabled" :aria-busy="setPinBusy" :aria-pressed="setPinned" :aria-label="pinButtonLabel" :title="pinButtonLabel" @click="togglePin">
+              <PinOff v-if="setPinned" :size="16" />
+              <Pin v-else :size="16" />
+            </button>
+            <button class="btn btn-ghost" @click="router.push({ name: 'sets' })"><ArrowLeft :size="16" /> Back</button>
+            <button class="btn btn-secondary" :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''" aria-haspopup="menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><Menu :size="16" /> Actions</button>
+          </div>
+          <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]" role="menu">
+            <button class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary" role="menuitem" @click="openSetInfoPage"><span class="inline-flex items-center gap-2"><Info :size="15" /> Analytics & Value Trend</span></button>
+            <button v-if="canManageMembership" class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary" role="menuitem" @click="openAddCoinModal"><span class="inline-flex items-center gap-2"><CirclePlus :size="15" /> Add Coin</span></button>
+            <button class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary" role="menuitem" @click="openEditModal"><span class="inline-flex items-center gap-2"><Pencil :size="15" /> Edit Set</span></button>
+            <button class="w-full rounded-sm px-3 py-2 text-left text-body text-error-bg transition-all hover:bg-card-hover" role="menuitem" @click="deleteSet"><span class="inline-flex items-center gap-2"><Trash2 :size="15" /> Delete Set</span></button>
           </div>
         </div>
-        <div v-if="isPwa" class="pwa-actions">
-          <button
-            class="pwa-icon-btn"
-            :class="{ 'text-gold': setPinned }"
-            :disabled="pinDisabled"
-            :aria-busy="setPinBusy"
-            :aria-pressed="setPinned"
-            :aria-label="pinButtonLabel"
-            :title="pinButtonLabel"
-            @click="togglePin"
-          >
-            <PinOff v-if="setPinned" :size="22" />
-            <Pin v-else :size="22" />
-          </button>
-          <button class="pwa-icon-btn" @click="router.push({ name: 'sets' })" title="Back to Sets">
-            <ArrowLeft :size="22" />
-          </button>
-          <button
-            class="pwa-icon-btn"
-            :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
-            @click="menuOpen = !menuOpen"
-            title="Set actions"
-            aria-label="Set actions"
-          >
-            <Menu :size="22" />
-          </button>
-        </div>
-        <div v-else class="header-actions">
-          <button
-            class="btn btn-ghost"
-            :class="{ 'text-gold': setPinned }"
-            :disabled="pinDisabled"
-            :aria-busy="setPinBusy"
-            :aria-pressed="setPinned"
-            :aria-label="pinButtonLabel"
-            :title="pinButtonLabel"
-            @click="togglePin"
-          >
-            <PinOff v-if="setPinned" :size="16" />
-            <Pin v-else :size="16" />
-          </button>
-          <button class="btn btn-ghost" @click="router.push({ name: 'sets' })">
-            <ArrowLeft :size="16" /> Back
-          </button>
-          <button
-            class="btn btn-secondary"
-            :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
-            @click="menuOpen = !menuOpen"
-            aria-haspopup="menu"
-            :aria-expanded="menuOpen"
-          >
-            <Menu :size="16" /> Actions
-          </button>
-        </div>
 
-        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]" role="menu">
-          <button
-            class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
-            role="menuitem"
-            @click="openSetInfoPage"
-          >
-            <span class="inline-flex items-center gap-2">
-              <Info :size="15" />
-              Analytics & Value Trend
-            </span>
-          </button>
-          <button
-            v-if="canManageMembership"
-            class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
-            role="menuitem"
-            @click="openAddCoinModal"
-          >
-            <span class="inline-flex items-center gap-2">
-              <CirclePlus :size="15" />
-              Add Coin
-            </span>
-          </button>
-          <button
-            class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
-            role="menuitem"
-            @click="openEditModal"
-          >
-            <span class="inline-flex items-center gap-2">
-              <Pencil :size="15" />
-              Edit Set
-            </span>
-          </button>
-          <button
-            class="w-full rounded-sm px-3 py-2 text-left text-body text-error-bg transition-all hover:bg-card-hover"
-            role="menuitem"
-            @click="deleteSet"
-          >
-            <span class="inline-flex items-center gap-2">
-              <Trash2 :size="15" />
-              Delete Set
-            </span>
-          </button>
-        </div>
-        <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close menu" @click="menuOpen = false"></button>
-      </div>
+        <template v-if="set.description" #desktop>
+          <p class="text-base text-text-secondary">{{ set.description }}</p>
+        </template>
+      </DesktopPageContext>
+      <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close menu" @click="menuOpen = false"></button>
 
       <SetCompletionChecklist
         v-if="completion"
@@ -321,6 +276,8 @@ import { usePwa } from '@/composables/usePwa'
 import { useToast } from '@/composables/useToast'
 import { useTrayPreference } from '@/composables/useTrayPreference'
 import { getDrawerCoins, getTotalDrawers, type TrayCoin } from '@/utils/trayLayout'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const router = useRouter()
 const route = useRoute()

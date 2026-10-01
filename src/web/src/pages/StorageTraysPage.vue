@@ -1,9 +1,16 @@
 <template>
   <main class="container storage-trays-page">
-    <header class="page-header">
-      <h1>Storage Trays</h1>
-      <router-link class="btn btn-secondary btn-sm" to="/">Back to Collection</router-link>
-    </header>
+    <DesktopPageContext title="Storage Trays">
+      <template #actions>
+        <AppIconButton to="/" title="Back to Collection">
+          <ArrowLeft :size="20" />
+        </AppIconButton>
+      </template>
+      <header class="page-header">
+        <h1>Storage Trays</h1>
+        <router-link class="btn btn-secondary btn-sm" to="/">Back to Collection</router-link>
+      </header>
+    </DesktopPageContext>
 
     <p v-if="loading" role="status" class="text-text-secondary">Loading storage trays...</p>
     <div v-else-if="error" class="rounded-md border border-border-subtle bg-card p-5" role="alert">
@@ -49,6 +56,9 @@ import { getStorageTrays } from '@/api/client'
 import { useTrayPreference } from '@/composables/useTrayPreference'
 import type { TrayAggregate } from '@/types'
 import StorageTrayGrid from '@/components/tray/StorageTrayGrid.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import { ArrowLeft } from 'lucide-vue-next'
 
 const router = useRouter()
 const { feltColor } = useTrayPreference()

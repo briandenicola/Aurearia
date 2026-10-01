@@ -1,14 +1,19 @@
 <template>
   <div class="container mint-map-page">
-    <header class="page-header mint-map-header">
-      <div>
-        <p class="section-label">Collection Insights</p>
-        <h1>Map of Coins</h1>
-      </div>
-      <router-link class="back-button" to="/stats" aria-label="Back to Stats">
-        <ArrowLeft :size="20" />
-      </router-link>
-    </header>
+    <DesktopPageContext title="Map of Coins">
+      <template #actions>
+        <AppIconButton to="/stats" title="Back to Stats"><ArrowLeft :size="20" /></AppIconButton>
+      </template>
+      <header class="page-header mint-map-header">
+        <div>
+          <p class="section-label">Collection Insights</p>
+          <h1>Map of Coins</h1>
+        </div>
+        <router-link class="back-button" to="/stats" aria-label="Back to Stats">
+          <ArrowLeft :size="20" />
+        </router-link>
+      </header>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-card card" role="status">
       <div class="spinner"></div>
@@ -70,6 +75,8 @@ import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
 import MintListPanel from '@/components/map/MintListPanel.vue'
 import { UNKNOWN_MINT_ID, groupCoinsByMint, type MintGroup } from '@/utils/mintMap'
 import type { Coin, MintLocation } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const MAP_PAGE_LIMIT = 100
 

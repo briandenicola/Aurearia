@@ -7,16 +7,20 @@
             <UserPlus :size="20" />
           </AppIconButton>
         </template>
-      </DesktopPageContext>
-
-      <div v-if="isPwa" class="page-header">
-        <h1 class="flex-1">Followers</h1>
-        <div class="pwa-actions">
-          <button class="pwa-icon-btn" @click="showSearchModal = true" title="Find Users">
-            <UserPlus :size="22" />
-          </button>
+        <div class="page-header">
+          <h1 class="flex-1">Followers</h1>
+          <div v-if="isPwa" class="pwa-actions">
+            <button class="pwa-icon-btn" @click="showSearchModal = true" title="Find Users">
+              <UserPlus :size="22" />
+            </button>
+          </div>
+          <div v-else class="header-actions">
+            <button class="btn btn-primary" @click="showSearchModal = true">
+              <UserPlus :size="16" /> Add
+            </button>
+          </div>
         </div>
-      </div>
+      </DesktopPageContext>
 
       <div class="mx-auto flex max-w-[900px] flex-col gap-6 overflow-x-hidden">
         <!-- Tab Nav -->

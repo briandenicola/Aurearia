@@ -1,9 +1,11 @@
 <template>
   <div class="container">
     <div class="form-wrapper">
-      <div class="page-header">
-        <h1>Edit Coin</h1>
-      </div>
+      <DesktopPageContext title="Edit Coin">
+        <div class="page-header">
+          <h1>Edit Coin</h1>
+        </div>
+      </DesktopPageContext>
       <div v-if="loading" class="loading-overlay">
         <div class="spinner"></div>
       </div>
@@ -20,6 +22,7 @@ import { getCoin, updateCoin, uploadImage, deleteImage, extractText } from '@/ap
 import type { Coin } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { useQuickAccess } from '@/composables/useQuickAccess'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
 const { showAlert } = useDialog()
 const { refresh: refreshQuickAccess } = useQuickAccess()

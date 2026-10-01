@@ -1,30 +1,34 @@
 <template>
   <div class="container pb-6">
-    <div class="page-header">
-      <h1 class="inline-flex items-center gap-2">
-        Notes
-        <span class="text-base font-medium text-text-secondary">({{ notes.length }})</span>
-      </h1>
-      <div v-if="isPwa" class="pwa-actions">
-        <button
-          v-if="pwaMode !== 'list'"
-          class="pwa-icon-btn"
-          @click="showPwaList"
-          title="Back to Notes"
-          aria-label="Back to Notes"
-        >
-          <ArrowLeft :size="22" />
-        </button>
-        <button class="pwa-icon-btn" @click="startNewNote" title="New Note">
-          <CirclePlus :size="22" />
-        </button>
+    <DesktopPageContext :title="`Notes (${notes.length})`">
+      <template #actions>
+        <AppIconButton v-if="pwaMode !== 'list'" title="Back to Notes" @click="showPwaList">
+          <ArrowLeft :size="20" />
+        </AppIconButton>
+        <AppIconButton title="New Note" @click="startNewNote">
+          <CirclePlus :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <h1 class="inline-flex items-center gap-2">
+          Notes
+          <span class="text-base font-medium text-text-secondary">({{ notes.length }})</span>
+        </h1>
+        <div v-if="isPwa" class="pwa-actions">
+          <button v-if="pwaMode !== 'list'" class="pwa-icon-btn" title="Back to Notes" aria-label="Back to Notes" @click="showPwaList">
+            <ArrowLeft :size="22" />
+          </button>
+          <button class="pwa-icon-btn" title="New Note" @click="startNewNote">
+            <CirclePlus :size="22" />
+          </button>
+        </div>
+        <div v-else class="header-actions">
+          <button class="btn btn-primary" @click="startNewNote">
+            <Plus :size="16" /> New Note
+          </button>
+        </div>
       </div>
-      <div v-else class="header-actions">
-        <button class="btn btn-primary" @click="startNewNote">
-          <Plus :size="16" /> New Note
-        </button>
-      </div>
-    </div>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner" />
@@ -161,6 +165,8 @@ import type { UserNote } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { usePwa } from '@/composables/usePwa'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const { showConfirm, showAlert } = useDialog()
 const { isPwa } = usePwa()

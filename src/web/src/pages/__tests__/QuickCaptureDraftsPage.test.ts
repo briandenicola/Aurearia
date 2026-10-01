@@ -33,7 +33,7 @@ describe('QuickCaptureDraftsPage', () => {
     expect(source).toContain('No active drafts yet.')
     expect(source).toContain('Unable to load quick capture drafts.')
     expect(source).toContain('<h1>Quick Capture</h1>')
-    expect(source).not.toContain('Quick Capture Drafts')
+    expect(source).toContain('title="Quick Capture Drafts"')
     expect(source).not.toContain('New Draft')
     expect(source).toContain('CirclePlus')
     expect(source).toContain('aria-label="New capture"')

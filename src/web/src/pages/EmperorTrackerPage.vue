@@ -1,50 +1,69 @@
 <template>
   <div class="container flex flex-col gap-4">
-    <header class="page-header flex flex-nowrap items-center justify-between gap-4">
-      <div>
-        <p class="section-label">Sets</p>
-        <h1>Emperors</h1>
-      </div>
-      <div class="relative flex shrink-0 items-center gap-2">
-        <router-link
-          class="inline-flex items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
-          to="/sets"
-          aria-label="Back to Sets"
-        >
-          <ArrowLeft :size="20" />
-        </router-link>
-        <button
-          class="inline-flex items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
-          :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
-          aria-label="Emperor actions"
-          @click="menuOpen = !menuOpen"
-        >
-          <Menu :size="20" />
-        </button>
-        <div v-if="menuOpen && result" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]">
-          <router-link
-            to="/sets/emperors/stats"
-            class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
-            @click="menuOpen = false"
-          >
-            <ChartNoAxesColumn :size="15" />
-            Stats
-          </router-link>
-          <router-link
-            v-if="result.suggestions.length"
-            to="/sets/emperors/pursuits"
-            class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
-            @click="menuOpen = false"
-          >
-            <Crown :size="15" />
-            What to Pursue Next
-          </router-link>
+    <DesktopPageContext title="Emperors">
+      <template #actions>
+        <AppIconButton to="/sets" title="Back to Sets"><ArrowLeft :size="20" /></AppIconButton>
+        <div class="relative">
+          <AppIconButton :active="menuOpen" title="Emperor actions" @click="menuOpen = !menuOpen"><Menu :size="20" /></AppIconButton>
+          <div v-if="menuOpen && result" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]">
+            <router-link to="/sets/emperors/stats" class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary" @click="menuOpen = false">
+              <ChartNoAxesColumn :size="15" /> Stats
+            </router-link>
+            <router-link v-if="result.suggestions.length" to="/sets/emperors/pursuits" class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary" @click="menuOpen = false">
+              <Crown :size="15" /> What to Pursue Next
+            </router-link>
+          </div>
         </div>
-      </div>
-    </header>
-    <p class="m-0 -mt-1 text-base italic text-text-secondary">
-      Your collection's progress toward every Western and Eastern Roman Emperor.
-    </p>
+      </template>
+      <header class="page-header flex flex-nowrap items-center justify-between gap-4">
+        <div>
+          <p class="section-label">Sets</p>
+          <h1>Emperors</h1>
+        </div>
+        <div class="relative flex shrink-0 items-center gap-2">
+          <router-link
+            class="inline-flex items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+            to="/sets"
+            aria-label="Back to Sets"
+          >
+            <ArrowLeft :size="20" />
+          </router-link>
+          <button
+            class="inline-flex items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+            :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
+            aria-label="Emperor actions"
+            @click="menuOpen = !menuOpen"
+          >
+            <Menu :size="20" />
+          </button>
+          <div v-if="menuOpen && result" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_var(--overlay-45)]">
+            <router-link
+              to="/sets/emperors/stats"
+              class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
+              @click="menuOpen = false"
+            >
+              <ChartNoAxesColumn :size="15" />
+              Stats
+            </router-link>
+            <router-link
+              v-if="result.suggestions.length"
+              to="/sets/emperors/pursuits"
+              class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
+              @click="menuOpen = false"
+            >
+              <Crown :size="15" />
+              What to Pursue Next
+            </router-link>
+          </div>
+        </div>
+      </header>
+      <p class="m-0 -mt-1 text-base italic text-text-secondary">
+        Your collection's progress toward every Western and Eastern Roman Emperor.
+      </p>
+      <template #desktop>
+        <p class="m-0 text-base italic text-text-secondary">Your collection's progress toward every Western and Eastern Roman Emperor.</p>
+      </template>
+    </DesktopPageContext>
     <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close emperor actions menu" @click="menuOpen = false"></button>
 
     <div v-if="loading" class="loading-overlay">
@@ -141,6 +160,8 @@ import { useAuthStore } from '@/stores/auth'
 import { getEmperorTrackerProgress, getApiErrorMessage } from '@/api/client'
 import ImperialFigureWellGrid from '@/components/emperor-tracker/ImperialFigureWellGrid.vue'
 import type { EmperorTrackerResult } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const auth = useAuthStore()
 

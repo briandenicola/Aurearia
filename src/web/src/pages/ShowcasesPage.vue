@@ -1,18 +1,25 @@
 <template>
   <div class="container">
-    <div class="page-header">
-      <h1>Showcases</h1>
-      <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" @click="showCreate = true" title="New Showcase">
-          <CirclePlus :size="22" />
-        </button>
+    <DesktopPageContext title="Showcases">
+      <template #actions>
+        <AppIconButton title="New Showcase" @click="showCreate = true">
+          <CirclePlus :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <h1>Showcases</h1>
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn" title="New Showcase" @click="showCreate = true">
+            <CirclePlus :size="22" />
+          </button>
+        </div>
+        <div v-else class="header-actions">
+          <button class="btn btn-primary" @click="showCreate = true">
+            <Plus :size="16" /> New Showcase
+          </button>
+        </div>
       </div>
-      <div v-else class="header-actions">
-        <button class="btn btn-primary" @click="showCreate = true">
-          <Plus :size="16" /> New Showcase
-        </button>
-      </div>
-    </div>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
@@ -113,6 +120,8 @@ import { ref, onMounted } from 'vue'
 import { CirclePlus, Plus, Pencil, Trash2, Link, Eye, EyeOff, X, Coins, Presentation } from 'lucide-vue-next'
 import { listShowcases, createShowcase, updateShowcase, deleteShowcase } from '@/api/client'
 import { usePwa } from '@/composables/usePwa'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 interface Showcase {
   id: number

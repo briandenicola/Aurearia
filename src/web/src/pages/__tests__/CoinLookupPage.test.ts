@@ -496,7 +496,7 @@ describe('CoinLookupPage', () => {
 
     expect(document.querySelector('#desktop-page-title')?.textContent).toContain('Identify Coin')
     expect(document.querySelector('#desktop-page-actions [aria-label="All drafts"]')).not.toBeNull()
-    expect(wrapper.find('.pwa-icon-btn').exists()).toBe(false)
+    expect(wrapper.find('.desktop-page-context-local .pwa-icon-btn').exists()).toBe(true)
   })
 
   it('labels the photo workflow Analyze Photos and retains Save as Draft', async () => {

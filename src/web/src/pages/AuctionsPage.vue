@@ -1,32 +1,43 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
-      <div class="page-header">
-        <h1>Auctions</h1>
-        <!-- PWA: icon-only buttons inline with title -->
-        <div v-if="isPwa" class="pwa-actions">
-          <AppIconButton :disabled="syncing" title="Sync Watchlist" aria-label="Sync Watchlist" @click="syncWatchlist">
-            <RefreshCw :size="22" :class="syncing ? 'animate-spin' : ''" />
+      <DesktopPageContext title="Auctions">
+        <template #actions>
+          <AppIconButton :disabled="syncing" title="Sync Watchlist" @click="syncWatchlist">
+            <RefreshCw :size="20" :class="syncing ? 'animate-spin' : ''" />
           </AppIconButton>
-          <AppIconButton :active="selectMode" :title="selectMode ? 'Cancel Select' : 'Select'" aria-label="Select" @click="toggleSelectMode">
-            <CheckSquare :size="22" />
+          <AppIconButton :active="selectMode" :title="selectMode ? 'Cancel Select' : 'Select'" @click="toggleSelectMode">
+            <CheckSquare :size="20" />
           </AppIconButton>
-          <AppIconButton title="Add Lot" aria-label="Add Lot" @click="showImport = true">
-            <CirclePlus :size="22" />
+          <AppIconButton title="Add Lot" @click="showImport = true">
+            <CirclePlus :size="20" />
           </AppIconButton>
+        </template>
+        <div class="page-header">
+          <h1>Auctions</h1>
+          <div v-if="isPwa" class="pwa-actions">
+            <AppIconButton :disabled="syncing" title="Sync Watchlist" aria-label="Sync Watchlist" @click="syncWatchlist">
+              <RefreshCw :size="22" :class="syncing ? 'animate-spin' : ''" />
+            </AppIconButton>
+            <AppIconButton :active="selectMode" :title="selectMode ? 'Cancel Select' : 'Select'" aria-label="Select" @click="toggleSelectMode">
+              <CheckSquare :size="22" />
+            </AppIconButton>
+            <AppIconButton title="Add Lot" aria-label="Add Lot" @click="showImport = true">
+              <CirclePlus :size="22" />
+            </AppIconButton>
+          </div>
+          <div v-else class="header-actions gap-3">
+            <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
+              <RefreshCw :size="16" :class="syncing ? 'animate-spin' : ''" />
+              {{ syncing ? 'Syncing...' : 'Sync Watchlists' }}
+            </button>
+            <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
+              <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
+            </button>
+            <button class="btn btn-primary" @click="showImport = true"><Plus :size="16" /> Add Lot</button>
+          </div>
         </div>
-        <!-- Desktop: full text buttons -->
-        <div v-else class="header-actions gap-3">
-          <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
-            <RefreshCw :size="16" :class="syncing ? 'animate-spin' : ''" />
-            {{ syncing ? 'Syncing...' : 'Sync Watchlists' }}
-          </button>
-          <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
-            <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
-          </button>
-          <button class="btn btn-primary" @click="showImport = true"><Plus :size="16" /> Add Lot</button>
-        </div>
-      </div>
+      </DesktopPageContext>
 
       <div
         v-if="syncMessage"
@@ -170,6 +181,7 @@ import AuctionStatusFilter from '@/components/auction/AuctionStatusFilter.vue'
 import AuctionLotDetailModal from '@/components/auction/AuctionLotDetailModal.vue'
 import AuctionBulkActionBar from '@/components/auction/AuctionBulkActionBar.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink, AlertTriangle } from 'lucide-vue-next'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { usePwa } from '@/composables/usePwa'

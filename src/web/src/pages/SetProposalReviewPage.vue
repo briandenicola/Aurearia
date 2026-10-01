@@ -1,9 +1,16 @@
 <template>
   <div class="container">
-    <header class="page-header">
-      <h1>Review Agentic Set</h1>
-      <RouterLink class="btn btn-secondary btn-sm" to="/sets">Back to Sets</RouterLink>
-    </header>
+    <DesktopPageContext title="Review Agentic Set">
+      <template #actions>
+        <AppIconButton to="/sets" title="Back to Sets">
+          <ArrowLeft :size="20" />
+        </AppIconButton>
+      </template>
+      <header class="page-header">
+        <h1>Review Agentic Set</h1>
+        <RouterLink class="btn btn-secondary btn-sm" to="/sets">Back to Sets</RouterLink>
+      </header>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
@@ -223,6 +230,9 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { approveSetProposal, getApiErrorMessage, getSetProposal, regenerateSetProposal as regenerateSetProposalApi, rejectSetProposal as rejectSetProposalApi, updateSetProposal } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import type { SetProposal, SetProposalSlot, UpdateSetProposalRequest } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import { ArrowLeft } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()

@@ -1,18 +1,25 @@
 <template>
   <div class="container">
-    <div class="page-header">
-      <h1>Sets</h1>
-      <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" @click="openCreateModal" title="Create Set">
-          <CirclePlus :size="22" />
-        </button>
+    <DesktopPageContext title="Sets">
+      <template #actions>
+        <AppIconButton title="Create Set" @click="openCreateModal">
+          <CirclePlus :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <h1>Sets</h1>
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn" title="Create Set" @click="openCreateModal">
+            <CirclePlus :size="22" />
+          </button>
+        </div>
+        <div v-else class="header-actions">
+          <button class="btn btn-primary" @click="openCreateModal">
+            <Plus :size="16" /> Create Set
+          </button>
+        </div>
       </div>
-      <div v-else class="header-actions">
-        <button class="btn btn-primary" @click="openCreateModal">
-          <Plus :size="16" /> Create Set
-        </button>
-      </div>
-    </div>
+    </DesktopPageContext>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
@@ -62,6 +69,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { CirclePlus, Layers3, Plus, X } from 'lucide-vue-next'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 import { formatSetBuilderError, getApiErrorMessage, getSets, createSet as createSetApi, createSetFromCsv, createSetBuilderRun } from '@/api/client'
 import type { CoinSetSummary, CreateCoinSetRequest } from '@/types'
 import SetDashboardCard from '@/components/sets/SetDashboardCard.vue'

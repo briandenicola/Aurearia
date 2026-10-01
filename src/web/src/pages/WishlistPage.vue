@@ -27,51 +27,64 @@
           <CirclePlus :size="20" />
         </AppIconButton>
       </template>
-    </DesktopPageContext>
-
-    <div v-if="isPwa" class="page-header">
-      <h1>Wishlist</h1>
-      <div class="pwa-actions">
-        <button
-          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-          :disabled="checking"
-          @click="handleCheckAvailability"
-          title="Check Availability"
-        >
-          <span
-            v-if="checking"
-            class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"
-          ></span>
-          <ShieldCheck v-else :size="22" />
-        </button>
-        <router-link
-          v-if="store.coins.length"
-          to="/wishlist/search-alerts"
-          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-          title="Add Wish List Finder Agent"
-          aria-label="Add Wish List Finder Agent"
-        >
-          <CalendarClock :size="22" />
-        </router-link>
-        <router-link
-          to="/wishlist/availability-runs"
-          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-          title="Run History"
-          aria-label="Run History"
-        >
-          <History :size="22" />
-        </router-link>
-        <button
-          type="button"
-          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
-          title="Add to wishlist"
-          aria-label="Add to wishlist"
-          @click="showAddDialog = true"
-        >
-          <CirclePlus :size="22" />
-        </button>
+      <div class="page-header">
+        <h1>Wishlist</h1>
+        <div v-if="isPwa" class="pwa-actions">
+          <button
+            class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            :disabled="checking"
+            @click="handleCheckAvailability"
+            title="Check Availability"
+          >
+            <span
+              v-if="checking"
+              class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"
+            ></span>
+            <ShieldCheck v-else :size="22" />
+          </button>
+          <router-link
+            v-if="store.coins.length"
+            to="/wishlist/search-alerts"
+            class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            title="Add Wish List Finder Agent"
+            aria-label="Add Wish List Finder Agent"
+          >
+            <CalendarClock :size="22" />
+          </router-link>
+          <router-link
+            to="/wishlist/availability-runs"
+            class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            title="Run History"
+            aria-label="Run History"
+          >
+            <History :size="22" />
+          </router-link>
+          <button
+            type="button"
+            class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            title="Add to wishlist"
+            aria-label="Add to wishlist"
+            @click="showAddDialog = true"
+          >
+            <CirclePlus :size="22" />
+          </button>
+        </div>
+        <div v-else class="header-actions flex-wrap gap-3">
+          <button class="btn btn-secondary" :disabled="checking" @click="handleCheckAvailability">
+            <ShieldCheck :size="16" /> {{ checking ? 'Checking...' : 'Check Availability' }}
+          </button>
+          <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="btn btn-secondary">
+            <CalendarClock :size="16" /> Search Alerts
+          </router-link>
+          <router-link to="/wishlist/availability-runs" class="btn btn-secondary">
+            <History :size="16" /> Run History
+          </router-link>
+          <button type="button" class="btn btn-secondary" @click="showAddDialog = true">
+            <CirclePlus :size="16" /> Add Coin
+          </button>
+        </div>
       </div>
-    </div>
+    </DesktopPageContext>
 
     <div
       v-if="checkResult"

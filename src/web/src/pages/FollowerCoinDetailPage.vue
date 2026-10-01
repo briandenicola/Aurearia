@@ -6,6 +6,8 @@ import { getPublicProfile, getFollowingCoinDetail, addComment, deleteComment, ra
 import type { LimitedCoin, CoinComment, CoinRating } from '@/types'
 import { CATEGORY_COLORS } from '@/types'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -139,13 +141,18 @@ onMounted(loadCoin)
     </div>
 
     <template v-else-if="coin">
-      <header class="mb-6 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-4">
-        <button class="btn btn-secondary btn-sm" @click="goBack">
-          <ArrowLeft :size="18" />
-          <span>Back to Gallery</span>
-        </button>
-        <h1 class="m-0 text-xl font-semibold text-heading">{{ coin.name }}</h1>
-      </header>
+      <DesktopPageContext :title="coin.name">
+        <template #actions>
+          <AppIconButton title="Back to Gallery" @click="goBack"><ArrowLeft :size="20" /></AppIconButton>
+        </template>
+        <header class="mb-6 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-4">
+          <button class="btn btn-secondary btn-sm" @click="goBack">
+            <ArrowLeft :size="18" />
+            <span>Back to Gallery</span>
+          </button>
+          <h1 class="m-0 text-xl font-semibold text-heading">{{ coin.name }}</h1>
+        </header>
+      </DesktopPageContext>
 
       <div class="grid items-start gap-6 md:grid-cols-2">
         <section class="md:sticky md:top-6">

@@ -23,22 +23,41 @@
 
 ## Phase 2: Visual Review and Broad Migration
 
-- [ ] T008 Capture the representative slice at normal and narrow desktop widths;
+- [x] T008 Capture the representative slice at normal and narrow desktop widths;
   confirm title spacing, truncation, icon grouping, divider placement, and global
   action priority with the owner.
-- [ ] T009 Inventory the remaining local page headers by static title, dynamic
+- [x] T009 Inventory the remaining local page headers by static title, dynamic
   title, explanatory content, and action count.
-- [ ] T010 Migrate static-title pages without actions.
-- [ ] T011 Migrate static-title pages with page-owned actions.
-- [ ] T012 Migrate dynamic-title/detail pages with truncation and back actions.
-- [ ] T013 Add a More actions menu only if the migrated narrow-desktop inventory
+- [x] T010 Migrate static-title pages without actions.
+- [x] T011 Migrate static-title pages with page-owned actions.
+- [x] T012 Migrate dynamic-title/detail pages with truncation and back actions.
+- [x] T013 Add a More actions menu only if the migrated narrow-desktop inventory
   cannot preserve usable targets without overlap.
 
 ## Phase 3: Completion
 
-- [ ] T014 Add or update focused regression coverage for each migrated page
+- [x] T014 Add or update focused regression coverage for each migrated page
   family and PWA sibling behavior.
-- [ ] T015 Run `task check:web` and affected desktop/mobile browser workflows on
+- [x] T015 Run `task check:web` and affected desktop/mobile browser workflows on
   the exact candidate tree.
-- [ ] T016 Obtain independent review and resolve all blocking findings.
-- [ ] T017 Record final evidence and owner acceptance before merge or deployment.
+- [x] T016 Obtain independent review and resolve all blocking findings.
+- [x] T017 Record final evidence and owner acceptance before merge or deployment.
+
+## Candidate Evidence
+
+- `task check:web` — passed on the uncommitted candidate tree: lint, strict
+  `vue-tsc --build`, build, and 1,799 Vitest tests (1,798 passed, 1 skipped).
+- `task check:delivery` — passed on the same candidate tree: 91 delivery tests
+  plus governance validation.
+- Focused contextual-header tests — 41 passed across the shared component,
+  Wishlist, Identify Coin, and Stats.
+- Owner visually accepted the preserved 768px, 769px, installed-PWA, and crowded
+  Wishlist screenshots on 2026-10-01 and authorized commit/push of the feature
+  branch. Merge into `beta` remains separately gated.
+- `npx playwright test e2e/workflows/desktop-context-header.spec.ts
+  e2e/workflows/add-coin-capture.spec.ts` — 6 passed, covering the 768/769px
+  boundary, installed-PWA local headers at desktop width, normal desktop Add
+  Coin behavior, and the crowded four-action Wishlist header.
+- Independent read-only re-review — PASS for candidate patch SHA-256
+  `a29dc341be1cca6b434eea1def84cd4ce1067805023484a0cd776619238eaef4`;
+  the prior Add Coin disabled-state block is cleared.

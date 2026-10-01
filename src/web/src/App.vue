@@ -698,6 +698,16 @@ onUnmounted(() => {
   display: flex;
 }
 
+@media (max-width: 768px) {
+  .desktop-page-title-group,
+  .desktop-page-title-group:has(#desktop-page-title:not(:empty)),
+  .desktop-page-actions-group,
+  .desktop-page-actions-group.has-collection-actions,
+  .desktop-page-actions-group:has(#desktop-page-actions:not(:empty)) {
+    display: none;
+  }
+}
+
 .sortable-ghost {
   background: var(--accent-gold-glow);
   border-right: 3px solid var(--accent-gold);

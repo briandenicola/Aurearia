@@ -1,19 +1,30 @@
 <template>
   <PullToRefresh :on-refresh="loadCoins">
     <div class="container">
-      <div class="page-header max-sm:flex-wrap">
-        <h1 class="flex items-center gap-2 text-lg text-heading sm:text-xl">
-          <Clock :size="24" />
-          Collection Timeline
-        </h1>
-        <div class="flex gap-2 max-sm:w-full sm:justify-end">
-          <select v-model="filterType" class="form-input form-select min-w-[150px] max-sm:w-full sm:w-auto">
-            <option value="all">All Coins</option>
-            <option value="collection">Collection Only</option>
-            <option value="sold">Sold Only</option>
-          </select>
+      <DesktopPageContext title="Collection Timeline">
+        <div class="page-header max-sm:flex-wrap">
+          <h1 class="flex items-center gap-2 text-lg text-heading sm:text-xl">
+            <Clock :size="24" />
+            Collection Timeline
+          </h1>
+          <div class="flex gap-2 max-sm:w-full sm:justify-end">
+            <select v-model="filterType" class="form-input form-select min-w-[150px] max-sm:w-full sm:w-auto">
+              <option value="all">All Coins</option>
+              <option value="collection">Collection Only</option>
+              <option value="sold">Sold Only</option>
+            </select>
+          </div>
         </div>
-      </div>
+        <template #desktop>
+          <div class="mb-6 flex justify-end">
+            <select v-model="filterType" class="form-input form-select min-w-[150px]">
+              <option value="all">All Coins</option>
+              <option value="collection">Collection Only</option>
+              <option value="sold">Sold Only</option>
+            </select>
+          </div>
+        </template>
+      </DesktopPageContext>
 
       <div v-if="loading" class="loading-overlay">
         <div class="spinner" />
@@ -108,6 +119,7 @@ import type { Coin } from '@/types'
 import { CATEGORY_COLORS } from '@/types'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
 const loading = ref(true)
 const allCoins = ref<Coin[]>([])

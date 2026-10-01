@@ -7,16 +7,15 @@
             <List :size="20" />
           </AppIconButton>
         </template>
-      </DesktopPageContext>
-
-      <div v-if="isPwa && state !== 'capture'" class="page-header">
-        <h1>Identify Coin</h1>
-        <div class="pwa-actions">
-          <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
-            <List :size="22" />
-          </RouterLink>
+        <div v-if="!isPwa || state !== 'capture'" class="page-header">
+          <h1>Identify Coin</h1>
+          <div class="pwa-actions">
+            <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
+              <List :size="22" />
+            </RouterLink>
+          </div>
         </div>
-      </div>
+      </DesktopPageContext>
 
       <!-- Capture State -->
       <div v-if="state === 'capture'" class="flex flex-col gap-6">

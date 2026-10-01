@@ -165,6 +165,9 @@ describe('App sidebar pinned sets', () => {
   }
 
   async function mountApp(initialPath = '/') {
+    document.getElementById('desktop-page-title')?.remove()
+    document.getElementById('desktop-page-actions')?.remove()
+
     const QuickAccessPage = (await import('../pages/QuickAccessPage.vue')).default
     const DesktopPageContext = (await import('../components/DesktopPageContext.vue')).default
     const ContextPage = {

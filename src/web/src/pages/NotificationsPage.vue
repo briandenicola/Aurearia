@@ -1,15 +1,26 @@
 ﻿<template>
   <div class="container">
-    <div class="page-header">
-      <h1>Notifications</h1>
-      <button
-        v-if="notifications.length > 0 && hasUnread"
-        class="btn btn-secondary btn-sm"
-        @click="handleMarkAllRead"
-      >
-        Mark all read
-      </button>
-    </div>
+    <DesktopPageContext title="Notifications">
+      <template #actions>
+        <AppIconButton
+          v-if="notifications.length > 0 && hasUnread"
+          title="Mark all read"
+          @click="handleMarkAllRead"
+        >
+          <CheckCheck :size="20" />
+        </AppIconButton>
+      </template>
+      <div class="page-header">
+        <h1>Notifications</h1>
+        <button
+          v-if="notifications.length > 0 && hasUnread"
+          class="btn btn-secondary btn-sm"
+          @click="handleMarkAllRead"
+        >
+          Mark all read
+        </button>
+      </div>
+    </DesktopPageContext>
 
     <div
       v-if="loading && notifications.length === 0"
@@ -87,7 +98,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, BellOff, BellRing, AlertTriangle, UserPlus, Sparkles, Key, X, FolderOpen, ShieldCheck } from 'lucide-vue-next'
+import { Bell, BellOff, BellRing, AlertTriangle, UserPlus, Sparkles, Key, X, FolderOpen, ShieldCheck, CheckCheck } from 'lucide-vue-next'
 import {
   getNotifications,
   markNotificationRead,
@@ -97,6 +108,8 @@ import {
 import { useNotifications } from '@/composables/useNotifications'
 import FeaturedCoinModal from '@/components/coin/FeaturedCoinModal.vue'
 import type { Notification } from '@/types'
+import DesktopPageContext from '@/components/DesktopPageContext.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 
 const router = useRouter()
 const { refresh: refreshBadge } = useNotifications()
