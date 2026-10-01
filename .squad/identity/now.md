@@ -1,38 +1,29 @@
 ---
 updated_at: 2026-10-01
-focus_area: Consolidated dependency release candidate
+focus_area: Feature 364 voice-assisted identification planning
 owner: Copilot CLI implementation owner; repository owner accepts results
-work_branch: beta
-baseline_commit: 47f99070
-work_artifact: docs/audits/2026-10-01-dependency-consolidation.md
-tasks_artifact: docs/audits/2026-10-01-dependency-consolidation.md
+work_branch: 364-voice-assisted-identification
+baseline_commit: 8f11df00
+work_artifact: specs/364-voice-assisted-identification/spec.md
+tasks_artifact: specs/364-voice-assisted-identification/tasks.md
 ---
 
 # Current Work
 
-Dependabot PRs #792-#799 are consolidated on `beta` in `3768657e`. The exact
-dependency locks, dependency-integrity guard, and beta's existing test-only Coin
-Copilot race stabilization are covered by the
-[QC audit](../../docs/audits/2026-10-01-dependency-consolidation.md).
+Feature 364 plans push-to-talk browser dictation into the existing optional
+notes fields for Quick Identify and Deep Analysis. The transcript remains
+editable and analysis starts only from the existing explicit action. Typed
+notes remain the fallback; the MVP adds no backend transcription or audio
+persistence.
 
-All locally available completion and release checks pass. Hosted Node 24,
-CodeQL, Gitleaks, container, audit, and release-guard evidence remains pending.
-The owner-approved read-only successor review returned INCOMPLETE because
-organization content exclusion blocked required constitution and `.squad`
-evidence. The owner subsequently directed that beta-to-main PR #800 be opened
-for hosted checks and review. R-RELEASE remains blocking. Merge, publication,
-deployment, and release are not authorized by this record.
+The [spec](../../specs/364-voice-assisted-identification/spec.md),
+[plan](../../specs/364-voice-assisted-identification/plan.md), and
+[tasks](../../specs/364-voice-assisted-identification/tasks.md) are drafted.
+[ADR 0020](../../docs/adr/0020-browser-speech-identification-notes.md) is
+Proposed.
 
 ## Next Action
 
-Monitor PR #800's hosted checks. Obtain an owner-approved independent review
-path that can access required governance evidence without bypassing content
-exclusion, then rerun the bounded exact-candidate review. Do not merge or close
-#792-#799 as superseded until the release block is cleared.
-
-## Prior Work Context
-
-The completed September issue batch and #784/#785/#787 release history remain
-in the [open-issue plan](../../docs/audits/2026-09-29-open-issue-plans.md) and
-their linked `.squad/log/` records. Issue #766 remains open and requires its own
-spec before implementation.
+Commit and push the planning artifacts on
+`364-voice-assisted-identification`, open the ADR/spec PR into `beta`, and wait
+for owner merge/ADR acceptance before starting implementation task T004.
