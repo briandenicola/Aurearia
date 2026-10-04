@@ -3,6 +3,7 @@
 import { api } from '@/api/http'
 import type {
   ApiKey,
+  ApiKeyCapability,
   AuthResponse,
   Coin,
   OIDCLinkCallbackResponse,
@@ -58,7 +59,7 @@ export const deleteOIDCIdentity = (identityId: number) =>
   api.delete<OIDCMessageResponse>(`/user/oidc-identities/${identityId}`)
 
 // API Keys
-export const generateApiKey = (name: string, scope?: 'read' | 'read,write') =>
+export const generateApiKey = (name: string, scope?: ApiKeyCapability) =>
   api.post<{ key: string; apiKey: ApiKey }>('/auth/api-keys', { name, scope })
 
 export const listApiKeys = () => api.get<ApiKey[]>('/auth/api-keys')

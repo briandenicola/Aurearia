@@ -56,6 +56,7 @@ type appDeps struct {
 	notifSvc                       *services.NotificationService
 	pushoverSvc                    *services.PushoverService
 	collectionSvc                  *services.CollectionToolsService
+	mcpSvc                         *services.MCPService
 	availRepo                      *repository.AvailabilityRepository
 	availCycleRepo                 *repository.AvailabilityCycleRepository
 	availSvc                       *services.AvailabilityService
@@ -296,6 +297,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		deepIdentificationSvc, settingsSvc, cfg.UploadDir,
 	)
 	coinCopilotSvc.StartWorkers(backgroundCtx)
+	mcpSvc := services.NewMCPService(collectionSvc, coinRepo, auctionLotRepo, coinCopilotSvc)
 
 	// #218 external tool server: per-key rate limiter shared by the
 	// authenticated /api/v1/tools routes.
@@ -331,6 +333,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		notifSvc:                       notifSvc,
 		pushoverSvc:                    pushoverSvc,
 		collectionSvc:                  collectionSvc,
+		mcpSvc:                         mcpSvc,
 		availRepo:                      availRepo,
 		availCycleRepo:                 availCycleRepo,
 		availSvc:                       availSvc,

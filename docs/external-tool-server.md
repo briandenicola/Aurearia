@@ -1,6 +1,14 @@
 # External Tool Server
 
-The External Tool Server exposes your coin collection to external AI clients (OpenWebUI, LibreChat, n8n, and MCP-compatible clients) over a stable, versioned HTTP API. External clients can query your collection, analyze statistics, and optionally propose updates through a secure two-phase commit flow.
+The External Tool Server exposes Aurearia to external AI clients over two
+adapters:
+
+- an OpenAPI tool surface at `/api/v1/tools/*`; and
+- a stateless Streamable HTTP MCP endpoint at `/api/mcp`.
+
+OpenAPI clients can query collection data and optionally use confirm-gated
+updates. MCP clients receive only read-only collection, wishlist, auction, and
+statistics tools plus the explicitly scoped Coin Copilot lifecycle.
 
 This document covers the security model, enabling and configuring the server, creating API keys with appropriate scopes, the available tools, and step-by-step setup instructions for popular clients.
 
@@ -26,12 +34,17 @@ The entire `/api/v1/tools/*` surface is disabled by default. An admin must expli
 
 ### Scoped API Keys
 
-External clients authenticate with per-user API keys created in **Settings → Data → API Keys**. Each key has one of two capability scopes:
+External clients authenticate with per-user API keys created in **Settings → Data → API Keys**. Each key has an allowlisted capability combination:
 
 - **read** (default) — Allows queries: `search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`
 - **read,write** — Allows queries plus write proposals and commits: `propose_update`, `commit_update`
+- **read,copilot** — Allows read tools plus starting, inspecting, resuming, and
+  cancelling durable Coin Copilot runs through MCP
+- **read,write,copilot** — Allows all three explicitly scoped capability
+  families
 
-Write capability must be explicitly chosen at key creation time. The least-privilege default is read-only.
+Write and Copilot capabilities must each be explicitly chosen. Neither implies
+the other, and the least-privilege default remains read-only.
 
 ### Two-Phase Write Protection
 
@@ -146,6 +159,55 @@ http://your-ancient-coins-host:8080/api/v1/tools/openapi.json
 ```
 
 Use this URL in your external client's tool import wizard (see client setup guides below).
+
+### Connecting an MCP Client
+
+After the external tool server is enabled, configure a Streamable HTTP client
+with:
+
+```text
+URL: https://your-aurearia-host/api/mcp
+Header: X-API-Key: ak_your_generated_key
+```
+
+Use a `read` key for data tools or a `read,copilot` key when the harness also
+needs Coin Copilot. Keep the key in the client's secret store or environment;
+never put it in a repository configuration file.
+
+GitHub Copilot CLI supports remote HTTP MCP servers:
+
+```powershell
+$env:AUREARIA_URL = "https://your-aurearia-host"
+$env:AUREARIA_API_KEY = "ak_replace_with_generated_key"
+copilot mcp add --transport http --header "X-API-Key: $env:AUREARIA_API_KEY" aurearia "$env:AUREARIA_URL/api/mcp"
+```
+
+Run `/mcp show aurearia` in Copilot CLI to verify the discovered tool list.
+The portable usage skill is
+[`using-aurearia-mcp`](../.github/skills/using-aurearia-mcp/SKILL.md).
+
+### MCP Operations
+
+Read operations:
+
+- `search_collection`
+- `get_coin`
+- `list_wishlist`
+- `collection_stats`
+- `top_coins_by_value`
+- `list_auction_lots`
+- `get_auction_lot`
+- `auction_counts`
+
+Keys with the explicit `copilot` capability also receive:
+
+- `start_copilot_run`
+- `get_copilot_run`
+- `resume_copilot_run`
+- `cancel_copilot_run`
+
+The MCP adapter exposes no collection, wishlist, auction, settings, shell,
+filesystem, arbitrary HTTP, or database mutation tools.
 
 ### Available Operations
 
@@ -435,27 +497,15 @@ All errors follow a consistent JSON format:
 
 ### MCP Compatibility
 
-The external tool server does not ship a native MCP server in v1. Instead, you can wrap the served OpenAPI document with an existing MCP proxy like [mcpo](https://github.com/QuantGeekDev/mcpo) to expose the tools to MCP clients (Claude Desktop, Cline, etc.).
+Aurearia exposes a native stateless Streamable HTTP endpoint at
+`POST /api/mcp`. Configure MCP clients to send the API key in the
+`X-API-Key` header. A `read` key discovers only the eight read-only collection,
+wishlist, auction, and statistics tools. Coin Copilot lifecycle tools are
+discoverable only when the key also has the explicit `copilot` capability.
 
-**Using mcpo:**
-
-1. Install mcpo:
-
-   ```sh
-   npm install -g mcpo
-   ```
-
-2. Start the proxy pointing at your external tool server:
-
-   ```sh
-   mcpo \
-     --openapi http://localhost:8080/api/v1/tools/openapi.json \
-     --header "X-API-Key: ak_your_key_here"
-   ```
-
-3. Configure your MCP client to connect to the mcpo proxy (stdio or SSE).
-
-The proxy translates MCP tool calls into HTTP requests against the OpenAPI spec and forwards responses back to the MCP client.
+Do not proxy `/api/v1/tools/openapi.json` into MCP. That separate OpenAPI
+surface includes the guarded two-phase collection write workflow and therefore
+has broader capabilities than the native read-only MCP data surface.
 
 ### Two-Phase Write Flow
 

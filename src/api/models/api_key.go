@@ -29,17 +29,25 @@ func (a *ApiKey) HasWrite() bool {
 	return HasAPICapability(a.Capabilities, "write")
 }
 
+// HasCopilot returns true if the API key can invoke Coin Copilot lifecycle operations.
+func (a *ApiKey) HasCopilot() bool {
+	return HasAPICapability(a.Capabilities, "copilot")
+}
+
 // HasAPICapability checks comma-separated API-key capabilities using exact tokens.
 // Write capability implies read capability.
 func HasAPICapability(capabilities string, required string) bool {
 	hasRead := false
 	hasWrite := false
+	hasCopilot := false
 	for _, capability := range strings.Split(capabilities, ",") {
 		switch strings.TrimSpace(capability) {
 		case "read":
 			hasRead = true
 		case "write":
 			hasWrite = true
+		case "copilot":
+			hasCopilot = true
 		}
 	}
 
@@ -48,6 +56,8 @@ func HasAPICapability(capabilities string, required string) bool {
 		return hasRead || hasWrite
 	case "write":
 		return hasWrite
+	case "copilot":
+		return hasCopilot
 	default:
 		return false
 	}
