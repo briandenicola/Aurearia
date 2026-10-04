@@ -24,8 +24,8 @@ remained only because Feature 363 T044's separate audit was never recorded. The
 owner granted a scoped exception for this candidate and PR without claiming
 that audit occurred.
 
-The independently cleared MCP agentic-harness delivery is complete in
-`specs/365-mcp-agentic-harness/`. It adds the native stateless `/api/mcp`
+The independently cleared Feature 366 MCP agentic-harness delivery is complete
+in `specs/366-mcp-agentic-harness/`. It adds the native stateless `/api/mcp`
 surface without changing the release authorization below.
 
 ## Next Action

@@ -60,6 +60,6 @@ not affect persisted collection, auction, API-key, or Coin Copilot data.
 
 ## Related
 
-- [Feature 365](../../specs/365-mcp-agentic-harness/spec.md)
+- [Feature 366](../../specs/366-mcp-agentic-harness/spec.md)
 - [ADR 0016](0016-go-owned-durable-coin-copilot-state.md)
 - [External Tool Server](../external-tool-server.md)

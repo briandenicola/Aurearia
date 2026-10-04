@@ -1,4 +1,4 @@
-# Implementation Plan: MCP Agentic Harness
+# Feature 366 Implementation Plan: MCP Agentic Harness
 
 ## Architecture
 
@@ -49,4 +49,3 @@ Copilot tools, registered only for an exact `copilot` capability:
   delivery checks.
 - Independent read-only review because this changes an authenticated external
   boundary.
-

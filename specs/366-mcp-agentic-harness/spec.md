@@ -1,4 +1,4 @@
-# Feature Specification: MCP Agentic Harness
+# Feature 366 Specification: MCP Agentic Harness
 
 **Created**: 2026-10-04
 **Status**: Approved for implementation by the repository owner
@@ -98,4 +98,3 @@ credential is stored in the repository.
 5. A disabled external-tool setting, missing/invalid key, malformed capability,
    oversized body, or write-shaped tool name fails closed.
 6. The portable skill and setup documentation contain placeholders only.
-

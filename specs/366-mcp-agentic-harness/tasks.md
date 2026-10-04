@@ -1,4 +1,4 @@
-# Tasks: MCP Agentic Harness
+# Feature 366 Tasks: MCP Agentic Harness
 
 - [x] T001 Record the external-boundary decision in ADR 0021.
 - [x] T002 Add exact-token `copilot` API-key capability and key-management UI.
