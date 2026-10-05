@@ -1215,7 +1215,7 @@ see the [External Tool Server Guide](external-tool-server.md).
 
 ### Key Differences from Main API
 
-- **Admin Kill Switch** — The entire surface is disabled by default. Must be enabled in Admin → System Settings → External Tool Server Enabled.
+- **Admin Kill Switch** — The entire surface is disabled by default. Enable Admin → AI → External Tool Server Enabled, then save the AI settings.
 - **Scoped API Keys** — OpenAPI writes require `write`; MCP Copilot tools
   require the separate exact `copilot` capability. Neither capability implies
   the other.

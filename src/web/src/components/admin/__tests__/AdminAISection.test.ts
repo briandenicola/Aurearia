@@ -4,6 +4,20 @@ import AdminAISection from '@/components/admin/AdminAISection.vue'
 import type { AppSettings } from '@/types'
 
 describe('AdminAISection', () => {
+  it('loads and saves the default-off external tool server setting', async () => {
+    const props = baseProps()
+    const wrapper = mount(AdminAISection, { props })
+    const toggle = wrapper.get<HTMLInputElement>('input[name="ExternalToolServerEnabled"]')
+
+    expect(toggle.element.checked).toBe(false)
+
+    await toggle.setValue(true)
+    expect(props.settings.ExternalToolServerEnabled).toBe('true')
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toHaveLength(1)
+  })
+
   it('clarifies provider tests do not validate the internal agent service', () => {
     const wrapper = mount(AdminAISection, {
       props: baseProps(),
@@ -27,6 +41,7 @@ function baseProps() {
     OllamaTimeout: '300',
     SearXNGURL: '',
     LogLevel: 'info',
+    ExternalToolServerEnabled: 'false',
     CoinSearchPrompt: '',
     CoinShowsPrompt: '',
     ValuationPrompt: '',
