@@ -4,8 +4,8 @@ focus_area: MCP admin enablement control
 owner: Copilot CLI implementation owner; repository owner accepts results
 work_branch: beta
 baseline_commit: 4c484a6b
-work_artifact: owner request in current session
-tasks_artifact: .squad/log/2026-10-05-mcp-admin-toggle.md
+work_artifact: specs/366-mcp-agentic-harness/spec.md
+tasks_artifact: specs/366-mcp-agentic-harness/tasks.md
 ---
 
 # Current Work
@@ -23,5 +23,5 @@ authorized locally and remains CI evidence.
 
 ## Next Action
 
-Commit and push the bounded change to `beta`. Release or deployment requires
-separate owner authorization.
+Verify the governance-metadata repair through the delivery gate and beta CI.
+Release or deployment requires separate owner authorization.
