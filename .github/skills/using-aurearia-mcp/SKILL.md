@@ -38,6 +38,10 @@ copilot mcp add --transport http --header "X-API-Key: $env:AUREARIA_API_KEY" aur
 Use `/mcp show aurearia` to verify discovery. Do not commit the resulting
 credential or copy a populated user configuration into a repository.
 
+For GitHub Copilot CLI, VS Code, Claude Code, generic Streamable HTTP clients,
+key rotation, and status-code troubleshooting, see
+[`docs/mcp-client-setup.md`](../../../docs/mcp-client-setup.md).
+
 ## Read Tools
 
 - `search_collection`: search owned coins. Use a focused query and bounded
@@ -81,4 +85,3 @@ data. Coin Copilot may persist its own run/checkpoint/event state, but these
 tools do not add, edit, delete, import, sync, convert, bid on, or purchase
 coins or lots. If asked for a mutation, explain that it must be completed in
 the Aurearia application.
-

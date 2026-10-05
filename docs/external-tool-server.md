@@ -202,6 +202,10 @@ Run `/mcp show aurearia` in Copilot CLI to verify the discovered tool list.
 The portable usage skill is
 [`using-aurearia-mcp`](../.github/skills/using-aurearia-mcp/SKILL.md).
 
+For complete GitHub Copilot CLI, VS Code, Claude Code, generic-client,
+verification, credential rotation, and troubleshooting instructions, see
+[MCP Client Setup](mcp-client-setup.md).
+
 ### MCP Operations
 
 Read operations:

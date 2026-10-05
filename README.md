@@ -242,6 +242,7 @@ Run `task --list` to see all targets.
 | **Social Features** | [`docs/social-feature.md`](docs/social-feature.md) — follow, comment, rate |
 | **External Tool Server** | [`docs/external-tool-server.md`](docs/external-tool-server.md) — OpenAPI and native MCP integration |
 | **MCP Agentic Harness** | [`docs/features/mcp-agentic-harness.md`](docs/features/mcp-agentic-harness.md) — Feature 366 tools, capabilities, and boundaries |
+| **MCP Client Setup** | [`docs/mcp-client-setup.md`](docs/mcp-client-setup.md) — Copilot CLI, VS Code, Claude Code, verification, and troubleshooting |
 | **Security** | [`docs/security-principles.md`](docs/security-principles.md) — threat model, hardening |
 | **Incident Response** | [`docs/incident-response.md`](docs/incident-response.md) — breach procedures |
 | **References** | [`docs/references.md`](docs/references.md) — tools, standards, citations |

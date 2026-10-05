@@ -1255,7 +1255,9 @@ state-conflict messages without leaking cross-owner data or internal errors.
 The endpoint exposes no general application mutation tools.
 
 See [MCP Agentic Harness](features/mcp-agentic-harness.md) for client setup,
-tool semantics, and lifecycle guidance.
+tool semantics, and lifecycle guidance. Use
+[MCP Client Setup](mcp-client-setup.md) for copy-ready client configurations,
+discovery verification, key rotation, and troubleshooting.
 
 ### GET /api/v1/tools/openapi.json
 

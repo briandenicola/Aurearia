@@ -74,6 +74,7 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 - **[OIDC Setup](../oidc-setup.md)** — Configure Entra ID, Pocket ID, or generic OIDC login and account linking
 - **[Admin Settings](admin-settings.md)** — User management, AI provider configuration, OIDC, security, catalogs, logging, and scheduled tasks
 - **[External Tool Server](../external-tool-server.md)** — Configure the OpenAPI and native MCP adapters
+- **[MCP Client Setup](../mcp-client-setup.md)** — Configure GitHub Copilot CLI, VS Code, Claude Code, and compatible HTTP clients
 - **[Numista Catalog Lookup](numista-integration.md)** — Direct integration with Numista coin catalog
 
 ## Mobile & Offline

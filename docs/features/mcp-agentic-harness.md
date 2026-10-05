@@ -34,6 +34,10 @@ copilot mcp add --transport http --header "X-API-Key: $env:AUREARIA_API_KEY" aur
 
 Run `/mcp show aurearia` to verify discovery.
 
+For copy-ready GitHub Copilot CLI, VS Code, Claude Code, generic client,
+verification, rotation, and troubleshooting instructions, see
+[MCP Client Setup](../mcp-client-setup.md).
+
 ## Read-only data tools
 
 | Tool | Purpose |
@@ -88,6 +92,8 @@ has a broader contract than the native MCP surface.
 
 - [External Tool Server](../external-tool-server.md) - administration, API
   keys, OpenAPI clients, MCP clients, and error handling
+- [MCP Client Setup](../mcp-client-setup.md) - copy-ready client configuration
+  and troubleshooting
 - [Authentication](../authentication.md) - API-key creation and capabilities
 - [API Reference](../api-reference.md) - HTTP contracts
 - [Coin Copilot](coin-copilot.md) - durable run behavior and limits

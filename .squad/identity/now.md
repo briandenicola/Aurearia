@@ -27,7 +27,10 @@ that audit occurred.
 The independently cleared Feature 366 MCP agentic-harness delivery is complete
 in `specs/366-mcp-agentic-harness/`. It adds the native stateless `/api/mcp`
 surface, and its product, operator, API, architecture, security, and feature
-documentation is aligned without changing the release authorization below.
+documentation is aligned. Copy-ready MCP client setup now covers GitHub
+Copilot CLI, VS Code, Claude Code, generic HTTP clients, reverse proxies,
+credential rotation, discovery verification, and troubleshooting without
+changing the release authorization below.
 
 ## Next Action
 
