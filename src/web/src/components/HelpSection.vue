@@ -477,9 +477,9 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II (337-361 AD),ancient,An
         <h4>For Admins</h4>
         <p><strong>Enabling the Server:</strong> The external tool server is disabled by default. To enable it:</p>
         <ol>
-          <li>Navigate to <strong>Admin → System Settings</strong></li>
+          <li>Navigate to <strong>Admin → AI</strong></li>
           <li>Toggle <strong>External Tool Server Enabled</strong> to ON</li>
-          <li>The OpenAPI spec and tool endpoints become available immediately</li>
+          <li>Save AI Settings</li>
         </ol>
         <p>When disabled, all external tool requests fail with <code>503 Service Unavailable</code>. This default-off posture protects your instance until you explicitly choose to expose the API.</p>
         <p><strong>What to Tell Users:</strong> Once enabled, users can create scoped API keys in <strong>Settings → Keys</strong>. Each key can be read-only (safe for exploration) or read+write (for trusted automation). External writes are journaled and appear in each coin's activity log.</p>
@@ -534,9 +534,8 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II (337-361 AD),ancient,An
           </tbody>
         </table>
         <p><strong>OpenAPI Spec:</strong> <code>GET /api/v1/tools/openapi.json</code> returns the full schema (unauthenticated, respects admin kill switch only).</p>
-        <p><strong>MCP Compatibility:</strong> Wrap the OpenAPI spec with <a href="https://github.com/QuantGeekDev/mcpo" target="_blank" rel="noopener">mcpo</a> to expose tools to MCP clients (Claude Desktop, Cline):</p>
-        <pre>mcpo --openapi http://localhost:8080/api/v1/tools/openapi.json \
-     --header "X-API-Key: ak_your_key_here"</pre>
+        <p><strong>Native MCP:</strong> MCP clients that support Streamable HTTP and a custom <code>X-API-Key</code> header can connect directly to:</p>
+        <pre>http://localhost:8080/api/mcp</pre>
         <p><strong>Security:</strong> All operations are user-scoped (tenant isolation). Rate limited at 50 requests/minute per key. External writes are restricted to the same allowlist as in-app updates (grade, currentValue, notes, tags, references). Identity fields are rejected.</p>
       </div>
     </details>

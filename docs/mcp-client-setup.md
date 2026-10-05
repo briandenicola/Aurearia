@@ -19,8 +19,8 @@ URL and do not proxy the write-capable OpenAPI adapter into MCP.
 
 ## Prepare Aurearia
 
-1. In **Admin -> System Settings**, enable **External Tool Server Enabled**.
-   This default-off setting gates both OpenAPI and MCP.
+1. In **Admin -> AI**, enable **External Tool Server Enabled**, then select
+   **Save AI Settings**. This default-off setting gates both OpenAPI and MCP.
 2. In **Settings -> Data -> API Keys**, create a dedicated key for the client.
 3. Copy the key when it is displayed. Aurearia shows the full key only once.
 4. Store the key in the client's secret store or an environment variable.

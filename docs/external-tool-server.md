@@ -31,7 +31,8 @@ The external tool server is designed with least-privilege defaults and multiple 
 ### Default-Off Admin Toggle
 
 Both `/api/v1/tools/*` and `/api/mcp` are disabled by default. An admin must
-explicitly enable **Admin → System Settings → External Tool Server Enabled**.
+explicitly enable **Admin → AI → External Tool Server Enabled** and save the AI
+settings.
 When disabled, all external tool requests return `503 Service Unavailable`
 with no side effects.
 
@@ -89,9 +90,10 @@ External writes are restricted to the same field allowlist as in-app updates: `g
 
 Both external adapters are disabled by default. To enable them:
 
-1. Navigate to **Admin → System Settings**
+1. Navigate to **Admin → AI**
 2. Toggle **External Tool Server Enabled** to ON
-3. The OpenAPI surface becomes available at `/api/v1/tools/` and native MCP at
+3. Select **Save AI Settings**
+4. The OpenAPI surface becomes available at `/api/v1/tools/` and native MCP at
    `/api/mcp`
 
 To disable the server later, toggle it OFF. All external tool requests will then fail with `503 Service Unavailable`.
@@ -672,7 +674,7 @@ Attempting to update identity fields (name, category, era, ruler, etc.) returns 
 
 ### Troubleshooting
 
-**Tools return `503 Service Unavailable`** — The external tool server is disabled. Enable it in **Admin → System Settings → External Tool Server Enabled**.
+**Tools return `503 Service Unavailable`** — The external tool server is disabled. Enable it in **Admin → AI → External Tool Server Enabled** and save the AI settings.
 
 **Tools return `401 Unauthorized`** — Your API key is invalid, revoked, or not being sent correctly. Check:
 
