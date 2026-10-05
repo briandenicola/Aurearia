@@ -27,6 +27,15 @@
         <button
           type="button"
           class="chip"
+          :class="{ active: apiKeyScope === 'read,copilot' }"
+          :disabled="generatingKey"
+          @click="apiKeyScope = 'read,copilot'"
+        >
+          Read/Copilot
+        </button>
+        <button
+          type="button"
+          class="chip"
           :class="{ active: apiKeyScope === 'read,write' }"
           :disabled="generatingKey"
           @click="apiKeyScope = 'read,write'"
@@ -88,7 +97,7 @@
             <span class="text-base font-medium">{{ key.name }}</span>
             <span
               class="chip-sm shrink-0"
-              :class="key.capabilities === 'read,write'
+              :class="key.capabilities !== 'read'
                 ? 'bg-gold-glow text-gold border border-gold-dim'
                 : 'bg-input text-text-secondary border border-border-subtle'"
             >
@@ -122,11 +131,11 @@
 import { ref, onMounted } from 'vue'
 import { Check, Clipboard, KeyRound } from 'lucide-vue-next'
 import { generateApiKey, listApiKeys, revokeApiKey } from '@/api/client'
-import type { ApiKey } from '@/types'
+import type { ApiKey, ApiKeyCapability } from '@/types'
 
 const apiKeys = ref<ApiKey[]>([])
 const apiKeyName = ref('')
-const apiKeyScope = ref<'read' | 'read,write'>('read')
+const apiKeyScope = ref<ApiKeyCapability>('read')
 const newlyGeneratedKey = ref('')
 const keyCopied = ref(false)
 const generatingKey = ref(false)
@@ -196,7 +205,16 @@ async function handleRevokeKey(id: number) {
 }
 
 function capabilityLabel(capabilities: string): string {
-  return capabilities === 'read,write' ? 'Read/Write' : 'Read'
+  switch (capabilities) {
+    case 'read,copilot':
+      return 'Read/Copilot'
+    case 'read,write':
+      return 'Read/Write'
+    case 'read,write,copilot':
+      return 'Read/Write/Copilot'
+    default:
+      return 'Read'
+  }
 }
 
 function formatDate(dateStr: string) {

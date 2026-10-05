@@ -48,6 +48,7 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 - **[Coin Agent](ai-search-agent.md)** — Chat with an AI agent to find coins, answer collection questions, research shows, and save useful answers to Notes
 - **[Coin Copilot](coin-copilot.md)** — Default-off durable, read-only multi-step analysis over owner-scoped collection data
 - **[How Coin Copilot Works](how-coin-copilot-works.md)** — Collector's guide: every helper, where it looks, diagrams of the flow, and what it will never do
+- **[MCP Agentic Harness](mcp-agentic-harness.md)** — Native read-only MCP access to collection, wishlist, auction, statistics, and explicitly scoped Coin Copilot lifecycle tools
 - **[AI Grading Assistant](ai-grading.md)** — Estimate coin grades from photos with reasoning and confidence scores
 - **[Price Trend Analysis](price-trends.md)** — Analyze historical auction data to identify market trends
 - **[Collection Gap Analysis](gap-analysis.md)** — Get AI-powered suggestions for coins missing from your collection
@@ -72,7 +73,8 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 - **[Authentication](../authentication.md)** — JWT tokens, WebAuthn passkeys, and API keys
 - **[OIDC Setup](../oidc-setup.md)** — Configure Entra ID, Pocket ID, or generic OIDC login and account linking
 - **[Admin Settings](admin-settings.md)** — User management, AI provider configuration, OIDC, security, catalogs, logging, and scheduled tasks
-- **[External Tool Server](../external-tool-server.md)** — Expose your collection to external AI clients via OpenAPI
+- **[External Tool Server](../external-tool-server.md)** — Configure the OpenAPI and native MCP adapters
+- **[MCP Client Setup](../mcp-client-setup.md)** — Configure GitHub Copilot CLI, VS Code, Claude Code, and compatible HTTP clients
 - **[Numista Catalog Lookup](numista-integration.md)** — Direct integration with Numista coin catalog
 
 ## Mobile & Offline
@@ -107,6 +109,7 @@ Brian's review; only approved images are copied/moved into `docs/assets/screensh
 | Auction Tracking | Shipped | v1.0 |
 | Social Features | Shipped | v1.0 |
 | External Tool Server | Shipped | v1.0 |
+| Native MCP Agentic Harness | Shipped (default off) | Feature 366 |
 | Coin Sets with Trend Tracking | Shipped | v2.0 |
 | Agentic Set Proposal Review | Shipped | v2.1 |
 | Coin Agent Notes | Shipped | v2.1 |

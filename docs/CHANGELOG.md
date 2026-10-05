@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Feature 366 native MCP agentic harness** — Aurearia now exposes a
+  default-off, owner-scoped Streamable HTTP endpoint at `/api/mcp`. Eight
+  read-only tools cover collection, wishlist, auction, and statistics data;
+  four additional tools start, inspect, resume, and cancel durable Coin
+  Copilot runs only for API keys with the explicit `copilot` capability. The
+  adapter is stateless, rate-limited, request-bounded, and ships with a
+  portable Agent Skill and GitHub Copilot CLI setup guidance. See
+  [MCP Agentic Harness](features/mcp-agentic-harness.md).
 - **Outbid notifications** — Losing the lead on an auction lot you are bidding on
   now notifies you, in-app and by Pushover. The app showed an `OUTBID` badge but
   said nothing: the badge was computed in the browser and the server never

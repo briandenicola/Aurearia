@@ -35,7 +35,7 @@ type generateApiKeyResponse struct {
 // Generate creates a new API key for the authenticated user.
 //
 //	@Summary		Generate an API key
-//	@Description	Creates a new API key with optional capability scope ('read' or 'read,write'). Defaults to 'read'. The key is returned once and cannot be retrieved again.
+//	@Description	Creates a new API key with an allowlisted capability combination. Defaults to 'read'. The key is returned once and cannot be retrieved again.
 //	@Tags			API Keys
 //	@Accept			json
 //	@Produce		json
@@ -62,7 +62,7 @@ func (h *ApiKeyHandler) Generate(c *gin.Context) {
 		scope = "read"
 	}
 	if err := repository.ValidateCapabilities(scope); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scope: must be 'read' or 'read,write'"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scope"})
 		return
 	}
 

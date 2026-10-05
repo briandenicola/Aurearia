@@ -163,12 +163,14 @@ export interface UserInfo {
   createdAt: string
 }
 
+export type ApiKeyCapability = 'read' | 'read,copilot' | 'read,write' | 'read,write,copilot'
+
 export interface ApiKey {
   id: number
   userId: number
   keyPrefix: string
   name: string
-  capabilities: string // "read" or "read,write"
+  capabilities: ApiKeyCapability
   createdAt: string
   lastUsedAt: string | null
   revokedAt: string | null

@@ -24,6 +24,19 @@ the `tools` capability through `/api/show`. Disabled, unconfigured,
 unsupported, ambiguous, or unavailable states use the unchanged legacy
 `POST /api/agent/chat` flow.
 
+## External MCP lifecycle
+
+Feature 366 makes the existing durable lifecycle available to external agentic
+harnesses through native MCP. An API key with `read,copilot` can start, inspect,
+resume, and cancel owner-scoped runs at `/api/mcp`. These protocol tools call
+the same Go `CoinCopilotService`; they do not expose Python directly or bypass
+feature flags, capability preflight, admission limits, idempotency,
+checkpoint-version checks, cancellation, or retention.
+
+The MCP lifecycle does not add new Coin Copilot reasoning tools and does not
+grant collection mutation. See [MCP Agentic Harness](mcp-agentic-harness.md)
+for connection setup and the external tool boundary.
+
 ## Deep Analysis handoff
 
 When `CoinCopilotAttributionEnabled` and `DeepIdentificationEnabled` are also

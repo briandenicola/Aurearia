@@ -139,6 +139,15 @@ func findMentionedValue(lowerQuery string, known []string) (string, bool) {
 // SearchMyCollection searches the user's active collection by filters.
 // Returns up to 'limit' matching coins (default 5, max 20).
 func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
+	return s.searchCollection(userID, query, limit, false)
+}
+
+// SearchActiveCollection searches only owned coins that are neither wishlist nor sold.
+func (s *CollectionToolsService) SearchActiveCollection(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
+	return s.searchCollection(userID, query, limit, true)
+}
+
+func (s *CollectionToolsService) searchCollection(userID uint, query string, limit *int, activeOnly bool) ([]CollectionCoinSummary, error) {
 	searchLimit := 5
 	if limit != nil {
 		if *limit > 20 {
@@ -192,6 +201,11 @@ func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, l
 		v := true
 		filters.Sold = &v
 	}
+	if activeOnly {
+		active := false
+		filters.Wishlist = &active
+		filters.Sold = &active
+	}
 
 	coins, err := s.coinRepo.ListOwnedByFilters(userID, filters, searchLimit)
 	if err != nil {
@@ -203,6 +217,33 @@ func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, l
 		summaries = append(summaries, toCoinSummary(coin))
 	}
 
+	return summaries, nil
+}
+
+// SearchWishlist returns owner-scoped wishlist entries matching an optional query.
+func (s *CollectionToolsService) SearchWishlist(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
+	searchLimit := 20
+	if limit != nil {
+		if *limit > 50 {
+			searchLimit = 50
+		} else if *limit > 0 {
+			searchLimit = *limit
+		}
+	}
+	wishlist := true
+	sold := false
+	coins, err := s.coinRepo.ListOwnedByFilters(userID, repository.OwnedCoinFilters{
+		Search:   strings.TrimSpace(query),
+		Wishlist: &wishlist,
+		Sold:     &sold,
+	}, searchLimit)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]CollectionCoinSummary, 0, len(coins))
+	for _, coin := range coins {
+		summaries = append(summaries, toCoinSummary(coin))
+	}
 	return summaries, nil
 }
 

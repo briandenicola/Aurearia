@@ -18,13 +18,14 @@ func NewApiKeyRepository(db *gorm.DB) *ApiKeyRepository {
 	return &ApiKeyRepository{db: db}
 }
 
-// ValidateCapabilities validates that the provided capability string is valid.
-// Only "read" and "read,write" are allowed.
+// ValidateCapabilities validates canonical API-key capability combinations.
 func ValidateCapabilities(capabilities string) error {
-	if capabilities != "read" && capabilities != "read,write" {
-		return fmt.Errorf("invalid capabilities: must be 'read' or 'read,write'")
+	switch capabilities {
+	case "read", "read,copilot", "read,write", "read,write,copilot":
+		return nil
+	default:
+		return fmt.Errorf("invalid capabilities")
 	}
-	return nil
 }
 
 // Create persists a new API key.

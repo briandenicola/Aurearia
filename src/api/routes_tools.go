@@ -10,6 +10,9 @@ import (
 // (/api/v1/tools) consumed by OpenWebUI/LibreChat-style clients holding
 // scoped API keys.
 func registerExternalToolRoutes(api *gin.RouterGroup, d *appDeps) {
+	mcpHandler := handlers.NewMCPHandler(d.mcpSvc, d.logger)
+	api.POST("/mcp", middleware.ExternalToolServerEnabled(d.settingsSvc), middleware.AuthRequiredWithSecurity(d.cfg.JWTSecret, d.apiKeyAuth, d.securitySvc), d.externalToolsRateLimit, middleware.RequireCapability("read"), mcpHandler.Serve)
+
 	toolsSpec := api.Group("/v1/tools")
 	toolsSpec.Use(middleware.ExternalToolServerEnabled(d.settingsSvc))
 	{

@@ -8,13 +8,17 @@ func TestApiKeyCapabilityParsingUsesExactTokens(t *testing.T) {
 		capabilities string
 		wantRead     bool
 		wantWrite    bool
+		wantCopilot  bool
 	}{
-		{name: "read", capabilities: "read", wantRead: true, wantWrite: false},
+		{name: "read", capabilities: "read", wantRead: true},
+		{name: "read copilot", capabilities: "read,copilot", wantRead: true, wantCopilot: true},
 		{name: "read write", capabilities: "read,write", wantRead: true, wantWrite: true},
+		{name: "all", capabilities: "read,write,copilot", wantRead: true, wantWrite: true, wantCopilot: true},
 		{name: "write implies read", capabilities: "write", wantRead: true, wantWrite: true},
-		{name: "readwrite malformed", capabilities: "readwrite", wantRead: false, wantWrite: false},
-		{name: "xwritex malformed", capabilities: "xwritex", wantRead: false, wantWrite: false},
-		{name: "notread malformed", capabilities: "notread", wantRead: false, wantWrite: false},
+		{name: "readwrite malformed", capabilities: "readwrite"},
+		{name: "copilot substring malformed", capabilities: "read,copilotx", wantRead: true},
+		{name: "xwritex malformed", capabilities: "xwritex"},
+		{name: "notread malformed", capabilities: "notread"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			apiKey := ApiKey{Capabilities: tc.capabilities}
@@ -23,6 +27,9 @@ func TestApiKeyCapabilityParsingUsesExactTokens(t *testing.T) {
 			}
 			if got := apiKey.HasWrite(); got != tc.wantWrite {
 				t.Fatalf("HasWrite() = %v, want %v", got, tc.wantWrite)
+			}
+			if got := apiKey.HasCopilot(); got != tc.wantCopilot {
+				t.Fatalf("HasCopilot() = %v, want %v", got, tc.wantCopilot)
 			}
 		})
 	}

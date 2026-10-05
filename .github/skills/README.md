@@ -12,6 +12,7 @@ permission. Follow the constitution and shared completion gates.
 | Web state/navigation | `module-level-state-management`, `vue-router-parent-child-navigation`, `testing-coin-detail-section-pages`, `legacy-set-type-normalization` |
 | Web presentation/media | `contextual-share-cards`, `museum-tray-reuse`, `svg-chart-patterns`, `user-initiated-camera` |
 | Dependencies/integrations | `npm-audit-transitive-overrides`, `python-locking`, `toolchain-pinning`, `external-service-scraping-with-fixtures` |
+| Agentic integration | `using-aurearia-mcp` |
 | Software QC | `aurearia-software-qc-audit` |
 
 [Migration inventory](../../.squad/artifacts/native-skill-migration-2026-09-21.json)

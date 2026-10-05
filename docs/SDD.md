@@ -425,6 +425,7 @@ Each handler is a thin struct receiving repositories and services via constructo
 | SocialHandler | `handlers/social.go` | Follow/unfollow, block, comments, ratings, public galleries |
 | AdminHandler | `handlers/admin.go` | User management, settings, logs, connectivity tests |
 | ApiKeyHandler | `handlers/api_keys.go` | API key generation, listing, revocation |
+| MCPHandler | `handlers/mcp.go` | Stateless Streamable HTTP adaptation, tool registration, safe protocol errors |
 | NumistaHandler | `handlers/numista.go` | Numista catalog search proxy |
 
 #### 5.1.2 Services (Business Logic)
@@ -439,6 +440,7 @@ Each handler is a thin struct receiving repositories and services via constructo
 | OllamaService | `services/ollama_service.go` | Direct Ollama API client for image analysis and text extraction |
 | Settings | `services/settings_service.go` | Runtime settings CRUD with defaults, backed by `AppSetting` table |
 | Logger | `services/logger.go` | In-memory ring-buffer logger (1000 entries), runtime log level changes |
+| MCPService | `services/mcp_service.go` | Bounded owner-scoped collection, wishlist, auction, statistics, and Coin Copilot lifecycle operations |
 
 #### 5.1.3 Repositories (Data Access)
 
@@ -723,7 +725,18 @@ Rate limit: 10 requests per minute per IP on auth endpoints.
 | GET | `/api/auth/api-keys` | List API keys |
 | DELETE | `/api/auth/api-keys/:id` | Revoke API key |
 
-#### 6.1.11 Admin (Admin Only)
+#### 6.1.11 External MCP (API Key)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/mcp` | Stateless Streamable HTTP MCP endpoint |
+
+The route is default-off, requires `read`, uses per-key external rate limiting,
+and caps request bodies at 128 KiB. Eight tools expose read-only collection,
+wishlist, auction, and statistics data. Four Coin Copilot lifecycle tools are
+registered only for keys with the exact `copilot` capability.
+
+#### 6.1.12 Admin (Admin Only)
 
 | Method | Path | Description |
 |---|---|---|
@@ -737,7 +750,7 @@ Rate limit: 10 requests per minute per IP on auth endpoints.
 | GET | `/api/admin/test-anthropic` | Test Anthropic API connectivity |
 | GET | `/api/admin/test-searxng` | Test SearXNG connectivity |
 
-#### 6.1.12 External Catalog (Protected)
+#### 6.1.13 External Catalog (Protected)
 
 | Method | Path | Description |
 |---|---|---|
@@ -813,6 +826,10 @@ The system implements a multi-layered authentication strategy:
 - Middleware checks API key before JWT (priority order)
 - Supports revocation via `revoked_at` timestamp
 - `last_used_at` updated on each use
+- External-tool capability combinations are `read`, `read,copilot`,
+  `read,write`, and `read,write,copilot`
+- `write` and `copilot` are independent explicit tokens; neither implies the
+  other
 
 **Biometric: WebAuthn / Passkeys**
 - FIDO2/WebAuthn protocol via `go-webauthn/webauthn`

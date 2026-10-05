@@ -1,5 +1,5 @@
 ---
-updated_at: 2026-10-01
+updated_at: 2026-10-04
 focus_area: Beta release-candidate quality audit
 owner: Copilot CLI implementation owner; repository owner accepts results
 work_branch: beta
@@ -23,6 +23,14 @@ candidate `105240c3` and found the code release-quality. Historical R-RELEASE
 remained only because Feature 363 T044's separate audit was never recorded. The
 owner granted a scoped exception for this candidate and PR without claiming
 that audit occurred.
+
+The independently cleared Feature 366 MCP agentic-harness delivery is complete
+in `specs/366-mcp-agentic-harness/`. It adds the native stateless `/api/mcp`
+surface, and its product, operator, API, architecture, security, and feature
+documentation is aligned. Copy-ready MCP client setup now covers GitHub
+Copilot CLI, VS Code, Claude Code, generic HTTP clients, reverse proxies,
+credential rotation, discovery verification, and troubleshooting without
+changing the release authorization below.
 
 ## Next Action
 

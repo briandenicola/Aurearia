@@ -8617,9 +8617,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new API key with optional capability scope ('read' or
-        'read,write'). Defaults to 'read'. The key is returned once and cannot be
-        retrieved again.
+      description: Creates a new API key with an allowlisted capability combination.
+        Defaults to 'read'. The key is returned once and cannot be retrieved again.
       parameters:
       - description: Key name and optional scope
         in: body
@@ -12375,6 +12374,56 @@ paths:
       summary: Get top coins by current value
       tags:
       - Internal
+  /mcp:
+    post:
+      consumes:
+      - application/json
+      description: Stateless Streamable HTTP MCP endpoint. Requires an API key with
+        read capability; Copilot tools additionally require copilot capability.
+      parameters:
+      - description: API key
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: MCP JSON-RPC request
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Aurearia Model Context Protocol endpoint
+      tags:
+      - MCP
   /mint-locations:
     get:
       description: Returns global mint locations plus the authenticated user's own
