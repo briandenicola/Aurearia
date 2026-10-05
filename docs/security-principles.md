@@ -30,6 +30,7 @@ The Constitution remains normative. This document translates its security expect
 | Secret handling | Secrets, API keys, and signing material must come from environment or secret stores; tracked files may only contain obviously fake examples. | Principles V and VII |
 | Credential encryption | Stored provider credentials such as NumisBids and CNG passwords must be encrypted at rest with AES-GCM using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; plaintext legacy values migrate lazily on save or sync. | Principle V |
 | Authentication and token policy | Access tokens stay short-lived, refresh tokens rotate on use, API keys stay hashed at rest, and WebAuthn ceremonies are origin-bound and time-bound. | Principle V |
+| External agent adapters | OpenAPI and MCP stay default-off, API-key scoped, owner-bound, rate-limited, and contract-separated. MCP remains read-only for application data; `write` never implies `copilot`. | Principles II, V, and VIII |
 | Upload safety | File uploads validate extension and MIME/magic bytes, and body sizes stay capped to prevent memory exhaustion. | Principle V |
 | Abuse resistance | Auth endpoints are rate-limited and expensive operations should be reviewed for throttling or queueing. | Principle V |
 | Transport security | Production deployments use HTTPS for browser ↔ API traffic and for any WebAuthn origin. Tokens are never designed around plaintext transport assumptions. | Principle V |

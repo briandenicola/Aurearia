@@ -30,6 +30,7 @@
   - [LLM Provider Abstraction](#llm-provider-abstraction)
   - [SSE Streaming](#sse-streaming)
 - [Coin Copilot Durable Harness](#coin-copilot-durable-harness)
+- [Native MCP Adapter](#native-mcp-adapter)
 - [Data Flow Diagrams](#data-flow-diagrams)
   - [Standard API Request](#standard-api-request)
   - [Agent Chat (SSE Streaming)](#agent-chat-sse-streaming)
@@ -527,6 +528,48 @@ thread messages remain until owner deletion. To roll back, set
 `CoinCopilotEnabled=false`; reject new starts/resumes, retain read/cancel access
 for existing state, and continue using legacy chat. The janitor and stale-run
 recovery remain active until outstanding state settles.
+
+---
+
+## Native MCP Adapter
+
+Feature 366 adds a stateless Streamable HTTP adapter at `POST /api/mcp` inside
+the Go API:
+
+```text
+MCP client
+  │  X-API-Key
+  ▼
+ExternalToolServerEnabled
+  -> AuthRequired
+  -> per-key external rate limit
+  -> RequireCapability("read")
+  ▼
+handlers.MCPHandler
+  -> fresh stateless MCP server for the authenticated request
+  ▼
+services.MCPService
+  ├─ CollectionToolsService / CoinRepository
+  ├─ AuctionLotRepository
+  └─ CoinCopilotService
+```
+
+The handler owns protocol adaptation only. `MCPService` validates bounded
+inputs and delegates to existing owner-scoped application and repository
+boundaries. It never reaches SQLite directly. A fresh stateless MCP server is
+created per authenticated request, so protocol sessions cannot cross API-key
+or owner boundaries.
+
+Eight tools expose read-only collection, wishlist, auction, and statistics
+data. Four Coin Copilot lifecycle tools are registered only when the API key
+contains the exact `copilot` token. These tools reuse the durable Go-owned
+Copilot service and preserve its feature flags, admission limits,
+idempotency, checkpoint versions, cancellation, and owner checks. The Python
+service is never exposed directly.
+
+The OpenAPI adapter under `/api/v1/tools/*` remains a separate contract. It may
+perform confirm-gated writes for keys with `write`; the native MCP adapter does
+not register those operations. See [ADR 0021](adr/0021-stateless-mcp-api-adapter.md).
 
 ---
 

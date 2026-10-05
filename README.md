@@ -80,7 +80,11 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ### 🔐 Security & Control
 **Multiple Auth Methods** — JWT + refresh tokens, WebAuthn passkeys (FIDO2), OIDC login/account linking, and API keys for programmatic access.
 
-**External Tool Server** — Expose read-only collection to external AI clients (OpenWebUI, LibreChat) via OpenAPI with scoped API keys and two-phase commit for writes.
+**External Tool Server and MCP** — Connect OpenWebUI, LibreChat, automation,
+and agentic harnesses with scoped API keys. The OpenAPI adapter supports
+confirm-gated collection updates; the native `/api/mcp` adapter exposes
+read-only collection, wishlist, auction, and statistics tools plus explicitly
+scoped Coin Copilot lifecycle operations.
 
 **Fine-Grained Privacy** — Public/private profiles, per-coin privacy toggle, role-based admin access. **[Learn more →](docs/authentication.md)**
 
@@ -149,7 +153,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - ✅ Social features (follow, comment, rate)
 - ✅ Collection statistics and portfolios
 - ✅ PWA with offline read access
-- ✅ External tool server for OpenWebUI integration
+- ✅ External OpenAPI tools and native MCP agentic-harness integration
 - ✅ Multi-auth (JWT, WebAuthn, API keys)
 - ✅ Daily featured coins scheduler
 
@@ -236,7 +240,8 @@ Run `task --list` to see all targets.
 | **Getting Started** | [`docs/getting-started.md`](docs/getting-started.md) — step-by-step guide |
 | **PWA Guide** | [`docs/pwa-guide.md`](docs/pwa-guide.md) — installation & offline access |
 | **Social Features** | [`docs/social-feature.md`](docs/social-feature.md) — follow, comment, rate |
-| **External Tool Server** | [`docs/external-tool-server.md`](docs/external-tool-server.md) — OpenWebUI integration |
+| **External Tool Server** | [`docs/external-tool-server.md`](docs/external-tool-server.md) — OpenAPI and native MCP integration |
+| **MCP Agentic Harness** | [`docs/features/mcp-agentic-harness.md`](docs/features/mcp-agentic-harness.md) — Feature 366 tools, capabilities, and boundaries |
 | **Security** | [`docs/security-principles.md`](docs/security-principles.md) — threat model, hardening |
 | **Incident Response** | [`docs/incident-response.md`](docs/incident-response.md) — breach procedures |
 | **References** | [`docs/references.md`](docs/references.md) — tools, standards, citations |

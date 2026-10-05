@@ -47,7 +47,8 @@
 ### 🔐 Admin & Configuration
 - [**Admin Settings**](features/admin-settings.md) — User management, AI config, OIDC, security, scheduling, catalogs, and configurable coin properties
 - [**Authentication**](authentication.md) — JWT, WebAuthn, API keys
-- [**External Tool Server**](external-tool-server.md) — OpenAPI for external clients
+- [**External Tool Server**](external-tool-server.md) — OpenAPI and native MCP adapters for external clients
+- [**MCP Agentic Harness**](features/mcp-agentic-harness.md) — Feature 366 read tools, Coin Copilot lifecycle, setup, and security boundaries
 
 ### 📱 Mobile & Offline
 - [**PWA Features**](features/pwa-features.md) — Installable app, offline read access
@@ -280,7 +281,7 @@ All authenticated users can access **Settings**, organized in a tabbed layout:
 
 - **Account** — Change password (requires current password), register WebAuthn/FIDO2 passkeys for passwordless login, manage avatar and profile settings including feature toggles (Coin of the Day, Emperor Tracker).
 - **Appearance** — Choose from seven color themes: Dark (default), Light, British Museum (sandstone neutrals with bronze-green accents), Louvre (warm cream stone with Napoleon III gold), Capitoline (terracotta warmth with aged copper-bronze), Byzantine (imperial crimson grounds with Byzantine gold), or Modern Greek (deep navy grounds with white Hellenic accents). Set time zone, choose default gallery view (swipe or grid), default sort order, and enable Swipe Navigation for the installed PWA. Visual preferences persist locally; Swipe Navigation is stored account-wide.
-- **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, valuations, and structured references), and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
+- **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, valuations, and structured references), and manage scoped API keys for scripts, OpenAPI clients, and MCP harnesses. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
 - **Conversations** — View, reopen, or delete saved AI search agent conversations.
 - **Tags** — Create, rename, and delete custom tags with color selection. Tags created here can be attached to any coin in your collection.
 - **Help** — Beginner's guide to ancient coin collecting.
@@ -304,32 +305,51 @@ The application supports multiple authentication methods for flexibility and sec
 
 - **JWT + Refresh Tokens** — 15-minute access tokens with 30-day rolling refresh tokens. The frontend silently refreshes expired tokens so users stay logged in.
 - **WebAuthn / Passkeys** — FIDO2 biometric authentication (Face ID, Touch ID, fingerprint). Register a passkey in Settings → Account, then use it to log in without a password. Requires HTTPS in production.
-- **API Keys** — Generate API keys in Settings → Data for programmatic access. Keys use the `X-API-Key` header and are checked before JWT.
+- **API Keys** — Generate API keys in Settings → Data for programmatic access.
+  Keys use `X-API-Key`; external adapters enforce `read`, `write`, and
+  `copilot` capability tokens.
 
 For a detailed walkthrough of each auth method, see the [Authentication Guide](authentication.md).
 
 ## External Tool Server
 
-The External Tool Server exposes your collection to external AI clients (OpenWebUI, LibreChat, n8n, MCP-compatible clients) over a versioned HTTP API. External clients can query your collection, analyze statistics, and optionally propose updates through a secure two-phase commit flow.
+The External Tool Server exposes Aurearia through two distinct adapters:
+
+- `/api/v1/tools/*` provides OpenAPI operations for OpenWebUI, LibreChat, and
+  automation, including explicitly authorized two-phase collection updates.
+- `/api/mcp` provides native stateless Streamable HTTP MCP for agentic
+  harnesses, with read-only collection, wishlist, auction, and statistics
+  tools plus explicitly scoped Coin Copilot lifecycle operations.
 
 **Key Features:**
 
 - **Default-Off** — Admin must enable in System Settings. Disabled by default for security.
-- **Scoped API Keys** — Each key has `read` (default) or `read,write` capability. Write must be explicitly chosen at key creation.
+- **Scoped API Keys** — Supported combinations are `read`, `read,copilot`,
+  `read,write`, and `read,write,copilot`. Write and Copilot must each be
+  explicitly chosen.
 - **Two-Phase Writes** — External writes require `propose_update` (returns preview + token) followed by `commit_update` (with explicit confirm). No auto-writes.
 - **Journaling** — External commits write audit entries with source `external_tool_server`, API key name, and changed fields.
 - **Tenant Isolation** — Every operation is scoped to the API key owner. No cross-user access.
 - **Per-Key Rate Limiting** — Stricter rate limits (50 req/min) prevent abuse from external clients.
 - **Field Allowlist** — External writes restricted to `grade`, `currentValue`, `notes`, `tags`, `referenceText`, `referenceUrl`, `references`. Identity fields are rejected.
-- **OpenAPI-First** — Served OpenAPI document at `/api/v1/tools/openapi.json` for client auto-import.
-- **MCP Compatible** — Wrap the OpenAPI spec with `mcpo` to expose tools to MCP clients like Claude Desktop.
+- **OpenAPI Adapter** — Served document at `/api/v1/tools/openapi.json` for
+  client auto-import.
+- **Native MCP Adapter** — Stateless Streamable HTTP at `/api/mcp`; do not
+  proxy the broader OpenAPI write surface into MCP.
 
 **Available Tools:**
 
 - Read: `search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`
 - Write: `propose_update`, `commit_update`
+- MCP read: `search_collection`, `get_coin`, `list_wishlist`,
+  `collection_stats`, `top_coins_by_value`, `list_auction_lots`,
+  `get_auction_lot`, `auction_counts`
+- MCP Copilot: `start_copilot_run`, `get_copilot_run`,
+  `resume_copilot_run`, `cancel_copilot_run`
 
-For setup instructions, security model, and client integration guides, see the [External Tool Server Guide](external-tool-server.md). The guide is organized by audience: administrators (enabling/managing the server), users (creating API keys and connecting clients), and developers (API reference and error handling).
+For setup instructions and client configuration, see the
+[External Tool Server Guide](external-tool-server.md). For the native protocol
+contract and boundaries, see [MCP Agentic Harness](features/mcp-agentic-harness.md).
 
 ## PWA Features
 

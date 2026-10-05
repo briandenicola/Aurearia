@@ -1127,7 +1127,10 @@ curl -X POST http://localhost:8080/api/user/import \
 
 ### API Keys
 
-Manage API keys for programmatic access. API keys are an alternative to JWT tokens and are useful for scripts, integrations, and automation. Each key has a capability scope: `read` (default) or `read,write`, which controls access to the external tool server.
+Manage API keys for programmatic access. API keys are an alternative to JWT
+tokens and are useful for scripts, integrations, automation, and MCP clients.
+External-tool access accepts `read` (default), `read,copilot`, `read,write`,
+or `read,write,copilot`.
 
 #### POST /api/auth/api-keys
 
@@ -1145,7 +1148,7 @@ Generate a new API key. The full key is returned **only once** in the response �
 | Field | Type | Required | Description |
 | ----- | ---- | -------- | ----------- |
 | `name` | string | No | Descriptive name to help identify the key |
-| `scope` | string | No | Capability scope: `read` (default) or `read,write`. Controls external tool server access. |
+| `scope` | string | No | Capability scope: `read` (default), `read,copilot`, `read,write`, or `read,write,copilot` |
 
 **Response:**
 
@@ -1176,7 +1179,8 @@ curl http://localhost:8080/api/coins \
 
 #### GET /api/auth/api-keys
 
-List all API keys for the current user. Only the key prefix is shown (not the full key). Each key includes its capability scope (`read` or `read,write`).
+List all API keys for the current user. Only the key prefix is shown (not the
+full key). Each key includes its canonical capability combination.
 
 **Response:**
 
@@ -1203,16 +1207,55 @@ Revoke an API key. The key will immediately stop working.
 
 ## External Tool Server
 
-The External Tool Server exposes collection operations to external AI clients over a public, versioned HTTP API under `/api/v1/tools/*`. All endpoints require API key authentication (`X-API-Key` header) and are gated by an admin kill switch that defaults to OFF. For full setup instructions, security model, and client integration guides, see the [External Tool Server Guide](external-tool-server.md).
+The External Tool Server has two adapters: versioned OpenAPI operations under
+`/api/v1/tools/*` and native stateless Streamable HTTP MCP at `/api/mcp`.
+Authenticated operations use `X-API-Key`, and both adapters are gated by the
+same admin kill switch, which defaults to OFF. For setup and client guidance,
+see the [External Tool Server Guide](external-tool-server.md).
 
 ### Key Differences from Main API
 
 - **Admin Kill Switch** — The entire surface is disabled by default. Must be enabled in Admin → System Settings → External Tool Server Enabled.
-- **Scoped API Keys** — External tools respect API key capability: `read` keys can only query; `read,write` keys can propose and commit updates.
+- **Scoped API Keys** — OpenAPI writes require `write`; MCP Copilot tools
+  require the separate exact `copilot` capability. Neither capability implies
+  the other.
 - **Two-Phase Writes** — Updates require `propose_update` (returns preview + token) followed by `commit_update` (with explicit `confirm=true`). No single-call writes.
 - **Field Allowlist** — External writes are restricted to `grade`, `currentValue`, `notes`, `tags`, `referenceText`, `referenceUrl`, `references`. Identity fields are rejected.
 - **Stricter Rate Limiting** — 50 requests per minute per API key (vs. 120 req/min for in-app).
 - **Journaled Audit Trail** — External commits write journal entries with source `external_tool_server`, API key name, and changed fields.
+
+### POST /api/mcp
+
+Native stateless MCP endpoint using Streamable HTTP with JSON responses.
+Requests must include an active API key with `read`; the maximum request body
+is 128 KiB.
+
+Read tools:
+
+- `search_collection`
+- `get_coin`
+- `list_wishlist`
+- `collection_stats`
+- `top_coins_by_value`
+- `list_auction_lots`
+- `get_auction_lot`
+- `auction_counts`
+
+Keys with the explicit `copilot` capability also discover:
+
+- `start_copilot_run`
+- `get_copilot_run`
+- `resume_copilot_run`
+- `cancel_copilot_run`
+
+The endpoint accepts MCP JSON-RPC messages rather than an application-specific
+REST body. It returns protocol-level initialization, discovery, and tool-call
+responses. Tool errors use safe not-found, invalid-input, unavailable, or
+state-conflict messages without leaking cross-owner data or internal errors.
+The endpoint exposes no general application mutation tools.
+
+See [MCP Agentic Harness](features/mcp-agentic-harness.md) for client setup,
+tool semantics, and lifecycle guidance.
 
 ### GET /api/v1/tools/openapi.json
 
@@ -1411,6 +1454,7 @@ Commit a proposal with explicit confirmation (phase 2 of 2). Persists changes an
 | `403` | Insufficient capability (read-only key on write tool) |
 | `404` | Coin/proposal not found or cross-user access denied |
 | `409` | Proposal not in pending state or expired |
+| `413` | MCP request body exceeds 128 KiB |
 | `429` | Per-key rate limit exceeded (50 req/min) |
 | `503` | External tool server is disabled (admin toggle OFF) |
 

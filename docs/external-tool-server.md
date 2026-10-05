@@ -30,7 +30,10 @@ The external tool server is designed with least-privilege defaults and multiple 
 
 ### Default-Off Admin Toggle
 
-The entire `/api/v1/tools/*` surface is disabled by default. An admin must explicitly enable it in **Admin → System Settings → External Tool Server Enabled**. When disabled, all external tool requests return `503 Service Unavailable` with no side effects.
+Both `/api/v1/tools/*` and `/api/mcp` are disabled by default. An admin must
+explicitly enable **Admin → System Settings → External Tool Server Enabled**.
+When disabled, all external tool requests return `503 Service Unavailable`
+with no side effects.
 
 ### Scoped API Keys
 
@@ -84,11 +87,12 @@ External writes are restricted to the same field allowlist as in-app updates: `g
 
 ### Enabling the External Tool Server
 
-The entire `/api/v1/tools/*` surface is disabled by default. To enable it:
+Both external adapters are disabled by default. To enable them:
 
 1. Navigate to **Admin → System Settings**
 2. Toggle **External Tool Server Enabled** to ON
-3. The OpenAPI spec and tool endpoints become available immediately at `/api/v1/tools/`
+3. The OpenAPI surface becomes available at `/api/v1/tools/` and native MCP at
+   `/api/mcp`
 
 To disable the server later, toggle it OFF. All external tool requests will then fail with `503 Service Unavailable`.
 
@@ -98,11 +102,15 @@ The external tool server is designed with least-privilege defaults and multiple 
 
 **Default-Off Design** — External tools are disabled by default. Enable only when you intend to allow external integrations. You retain full control to disable at any time.
 
-**Scoped API Keys** — Every key has one of two capability scopes:
-- `read` (default) — Allows queries only
-- `read,write` — Allows queries plus write proposals and commits
+**Scoped API Keys** — Every key uses one canonical capability combination:
 
-Write capability must be explicitly chosen by users. Least-privilege is the default.
+- `read` (default) — Data queries only
+- `read,copilot` — Data queries plus MCP Coin Copilot lifecycle
+- `read,write` — Data queries plus OpenAPI write proposals and commits
+- `read,write,copilot` — Both explicit capability families
+
+Write and Copilot must each be explicitly chosen. Neither implies the other,
+and least privilege remains the default.
 
 **Two-Phase Write Protection** — External writes require explicit confirmation (propose, then commit). This prevents accidental or conversational auto-writes.
 
@@ -145,6 +153,14 @@ Each external client needs its own API key. Navigate to **Settings → Data → 
 2. Change **Capability** to `read,write`
 3. Click **Generate**
 4. Copy the displayed key
+
+#### Read+Copilot MCP Key
+
+1. Enter a descriptive name (e.g., "Copilot CLI MCP")
+2. Change **Capability** to `read,copilot`
+3. Click **Generate**
+4. Copy the displayed key and place it only in the client's secret store or
+   environment
 
 #### Managing Your Keys
 

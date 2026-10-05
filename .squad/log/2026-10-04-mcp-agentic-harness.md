@@ -117,3 +117,24 @@ for implementation commit `acad3309af24c92e0502df1bdcfeed4282ac823d`
 plus metadata manifest
 `96ffabc530f6119e2368ac71e9790fb3876bf9387e8f8c52a890267f81db139f`.
 No deployment or release is authorized.
+
+## Documentation alignment
+
+On 2026-10-04, Feature 366 documentation was aligned across the repository:
+
+- added `docs/features/mcp-agentic-harness.md` as the canonical feature
+  overview and linked it from the README and both feature indexes;
+- updated the external-tool guide, authentication guide, API reference,
+  architecture, software design, Coin Copilot guide, security principles, and
+  threat model to describe the native `/api/mcp` adapter, exact capability
+  combinations, tool inventory, lifecycle, and isolation boundaries;
+- removed stale guidance that described MCP as an OpenAPI proxy and clarified
+  that the write-capable OpenAPI adapter remains a separate contract; and
+- recorded Feature 366 in the changelog and current-work handoff without
+  changing release authority.
+
+`task check:delivery` passed with 91 Node tests and the SpecKit regression
+suite. Governance completed with no errors and the expected existing initial
+context budget and Proposed ADR 0021 lifecycle warnings. `git diff --check`
+passed. This documentation-only alignment did not require code generation,
+application builds, or deployment.

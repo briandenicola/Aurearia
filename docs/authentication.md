@@ -247,7 +247,9 @@ curl -X DELETE http://localhost:8080/api/auth/webauthn/credentials/CREDENTIAL_ID
 
 ## API Keys (Programmatic Access)
 
-API keys provide a simple authentication method for scripts, CI pipelines, and third-party integrations.
+API keys provide a simple authentication method for scripts, CI pipelines,
+third-party integrations, and MCP clients. External-tool routes enforce the
+key's capability tokens.
 
 ### Generating a Key
 
@@ -255,7 +257,7 @@ API keys provide a simple authentication method for scripts, CI pipelines, and t
 curl -X POST http://localhost:8080/api/auth/api-keys \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "My Import Script"}'
+  -d '{"name": "My MCP Client", "scope": "read,copilot"}'
 ```
 
 **Response:**
@@ -263,9 +265,10 @@ curl -X POST http://localhost:8080/api/auth/api-keys \
 ```json
 {
   "id": 1,
-  "name": "My Import Script",
+  "name": "My MCP Client",
   "key": "ak_a1b2c3d4e5f6...full key shown only once...",
-  "keyPrefix": "d4e5f6a1"
+  "keyPrefix": "d4e5f6a1",
+  "capabilities": "read,copilot"
 }
 ```
 
@@ -306,7 +309,13 @@ Revoked keys are soft-deleted and immediately rejected on future requests.
 | **Server storage** | SHA-256 hash in the database (`ApiKey` model) |
 | **Identification** | `KeyPrefix` — last 8 characters, stored for display |
 | **Name** | Optional label for identifying the key's purpose |
+| **Capabilities** | `read`, `read,copilot`, `read,write`, or `read,write,copilot` |
 | **Tracking** | `LastUsedAt` timestamp updated on each use |
+
+For external tools, `write` and `copilot` are independent, explicit
+capabilities. `write` implies `read` but never implies `copilot`. Use a
+dedicated `read` key for MCP data tools or `read,copilot` when the client also
+needs Coin Copilot lifecycle operations.
 
 ---
 
@@ -362,8 +371,12 @@ export WEBAUTHN_ORIGIN=https://coins.example.com
 
 ### API Key Handling
 
-- Treat API keys like passwords — they grant full access to the user's account.
+- Treat API keys like passwords. They authenticate as the owning user wherever
+  API-key authentication is accepted; external-tool routes additionally
+  enforce their capability tokens.
 - Keys are shown **only once** at generation. Store them in a secrets manager or password vault.
+- Send keys only in `X-API-Key`. Never place them in URLs, prompts, logs, or
+  committed client configuration.
 
 ### Refresh Token Storage
 

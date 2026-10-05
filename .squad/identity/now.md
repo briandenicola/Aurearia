@@ -26,7 +26,8 @@ that audit occurred.
 
 The independently cleared Feature 366 MCP agentic-harness delivery is complete
 in `specs/366-mcp-agentic-harness/`. It adds the native stateless `/api/mcp`
-surface without changing the release authorization below.
+surface, and its product, operator, API, architecture, security, and feature
+documentation is aligned without changing the release authorization below.
 
 ## Next Action
 
