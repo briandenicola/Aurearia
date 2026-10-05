@@ -138,3 +138,21 @@ suite. Governance completed with no errors and the expected existing initial
 context budget and Proposed ADR 0021 lifecycle warnings. `git diff --check`
 passed. This documentation-only alignment did not require code generation,
 application builds, or deployment.
+
+### MCP client setup
+
+Added `docs/mcp-client-setup.md` with copy-ready configuration for GitHub
+Copilot CLI, VS Code, Claude Code, and generic Streamable HTTP clients. The
+guide covers server enablement, least-privilege key selection, reverse-proxy
+requirements, secret storage, expected 8/12-tool discovery, optional skill
+installation, key rotation, and status-code troubleshooting. Clients that
+cannot send a custom `X-API-Key` header are explicitly unsupported rather than
+directed to unsafe URL credentials or an OpenAPI-to-MCP proxy.
+
+Configuration syntax was checked against the installed Copilot CLI
+`mcp add --help`, GitHub's Copilot CLI MCP documentation, the VS Code MCP
+configuration reference, and the Claude Code MCP reference. The client guide
+is linked from the README, API reference, external-tool guide, feature index,
+Feature 366 overview, and portable Agent Skill. `task check:delivery` again
+passed with 91 Node tests, the SpecKit regression suite, no governance errors,
+and only the existing context-budget and Proposed ADR 0021 warnings.
