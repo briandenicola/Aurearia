@@ -5,13 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { policy, candidateFrom, assertPublishEvidence, verifyMainPublish } from './verify-main-publish.mjs';
+import { validationPolicy } from './verify-candidate.mjs';
+import { candidateFixture } from './candidate-fixtures.mjs';
 
 const sha = 'a'.repeat(40);
 function evidence() {
   const repository = { full_name: 'owner/example', owner: { id: 7, type: 'User' } };
-  const upstream = { id: 700, name: 'Quality Gate', path: '.github/workflows/ci.yml',
+  const upstream = { id: 700, name: policy.workflow_name, path: policy.workflow_path,
     event: 'push', head_branch: 'main', head_sha: sha, status: 'completed', conclusion: 'success',
-    repository };
+    repository, check_suite_id: 7000 };
   return {
     repository: repository.full_name,
     event: { action: 'completed', repository, workflow_run: structuredClone(upstream) },
@@ -25,7 +27,8 @@ function evidence() {
     },
     branches: [{ name: 'main', type: 'branch' }],
     checks: policy.checks.filter(check => check.required_for_publish !== false).map(check => ({ name: check.context, app: { id: check.app_id },
-      head_sha: sha, status: 'completed', conclusion: 'success' })),
+      head_sha: sha, status: 'completed', conclusion: 'success', check_suite: { id: 7000 },
+      details_url: 'https://github.com/owner/example/actions/runs/700/job/701' })),
     approvals: [{ state: 'approved', user: { id: 7, type: 'User' }, environments: [{ name: 'release' }] }],
   };
 }
@@ -53,6 +56,11 @@ const failures = [
   ['additional deployment branch', f => { f.branches.push({ name: 'beta', type: 'branch' }); }],
   ['missing check', f => { f.checks.pop(); }],
   ['spoofed check provider', f => { f.checks[0].app.id = 123; }],
+  ['gate from a different workflow run', f => { f.checks[0].details_url = 'https://github.com/owner/example/actions/runs/701/job/702'; }],
+  ['gate from a different check suite', f => { f.checks[0].check_suite.id++; }],
+  ['failed additional scheduled scan', f => {
+    f.checks.push({ name: 'Govulncheck', app: { id: 15368 }, head_sha: sha, status: 'completed', conclusion: 'failure' });
+  }],
   ['stale check SHA', f => { f.checks[0].head_sha = 'b'.repeat(40); }],
   ['failed check', f => { f.checks[0].conclusion = 'failure'; }],
   ['pending check', f => { f.checks[0].status = 'in_progress'; }],
@@ -69,11 +77,9 @@ const failures = [
   ['pending release decision', f => { f.approvals[0].state = 'pending'; }],
 ];
 test('accepts only exact-candidate success with GitHub owner approval', () => {
-  assert.equal(policy.checks.length, 20);
-  assert.equal(new Set(policy.checks.map(check => check.context)).size, 20);
-  assert.deepEqual(policy.checks.filter(check => check.required_for_publish === false),
-    [{ context: 'CodeQL', app_id: 57789, required_for_publish: false }]);
-  assert.equal(evidence().checks.length, 19);
+  assert.deepEqual(policy.checks, [{ context: 'Verified candidate', app_id: 15368 }]);
+  assert.equal(validationPolicy.checks.length, 19);
+  assert.equal(evidence().checks.length, 1);
   assert.equal(candidateFrom(evidence().event, 'owner/example'), sha);
   assert.equal(assertPublishEvidence(evidence()), sha);
   const withAggregate = evidence();
@@ -99,6 +105,7 @@ function apiFixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'publish-evidence-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const data = evidence();
+  const candidate = candidateFixture(sha);
   const eventPath = join(dir, 'event.json');
   writeFileSync(eventPath, JSON.stringify(data.event));
   const env = { GITHUB_EVENT_NAME: 'workflow_run', GITHUB_API_URL: 'https://api.github.com',
@@ -116,17 +123,17 @@ function apiFixture(t) {
     else if (path.endsWith('/git/ref/heads/main')) body = data.main;
     else if (path.endsWith('/environments/release')) body = data.environment;
     else if (path.endsWith('/deployment-branch-policies')) body = { branch_policies: data.branches };
-    else if (path.endsWith('/check-runs')) body = { check_runs: data.checks };
+    else if (path.endsWith(`/commits/${sha}/check-runs`)) body = { check_runs: data.checks };
     else if (path.endsWith('/actions/runs/901/approvals')) body = data.approvals;
-    else throw new Error(`Unexpected API route: ${url}`);
+    else body = await candidate.api.get(`${path.split(`/repos/${data.repository}/`)[1]}${new URL(url).search}`);
     return { ok: true, status: 200, json: async () => body };
   };
-  return { dir, env, requests, fetchImpl };
+  return { dir, env, requests, fetchImpl, candidate };
 }
 test('runtime uses only read APIs and approvals for the publishing run, never the upstream run', async t => {
   const f = apiFixture(t);
   assert.equal(await verifyMainPublish(f.env, f.fetchImpl), sha);
-  assert.equal(f.requests.length, 6);
+  assert.equal(f.requests.length, 17);
   assert.ok(f.requests.some(request => request.url.endsWith('/actions/runs/901/approvals')));
   assert.ok(f.requests.some(request => request.url.includes(`/commits/${sha}/check-runs?filter=latest`)));
   assert.ok(f.requests.every(request => request.url.startsWith('https://api.github.com/repos/owner/example/')));
@@ -174,6 +181,9 @@ test('bypassing evidence rejection makes every negative contract fail', async t 
   const mutant = source.replace('if (!condition) throw new Error(message);', 'if (false) throw new Error(message);');
   assert.notEqual(mutant, source);
   writeFileSync(join(f.dir, 'publish-policy.json'), JSON.stringify(policy));
+  for (const file of ['verify-candidate.mjs', 'validation-policy.json', 'github-evidence.mjs']) {
+    writeFileSync(join(f.dir, file), readFileSync(new URL(file, import.meta.url), 'utf8'));
+  }
   const target = join(f.dir, 'mutant.mjs');
   writeFileSync(target, mutant);
   const changed = await import(pathToFileURL(target).href);
@@ -191,12 +201,14 @@ function assertMainWorkflow(main) {
   assert.match(main, /checks: read/);
   assert.match(main, /group: main-publish\r?\n\s+cancel-in-progress: false/);
   for (const id of ['build-and-push-app', 'build-and-push-agent']) {
-    assert.match(main, new RegExp(`${id}:\\r?\\n\\s+needs: approve-release`));
     const job = main.split(`  ${id}:`)[1].split(/\r?\n  [\w-]+:/)[0];
+    assert.match(job, /needs: approve-release/);
     assert.match(job, /actions: read/);
     assert.match(job, /checks: read/);
     assert.ok(job.indexOf('run: node scripts/delivery/verify-main-publish.mjs') > 0);
     assert.ok(job.indexOf('run: node scripts/delivery/verify-main-publish.mjs') < job.indexOf('uses: docker/'));
+    assert.match(job, /image-receipt\.mjs promote (?:app|agent)/);
+    assert.doesNotMatch(job, /docker\/build-push-action|docker build|BUILD_DATE/);
   }
   assert.equal((main.match(/ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []).length, 3);
   assert.doesNotMatch(main, /ref: (?:main|beta)\b|always\(\)/);
@@ -215,6 +227,9 @@ test('both main publishers depend on approval and retain checked-SHA checkout; b
   }
   const beta = read('docker-publish-beta.yml');
   assert.doesNotMatch(beta, /approve-release|environment:/);
-  assert.equal((beta.match(/ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []).length, 2);
+  assert.equal((beta.match(/ref: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
+  assert.match(beta, /node scripts\/delivery\/verify-candidate\.mjs --beta/);
+  assert.equal((beta.match(/needs: validate/g) ?? []).length, 2);
+  assert.doesNotMatch(beta, /workflow_run:/);
   assert.match(beta, /IMAGE_APP\}:beta/);
 });

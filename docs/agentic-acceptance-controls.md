@@ -1,5 +1,14 @@
 # Acceptance and Release Controls
 
+**Delivery revision authorized 2026-10-16:** the owner approved replacing
+repeated beta/PR/main suites with the [validate-once candidate protocol](ci-candidate-reuse.md).
+Its source validation policy retains the original checks, while one verified-tree
+gate replaces their repeated PR/main execution. Main promotes receipt-bound
+beta image digests and retains the release environment, actual owner approval,
+main-tip and partial-rerun guards. Live activation/readback is tracked in that
+protocol record; the P5 text below preserves the prior control baseline and
+historical approval evidence, not a second current per-event policy.
+
 P5 D14-D15 under Constitution sections 17-18/21 and accepted ADR 0019.
 **Status: repository controls accepted in #741; live activation incomplete.**
 The owner subsequently approved the scoped main-protection and release-environment

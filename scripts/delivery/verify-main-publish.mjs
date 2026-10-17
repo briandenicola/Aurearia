@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validationPolicy, verifyCandidate, writeCandidateOutputs } from './verify-candidate.mjs';
+import { githubEvidence } from './github-evidence.mjs';
 
 export const policy = JSON.parse(readFileSync(new URL('./publish-policy.json', import.meta.url), 'utf8'));
 const requireEvidence = (condition, message) => {
@@ -12,9 +14,9 @@ export function candidateFrom(event, repository) {
   const run = event?.workflow_run;
   requireEvidence(event?.action === 'completed' && event.repository?.full_name === repository,
     'Expected a completed workflow_run from this repository');
-  requireEvidence(run?.name === 'Quality Gate' && run.event === 'push' &&
+  requireEvidence(run?.name === policy.workflow_name && run.event === 'push' &&
     run.head_branch === policy.branch && run.status === 'completed' && run.conclusion === 'success',
-  'Expected a successful Quality Gate push on main');
+  'Expected a successful verified-candidate push on main');
   requireEvidence(Number.isSafeInteger(run.id) && run.id > 0 && /^[a-f0-9]{40}$/.test(run.head_sha),
     'Invalid upstream run or candidate SHA');
   requireEvidence(event.repository.owner?.type === 'User' &&
@@ -27,9 +29,10 @@ export function assertPublishEvidence({ event, repository, upstream, main, envir
   const sha = candidateFrom(event, repository);
   const owner = event.repository.owner.id;
   requireEvidence(upstream?.id === event.workflow_run.id && upstream.repository?.full_name === repository &&
-    upstream.path === '.github/workflows/ci.yml' && upstream.event === 'push' &&
+    upstream.path === policy.workflow_path && upstream.event === 'push' &&
     upstream.head_branch === policy.branch && upstream.head_sha === sha &&
-    upstream.status === 'completed' && upstream.conclusion === 'success',
+    upstream.status === 'completed' && upstream.conclusion === 'success' &&
+    Number.isSafeInteger(upstream.check_suite_id) && upstream.check_suite_id > 0,
   'Upstream API evidence does not match the successful candidate run');
   requireEvidence(main?.object?.sha === sha, 'Candidate is no longer the main tip; do not publish stale latest tags');
 
@@ -49,9 +52,20 @@ export function assertPublishEvidence({ event, repository, upstream, main, envir
   for (const required of policy.checks) {
     const matching = checks.filter(check => check.name === required.context && check.app?.id === required.app_id);
     if (required.required_for_publish === false && matching.length === 0) continue;
+    const prefix = `https://github.com/${repository}/actions/runs/${upstream.id}/job/`;
+    requireEvidence(matching.length === 1 && matching[0].head_sha === sha &&
+      matching[0].status === 'completed' && matching[0].conclusion === 'success' &&
+      matching[0].check_suite?.id === upstream.check_suite_id &&
+      typeof matching[0].details_url === 'string' && matching[0].details_url.startsWith(prefix) &&
+      /^[1-9]\d*(?:\?.*)?$/.test(matching[0].details_url.slice(prefix.length)),
+    `Missing, ambiguous, stale or unsuccessful check: ${required.context}`);
+  }
+  for (const additional of [...validationPolicy.checks, ...validationPolicy.optional_checks]) {
+    const matching = checks.filter(check => check.name === additional.context && check.app?.id === additional.app_id);
+    if (!matching.length) continue;
     requireEvidence(matching.length === 1 && matching[0].head_sha === sha &&
       matching[0].status === 'completed' && matching[0].conclusion === 'success',
-    `Missing, ambiguous, stale or unsuccessful check: ${required.context}`);
+    `Unsuccessful additional candidate scan: ${additional.context}`);
   }
   requireEvidence(Array.isArray(approvals), 'Approval history is missing');
   requireEvidence(approvals.every(review => review && Array.isArray(review.environments) &&
@@ -102,7 +116,12 @@ export async function verifyMainPublish(env = process.env, fetchImpl = fetch) {
     pages(`commits/${sha}/check-runs?filter=latest`, 'check_runs'),
     get(`actions/runs/${env.GITHUB_RUN_ID}/approvals`),
   ]);
-  return assertPublishEvidence({ event, repository, upstream, main, environment, branches, checks, approvals });
+  const candidate = assertPublishEvidence({ event, repository, upstream, main, environment, branches, checks, approvals });
+  const api = githubEvidence(env, fetchImpl);
+  const source = await verifyCandidate(api, repository, candidate,
+    { ref: 'refs/heads/main', after: candidate }, 'push');
+  writeCandidateOutputs(source, env.GITHUB_OUTPUT);
+  return candidate;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

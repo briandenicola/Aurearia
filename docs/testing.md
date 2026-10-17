@@ -191,6 +191,16 @@ container jobs. Use appropriate runners/toolchains; unavailable local checks
 remain pending until matching CI evidence exists. Cite the exact tested SHA.
 Live required-context configuration is separate from jobs merely existing.
 
+Under the [validate-once delivery contract](ci-candidate-reuse.md), full language,
+race, compatibility, security and CodeQL validation runs on beta. PRs targeting
+main and main pushes verify the actual merge tree against that tested beta tree
+and verify trusted source-run/image evidence; they do not rerun the application
+suites. Content mismatch requires reconciliation and full validation on beta.
+PRs targeting beta and scheduled security/CodeQL scans retain their full checks.
+The delivery gate includes candidate-identity, publisher and digest-promotion
+negative/mutation fixtures. Protected owner approval is still required to
+promote images, and publishing does not authorize local-server deployment.
+
 Fast feedback remains targeted tests. Completion is the applicable shared
 targets above. CI/release adds all applicable runner-only and release checks.
 Delivery fixtures run on both Windows and Ubuntu; this does not substitute for

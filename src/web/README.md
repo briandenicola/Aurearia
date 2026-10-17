@@ -30,7 +30,9 @@ PNG renderer. The upper section shows the obverse and reverse side by side on
 charcoal; the lower section uses cream paper and left-aligned serif attribution.
 Images are contained without cropping, and missing faces are labelled.
 
-Attribution uses the saved ruler/name, date range, mint, material, denomination,
+The saved coin title heads the ticket, with the ruler and date range beneath it.
+An unknown ruler is omitted; a known date is still shown.
+Attribution also uses the saved mint, material, denomination,
 weight, diameter, face inscriptions/descriptions, and catalogue references
 (with legacy reference text as a fallback). Missing fields are omitted, not
 inferred by AI. Long attribution expands the image vertically instead of

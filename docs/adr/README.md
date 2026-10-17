@@ -79,5 +79,6 @@ ADR 0001 for the full list.
 | 0019 | [Evidence-Based Agentic Delivery](0019-evidence-based-agentic-delivery.md) | 2026-09-21 | Accepted (PR #734) |
 | 0020 | [Browser Speech Recognition for Identification Notes](0020-browser-speech-identification-notes.md) | 2026-10-01 | Accepted (PR #801) |
 | 0021 | [Stateless MCP Adapter in the Go API](0021-stateless-mcp-api-adapter.md) | 2026-10-04 | Proposed |
+| 0022 | [Validate Once and Promote Verified Content](0022-validate-once-promote-verified-content.md) | 2026-10-16 | Proposed |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

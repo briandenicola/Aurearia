@@ -1,0 +1,27 @@
+{
+  "checks": [
+    { "context": "Go API", "app_id": 15368, "workflow": ".github/workflows/ci.yml" },
+    { "context": "Vue Web", "app_id": 15368, "workflow": ".github/workflows/ci.yml" },
+    { "context": "Python Agent", "app_id": 15368, "workflow": ".github/workflows/ci.yml" },
+    { "context": "Go API (race detector)", "app_id": 15368, "workflow": ".github/workflows/ci.yml" },
+    { "context": "Delivery governance (ubuntu-latest)", "app_id": 15368, "workflow": ".github/workflows/ci.yml" },
+    { "context": "Delivery governance (windows-latest)", "app_id": 15368, "workflow": ".github/workflows/ci.yml" },
+    { "context": "Gitleaks", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "Govulncheck", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "npm audit", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "pip-audit", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "Container security (app)", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "Container security (agent)", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "Agent image — no pip in runtime", "app_id": 15368, "workflow": ".github/workflows/security-scan.yml" },
+    { "context": "Release A guard", "app_id": 15368, "workflow": ".github/workflows/feature362-compatibility.yml" },
+    { "context": "AI and identification browser acceptance", "app_id": 15368, "workflow": ".github/workflows/feature362-compatibility.yml" },
+    { "context": "Analyze (actions)", "app_id": 15368, "workflow": ".github/workflows/codeql.yml" },
+    { "context": "Analyze (go)", "app_id": 15368, "workflow": ".github/workflows/codeql.yml" },
+    { "context": "Analyze (javascript-typescript)", "app_id": 15368, "workflow": ".github/workflows/codeql.yml" },
+    { "context": "Analyze (python)", "app_id": 15368, "workflow": ".github/workflows/codeql.yml" }
+  ],
+  "optional_checks": [
+    { "context": "CodeQL", "app_id": 57789 },
+    { "context": "Isolated runtime acceptance", "app_id": 15368, "workflow": ".github/workflows/ai-browser-exploration.yml", "events": ["push", "workflow_dispatch"] }
+  ]
+}

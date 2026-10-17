@@ -34,6 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Repeated beta/PR/main validation** - Full validation runs on beta; release
+  PRs and main verify identical tested content and trusted source/image evidence.
+  Owner-approved main publishing promotes the recorded beta digests without
+  rebuilding the images. Different content requires full beta revalidation.
+
 - **Security-gate dependency findings** — Go 1.26.9 and the matching pinned
   builder image address standard-library advisories. Targeted Go networking,
   npm transitive and Python transitive updates address the corresponding

@@ -2,7 +2,7 @@ name: Build and Push to Docker Hub
 
 on:
   workflow_run:
-    workflows: [Quality Gate]
+    workflows: [Verified Candidate]
     branches: [main]
     types: [completed]
 
@@ -23,6 +23,7 @@ jobs:
       contents: read
       actions: read
       checks: read
+      pull-requests: read
     environment:
       name: release
       url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha }}
@@ -40,6 +41,7 @@ jobs:
         run: node scripts/delivery/verify-main-publish.mjs
 
   build-and-push-app:
+    name: Promote verified app image
     needs: approve-release
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     runs-on: ubuntu-latest
@@ -47,6 +49,7 @@ jobs:
       contents: read
       actions: read
       checks: read
+      pull-requests: read
 
     steps:
       - name: Checkout
@@ -58,6 +61,7 @@ jobs:
         with:
           node-version: 24.15.0
       - name: Recheck publication evidence including partial reruns
+        id: evidence
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/delivery/verify-main-publish.mjs
@@ -71,31 +75,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Prepare image tags
-        id: tags
-        env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          short_sha="${HEAD_SHA::7}"
-          echo "tags=${IMAGE_APP}:sha-${HEAD_SHA},${IMAGE_APP}:sha-${short_sha},${IMAGE_APP}:latest" >> "$GITHUB_OUTPUT"
-
-      - name: Set build date
-        id: date
-        run: echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push app
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      - name: Download verified app receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          context: .
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          build-args: |
-            APP_VERSION=${{ github.event.workflow_run.head_sha }}
-            BUILD_DATE=${{ steps.date.outputs.build_date }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.evidence.outputs.publisher_run_id }}
+          name: beta-app-${{ steps.evidence.outputs.source_sha }}
+          path: .tmp/app-receipt
+      - name: Promote the immutable verified app image
+        env:
+          SOURCE_SHA: ${{ steps.evidence.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.evidence.outputs.source_tree }}
+          TARGET_IMAGE: ${{ env.IMAGE_APP }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/delivery/image-receipt.mjs promote app .tmp/app-receipt/image-receipt.json
 
   build-and-push-agent:
+    name: Promote verified agent image
     needs: approve-release
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     runs-on: ubuntu-latest
@@ -103,6 +99,7 @@ jobs:
       contents: read
       actions: read
       checks: read
+      pull-requests: read
 
     steps:
       - name: Checkout
@@ -114,6 +111,7 @@ jobs:
         with:
           node-version: 24.15.0
       - name: Recheck publication evidence including partial reruns
+        id: evidence
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/delivery/verify-main-publish.mjs
@@ -127,20 +125,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Prepare image tags
-        id: tags
-        env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          short_sha="${HEAD_SHA::7}"
-          echo "tags=${IMAGE_AGENT}:sha-${HEAD_SHA},${IMAGE_AGENT}:sha-${short_sha},${IMAGE_AGENT}:latest" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push agent
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      - name: Download verified agent receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          context: src/agent
-          file: src/agent/Dockerfile
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.evidence.outputs.publisher_run_id }}
+          name: beta-agent-${{ steps.evidence.outputs.source_sha }}
+          path: .tmp/agent-receipt
+      - name: Promote the immutable verified agent image
+        env:
+          SOURCE_SHA: ${{ steps.evidence.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.evidence.outputs.source_tree }}
+          TARGET_IMAGE: ${{ env.IMAGE_AGENT }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/delivery/image-receipt.mjs promote agent .tmp/agent-receipt/image-receipt.json

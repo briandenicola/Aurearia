@@ -62,7 +62,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     expect(rendered.dark).toEqual([23, 25, 27, 255])
     expect(rendered.paper[0]).toBeGreaterThan(230)
     expect(rendered.paper[0]! - rendered.paper[2]!).toBeGreaterThan(20)
-    expect(rendered.text).toContain('Trajan, AD 98-117')
+    expect(rendered.text).toContain(`${coin.name} Trajan, AD 98-117`)
     expect(rendered.text).toContain('Obv. IMP TRAIANO')
     expect(rendered.text).toContain('Rev. SPQR OPTIMO PRINCIPI.')
     expect(rendered.text).toContain('References: RIC II Trajan 147')
