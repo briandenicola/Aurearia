@@ -35,20 +35,47 @@ describe('coinShareCard', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns only approved public metadata fields for a share card', () => {
-    const coin = buildRomanDenariusCore()
-    const metadata = getShareCardMetadata(coin)
+  it('builds the collector ticket from stored attribution without inventing dates or references', () => {
+    const metadata = getShareCardMetadata(buildRomanDenariusCore({ dateRange: 'AD 98-117' }))
 
-    expect(metadata.title).toBe(coin.name)
-    expect(metadata.category).toBe(coin.category)
-    expect(metadata.fields.map((field) => field.label)).toEqual([
-      'Ruler',
-      'Denomination',
-      'Era',
-      'Mint',
-      'Material',
-      'Grade',
-    ])
+    expect(metadata).toEqual({
+      title: 'Trajan, AD 98-117',
+      details: ['Rome mint. Silver Denarius.', '3.35 g; 18 mm.'],
+      obverse: 'IMP TRAIANO AVG GER DAC P M TR P. Laureate bust right',
+      reverse: 'SPQR OPTIMO PRINCIPI. Victory standing left',
+      references: 'RIC II Trajan 147',
+    })
+  })
+
+  it('formats structured catalogue references, deduplicates them, and excludes source URLs', () => {
+    const reference = {
+      id: 1, coinId: 1001, catalog: 'RIC', volume: 'II', number: '147',
+      uri: 'https://example.test/private-source', createdAt: '', updatedAt: '',
+    }
+    const metadata = getShareCardMetadata(buildRomanDenariusCore({
+      references: [reference, { ...reference, id: 2 }, { ...reference, id: 3, catalog: 'BMC', volume: '', number: '42' }],
+    }))
+
+    expect(metadata.references).toBe('RIC II 147; BMC 42')
+    expect(JSON.stringify(metadata)).not.toContain('private-source')
+  })
+
+  it('omits missing attribution and invalid measurements and falls back to the coin name', () => {
+    const metadata = getShareCardMetadata(buildRomanDenariusCore({
+      name: 'Unattributed coin', ruler: '', dateRange: null, mint: '', denomination: '',
+      weightGrams: Number.NaN, diameterMm: -1,
+      obverseInscription: '', obverseDescription: '', reverseInscription: '', reverseDescription: '',
+      references: [], referenceText: '',
+    }))
+
+    expect(metadata).toEqual({
+      title: 'Unattributed coin', details: ['Silver.'], obverse: '', reverse: '', references: '',
+    })
+    expect(getShareCardMetadata(buildRomanDenariusCore({ name: '', ruler: '' })).title).toBe('Untitled Coin')
+    expect(getShareCardMetadata(buildRomanDenariusCore({ weightGrams: null, diameterMm: null })).details)
+      .toEqual(['Rome mint. Silver Denarius.'])
+    expect(getShareCardMetadata(buildRomanDenariusCore({ mint: 'Rome mint' })).details[0])
+      .toBe('Rome mint. Silver Denarius.')
   })
 
   it('excludes value, purchase, notes, AI, owner, listing, tag, set, and privacy fields', () => {
@@ -152,11 +179,41 @@ describe('coinShareCard', () => {
     expect(arc).not.toHaveBeenCalled()
   })
 
-  it('keeps title, metadata, and footer in separate vertical zones', async () => {
+  it('renders the approved dark image half and cream, left-aligned serif attribution half', async () => {
+    const fillRect = vi.fn()
+    const fillText = vi.fn()
+    const ctx = buildCanvasContext({ fillRect, fillText })
+    const textStyles: { text: string; font: string; align: string; color: string }[] = []
+    fillText.mockImplementation((text: string) => {
+      textStyles.push({ text, font: ctx.font, align: ctx.textAlign, color: String(ctx.fillStyle) })
+    })
+    const canvas = mockCanvas(ctx, vi.fn((callback: BlobCallback) => callback(pngBlob)))
+
+    await renderCoinShareCard({
+      coin: buildRomanDenariusCore({ images: [] }),
+      imageUrl: null,
+      appName: 'Aurearia - Coin Collection',
+    })
+
+    expect(canvas.width).toBe(1080)
+    expect(canvas.height).toBeGreaterThanOrEqual(1440)
+    expect(fillRect.mock.calls).toEqual([
+      [0, 0, 1080, 672],
+      [0, 672, 1080, canvas.height - 672],
+    ])
+    expect(textStyles).toContainEqual({ text: 'Trajan', font: '400 52px Georgia, serif', align: 'left', color: '#322a20' })
+    const attribution = fillText.mock.calls.filter(([, x, y]) => Number(x) === 64 && Number(y) >= 728)
+    expect(attribution.map(([text]) => String(text)).join(' ')).toContain('Obv. IMP TRAIANO')
+    expect(attribution.map(([text]) => String(text)).join(' ')).toContain('Rev. SPQR OPTIMO PRINCIPI.')
+    expect(attribution.map(([text]) => String(text)).join(' ')).toContain('References: RIC II Trajan 147')
+  })
+
+  it('grows for long attribution without truncating text or overlapping the footer', async () => {
     const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
     const fillText = vi.fn()
     const ctx = buildCanvasContext({ fillText })
-    mockCanvas(ctx, toBlob)
+    const canvas = mockCanvas(ctx, toBlob)
+    const longDescription = `${'Victory holding a wreath and palm branch. '.repeat(30)}Final attribution detail.`
 
     await renderCoinShareCard({
       coin: buildByzantineSolidusSetMember({
@@ -166,6 +223,7 @@ describe('coinShareCard', () => {
         era: 'Byzantine Middle Period',
         mint: 'Constantinople',
         grade: 'Choice Very Fine',
+        reverseDescription: longDescription,
         images: [],
       }),
       imageUrl: null,
@@ -176,31 +234,74 @@ describe('coinShareCard', () => {
     const footer = calls.find((call) => call.text === 'Aurearia - Coin Collection')
     expect(footer).toBeDefined()
 
-    const latestContentY = Math.max(...calls.filter((call) => call.text !== 'Aurearia - Coin Collection').map((call) => call.y))
+    const latestContentY = Math.max(...calls.filter((call) => !['Aurearia - Coin Collection', 'ATTRIBUTION'].includes(call.text)).map((call) => call.y))
     expect(footer!.y - latestContentY).toBeGreaterThanOrEqual(80)
+    expect(canvas.height).toBeGreaterThan(1440)
+    const renderedText = calls.map((call) => call.text).join(' ')
+    expect(renderedText).toContain(longDescription)
+    expect(renderedText).not.toContain('...')
   })
 
-  it('centers the metadata columns as a balanced block', async () => {
-    const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
+  it('wraps long unbroken inscriptions within the ticket width without losing characters', async () => {
     const fillText = vi.fn()
     const ctx = buildCanvasContext({ fillText })
-    mockCanvas(ctx, toBlob)
+    mockCanvas(ctx, vi.fn((callback: BlobCallback) => callback(pngBlob)))
+    const inscription = 'X'.repeat(180)
 
     await renderCoinShareCard({
-      coin: buildRomanDenariusCore({ images: [] }),
+      coin: buildRomanDenariusCore({ images: [], obverseInscription: inscription, obverseDescription: '' }),
       imageUrl: null,
       appName: 'Aurearia - Coin Collection',
     })
 
-    const labelCalls = fillText.mock.calls
-      .map(([text, x, y]) => ({ text: String(text), x: Number(x), y: Number(y) }))
-      .filter((call) => ['RULER', 'DENOMINATION', 'ERA', 'MINT'].includes(call.text))
-
-    expect(labelCalls.map((call) => call.x)).toEqual([329, 751, 329, 751])
-    expect(labelCalls[0]!.x + labelCalls[1]!.x).toBe(1080)
+    const lines = fillText.mock.calls
+      .filter(([text]) => String(text).includes('X'))
+      .map(([text]) => String(text))
+    expect(lines.join('').replace('Obv. ', '')).toBe(`${inscription}.`)
+    expect(lines.every((line) => ctx.measureText(line).width <= 952)).toBe(true)
   })
 
-  it('can add Coin of the Day context without changing the default card path', async () => {
+  it('keeps a reverse-only image on the right, uncropped, with the missing obverse labelled', async () => {
+    const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
+    const fillText = vi.fn()
+    const drawImage = vi.fn()
+    const ctx = buildCanvasContext({ fillText, drawImage })
+    mockCanvas(ctx, toBlob)
+    mockImageLoad()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['image']), { status: 200 })))
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:reverse-image'),
+      revokeObjectURL: vi.fn(),
+    })
+    const reverse = makeImage(2, 'reverse')
+
+    await renderCoinShareCard({
+      coin: buildRomanDenariusCore({ images: [reverse] }),
+      imageUrl: 'data:image/png;base64,reverse',
+      imageUrls: ['/uploads/coins/2.webp'],
+      appName: 'Aurearia - Coin Collection',
+    })
+
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 574, 128, 432, 432)
+    expect(fillText).toHaveBeenCalledWith('No obverse image', 290, 332)
+    expect(fillText).not.toHaveBeenCalledWith('No reverse image', expect.anything(), expect.anything())
+  })
+
+  it('scales the whole layout for custom output dimensions', async () => {
+    const ctx = buildCanvasContext()
+    const canvas = mockCanvas(ctx, vi.fn((callback: BlobCallback) => callback(pngBlob)))
+    await renderCoinShareCard({
+      coin: buildRomanDenariusCore({ images: [] }),
+      imageUrl: null,
+      appName: 'Aurearia',
+    }, { width: 540, height: 720 })
+
+    expect(canvas.width).toBe(540)
+    expect(canvas.height).toBe(720)
+    expect(ctx.scale).toHaveBeenCalledWith(0.5, expect.any(Number))
+  })
+
+  it('preserves Coin of the Day context alongside the full attribution', async () => {
     const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
     const fillText = vi.fn()
     const ctx = buildCanvasContext({ fillText })
@@ -217,25 +318,38 @@ describe('coinShareCard', () => {
     })
 
     const calls = fillText.mock.calls.map(([text]) => String(text))
-    expect(calls).toContain('COIN OF THE DAY')
-    expect(calls.some((text) => text.includes('Obverse: laureate portrait. Reverse: Victory'))).toBe(true)
-    expect(calls).toContain('RULER')
+    expect(calls).toContain('Coin of the Day')
+    expect(calls.join(' ')).toContain('Obverse: laureate portrait. Reverse: Victory holding wreath.')
+    expect(calls.join(' ')).toContain('Obv. IMP TRAIANO AVG GER DAC P M TR P.')
+    expect(calls.join(' ')).toContain('References: RIC II Trajan 147')
+  })
+
+  it('reports unavailable canvas and failed PNG generation instead of returning a blank success', async () => {
+    const ctx = buildCanvasContext()
+    const canvas = mockCanvas(ctx, vi.fn((callback: BlobCallback) => callback(null)))
+    const input = { coin: buildRomanDenariusCore({ images: [] }), imageUrl: null, appName: 'Aurearia' }
+
+    await expect(renderCoinShareCard(input)).rejects.toThrow('Unable to generate share card image.')
+    canvas.getContext.mockReturnValueOnce(null)
+    await expect(renderCoinShareCard(input)).rejects.toThrow('Canvas rendering is not available')
   })
 })
 
 function mockCanvas(ctx: CanvasRenderingContext2D, toBlob: ReturnType<typeof vi.fn>) {
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: vi.fn<() => CanvasRenderingContext2D | null>(() => ctx),
+    toBlob,
+  }
   const originalCreateElement = document.createElement.bind(document)
   vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
     if (tagName === 'canvas') {
-      return {
-        width: 0,
-        height: 0,
-        getContext: vi.fn(() => ctx),
-        toBlob,
-      } as unknown as HTMLCanvasElement
+      return canvas as unknown as HTMLCanvasElement
     }
     return originalCreateElement(tagName)
   })
+  return canvas
 }
 
 function mockImageLoad() {
@@ -267,6 +381,7 @@ function buildCanvasContext(overrides: Partial<CanvasRenderingContext2D> = {}): 
     stroke: vi.fn(),
     save: vi.fn(),
     restore: vi.fn(),
+    scale: vi.fn(),
     clip: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
