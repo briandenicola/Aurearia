@@ -59,7 +59,7 @@ function sentence(value: string): string {
 }
 
 export function getShareCardMetadata(coin: Coin): CoinShareCardMetadata {
-  const identity = cleanText(coin.ruler) || cleanText(coin.name) || 'Untitled Coin'
+  const title = cleanText(coin.name) || 'Untitled Coin'
   const date = cleanText(coin.dateRange)
   const mint = cleanText(coin.mint)
   const issue = [cleanText(coin.material), cleanText(coin.denomination)].filter(Boolean).join(' ')
@@ -75,8 +75,9 @@ export function getShareCardMetadata(coin: Coin): CoinShareCardMetadata {
     .filter(Boolean)
 
   return {
-    title: date ? `${identity}, ${date}` : identity,
+    title,
     details: [
+      [cleanText(coin.ruler), date].filter(Boolean).join(', '),
       [mint ? sentence(/\bmint$/i.test(mint) ? mint : `${mint} mint`) : '', sentence(issue)].filter(Boolean).join(' '),
       sentence(dimensions.join('; ')),
     ].filter(Boolean),

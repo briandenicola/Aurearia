@@ -2,9 +2,9 @@ name: Quality Gate
 
 on:
   pull_request:
-    branches: [main, beta]
+    branches: [beta]
   push:
-    branches: [main, beta]
+    branches: [beta]
 
 permissions:
   contents: read

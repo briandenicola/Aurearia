@@ -36,11 +36,13 @@ describe('coinShareCard', () => {
   })
 
   it('builds the collector ticket from stored attribution without inventing dates or references', () => {
-    const metadata = getShareCardMetadata(buildRomanDenariusCore({ dateRange: 'AD 98-117' }))
+    const metadata = getShareCardMetadata(buildRomanDenariusCore({
+      name: 'Trajan Victory Denarius', dateRange: 'AD 98-117',
+    }))
 
     expect(metadata).toEqual({
-      title: 'Trajan, AD 98-117',
-      details: ['Rome mint. Silver Denarius.', '3.35 g; 18 mm.'],
+      title: 'Trajan Victory Denarius',
+      details: ['Trajan, AD 98-117', 'Rome mint. Silver Denarius.', '3.35 g; 18 mm.'],
       obverse: 'IMP TRAIANO AVG GER DAC P M TR P. Laureate bust right',
       reverse: 'SPQR OPTIMO PRINCIPI. Victory standing left',
       references: 'RIC II Trajan 147',
@@ -60,7 +62,7 @@ describe('coinShareCard', () => {
     expect(JSON.stringify(metadata)).not.toContain('private-source')
   })
 
-  it('omits missing attribution and invalid measurements and falls back to the coin name', () => {
+  it('keeps the coin title when attribution is missing and omits invalid measurements', () => {
     const metadata = getShareCardMetadata(buildRomanDenariusCore({
       name: 'Unattributed coin', ruler: '', dateRange: null, mint: '', denomination: '',
       weightGrams: Number.NaN, diameterMm: -1,
@@ -72,10 +74,20 @@ describe('coinShareCard', () => {
       title: 'Unattributed coin', details: ['Silver.'], obverse: '', reverse: '', references: '',
     })
     expect(getShareCardMetadata(buildRomanDenariusCore({ name: '', ruler: '' })).title).toBe('Untitled Coin')
+    expect(getShareCardMetadata(buildRomanDenariusCore({ name: '', ruler: 'Trajan' })).title).toBe('Untitled Coin')
     expect(getShareCardMetadata(buildRomanDenariusCore({ weightGrams: null, diameterMm: null })).details)
-      .toEqual(['Rome mint. Silver Denarius.'])
-    expect(getShareCardMetadata(buildRomanDenariusCore({ mint: 'Rome mint' })).details[0])
+      .toEqual(['Trajan', 'Rome mint. Silver Denarius.'])
+    expect(getShareCardMetadata(buildRomanDenariusCore({ mint: 'Rome mint' })).details[1])
       .toBe('Rome mint. Silver Denarius.')
+  })
+
+  it.each(['', '   '])('preserves the title and known date without a ruler (%j)', (ruler) => {
+    const metadata = getShareCardMetadata(buildRomanDenariusCore({
+      name: 'Unattributed silver coin', ruler, dateRange: 'AD 98-117',
+    }))
+
+    expect(metadata.title).toBe('Unattributed silver coin')
+    expect(metadata.details).toEqual(['AD 98-117', 'Rome mint. Silver Denarius.', '3.35 g; 18 mm.'])
   })
 
   it('excludes value, purchase, notes, AI, owner, listing, tag, set, and privacy fields', () => {
@@ -190,7 +202,7 @@ describe('coinShareCard', () => {
     const canvas = mockCanvas(ctx, vi.fn((callback: BlobCallback) => callback(pngBlob)))
 
     await renderCoinShareCard({
-      coin: buildRomanDenariusCore({ images: [] }),
+      coin: buildRomanDenariusCore({ name: 'Trajan Victory Denarius', images: [] }),
       imageUrl: null,
       appName: 'Aurearia - Coin Collection',
     })
@@ -201,8 +213,10 @@ describe('coinShareCard', () => {
       [0, 0, 1080, 672],
       [0, 672, 1080, canvas.height - 672],
     ])
-    expect(textStyles).toContainEqual({ text: 'Trajan', font: '400 52px Georgia, serif', align: 'left', color: '#322a20' })
+    expect(textStyles).toContainEqual({ text: 'Trajan Victory Denarius', font: '400 52px Georgia, serif', align: 'left', color: '#322a20' })
     const attribution = fillText.mock.calls.filter(([, x, y]) => Number(x) === 64 && Number(y) >= 728)
+    expect(attribution.slice(0, 2).map(([text]) => String(text))).toEqual(['Trajan Victory Denarius', 'Trajan'])
+    expect(Number(attribution[1]?.[2])).toBeGreaterThan(Number(attribution[0]?.[2]))
     expect(attribution.map(([text]) => String(text)).join(' ')).toContain('Obv. IMP TRAIANO')
     expect(attribution.map(([text]) => String(text)).join(' ')).toContain('Rev. SPQR OPTIMO PRINCIPI.')
     expect(attribution.map(([text]) => String(text)).join(' ')).toContain('References: RIC II Trajan 147')

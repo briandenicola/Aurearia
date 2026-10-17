@@ -2,9 +2,9 @@ name: Feature 362 Compatibility
 
 on:
   pull_request:
-    branches: [main, beta]
+    branches: [beta]
   push:
-    branches: [main, beta]
+    branches: [beta]
   workflow_dispatch:
 
 permissions:

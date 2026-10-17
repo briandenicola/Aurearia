@@ -1,18 +1,39 @@
 name: Build and Push Beta to Docker Hub
 
 on:
-  workflow_run:
-    workflows: [Quality Gate]
+  push:
     branches: [beta]
-    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+concurrency:
+  group: beta-publish
+  cancel-in-progress: false
 
 env:
   IMAGE_APP: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins
   IMAGE_AGENT: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins-agent
 
 jobs:
+  validate:
+    name: Verify full beta validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24.15.0
+      - name: Require trusted checks before publishing beta images
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/delivery/verify-candidate.mjs --beta
+
   build-and-push-app:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,7 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -35,7 +56,7 @@ jobs:
       - name: Prepare image tags
         id: tags
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           short_sha="${HEAD_SHA::7}"
           echo "tags=${IMAGE_APP}:sha-${HEAD_SHA},${IMAGE_APP}:sha-${short_sha},${IMAGE_APP}:beta" >> "$GITHUB_OUTPUT"
@@ -45,19 +66,32 @@ jobs:
         run: echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push app
+        id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
-            APP_VERSION=${{ github.event.workflow_run.head_sha }}
+            APP_VERSION=${{ github.sha }}
             BUILD_DATE=${{ steps.date.outputs.build_date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Record immutable app image identity
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')" node scripts/delivery/image-receipt.mjs write app image-receipt.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: beta-app-${{ github.sha }}
+          path: image-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
   build-and-push-agent:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -66,7 +100,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -80,12 +114,13 @@ jobs:
       - name: Prepare image tags
         id: tags
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           short_sha="${HEAD_SHA::7}"
           echo "tags=${IMAGE_AGENT}:sha-${HEAD_SHA},${IMAGE_AGENT}:sha-${short_sha},${IMAGE_AGENT}:beta" >> "$GITHUB_OUTPUT"
 
       - name: Build and push agent
+        id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: src/agent
@@ -94,3 +129,15 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Record immutable agent image identity
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')" node scripts/delivery/image-receipt.mjs write agent image-receipt.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: beta-agent-${{ github.sha }}
+          path: image-receipt.json
+          if-no-files-found: error
+          retention-days: 30

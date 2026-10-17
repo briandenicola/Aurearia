@@ -25,6 +25,15 @@ Transitive security floors for `langgraph-sdk` and `multidict` are recorded in
 `pyproject.toml`; refresh their lock entries deliberately rather than upgrading
 the whole agent environment.
 
+CI [validates once on beta](ci-candidate-reuse.md). The beta publisher records
+the immutable app/agent image digests. After the identical main tree passes
+the lightweight candidate gate and the owner approves the protected release,
+main promotes those digests to `latest` and the main SHA tags without rebuilding.
+The image's embedded version/build date remain those of the tested beta build;
+the main merge SHA is a promotion identity, not a claim of a second build.
+Record both digests before considering publication complete. Deployment to the
+local server remains a separate owner action.
+
 The app container contains:
 
 | Path | Description |
