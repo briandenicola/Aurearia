@@ -14,7 +14,7 @@ RUN npm run prepare-background-removal-assets
 RUN npm run build
 
 # Build Go API
-FROM golang:1.26.6-alpine@sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df AS api-build
+FROM golang:1.26.9-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS api-build
 WORKDIR /src
 COPY src/api/go.mod src/api/go.sum ./
 RUN go mod download

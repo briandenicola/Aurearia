@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Collector-ticket share cards** — Coin sharing places obverse and reverse
+  images above a cream attribution ticket with stored legends, descriptions,
+  dimensions and catalogue references. Long attribution is preserved; private
+  notes, values and owner details remain excluded.
 - **Feature 366 native MCP agentic harness** — Aurearia now exposes a
   default-off, owner-scoped Streamable HTTP endpoint at `/api/mcp`. Eight
   read-only tools cover collection, wishlist, auction, and statistics data;
@@ -30,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Security-gate dependency findings** — Go 1.26.9 and the matching pinned
+  builder image address standard-library advisories. Targeted Go networking,
+  npm transitive and Python transitive updates address the corresponding
+  dependency/container findings without weakening audit thresholds.
 - **Admin schedule run-history tables overflowed on mobile** — Every run-history
   table in Admin → Schedules burst its card on a narrow PWA viewport, clipping
   the right-hand columns (Duration, Errors) with no way to reach them. All

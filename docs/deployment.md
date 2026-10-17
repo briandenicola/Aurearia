@@ -16,11 +16,14 @@ Aurearia runs as **two Docker containers** orchestrated via `docker-compose.yaml
 The **app** container uses a 3-stage Dockerfile (`Dockerfile`) that builds through:
 
 1. **Node 24** — builds the Vue frontend (`npm run build`)
-2. **Go 1.26.6** — compiles the API binary and embeds the Vue dist
+2. **Go 1.26.9** — compiles the API binary and embeds the Vue dist
 3. **Alpine 3.21** — minimal runtime (~40 MB final image)
 
 The **agent** container uses a separate Dockerfile (`src/agent/Dockerfile`) to build the Python LangGraph service.
 Python agent dependencies are installed from `src/agent/uv.lock` with uv 0.11.22 so CI and Docker builds use the same locked resolution.
+Transitive security floors for `langgraph-sdk` and `multidict` are recorded in
+`pyproject.toml`; refresh their lock entries deliberately rather than upgrading
+the whole agent environment.
 
 The app container contains:
 

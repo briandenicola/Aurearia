@@ -61,6 +61,13 @@
     "node": "^22.22.2 || >=24.15.0"
   },
   "overrides": {
+    "npm-run-all2": {
+      "shell-quote": "1.11.0"
+    },
+    "eslint-plugin-vue": {
+      "postcss-selector-parser": "7.1.6"
+    },
+    "source-map-js": "1.2.2",
     "@vue/test-utils": {
       "js-beautify": "2.0.3"
     },

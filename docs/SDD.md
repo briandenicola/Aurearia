@@ -94,7 +94,7 @@ The system provides:
 
 | Layer | Technology | Version |
 |---|---|---|
-| Backend API | Go, Gin, GORM | Go 1.26.6 |
+| Backend API | Go, Gin, GORM | Go 1.26.9 |
 | Frontend SPA | Vue 3, TypeScript, Pinia, Vite | Vue 3 |
 | Agent Service | Python, FastAPI, LangGraph, LangChain | Python 3.12 |
 | Database | SQLite (WAL mode) | — |
@@ -901,7 +901,7 @@ The system implements a multi-layered authentication strategy:
 | Stage | Base Image | Output |
 |---|---|---|
 | `web-build` | `node:24-alpine@sha256:...` | Vue production bundle (`/web/dist`) |
-| `api-build` | `golang:1.26.6-alpine@sha256:...` | Static Go binary (`CGO_ENABLED=0`) |
+| `api-build` | `golang:1.26.9-alpine@sha256:...` | Static Go binary (`CGO_ENABLED=0`) |
 | Final | `alpine:3.21@sha256:...` | Combined binary + SPA assets |
 
 **Agent Container** (`src/agent/Dockerfile`) — 2-stage build:
