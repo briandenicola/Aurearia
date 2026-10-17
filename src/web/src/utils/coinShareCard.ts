@@ -2,38 +2,27 @@ import type { Coin, CoinImage } from '@/types'
 import { isPrivateUploadPath, privateMediaObjectUrl } from '@/utils/media'
 
 const CARD_WIDTH = 1080
-const CARD_HEIGHT = 1350
-const CARD_PADDING = 72
-const IMAGE_FRAME_X = 96
-const IMAGE_FRAME_Y = 88
-const IMAGE_FRAME_WIDTH = 888
-const IMAGE_FRAME_HEIGHT = 610
-const TITLE_START_Y = 790
-const METADATA_START_Y = 980
-const FOOTER_Y = 1288
+const CARD_HEIGHT = 1440
+const TICKET_Y = 672
+const CARD_PADDING = 64
 
-const TOKEN_COLORS = {
-  bgPrimary: '#0f172a',
-  bgSecondary: '#1a1a2e',
-  bgCard: '#16213e',
-  bgInput: '#1e2a4a',
-  accentGold: '#c9a84c',
-  accentBronze: '#b08d57',
-  textPrimary: '#e8e0d0',
-  textSecondary: '#a09880',
-  textMuted: '#706858',
-  borderSubtle: 'rgba(201, 168, 76, 0.28)',
-}
-
-export interface CoinShareCardField {
-  label: string
-  value: string
+const CARD_COLORS = {
+  background: '#17191b',
+  paperStart: '#efe1c4',
+  paperMiddle: '#f6ebd4',
+  paperEnd: '#ecddbd',
+  ink: '#322a20',
+  brand: '#c8b68c',
+  imageLabel: '#9e9c95',
+  footer: '#83745b',
 }
 
 export interface CoinShareCardMetadata {
   title: string
-  category: string
-  fields: CoinShareCardField[]
+  details: string[]
+  obverse: string
+  reverse: string
+  references: string
 }
 
 export interface CoinShareCardInput {
@@ -54,8 +43,10 @@ export interface CoinShareCardContext {
   summary?: string
 }
 
-interface TextLine {
-  text: string
+interface TicketBlock {
+  lines: string[]
+  font: string
+  lineHeight: number
   y: number
 }
 
@@ -63,26 +54,35 @@ function cleanText(value: string | null | undefined): string {
   return value?.trim() ?? ''
 }
 
-function addField(fields: CoinShareCardField[], label: string, value: string | null | undefined) {
-  const clean = cleanText(value)
-  if (clean) {
-    fields.push({ label, value: clean })
-  }
+function sentence(value: string): string {
+  return value && !/[.!?]$/.test(value) ? `${value}.` : value
 }
 
 export function getShareCardMetadata(coin: Coin): CoinShareCardMetadata {
-  const fields: CoinShareCardField[] = []
-  addField(fields, 'Ruler', coin.ruler)
-  addField(fields, 'Denomination', coin.denomination)
-  addField(fields, 'Era', coin.era)
-  addField(fields, 'Mint', coin.mint)
-  addField(fields, 'Material', coin.material)
-  addField(fields, 'Grade', coin.grade)
+  const identity = cleanText(coin.ruler) || cleanText(coin.name) || 'Untitled Coin'
+  const date = cleanText(coin.dateRange)
+  const mint = cleanText(coin.mint)
+  const issue = [cleanText(coin.material), cleanText(coin.denomination)].filter(Boolean).join(' ')
+  const dimensions: string[] = []
+  if (coin.weightGrams != null && Number.isFinite(coin.weightGrams) && coin.weightGrams > 0) {
+    dimensions.push(`${coin.weightGrams.toFixed(2)} g`)
+  }
+  if (coin.diameterMm != null && Number.isFinite(coin.diameterMm) && coin.diameterMm > 0) {
+    dimensions.push(`${coin.diameterMm} mm`)
+  }
+  const references = (coin.references ?? [])
+    .map((reference) => [reference.catalog, reference.volume, reference.number].map(cleanText).filter(Boolean).join(' '))
+    .filter(Boolean)
 
   return {
-    title: cleanText(coin.name) || 'Untitled Coin',
-    category: cleanText(coin.category),
-    fields,
+    title: date ? `${identity}, ${date}` : identity,
+    details: [
+      [mint ? sentence(/\bmint$/i.test(mint) ? mint : `${mint} mint`) : '', sentence(issue)].filter(Boolean).join(' '),
+      sentence(dimensions.join('; ')),
+    ].filter(Boolean),
+    obverse: [sentence(cleanText(coin.obverseInscription)), cleanText(coin.obverseDescription)].filter(Boolean).join(' '),
+    reverse: [sentence(cleanText(coin.reverseInscription)), cleanText(coin.reverseDescription)].filter(Boolean).join(' '),
+    references: [...new Set(references)].join('; ') || cleanText(coin.referenceText),
   }
 }
 
@@ -143,64 +143,40 @@ function drawContainedImage(
   y: number,
   maxWidth: number,
   maxHeight: number,
-  visualScale = 1,
 ) {
   const width = image.naturalWidth || image.width
   const height = image.naturalHeight || image.height
   if (!width || !height) return
 
-  const scale = Math.min(maxWidth / width, maxHeight / height) * visualScale
+  const scale = Math.min(maxWidth / width, maxHeight / height)
   const drawWidth = width * scale
   const drawHeight = height * scale
   ctx.drawImage(image, x + (maxWidth - drawWidth) / 2, y + (maxHeight - drawHeight) / 2, drawWidth, drawHeight)
 }
 
-function drawRoundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  const safeRadius = Math.min(radius, width / 2, height / 2)
-  ctx.beginPath()
-  ctx.moveTo(x + safeRadius, y)
-  ctx.lineTo(x + width - safeRadius, y)
-  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
-  ctx.lineTo(x + width, y + height - safeRadius)
-  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
-  ctx.lineTo(x + safeRadius, y + height)
-  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
-  ctx.lineTo(x, y + safeRadius)
-  ctx.quadraticCurveTo(x, y, x + safeRadius, y)
-  ctx.closePath()
-}
-
-function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let line = ''
 
   for (const word of words) {
-    const next = line ? `${line} ${word}` : word
-    if (ctx.measureText(next).width > maxWidth && line) {
+    if (line && ctx.measureText(`${line} ${word}`).width > maxWidth) {
       lines.push(line)
-      line = word
-      if (lines.length === maxLines - 1) break
-    } else {
-      line = next
+      line = ''
+    }
+    if (line) {
+      line += ` ${word}`
+      continue
+    }
+    for (const character of word) {
+      if (line && ctx.measureText(line + character).width > maxWidth) {
+        lines.push(line)
+        line = ''
+      }
+      line += character
     }
   }
-  if (line && lines.length < maxLines) lines.push(line)
-
-  if (lines.length === maxLines && words.join(' ') !== lines.join(' ')) {
-    let last = lines[lines.length - 1] ?? ''
-    while (last.length > 4 && ctx.measureText(`${last}...`).width > maxWidth) {
-      last = last.slice(0, -1).trimEnd()
-    }
-    lines[lines.length - 1] = `${last}...`
-  }
+  if (line) lines.push(line)
 
   return lines
 }
@@ -215,204 +191,94 @@ function plainText(value: string | null | undefined): string {
     .trim()
 }
 
-function drawCenteredWrappedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  y: number,
-  maxWidth: number,
-  lineHeight: number,
-  maxLines: number,
-): TextLine[] {
-  const lines = wrapLines(ctx, text, maxWidth, maxLines)
-  const drawn: TextLine[] = []
-  lines.forEach((line, index) => {
-    const lineY = y + index * lineHeight
-    ctx.fillText(line, CARD_WIDTH / 2, lineY)
-    drawn.push({ text: line, y: lineY })
-  })
-  return drawn
-}
-
-function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const gradient = ctx.createLinearGradient(0, 0, width, height)
-  gradient.addColorStop(0, TOKEN_COLORS.bgCard)
-  gradient.addColorStop(0.55, TOKEN_COLORS.bgPrimary)
-  gradient.addColorStop(1, '#0b1020')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, width, height)
-
-  ctx.fillStyle = 'rgba(201, 168, 76, 0.06)'
-  ctx.fillRect(CARD_PADDING, IMAGE_FRAME_Y + 34, width - CARD_PADDING * 2, IMAGE_FRAME_HEIGHT)
-}
-
-function drawImagePanel(
-  ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement | null,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  ctx.save()
-  ctx.fillStyle = TOKEN_COLORS.bgInput
-  ctx.strokeStyle = TOKEN_COLORS.borderSubtle
-  ctx.lineWidth = 3
-  drawRoundedRect(ctx, x, y, width, height, 36)
-  ctx.fill()
-  ctx.stroke()
-  ctx.clip()
-
-  if (image) {
-    drawContainedImage(ctx, image, x, y, width, height, 1.24)
-  } else {
-    ctx.fillStyle = TOKEN_COLORS.textMuted
-    ctx.font = '600 36px Inter, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('No coin image', x + width / 2, y + height / 2)
-  }
-
-  ctx.restore()
-}
-
-function drawImageFrame(ctx: CanvasRenderingContext2D, images: HTMLImageElement[]) {
-  if (images.length > 1) {
-    const panelGap = 32
-    const panelWidth = (IMAGE_FRAME_WIDTH - panelGap) / 2
-    const panelHeight = IMAGE_FRAME_HEIGHT
-    drawImagePanel(ctx, images[0] ?? null, IMAGE_FRAME_X, IMAGE_FRAME_Y, panelWidth, panelHeight)
-    drawImagePanel(ctx, images[1] ?? null, IMAGE_FRAME_X + panelWidth + panelGap, IMAGE_FRAME_Y, panelWidth, panelHeight)
-  } else {
-    drawImagePanel(ctx, images[0] ?? null, IMAGE_FRAME_X, IMAGE_FRAME_Y, IMAGE_FRAME_WIDTH, IMAGE_FRAME_HEIGHT)
-  }
-
-  ctx.strokeStyle = TOKEN_COLORS.accentGold
-  ctx.lineWidth = 4
-  drawRoundedRect(ctx, IMAGE_FRAME_X - 8, IMAGE_FRAME_Y - 8, IMAGE_FRAME_WIDTH + 16, IMAGE_FRAME_HEIGHT + 16, 42)
-  ctx.stroke()
-}
-
-function drawMetadataGrid(ctx: CanvasRenderingContext2D, fields: CoinShareCardField[]) {
-  const columns = 2
-  const gridWidth = 760
-  const columnGap = 84
-  const columnWidth = (gridWidth - columnGap) / columns
-  const rowHeight = 104
-  const gridX = (CARD_WIDTH - gridWidth) / 2
-
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-
-  fields.slice(0, 4).forEach((field, index) => {
-    const column = index % columns
-    const row = Math.floor(index / columns)
-    const x = gridX + column * (columnWidth + columnGap) + columnWidth / 2
-    const y = METADATA_START_Y + row * rowHeight
-
-    ctx.fillStyle = TOKEN_COLORS.textMuted
-    ctx.font = '600 20px Inter, sans-serif'
-    ctx.fillText(field.label.toUpperCase(), x, y)
-
-    ctx.fillStyle = TOKEN_COLORS.textSecondary
-    ctx.font = '400 28px Inter, sans-serif'
-    const valueLines = wrapLines(ctx, field.value, columnWidth, 2)
-    valueLines.forEach((line, lineIndex) => {
-      ctx.fillText(line, x, y + 38 + lineIndex * 32)
-    })
-  })
-}
-
-function drawMetadata(ctx: CanvasRenderingContext2D, metadata: CoinShareCardMetadata, appName: string) {
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = TOKEN_COLORS.textPrimary
-  ctx.font = '600 54px Cinzel, serif'
-  const titleLines = drawCenteredWrappedText(ctx, metadata.title, TITLE_START_Y, 900, 58, 2)
-
-  let categoryY = TITLE_START_Y + 126
-  if (titleLines.length === 1) {
-    categoryY = TITLE_START_Y + 80
-  }
-
-  if (metadata.category) {
-    ctx.font = '600 26px Inter, sans-serif'
-    ctx.fillStyle = TOKEN_COLORS.accentGold
-    ctx.fillText(metadata.category.toUpperCase(), CARD_WIDTH / 2, categoryY)
-  }
-
-  drawMetadataGrid(ctx, metadata.fields)
-
-  ctx.fillStyle = TOKEN_COLORS.accentBronze
-  ctx.font = '600 28px Cinzel, serif'
-  ctx.textAlign = 'center'
-  ctx.fillText(appName, CARD_WIDTH / 2, FOOTER_Y)
-}
-
-function drawCompactMetadataRow(ctx: CanvasRenderingContext2D, fields: CoinShareCardField[]) {
-  const visibleFields = fields.slice(0, 3)
-  if (visibleFields.length === 0) return
-
-  const gridWidth = 840
-  const columnWidth = gridWidth / visibleFields.length
-  const gridX = (CARD_WIDTH - gridWidth) / 2
-  const y = 1166
-
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  visibleFields.forEach((field, index) => {
-    const x = gridX + columnWidth * index + columnWidth / 2
-    ctx.fillStyle = TOKEN_COLORS.textMuted
-    ctx.font = '600 18px Inter, sans-serif'
-    ctx.fillText(field.label.toUpperCase(), x, y)
-
-    ctx.fillStyle = TOKEN_COLORS.textSecondary
-    ctx.font = '400 24px Inter, sans-serif'
-    const value = wrapLines(ctx, field.value, columnWidth - 28, 1)[0] ?? ''
-    ctx.fillText(value, x, y + 34)
-  })
-}
-
-function drawMetadataWithContext(
+function layoutTicket(
   ctx: CanvasRenderingContext2D,
   metadata: CoinShareCardMetadata,
-  appName: string,
-  context: CoinShareCardContext,
+  context?: CoinShareCardContext,
 ) {
-  const heading = cleanText(context?.heading)
-  const summary = plainText(context?.summary)
+  const blocks: TicketBlock[] = []
+  let y = TICKET_Y + 56
+  function add(text: string, font: string, lineHeight: number, gap: number) {
+    if (!text) return
+    ctx.font = font
+    const lines = wrapLines(ctx, text, CARD_WIDTH - CARD_PADDING * 2)
+    blocks.push({ lines, font, lineHeight, y })
+    y += lines.length * lineHeight + gap
+  }
+
+  add(metadata.title, '400 52px Georgia, serif', 64, 16)
+  metadata.details.forEach((detail, index) => {
+    add(detail, '400 32px Georgia, serif', 44, index === metadata.details.length - 1 ? 22 : 0)
+  })
+  add(metadata.obverse ? `Obv. ${metadata.obverse}` : '', '400 32px Georgia, serif', 44, 26)
+  add(metadata.reverse ? `Rev. ${metadata.reverse}` : '', '400 32px Georgia, serif', 44, 26)
+  add(metadata.references ? `References: ${metadata.references}` : '', '400 28px Georgia, serif', 38, 26)
+  add(cleanText(context?.heading), '600 28px Georgia, serif', 38, 10)
+  add(plainText(context?.summary), '400 28px Georgia, serif', 38, 0)
+  return { blocks, height: Math.max(CARD_HEIGHT, y + 120) }
+}
+
+function drawImageFrame(
+  ctx: CanvasRenderingContext2D,
+  images: HTMLImageElement[],
+  imageUrls: string[],
+  coin: Coin,
+  appName: string,
+) {
+  const slots: (HTMLImageElement | null)[] = [null, null]
+  const labels = ['OBVERSE', 'REVERSE']
+  images.forEach((image, index) => {
+    const type = coin.images?.find((candidate) => imagePath(candidate) === imageUrls[index])?.imageType
+    const slot = type === 'reverse' ? 1 : type === 'obverse' ? 0 : index
+    slots[slot] = image
+    if (type && type !== 'obverse' && type !== 'reverse') labels[slot] = 'COIN'
+  })
+
+  ctx.textBaseline = 'top'
   ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = TOKEN_COLORS.textPrimary
-  ctx.font = '600 52px Cinzel, serif'
-  const titleLines = drawCenteredWrappedText(ctx, metadata.title, 762, 900, 56, 2)
+  ctx.fillStyle = CARD_COLORS.brand
+  ctx.font = '400 24px Georgia, serif'
+  const brand = cleanText(appName.split(' - ')[0]) || 'Aurearia'
+  ctx.fillText(brand.toUpperCase(), CARD_WIDTH / 2, 44)
 
-  let labelY = 862
-  if (titleLines.length > 1) {
-    labelY = 908
+  const gap = 48
+  const panelWidth = (CARD_WIDTH - CARD_PADDING * 2 - gap) / 2
+  slots.forEach((image, index) => {
+    const x = CARD_PADDING + index * (panelWidth + gap)
+    if (image) {
+      drawContainedImage(ctx, image, x, 128, panelWidth, 432)
+    } else {
+      ctx.fillStyle = CARD_COLORS.imageLabel
+      ctx.font = '400 24px Georgia, serif'
+      ctx.fillText(index === 0 ? 'No obverse image' : 'No reverse image', x + panelWidth / 2, 332)
+    }
+    ctx.fillStyle = CARD_COLORS.imageLabel
+    ctx.font = '400 18px Arial, sans-serif'
+    ctx.fillText(labels[index] ?? 'COIN', x + panelWidth / 2, 602)
+  })
+}
+
+function drawTicket(ctx: CanvasRenderingContext2D, blocks: TicketBlock[], height: number, appName: string) {
+  const paper = ctx.createLinearGradient(0, TICKET_Y, CARD_WIDTH, height)
+  paper.addColorStop(0, CARD_COLORS.paperStart)
+  paper.addColorStop(0.55, CARD_COLORS.paperMiddle)
+  paper.addColorStop(1, CARD_COLORS.paperEnd)
+  ctx.fillStyle = paper
+  ctx.fillRect(0, TICKET_Y, CARD_WIDTH, height - TICKET_Y)
+  ctx.fillStyle = CARD_COLORS.ink
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'top'
+  for (const block of blocks) {
+    ctx.font = block.font
+    block.lines.forEach((line, index) => {
+      ctx.fillText(line, CARD_PADDING, block.y + index * block.lineHeight)
+    })
   }
-
-  if (heading) {
-    ctx.fillStyle = TOKEN_COLORS.accentGold
-    ctx.font = '600 24px Inter, sans-serif'
-    ctx.fillText(heading.toUpperCase(), CARD_WIDTH / 2, labelY)
-  } else if (metadata.category) {
-    ctx.fillStyle = TOKEN_COLORS.accentGold
-    ctx.font = '600 24px Inter, sans-serif'
-    ctx.fillText(metadata.category.toUpperCase(), CARD_WIDTH / 2, labelY)
-  }
-
-  if (summary) {
-    ctx.fillStyle = TOKEN_COLORS.textSecondary
-    ctx.font = '400 27px Inter, sans-serif'
-    drawCenteredWrappedText(ctx, summary, labelY + 52, 850, 36, 4)
-  }
-
-  drawCompactMetadataRow(ctx, metadata.fields)
-
-  ctx.fillStyle = TOKEN_COLORS.accentBronze
-  ctx.font = '600 28px Cinzel, serif'
-  ctx.textAlign = 'center'
-  ctx.fillText(appName, CARD_WIDTH / 2, FOOTER_Y)
+  ctx.fillStyle = CARD_COLORS.footer
+  ctx.font = '400 16px Arial, sans-serif'
+  ctx.fillText(appName, CARD_PADDING, height - 54)
+  ctx.textAlign = 'right'
+  ctx.fillText('ATTRIBUTION', CARD_WIDTH - CARD_PADDING, height - 54)
 }
 
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -432,10 +298,7 @@ export async function renderCoinShareCard(
   options: CoinShareCardRenderOptions = {},
 ): Promise<Blob> {
   const width = options.width ?? CARD_WIDTH
-  const height = options.height ?? CARD_HEIGHT
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
 
   const ctx = canvas.getContext('2d')
   if (!ctx) {
@@ -443,6 +306,9 @@ export async function renderCoinShareCard(
   }
 
   const metadata = getShareCardMetadata(input.coin)
+  const ticket = layoutTicket(ctx, metadata, input.context)
+  canvas.width = width
+  canvas.height = options.height ?? Math.round(ticket.height * width / CARD_WIDTH)
   const imageUrls = input.imageUrls ?? (input.imageUrl ? [input.imageUrl] : [])
   const objectUrls: string[] = []
 
@@ -455,13 +321,11 @@ export async function renderCoinShareCard(
     }))
     const images = await Promise.all(resolvedImageUrls.map((imageUrl) => loadImage(imageUrl)))
 
-    drawBackground(ctx, width, height)
-    drawImageFrame(ctx, images)
-    if (input.context && (cleanText(input.context.heading) || cleanText(input.context.summary))) {
-      drawMetadataWithContext(ctx, metadata, input.appName, input.context)
-    } else {
-      drawMetadata(ctx, metadata, input.appName)
-    }
+    ctx.scale(canvas.width / CARD_WIDTH, canvas.height / ticket.height)
+    ctx.fillStyle = CARD_COLORS.background
+    ctx.fillRect(0, 0, CARD_WIDTH, TICKET_Y)
+    drawImageFrame(ctx, images, imageUrls, input.coin, input.appName)
+    drawTicket(ctx, ticket.blocks, ticket.height, input.appName)
 
     return await canvasToPngBlob(canvas)
   } finally {

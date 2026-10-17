@@ -23,6 +23,21 @@ npm run test:watch   # run tests in watch mode
 npm run type-check   # vue-tsc type checking
 ```
 
+## Coin share cards
+
+The coin detail Share action and Coin of the Day use the same collector-ticket
+PNG renderer. The upper section shows the obverse and reverse side by side on
+charcoal; the lower section uses cream paper and left-aligned serif attribution.
+Images are contained without cropping, and missing faces are labelled.
+
+Attribution uses the saved ruler/name, date range, mint, material, denomination,
+weight, diameter, face inscriptions/descriptions, and catalogue references
+(with legacy reference text as a fallback). Missing fields are omitted, not
+inferred by AI. Long attribution expands the image vertically instead of
+truncating text. Coin of the Day context is appended without replacing attribution.
+Prices, purchase details, storage, owner details, notes, and AI analysis are not
+included. Native file sharing and the PNG-download fallback are unchanged.
+
 ## Key Dependencies
 
 | Dependency | Purpose |

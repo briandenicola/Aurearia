@@ -5,7 +5,7 @@
 > **Note:** This application is 100% vibe coded. It exists for the author to learn and experiment with GitHub Copilot CLI.
 
 [![CI](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml/badge.svg)](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml)
-![Go](https://img.shields.io/badge/Go-1.26.6-00ADD8?logo=go)
+![Go](https://img.shields.io/badge/Go-1.26.9-00ADD8?logo=go)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
 ![Python](https://img.shields.io/badge/Python-3.12-3776ab?logo=python)
@@ -168,7 +168,7 @@ Browser ──► Vue 3 SPA  ──► Go API (Gin, GORM, SQLite) ──► Pyth
 
 | Layer    | Tech                                  | Path         |
 | -------- | ------------------------------------- | ------------ |
-| Backend  | Go 1.26.6 (Gin), GORM, pure-Go SQLite | `src/api/`   |
+| Backend  | Go 1.26.9 (Gin), GORM, pure-Go SQLite | `src/api/`   |
 | Frontend | Vue 3, TypeScript, Vite, Pinia (PWA)  | `src/web/`   |
 | Agent    | Python 3.12, FastAPI, LangGraph       | `src/agent/` |
 
@@ -178,7 +178,7 @@ Full details in **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**; the binding 
 
 ## Quick Start
 
-**Prerequisites:** [Go 1.26.6](https://go.dev/dl/), [Node.js 20+](https://nodejs.org/), [Task](https://taskfile.dev/) (optional), [Docker](https://docs.docker.com/get-docker/) (optional), [Ollama](https://ollama.ai/) (optional — for local AI).
+**Prerequisites:** [Go 1.26.9](https://go.dev/dl/), [Node.js 20+](https://nodejs.org/), [Task](https://taskfile.dev/) (optional), [Docker](https://docs.docker.com/get-docker/) (optional), [Ollama](https://ollama.ai/) (optional — for local AI).
 
 ```sh
 git clone <repo-url> && cd coin-collection-app
