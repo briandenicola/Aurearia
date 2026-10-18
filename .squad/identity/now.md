@@ -15,8 +15,9 @@ is unchanged. Prior delivery/share-title work merged in #826.
 
 ## Next Action
 
-Implementation and bounded pre-push review complete; B1/B2 explicitly cleared.
-Owner authorized commit/push beta. Use exact-head beta CI for full gate status;
-review evidence and candidate identity are recorded in the handoff.
+PR #827 is open. Repair its CodeQL extension-path alerts using fixed allowlisted
+suffixes; owner approved one reviewer read, then commit/push beta.
+See [repair](../log/2026-10-18-attribution-extension-codeql.md).
+Software QC audit remains required before merge; no merge/deployment authorized.
 No builds, installs, containers, main merge or deployment. See
 [handoff](../log/2026-10-17-attribution-card-retention.md).

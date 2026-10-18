@@ -1,9 +1,11 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +14,31 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestNormalizeImageExtCanonicalAllowlist(t *testing.T) {
+	for _, ext := range []string{".jpg", ".jpeg", ".png", ".gif", ".webp"} {
+		for _, input := range []string{ext, ext[1:], " " + strings.ToUpper(ext) + " "} {
+			t.Run(input, func(t *testing.T) {
+				got, err := NormalizeImageExt(input)
+				if err != nil || got != ext {
+					t.Fatalf("NormalizeImageExt(%q) = %q, %v; want %q, nil", input, got, err, ext)
+				}
+			})
+		}
+	}
+	for _, input := range []string{
+		"", ".", ".svg", ".jpg/../../escape", "../escape.jpg",
+		`..\escape.jpg`, `C:\escape.jpg`, "/tmp/escape.png",
+		".png\x00.jpg", "%2e%2e%2fescape.jpg",
+	} {
+		t.Run(input, func(t *testing.T) {
+			got, err := NormalizeImageExt(input)
+			if got != "" || !errors.Is(err, ErrInvalidFileExt) {
+				t.Fatalf("NormalizeImageExt(%q) = %q, %v; want empty extension and ErrInvalidFileExt", input, got, err)
+			}
+		})
+	}
+}
 
 func TestValidateImageDataRejectsNonImageBytes(t *testing.T) {
 	if err := ValidateImageData([]byte("not an image")); err == nil {

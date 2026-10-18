@@ -192,8 +192,16 @@ func NormalizeImageExt(ext string) (string, error) {
 	}
 
 	switch normalized {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
-		return normalized, nil
+	case ".jpg":
+		return ".jpg", nil
+	case ".jpeg":
+		return ".jpeg", nil
+	case ".png":
+		return ".png", nil
+	case ".gif":
+		return ".gif", nil
+	case ".webp":
+		return ".webp", nil
 	default:
 		return "", ErrInvalidFileExt
 	}
