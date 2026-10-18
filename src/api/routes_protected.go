@@ -200,6 +200,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 
 		protected.POST("/coins/:id/images", d.writeRateLimit, d.imageHandler.Upload)
 		protected.POST("/coins/:id/images/base64", d.writeRateLimit, d.imageHandler.UploadBase64)
+		protected.GET("/coins/:id/attribution-cards", d.imageHandler.ListAttributionCards)
 		protected.DELETE("/coins/:id/images/:imageId", d.imageHandler.Delete)
 		protected.GET("/uploads/*filepath", d.imageHandler.ServeUpload)
 		protected.GET("/proxy-image", d.imageHandler.ProxyImage)

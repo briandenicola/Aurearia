@@ -33,6 +33,11 @@ const saving = ref(false)
 const coinFormRef = ref<InstanceType<typeof CoinForm> | null>(null)
 
 const form = reactive<Partial<Coin>>({})
+let uploadedCard: File | null = null
+type CoinFace = 'obverse' | 'reverse'
+const savedFaces = new Map<CoinFace, { file: File; imageId: number; supersededId: number | null }>()
+const removedImages = new Set<number>()
+let cleanupPending = false
 
 onMounted(async () => {
   const id = Number(route.params['id'])
@@ -57,7 +62,6 @@ async function handleSubmit() {
   // image ones can fail on their own — telling the user the whole edit was
   // lost when only the upload failed sends them back to redo work that saved.
   let coinSaved = false
-  let cleanupPending = false
   try {
     await updateCoin(form.id!, form)
     coinSaved = true
@@ -65,7 +69,9 @@ async function handleSubmit() {
     const formComp = coinFormRef.value
     const coinId = form.id!
     async function removeImage(imageId: number) {
+      if (removedImages.has(imageId)) return
       const response = await deleteImage(coinId, imageId)
+      removedImages.add(imageId)
       cleanupPending ||= response.data.cleanupPending === true
     }
 
@@ -76,32 +82,53 @@ async function handleSubmit() {
     // holding both briefly is fine, and uploading the obverse as primary
     // clears the old primary flag before the old row goes away.
     async function replaceSide(
-      imageType: 'obverse' | 'reverse',
+      imageType: CoinFace,
       file: File,
       isPrimary: boolean,
       removedId: number | null,
     ) {
-      await uploadImage(coinId, file, imageType, isPrimary)
-      const superseded = removedId ?? form.images?.find((i) => i.imageType === imageType)?.id
+      const saved = savedFaces.get(imageType)
+      if (saved?.supersededId) {
+        await removeImage(saved.supersededId)
+        saved.supersededId = null
+      }
+      if (saved?.file === file) return
+      const superseded = saved?.imageId ?? removedId ?? form.images?.find((i) => i.imageType === imageType)?.id ?? null
+      const response = await uploadImage(coinId, file, imageType, isPrimary)
+      const replacement = { file, imageId: response.data.id, supersededId: superseded }
+      savedFaces.set(imageType, replacement)
       if (superseded) {
         await removeImage(superseded)
+        replacement.supersededId = null
       }
     }
 
+    async function removeSide(imageType: CoinFace, removedId: number) {
+      const saved = savedFaces.get(imageType)
+      if (saved?.supersededId) await removeImage(saved.supersededId)
+      await removeImage(saved?.imageId ?? removedId)
+      savedFaces.delete(imageType)
+    }
+
+    const obverseRemovalId = savedFaces.get('obverse')?.imageId ?? formComp?.removedObverseId
+    const reverseRemovalId = savedFaces.get('reverse')?.imageId ?? formComp?.removedReverseId
     if (formComp?.obverseFile) {
       await replaceSide('obverse', formComp.obverseFile, true, formComp.removedObverseId)
-    } else if (formComp?.removedObverseId) {
-      await removeImage(formComp.removedObverseId)
+    } else if (obverseRemovalId) {
+      await removeSide('obverse', obverseRemovalId)
     }
 
     if (formComp?.reverseFile) {
       await replaceSide('reverse', formComp.reverseFile, false, formComp.removedReverseId)
-    } else if (formComp?.removedReverseId) {
-      await removeImage(formComp.removedReverseId)
+    } else if (reverseRemovalId) {
+      await removeSide('reverse', reverseRemovalId)
     }
 
-    // Extract text from store card if uploaded
     if (formComp?.cardFile) {
+      if (uploadedCard !== formComp.cardFile) {
+        await uploadImage(coinId, formComp.cardFile, 'card', false)
+        uploadedCard = formComp.cardFile
+      }
       try {
         const res = await extractText(formComp.cardFile)
         const extractedText = res.data.text
@@ -112,8 +139,9 @@ async function handleSubmit() {
             : `--- Store Card ---\n${extractedText}`
           await updateCoin(coinId, { notes: updatedNotes })
         }
-      } catch {
-        console.warn('Card text extraction failed – coin saved without card notes')
+      } catch (error) {
+        console.error('Attribution card notes could not be saved', error)
+        await showAlert('The original attribution card was saved privately, but its text could not be added to Notes.', { title: 'Card notes unavailable' })
       }
     }
 

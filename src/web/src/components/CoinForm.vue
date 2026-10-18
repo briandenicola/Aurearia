@@ -257,7 +257,7 @@
         </div>
         <div class="form-group min-w-0">
           <label class="form-label">Store Card Image</label>
-          <p class="mb-2 text-body text-text-muted">Upload a photo of the store card. Text will be extracted automatically and saved to Notes.</p>
+          <p class="mb-2 text-body text-text-muted">The original is saved privately for optional sharing. Text is extracted automatically and saved to Notes.</p>
           <div v-if="cardPreview" class="relative mb-2 inline-block">
             <img :src="cardPreview" alt="Store card" class="h-[140px] w-[140px] rounded-sm border border-border-subtle object-cover" />
             <button type="button" class="absolute -top-1.5 -right-1.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border-0 bg-red-700 p-0 text-white" @click="clearCard" title="Remove" aria-label="Remove store card image"><X :size="12" /></button>

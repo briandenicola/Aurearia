@@ -270,7 +270,7 @@ func (r *SetRepository) GetCoinsInSet(setID, userID uint) ([]models.Coin, error)
 		Joins("JOIN coin_set_memberships ON coin_set_memberships.coin_id = coins.id").
 		Joins("JOIN coin_sets ON coin_sets.id = coin_set_memberships.set_id").
 		Where("coin_sets.id = ? AND coin_sets.user_id = ?", setID, userID).
-		Preload("Images").
+		Preload("Images", CoinPhotos).
 		Preload("Tags").
 		Order("coin_set_memberships.sort_order ASC").
 		Order("coins.name ASC").
@@ -648,7 +648,7 @@ func (r *SetRepository) matchAgenticTargets(setID, userID uint) ([]AgenticTarget
 		if err := r.db.
 			Scopes(OwnedBy(userID)).
 			Where("coins.id IN ?", coinIDs).
-			Preload("Images").
+			Preload("Images", CoinPhotos).
 			Preload("Tags").
 			Find(&assignedCoins).Error; err != nil {
 			return nil, nil, err
@@ -809,7 +809,7 @@ func (r *SetRepository) MarkMilestoneAlertTriggered(id uint) error {
 
 // GetCoinsMatchingCriteria returns coins that match validated smart set criteria.
 func (r *SetRepository) GetCoinsMatchingCriteria(userID uint, criteria map[string]interface{}) ([]models.Coin, error) {
-	query := r.db.Model(&models.Coin{}).Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags")
+	query := r.db.Model(&models.Coin{}).Scopes(OwnedBy(userID)).Preload("Images", CoinPhotos).Preload("Tags")
 	query, err := r.applyCriteria(query, criteria)
 	if err != nil {
 		return nil, err

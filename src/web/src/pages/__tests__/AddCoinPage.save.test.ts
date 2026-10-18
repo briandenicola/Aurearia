@@ -35,9 +35,10 @@ vi.mock('@/composables/useCoinOptions', async () => {
 })
 
 const photo = new File(['photo'], 'obverse.jpg', { type: 'image/jpeg' })
+let manualCard: File | null = null
 const CoinFormStub = defineComponent({
   props: { form: Object as PropType<Partial<Coin>>, loading: Boolean }, emits: ['submit'],
-  setup(_, { expose }) { expose({ obverseFile: photo }) },
+  setup(_, { expose }) { expose({ obverseFile: photo, cardFile: manualCard }) },
   template: '<button @click="$emit(\'submit\')">Save manual</button>',
 })
 function render() {
@@ -79,6 +80,8 @@ async function selectImage(wrapper: ReturnType<typeof render>, file: File) {
 describe('Add Coin save workflow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    manualCard = null
+    mocks.extract.mockResolvedValue({ data: { text: 'Dealer attribution text' } })
     mocks.isPwa = true
     mocks.normalize.mockImplementation(async (file: File) => file)
     mocks.draft.mockResolvedValue({ data: {
@@ -232,7 +235,7 @@ describe('Add Coin save workflow', () => {
     wrapper.unmount()
   })
 
-  it('keeps an optional card separate when the reverse step is skipped', async () => {
+  it.each([false, true])('stores an optional intake card separately and retries without recommitting (%s)', async retry => {
     const wrapper = render()
     const card = new File(['card'], 'card.jpg', { type: 'image/jpeg' })
     wrapper.findComponent({ name: 'InlineCameraCapturePanel' }).vm.$emit('captured', photo, 'obverse')
@@ -246,9 +249,58 @@ describe('Add Coin save workflow', () => {
 
     expect(mocks.draft).toHaveBeenCalledWith([photo], card)
     expect(mocks.commit).not.toHaveBeenCalled()
+    if (retry) mocks.upload.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('Card upload interrupted'))
     await wrapper.get('form').trigger('submit')
     await flushPromises()
-    expect(mocks.upload).toHaveBeenCalledExactlyOnceWith(42, photo, 'obverse', true, true)
+    if (retry) {
+      expect(mocks.push).not.toHaveBeenCalled()
+      await click(wrapper, 'Retry remaining uploads')
+    }
+    expect(mocks.upload).toHaveBeenNthCalledWith(1, 42, photo, 'obverse', true, true)
+    expect(mocks.upload).toHaveBeenNthCalledWith(2, 42, card, 'card', false, false)
+    expect(mocks.upload).toHaveBeenCalledTimes(retry ? 3 : 2)
+    expect(mocks.commit).toHaveBeenCalledTimes(1)
+    expect(mocks.push).toHaveBeenCalledWith('/coin/42')
+    expect(mocks.extract).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('stores a manual original before OCR and does not reupload it when extraction is retried', async () => {
+    manualCard = new File(['original'], 'original.jpg', { type: 'image/jpeg' })
+    mocks.extract.mockRejectedValueOnce(new Error('OCR unavailable'))
+    const wrapper = render()
+    await useManualMode(wrapper)
+    await click(wrapper, 'Save manual')
+
+    expect(mocks.upload.mock.calls.map(call => call[2])).toEqual(['obverse', 'card'])
+    expect(mocks.upload).toHaveBeenLastCalledWith(43, manualCard, 'card', false, false)
+    expect(wrapper.text()).toContain('OCR unavailable')
+    expect(mocks.push).not.toHaveBeenCalled()
+    await click(wrapper, 'Retry remaining uploads')
+
+    expect(mocks.add).toHaveBeenCalledTimes(1)
+    expect(mocks.upload).toHaveBeenCalledTimes(2)
+    expect(mocks.extract).toHaveBeenCalledTimes(2)
+    expect(mocks.update).toHaveBeenCalledWith(43, { notes: '--- Store Card ---\nDealer attribution text' })
+    expect(mocks.push).toHaveBeenCalledWith('/coin/43')
+    wrapper.unmount()
+  })
+
+  it('retries only a failed manual card upload and never extracts before storage succeeds', async () => {
+    manualCard = new File(['original'], 'original.jpg', { type: 'image/jpeg' })
+    mocks.upload.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('Card upload interrupted'))
+    const wrapper = render()
+    await useManualMode(wrapper)
+    await click(wrapper, 'Save manual')
+    expect(mocks.extract).not.toHaveBeenCalled()
+    expect(mocks.push).not.toHaveBeenCalled()
+
+    await click(wrapper, 'Retry remaining uploads')
+
+    expect(mocks.add).toHaveBeenCalledTimes(1)
+    expect(mocks.upload.mock.calls.map(call => call[2])).toEqual(['obverse', 'card', 'card'])
+    expect(mocks.extract).toHaveBeenCalledTimes(1)
+    expect(mocks.push).toHaveBeenCalledWith('/coin/43')
     wrapper.unmount()
   })
 

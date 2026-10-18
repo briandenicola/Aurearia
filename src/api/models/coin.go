@@ -30,6 +30,7 @@ const (
 	ImageTypeReverse ImageType = "reverse"
 	ImageTypeDetail  ImageType = "detail"
 	ImageTypeOther   ImageType = "other"
+	ImageTypeCard    ImageType = "card"
 )
 
 type Era string

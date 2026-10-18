@@ -149,7 +149,7 @@ func (r *QuickAccessRepository) FindCoins(userID uint, ids []uint) ([]QuickAcces
 	err := r.db.Model(&models.Coin{}).
 		Select(`coins.id, coins.name, coins.is_wishlist, coins.is_sold,
 			COALESCE((SELECT file_path FROM coin_images
-				WHERE coin_images.coin_id = coins.id
+				WHERE coin_images.coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card')
 				ORDER BY coin_images.is_primary DESC, coin_images.id ASC LIMIT 1), '') AS primary_image_url`).
 		Scopes(OwnedBy(userID)).
 		Where("coins.id IN ?", ids).

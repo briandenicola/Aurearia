@@ -63,7 +63,7 @@ func (r *ShowcaseRepository) GetShowcaseCoins(showcaseID uint, ownerID uint) ([]
 	err := r.db.
 		Joins("JOIN showcase_coins ON showcase_coins.coin_id = coins.id").
 		Where("showcase_coins.showcase_id = ? AND coins.user_id = ?", showcaseID, ownerID).
-		Preload("Images").
+		Preload("Images", CoinPhotos).
 		Preload("Tags").
 		Preload("StorageLocation").
 		Order("showcase_coins.sort_order ASC").

@@ -18,7 +18,7 @@ func NewAIJobRepository(db *gorm.DB) *AIJobRepository {
 func (r *AIJobRepository) FindCoinWithImages(coinID, userID uint) (*models.Coin, error) {
 	var coin models.Coin
 	err := r.db.Scopes(OwnedByID(coinID, userID)).
-		Preload("Images").
+		Preload("Images", CoinPhotos).
 		Preload("StorageLocation").
 		First(&coin).Error
 	if err != nil {

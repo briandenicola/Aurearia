@@ -1,6 +1,14 @@
 package repository
 
-import "gorm.io/gorm"
+import (
+	"github.com/briandenicola/ancient-coins-api/models"
+	"gorm.io/gorm"
+)
+
+// CoinPhotos excludes private attribution cards from ordinary photo associations.
+func CoinPhotos(db *gorm.DB) *gorm.DB {
+	return db.Where("(image_type IS NULL OR image_type <> ?)", models.ImageTypeCard)
+}
 
 // OwnedBy scopes a query to records belonging to the given user.
 func OwnedBy(userID uint) func(db *gorm.DB) *gorm.DB {

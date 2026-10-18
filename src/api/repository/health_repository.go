@@ -53,8 +53,8 @@ func (r *HealthRepository) ListEligibleCoins(userID uint) ([]EligibleCoinRow, er
 		Scopes(ActiveCollection(userID)).
 		Select(
 			"id AS coin_id, name AS title, category, denomination, ruler, era, mint, material, grade, reference_url, purchase_date, current_value, current_value_updated_at, ai_analysis, obverse_analysis, reverse_analysis, updated_at, " +
-				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true) AS primary_image_count, " +
-				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id) AS image_count",
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true AND (image_type IS NULL OR image_type <> 'card')) AS primary_image_count, " +
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card')) AS image_count",
 		).
 		Order("updated_at DESC").
 		Scan(&rows).Error
@@ -84,8 +84,8 @@ func (r *HealthRepository) ListEligibleCoinsPaged(userID uint, page, limit int, 
 	offset := (page - 1) * limit
 
 	selectClause := "id AS coin_id, name AS title, category, denomination, ruler, era, mint, material, grade, reference_url, purchase_date, current_value, current_value_updated_at, ai_analysis, obverse_analysis, reverse_analysis, updated_at, " +
-		"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true) AS primary_image_count, " +
-		"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id) AS image_count"
+		"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true AND (image_type IS NULL OR image_type <> 'card')) AS primary_image_count, " +
+		"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card')) AS image_count"
 
 	orderClause := "updated_at DESC, id ASC"
 	if scope == "needs_attention" {
@@ -158,8 +158,8 @@ func (r *HealthRepository) ListAllEligibleCoins() ([]EligibleCoinRow, error) {
 		Where("is_wishlist = ? AND is_sold = ?", false, false).
 		Select(
 			"id AS coin_id, name AS title, category, denomination, ruler, era, mint, material, grade, reference_url, purchase_date, current_value, current_value_updated_at, ai_analysis, obverse_analysis, reverse_analysis, updated_at, " +
-				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true) AS primary_image_count, " +
-				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id) AS image_count",
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true AND (image_type IS NULL OR image_type <> 'card')) AS primary_image_count, " +
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card')) AS image_count",
 		).
 		Order("updated_at DESC").
 		Scan(&rows).Error
@@ -177,8 +177,8 @@ func (r *HealthRepository) GetSingleEligibleCoin(coinID, userID uint) (*Eligible
 		Where("id = ?", coinID).
 		Select(
 			"id AS coin_id, name AS title, category, denomination, ruler, era, mint, material, grade, reference_url, purchase_date, current_value, current_value_updated_at, ai_analysis, obverse_analysis, reverse_analysis, updated_at, " +
-				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true) AS primary_image_count, " +
-				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id) AS image_count",
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true AND (image_type IS NULL OR image_type <> 'card')) AS primary_image_count, " +
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card')) AS image_count",
 		).
 		First(&row).Error
 	if err != nil {

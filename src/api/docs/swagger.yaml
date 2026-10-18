@@ -1769,6 +1769,12 @@ definitions:
         example: /9j/4AAQSkZJRgABAQ...
         type: string
       imageType:
+        enum:
+        - obverse
+        - reverse
+        - detail
+        - other
+        - card
         example: obverse
         type: string
       isPrimary:
@@ -3252,12 +3258,14 @@ definitions:
     - reverse
     - detail
     - other
+    - card
     type: string
     x-enum-varnames:
     - ImageTypeObverse
     - ImageTypeReverse
     - ImageTypeDetail
     - ImageTypeOther
+    - ImageTypeCard
   models.ImperialFigureRegion:
     enum:
     - west
@@ -9877,6 +9885,46 @@ paths:
       summary: Queue coin image analysis
       tags:
       - Analysis
+  /coins/{id}/attribution-cards:
+    get:
+      description: Lists saved attribution-card images only for the coin owner. Cards
+        are excluded from ordinary coin photos and public media.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CoinImage'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List private original attribution cards
+      tags:
+      - Images
   /coins/{id}/duplicate:
     post:
       description: Creates a copy of an existing coin owned by the authenticated user.
@@ -10051,12 +10099,13 @@ paths:
         required: true
         type: file
       - default: other
-        description: Image type
+        description: Image type; card is owner-only and cannot be primary
         enum:
         - obverse
         - reverse
         - detail
         - other
+        - card
         in: formData
         name: imageType
         type: string
