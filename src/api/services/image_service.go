@@ -108,10 +108,16 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	// Generate thumbnail and medium variants (best-effort; failures do not abort the upload).
 	if safeImageType != models.ImageTypeCard {
 		if thumbData, mediumData, vErr := generateImageVariants(fileData); vErr == nil {
-			ext := filepath.Ext(filePath)
-			baseNoExt := strings.TrimSuffix(filePath, ext)
-			_ = os.WriteFile(baseNoExt+"_thumb.jpg", thumbData, 0644)
-			_ = os.WriteFile(baseNoExt+"_medium.jpg", mediumData, 0644)
+			baseName := strings.TrimSuffix(filename, safeExt)
+			thumbPath := filepath.Clean(filepath.Join(coinDirClean, baseName+"_thumb.jpg"))
+			mediumPath := filepath.Clean(filepath.Join(coinDirClean, baseName+"_medium.jpg"))
+
+			if relThumb, err := filepath.Rel(coinDirClean, thumbPath); err == nil && relThumb != ".." && !strings.HasPrefix(relThumb, ".."+string(filepath.Separator)) {
+				_ = os.WriteFile(thumbPath, thumbData, 0644)
+			}
+			if relMedium, err := filepath.Rel(coinDirClean, mediumPath); err == nil && relMedium != ".." && !strings.HasPrefix(relMedium, ".."+string(filepath.Separator)) {
+				_ = os.WriteFile(mediumPath, mediumData, 0644)
+			}
 		}
 	}
 
