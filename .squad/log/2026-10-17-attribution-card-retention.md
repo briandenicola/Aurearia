@@ -136,3 +136,22 @@ Subsequent changes are this receipt and factual current-work pointer only;
 reviewed application/test content is unchanged. Commit/push beta is authorized.
 Full completion is determined by exact-head beta CI, not this pre-push PASS.
 No new main PR, main merge, deployment or release is authorized.
+
+## Beta CI and capture assertion correction
+
+Feature committed/pushed as `1ab08379c5ae3f965581d01aa341086410c9bfeb`.
+Quality Gate (39171459913), Security Scan (39171456373), AI Browser Exploration
+(39171456434), and CodeQL (39171456393) passed. Compatibility (39171456357)
+failed only because two existing desktop/PWA intake assertions expected the
+card upload to be absent. Beta image publication (39171456335) correctly stopped
+on that failed required workflow.
+
+Updated only the capture browser assertion to require exactly the obverse and
+non-primary card uploads, preserving filenames, coin ownership ID, ordering,
+confirmation and no-create assertions. All three capture browser tests pass
+locally; zero-warning lint passes. CI's two failures prove the old one-upload
+expectation rejects the newly required retention behavior.
+
+This is a bounded test-contract correction, not an application/privacy change.
+Reviewed application source remains unchanged; no additional review is launched.
+Push the correction and observe its exact-head beta checks.
