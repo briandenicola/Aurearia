@@ -48,6 +48,7 @@ func (h *ImageHandler) ServeUpload(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Media not found"})
 		return
 	}
+	c.Header("Cache-Control", "private, no-store")
 	if size := c.Query("size"); size == string(services.VariantSizeThumb) || size == string(services.VariantSizeMedium) {
 		if variant := h.svc.ResolveVariantPath(fullPath, size); variant != "" {
 			fullPath = variant
@@ -77,6 +78,39 @@ func (h *ImageHandler) ServePublicShowcaseUpload(c *gin.Context) {
 	c.File(fullPath)
 }
 
+// ListAttributionCards lists original card images for their owner.
+//
+//	@Summary		List private original attribution cards
+//	@Description	Lists saved attribution-card images only for the coin owner. Cards are excluded from ordinary coin photos and public media.
+//	@Tags			Images
+//	@Produce		json
+//	@Param			id	path	int	true	"Coin ID"
+//	@Success		200	{array}	models.CoinImage
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/coins/{id}/attribution-cards [get]
+func (h *ImageHandler) ListAttributionCards(c *gin.Context) {
+	coinID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil || coinID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
+		return
+	}
+	cards, err := h.svc.ListAttributionCards(uint(coinID), c.GetUint("userId"))
+	if errors.Is(err, services.ErrCoinNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		return
+	}
+	if err != nil {
+		h.logger.Error("images", "List attribution cards failed for coin %d: %v", coinID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load attribution cards"})
+		return
+	}
+	c.JSON(http.StatusOK, cards)
+}
+
 // Upload adds an image to a coin.
 //
 //	@Summary		Upload a coin image
@@ -86,7 +120,7 @@ func (h *ImageHandler) ServePublicShowcaseUpload(c *gin.Context) {
 //	@Produce		json
 //	@Param			id			path		int		true	"Coin ID"
 //	@Param			image		formData	file	true	"Image file"
-//	@Param			imageType	formData	string	false	"Image type"	Enums(obverse, reverse, detail, other)	default(other)
+//	@Param			imageType	formData	string	false	"Image type; card is owner-only and cannot be primary"	Enums(obverse, reverse, detail, other, card)	default(other)
 //	@Param			isPrimary	formData	string	false	"Set as primary image"	Enums(true, false)	default(false)
 //	@Param			circleClip	formData	string	false	"Clip to circular transparent PNG"	Enums(true, false)	default(false)
 //	@Success		201			{object}	models.CoinImage
@@ -175,7 +209,11 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		case services.ErrCoinNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
 		case services.ErrInvalidImageType:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other, card"})
+		case services.ErrCardPrimary:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Attribution cards cannot be primary coin images"})
+		case services.ErrImageTooLarge:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
 		case services.ErrInvalidFileExt:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed. Accepted: .jpg, .jpeg, .png, .gif, .webp"})
 		default:
@@ -191,7 +229,7 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 type base64ImageRequest struct {
 	Image         string `json:"image" binding:"required" example:"/9j/4AAQSkZJRgABAQ..."`
 	FileExtension string `json:"fileExtension" binding:"required" example:".jpg"`
-	ImageType     string `json:"imageType" example:"obverse"`
+	ImageType     string `json:"imageType" example:"obverse" enums:"obverse,reverse,detail,other,card"`
 	IsPrimary     bool   `json:"isPrimary" example:"false"`
 	CircleClip    bool   `json:"circleClip" example:"false"`
 }
@@ -294,7 +332,9 @@ func (h *ImageHandler) UploadBase64(c *gin.Context) {
 		case services.ErrImageTooLarge:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
 		case services.ErrInvalidImageType:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other, card"})
+		case services.ErrCardPrimary:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Attribution cards cannot be primary coin images"})
 		case services.ErrInvalidFileExt:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "fileExtension must be one of: .jpg, .jpeg, .png, .gif, .webp"})
 		default:
@@ -330,7 +370,9 @@ func handleUploadError(c *gin.Context, logger *services.Logger, coinID uint64, e
 	case services.ErrImageTooLarge:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
 	case services.ErrInvalidImageType:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other, card"})
+	case services.ErrCardPrimary:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Attribution cards cannot be primary coin images"})
 	case services.ErrInvalidFileExt:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "fileExtension must be one of: .jpg, .jpeg, .png, .gif, .webp"})
 	default:

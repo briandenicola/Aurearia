@@ -253,8 +253,8 @@ func (r *StorageLocationRepository) ListTrayAggregates(userID uint) ([]TrayAggre
 	var rows []row
 	err := r.db.Table("coins").
 		Select(`coins.id, coins.name, coins.diameter_mm, coins.storage_location_id, coins.storage_slot,
-			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS file_path,
-			(SELECT image_type FROM coin_images WHERE coin_images.coin_id = coins.id ORDER BY is_primary DESC, id ASC LIMIT 1) AS image_type,
+			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card') ORDER BY is_primary DESC, id ASC LIMIT 1) AS file_path,
+			(SELECT image_type FROM coin_images WHERE coin_images.coin_id = coins.id AND (image_type IS NULL OR image_type <> 'card') ORDER BY is_primary DESC, id ASC LIMIT 1) AS image_type,
 			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id AND LOWER(image_type) = 'obverse' ORDER BY is_primary DESC, id ASC LIMIT 1) AS obverse_file_path,
 			(SELECT file_path FROM coin_images WHERE coin_images.coin_id = coins.id AND LOWER(image_type) = 'reverse' ORDER BY is_primary DESC, id ASC LIMIT 1) AS reverse_file_path`).
 		Scopes(OwnedBy(userID)).

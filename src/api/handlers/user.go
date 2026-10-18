@@ -150,7 +150,7 @@ func (h *UserHandler) ExportCollection(c *gin.Context) {
 	userID := c.GetUint("userId")
 
 	var coins []models.Coin
-	coins, _ = h.repo.GetCoinsWithImages(userID)
+	coins, _ = h.repo.GetCoinsWithImages(userID, true)
 
 	filename := fmt.Sprintf("my-coins-export-%s.zip", time.Now().Format("2006-01-02"))
 	writeCollectionZip(c, coins, h.UploadDir, filename, h.logger)
@@ -171,7 +171,7 @@ func (h *UserHandler) ExportCatalogPDF(c *gin.Context) {
 	userID := c.GetUint("userId")
 
 	var coins []models.Coin
-	coins, _ = h.repo.GetCoinsWithImages(userID)
+	coins, _ = h.repo.GetCoinsWithImages(userID, false)
 
 	// Get username for cover page
 	user, _ := h.repo.FindByID(userID)

@@ -292,6 +292,9 @@ export const getCoinValueHistory = (coinId: number) =>
   api.get<CoinValueHistory[]>(`/coins/${coinId}/value-history`)
 
 // Images
+export const getAttributionCards = (coinId: number) =>
+  api.get<CoinImage[]>(`/coins/${coinId}/attribution-cards`)
+
 export const uploadImage = (coinId: number, file: File, imageType: string, isPrimary: boolean, circleClip?: boolean) => {
   const formData = new FormData()
   formData.append('image', file)

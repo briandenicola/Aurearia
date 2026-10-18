@@ -38,7 +38,16 @@ weight, diameter, face inscriptions/descriptions, and catalogue references
 inferred by AI. Long attribution expands the image vertically instead of
 truncating text. Coin of the Day context is appended without replacing attribution.
 Prices, purchase details, storage, owner details, notes, and AI analysis are not
-included. Native file sharing and the PNG-download fallback are unchanged.
+included in the generated card.
+
+Manual Add, Edit and confirmed AI intake retain uploaded original attribution
+cards privately, separately from gallery photos. Share asks whether to include
+them; opting in attaches every original alongside the generated PNG. Native
+sharing receives separate files. Unsupported browsers download those same files
+separately and may ask permission for multiple downloads. Declining preserves
+generated-card-only sharing. Originals may contain pricing, dealer or handwritten
+information; they never become public showcase/follower photos. Sale recording
+is unchanged. Previously discarded card photos cannot be recovered.
 
 ## Key Dependencies
 

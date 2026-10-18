@@ -33,6 +33,7 @@ var (
 	ErrImageNotFound       = errors.New("image not found")
 	ErrInvalidBase64       = errors.New("invalid base64 image data")
 	ErrInvalidImageType    = errors.New("invalid image type")
+	ErrCardPrimary         = errors.New("attribution cards cannot be primary coin images")
 	ErrInvalidFileExt      = errors.New("invalid file extension")
 	ErrImageTooLarge       = errors.New("image exceeds 20MB limit")
 	ErrDirectoryCreation   = errors.New("failed to create upload directory")
@@ -78,6 +79,14 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	if err != nil {
 		return nil, err
 	}
+	if safeImageType == models.ImageTypeCard {
+		if isPrimary {
+			return nil, ErrCardPrimary
+		}
+		if err := ValidateImageData(fileData); err != nil {
+			return nil, err
+		}
+	}
 
 	coinDir := filepath.Join(s.uploadDir, fmt.Sprintf("coin-%d", coinID))
 	if err := os.MkdirAll(coinDir, 0755); err != nil {
@@ -97,11 +106,19 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	}
 
 	// Generate thumbnail and medium variants (best-effort; failures do not abort the upload).
-	if thumbData, mediumData, vErr := generateImageVariants(fileData); vErr == nil {
-		ext := filepath.Ext(filePath)
-		baseNoExt := strings.TrimSuffix(filePath, ext)
-		_ = os.WriteFile(baseNoExt+"_thumb.jpg", thumbData, 0644)
-		_ = os.WriteFile(baseNoExt+"_medium.jpg", mediumData, 0644)
+	if safeImageType != models.ImageTypeCard {
+		if thumbData, mediumData, vErr := generateImageVariants(fileData); vErr == nil {
+			baseName := strings.TrimSuffix(filename, safeExt)
+			thumbPath := filepath.Clean(filepath.Join(coinDirClean, baseName+"_thumb.jpg"))
+			mediumPath := filepath.Clean(filepath.Join(coinDirClean, baseName+"_medium.jpg"))
+
+			if relThumb, err := filepath.Rel(coinDirClean, thumbPath); err == nil && relThumb != ".." && !strings.HasPrefix(relThumb, ".."+string(filepath.Separator)) {
+				_ = os.WriteFile(thumbPath, thumbData, 0644)
+			}
+			if relMedium, err := filepath.Rel(coinDirClean, mediumPath); err == nil && relMedium != ".." && !strings.HasPrefix(relMedium, ".."+string(filepath.Separator)) {
+				_ = os.WriteFile(mediumPath, mediumData, 0644)
+			}
+		}
 	}
 
 	image := models.CoinImage{
@@ -124,6 +141,16 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	}
 
 	return &image, nil
+}
+
+func (s *ImageService) ListAttributionCards(coinID, userID uint) ([]models.CoinImage, error) {
+	if _, err := s.repo.FindCoinByOwner(coinID, userID); err != nil {
+		if repository.IsRecordNotFound(err) {
+			return nil, ErrCoinNotFound
+		}
+		return nil, fmt.Errorf("find attribution card owner: %w", err)
+	}
+	return s.repo.ListAttributionCards(coinID)
 }
 
 // UploadBase64Image decodes a base64 string and saves it as an image.
@@ -155,6 +182,8 @@ func NormalizeImageType(imageType string) (models.ImageType, error) {
 		return models.ImageTypeReverse, nil
 	case string(models.ImageTypeDetail):
 		return models.ImageTypeDetail, nil
+	case string(models.ImageTypeCard):
+		return models.ImageTypeCard, nil
 	case "", string(models.ImageTypeOther):
 		return models.ImageTypeOther, nil
 	default:
@@ -169,8 +198,16 @@ func NormalizeImageExt(ext string) (string, error) {
 	}
 
 	switch normalized {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
-		return normalized, nil
+	case ".jpg":
+		return ".jpg", nil
+	case ".jpeg":
+		return ".jpeg", nil
+	case ".png":
+		return ".png", nil
+	case ".gif":
+		return ".gif", nil
+	case ".webp":
+		return ".webp", nil
 	default:
 		return "", ErrInvalidFileExt
 	}
@@ -319,7 +356,7 @@ func (s *ImageService) canViewCoinImage(media *repository.CoinImageMediaAccess, 
 	if media.CoinUserID == viewerID {
 		return true
 	}
-	if media.CoinIsPrivate || media.CoinIsWishlist || media.CoinIsSold || !media.OwnerIsPublic {
+	if media.ImageType == models.ImageTypeCard || media.CoinIsPrivate || media.CoinIsWishlist || media.CoinIsSold || !media.OwnerIsPublic {
 		return false
 	}
 	return s.repo.IsAcceptedFollower(viewerID, media.CoinUserID)

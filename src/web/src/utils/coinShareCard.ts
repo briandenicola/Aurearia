@@ -97,10 +97,10 @@ export function getPreferredShareImage(coin: Coin): string | null {
   const obverse = coin.images?.find((image) => image.imageType === 'obverse')
   if (obverse) return imagePath(obverse)
 
-  const primary = coin.images?.find((image) => image.isPrimary)
+  const primary = coin.images?.find((image) => image.isPrimary && image.imageType !== 'card')
   if (primary) return imagePath(primary)
 
-  const first = coin.images?.[0]
+  const first = coin.images?.find((image) => image.imageType !== 'card')
   return first ? imagePath(first) : null
 }
 

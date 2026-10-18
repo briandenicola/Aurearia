@@ -25,7 +25,7 @@ func (r *FeaturedCoinRepository) Create(fc *models.FeaturedCoin) error {
 // FindByID returns a single featured-coin record by ID (does not enforce ownership).
 func (r *FeaturedCoinRepository) FindByID(id uint) (*models.FeaturedCoin, error) {
 	var fc models.FeaturedCoin
-	err := r.db.Preload("Coin.Images").First(&fc, id).Error
+	err := r.db.Preload("Coin.Images", CoinPhotos).First(&fc, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (r *FeaturedCoinRepository) FindByID(id uint) (*models.FeaturedCoin, error)
 // FindByIDForUser returns a single featured-coin record by ID, scoped to the user.
 func (r *FeaturedCoinRepository) FindByIDForUser(id, userID uint) (*models.FeaturedCoin, error) {
 	var fc models.FeaturedCoin
-	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Coin.Images").First(&fc).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Coin.Images", CoinPhotos).First(&fc).Error
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (r *FeaturedCoinRepository) GetLatestForUser(userID uint) (*models.Featured
 	var fc models.FeaturedCoin
 	err := r.db.Scopes(OwnedBy(userID)).
 		Order("featured_at DESC").
-		Preload("Coin.Images").
+		Preload("Coin.Images", CoinPhotos).
 		First(&fc).Error
 	if err != nil {
 		return nil, err

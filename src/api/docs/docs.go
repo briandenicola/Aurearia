@@ -7430,6 +7430,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/{id}/attribution-cards": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lists saved attribution-card images only for the coin owner. Cards are excluded from ordinary coin photos and public media.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Images"
+                ],
+                "summary": "List private original attribution cards",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CoinImage"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/duplicate": {
             "post": {
                 "security": [
@@ -7703,11 +7764,12 @@ const docTemplate = `{
                             "obverse",
                             "reverse",
                             "detail",
-                            "other"
+                            "other",
+                            "card"
                         ],
                         "type": "string",
                         "default": "other",
-                        "description": "Image type",
+                        "description": "Image type; card is owner-only and cannot be primary",
                         "name": "imageType",
                         "in": "formData"
                     },
@@ -21651,6 +21713,13 @@ const docTemplate = `{
                 },
                 "imageType": {
                     "type": "string",
+                    "enum": [
+                        "obverse",
+                        "reverse",
+                        "detail",
+                        "other",
+                        "card"
+                    ],
                     "example": "obverse"
                 },
                 "isPrimary": {
@@ -23815,13 +23884,15 @@ const docTemplate = `{
                 "obverse",
                 "reverse",
                 "detail",
-                "other"
+                "other",
+                "card"
             ],
             "x-enum-varnames": [
                 "ImageTypeObverse",
                 "ImageTypeReverse",
                 "ImageTypeDetail",
-                "ImageTypeOther"
+                "ImageTypeOther",
+                "ImageTypeCard"
             ]
         },
         "models.ImperialFigureRegion": {

@@ -10,6 +10,7 @@ import (
 // to authorize serving an uploaded coin image.
 type CoinImageMediaAccess struct {
 	FilePath       string
+	ImageType      models.ImageType
 	CoinUserID     uint
 	CoinIsPrivate  bool
 	CoinIsWishlist bool
@@ -54,7 +55,15 @@ func (r *ImageRepository) FindImage(imageID, coinID uint) (*models.CoinImage, er
 	if err != nil {
 		return nil, err
 	}
+
 	return &image, nil
+}
+
+func (r *ImageRepository) ListAttributionCards(coinID uint) ([]models.CoinImage, error) {
+	cards := make([]models.CoinImage, 0)
+	err := r.db.Where("coin_id = ? AND image_type = ?", coinID, models.ImageTypeCard).
+		Order("id ASC").Find(&cards).Error
+	return cards, err
 }
 
 // FindCoinImageByType returns the most recently uploaded image of the given
@@ -76,6 +85,7 @@ func (r *ImageRepository) FindCoinImageMediaByPath(filePath string) (*CoinImageM
 	var media CoinImageMediaAccess
 	tx := r.db.Table("coin_images").
 		Select(`coin_images.file_path,
+			coin_images.image_type,
 			coins.user_id AS coin_user_id,
 			coins.is_private AS coin_is_private,
 			coins.is_wishlist AS coin_is_wishlist,
@@ -138,6 +148,7 @@ func (r *ImageRepository) CoinImagePathInActiveShowcase(slug, filePath string) (
 		Joins("JOIN showcases ON showcases.id = showcase_coins.showcase_id").
 		Joins("JOIN coins ON coins.id = coin_images.coin_id").
 		Where("showcases.slug = ? AND showcases.is_active = ? AND showcases.user_id = coins.user_id AND coin_images.file_path = ?", slug, true, filePath).
+		Where("coin_images.image_type IS NULL OR coin_images.image_type <> ?", models.ImageTypeCard).
 		Count(&count).Error
 	if err != nil {
 		return false, err

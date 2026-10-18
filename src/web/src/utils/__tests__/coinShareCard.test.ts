@@ -27,6 +27,13 @@ function makeImage(id: number, imageType: CoinImage['imageType'], isPrimary = fa
 }
 
 describe('coinShareCard', () => {
+  it('never selects an original attribution card as a generated-card face', () => {
+    const card = makeImage(1, 'card', true)
+    expect(getPreferredShareImage(buildRomanDenariusCore({ images: [card] }))).toBeNull()
+    expect(getShareImageUrls(buildRomanDenariusCore({ images: [card] }))).toEqual([])
+    expect(getPreferredShareImage(buildRomanDenariusCore({ images: [card, makeImage(2, 'detail')] })))
+      .toBe('/uploads/coins/2.webp')
+  })
   beforeEach(() => {
     vi.restoreAllMocks()
   })

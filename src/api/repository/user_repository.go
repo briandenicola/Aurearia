@@ -51,9 +51,15 @@ func (r *UserRepository) Reload(user *models.User) error {
 }
 
 // GetCoinsWithImages returns all coins for a user with export-related relations preloaded.
-func (r *UserRepository) GetCoinsWithImages(userID uint) ([]models.Coin, error) {
+func (r *UserRepository) GetCoinsWithImages(userID uint, includeAttributionCards bool) ([]models.Coin, error) {
 	var coins []models.Coin
-	err := r.db.Where("user_id = ?", userID).Preload("Images").Preload("References").Preload("StorageLocation").Find(&coins).Error
+	query := r.db.Scopes(OwnedBy(userID)).Preload("References").Preload("StorageLocation")
+	if includeAttributionCards {
+		query = query.Preload("Images")
+	} else {
+		query = query.Preload("Images", CoinPhotos)
+	}
+	err := query.Find(&coins).Error
 	return coins, err
 }
 

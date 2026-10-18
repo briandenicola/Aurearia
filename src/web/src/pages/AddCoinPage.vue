@@ -227,7 +227,7 @@ const formDisabled = computed(() =>
   || preparingImage.value
   || savedCoinId.value !== null,
 )
-type PendingImage = { file: File; face: 'obverse' | 'reverse'; primary: boolean; circleClip: boolean }
+type PendingImage = { file: File; face: 'obverse' | 'reverse' | 'card'; primary: boolean; circleClip: boolean }
 const pendingImages: PendingImage[] = []
 let pendingCard: File | null = null
 let savedNotes = ''
@@ -525,6 +525,9 @@ async function confirmDraft() {
     if (reverseFile.value) {
       pendingImages.push({ file: reverseFile.value, face: 'reverse', primary: false, circleClip: reverseFromCamera.value })
     }
+    if (cardFile.value) {
+      pendingImages.push({ file: cardFile.value, face: 'card', primary: false, circleClip: false })
+    }
     await completeSavedCoin()
   } catch (error) {
     if (savedCoinId.value !== null) {
@@ -553,6 +556,9 @@ async function handleManualSubmit() {
     }
 
     pendingCard = formComp?.cardFile ?? null
+    if (pendingCard) {
+      pendingImages.push({ file: pendingCard, face: 'card', primary: false, circleClip: false })
+    }
     savedNotes = form.notes || ''
     await completeSavedCoin()
   } catch (error: unknown) {

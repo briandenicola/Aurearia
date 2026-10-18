@@ -262,6 +262,13 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
       return
     }
 
+    const attributionMatch = path.match(/^\/coins\/(\d+)\/attribution-cards$/)
+    if (attributionMatch && method === 'GET') {
+      const coin = state.coins.find(item => item.id === Number(attributionMatch[1]))
+      await json(route, coin?.images.filter(image => image.imageType === 'card') ?? [])
+      return
+    }
+
     const imageUploadMatch = path.match(/^\/coins\/(\d+)\/images$/)
     if (imageUploadMatch && method === 'POST') {
       const coinId = Number(imageUploadMatch[1])
@@ -308,7 +315,7 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
       const id = Number(coinMatch[1])
       const coin = state.coins.find((item) => item.id === id)
       if (coin) {
-        await json(route, coin)
+        await json(route, { ...coin, images: coin.images.filter(image => image.imageType !== 'card') })
       } else {
         await json(route, { error: 'Not found' }, 404)
       }

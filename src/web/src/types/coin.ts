@@ -328,7 +328,7 @@ export type Category = string
 
 export type Material = 'Gold' | 'Silver' | 'Bronze' | 'Copper' | 'Electrum' | 'Other'
 
-export type ImageType = 'obverse' | 'reverse' | 'detail' | 'other'
+export type ImageType = 'obverse' | 'reverse' | 'detail' | 'other' | 'card'
 
 export type CoinEra = string
 

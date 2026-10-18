@@ -102,6 +102,8 @@ for (const mode of ['pwa', 'desktop'] as const) {
     expect(commits).toEqual([expect.objectContaining({ draftId: 701, confirm: true })])
     expect(api.imageUploads).toEqual([expect.objectContaining({
       coinId: 7002, imageType: 'obverse', isPrimary: true, fileName: 'obverse.jpg',
+    }), expect.objectContaining({
+      coinId: 7002, imageType: 'card', isPrimary: false, fileName: 'card.jpg',
     })])
     expect(api.createPayloads).toHaveLength(0)
   })

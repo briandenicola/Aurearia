@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Private original attribution cards** - Manual Add, Edit and confirmed AI
+  intake retain card photographs privately. Share offers the originals as
+  separate attachments alongside the generated collector ticket. Galleries,
+  public showcases, followers and visual catalogs exclude them; sale recording
+  is unchanged. Previously discarded originals cannot be recovered.
+
 - **Collector-ticket share cards** — Coin sharing places obverse and reverse
   images above a cream attribution ticket with stored legends, descriptions,
   dimensions and catalogue references. Long attribution is preserved; private
