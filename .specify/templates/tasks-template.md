@@ -11,9 +11,7 @@ description: "Bounded feature tasks with required verification and independent a
 **Implementation owner**: [owner]
 **Non-goals / stop conditions**: [scope and approval boundaries]
 
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge apply effective
-4.0.0 from the constitution's linked baseline. After activation this task set is
-optional; criteria/evidence may live only in canonical issue/PR. Generate only
+This task set is optional; criteria/evidence may live only in canonical issue/PR. Generate only
 needed tasks; do not copy illustrative setup or technology scaffolding.
 
 **Tests are required where applicable**, not optional because the user omitted

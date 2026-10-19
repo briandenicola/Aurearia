@@ -4,10 +4,8 @@ Aurearia is a Go API, Vue/TypeScript PWA and stateless Python agent service.
 Read the [constitution](../.specify/memory/constitution.md), relevant accepted
 ADRs/active decisions and the owner-selected work before editing.
 
-> **Pending ADR 0024:** This consumer is prepared for 5.0.0, not activated.
-> Until §22 approval/merge, apply effective 4.0.0 from the constitution's linked
-> baseline, including existing review/audit/recording obligations. No historical
-> block or PR #827 gate is waived. The following describes prospective operation.
+Constitution 5.0.0 / Accepted ADR 0024 governs following owner-approved PR #828.
+Existing audit obligations and historical reviewer restrictions remain intact.
 
 Use the constitution for authority, lanes, quality, review and approval boundaries,
 not a duplicate policy here. One issue/PR (or approved work order before one

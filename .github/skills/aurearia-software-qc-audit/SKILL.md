@@ -5,9 +5,8 @@ description: "Audit owner-authorized major architecture or owner-designated majo
 
 ## Context
 
-Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge use effective
-4.0.0 from the constitution's linked baseline, including the existing #827 audit.
-After activation run this broad audit for owner-authorized major architectural
+Under constitution 5.0.0 / Accepted ADR 0024, run this broad audit for
+owner-authorized major architectural
 changes or owner-designated major releases under §20, not every high-risk feature
 or beta-to-main PR. Feature/high-risk work retains one scoped independent review
 and applicable security/compatibility/recovery proof without a duplicate audit.
@@ -19,7 +18,7 @@ INCOMPLETE, not passed or silently skipped. Findings are not permission to fix,
 merge, deploy or clear another reviewer's block. This software audit is distinct
 from the post-major-release agentic-delivery audit.
 
-**Broad-audit triggers after activation:**
+**Broad-audit triggers:**
 - Major architectural change within the approved scope
 - Owner-designated major release
 - An existing explicit audit requirement not separately resolved by its authority

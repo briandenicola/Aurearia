@@ -10,9 +10,7 @@ description: "Optional, bounded coordination for Aurearia's existing specialist 
 
 ## Authority and activation
 
-> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
-> 4.0.0 from the constitution's linked baseline, preserving all existing gates.
-> After activation use §18 lanes and one overall authorized budget; routine work
+> Use §18 lanes and one overall authorized budget; routine work
 > does not require independent review, and features require one scoped review.
 
 Read `.specify/memory/constitution.md` and the selected work artifact first.

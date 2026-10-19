@@ -6,9 +6,7 @@ tools: ["read", "search"]
 
 # Independent read-only reviewer
 
-> Consumer preparation for Proposed ADR 0024 / 5.0.0; until §22 approval/merge
-> use effective 4.0.0 from the constitution's linked baseline. On activation,
-> required feature/high-risk review is ONE scoped review within the overall
+> Required feature/high-risk review is ONE scoped review within the overall
 > approved budget; routine work need not invoke it. Tool restrictions and all
 > historical blocks remain unchanged. Review repair deltas only unless earlier
 > proof is invalidated; this does not change the original block's clearance owner.

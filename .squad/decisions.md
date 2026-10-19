@@ -1,17 +1,17 @@
 # Active Squad Decisions
 
-> **Pending preparation, not an acceptance announcement:** [ADR 0024](../docs/adr/0024-proportional-governance.md)
-> prepares constitution 5.0.0. Effective 4.0.0 and the decisions/blocks below
-> remain binding until §22 approval/merge. On activation, canonical issue/PR work
+> **Accepted 2026-10-19:** [ADR 0024](../docs/adr/0024-proportional-governance.md)
+> and constitution 5.0.0 were approved and merged by the owner in #828 at
+> `92259b31beb3c7ebe5db54bfcccb3331b98e57db`. Canonical issue/PR work
 > replaces mandatory multi-ledger administration; `now.md` only links sources,
-> including for GOV-003. Review/audit/completion triggers then follow 5.0.0,
+> including for GOV-003. Review/audit/completion triggers follow 5.0.0,
 > without clearing existing blocks, #827's audit, or activating Proposed ADR 0022.
-> The merge announcement and acceptance evidence remain pending.
 
 Curated 2026-09-29 for issue #783 under Constitution 4.0.0 section 18.3. This is a
 current view, not a constitution or task ledger. Start with
 [current work](identity/now.md). Authority: Constitution > PRD > accepted ADRs >
-active spec > plan > tasks > backlog > active decisions > agent judgment.
+owner-approved canonical work (including selected specs/plans/tasks) > backlog >
+active decisions > agent judgment.
 
 The full prior text, including the D05 lifecycle reconciliation, unresolved
 review blocks and located clearance pairs, is preserved byte-for-byte in the
@@ -24,9 +24,9 @@ revokes a decision or clears a block.
 
 | ID | Status | Decision |
 |---|---|---|
-| GOV-001 | Accepted | Constitution 4.0.0 and [ADR 0019](../docs/adr/0019-evidence-based-agentic-delivery.md) are in effect (#734, #735). |
+| GOV-001 | Accepted | Constitution 5.0.0 and [ADR 0024](../docs/adr/0024-proportional-governance.md) are in effect (#828, merge 92259b31). ADR 0019 constraints remain except where explicitly superseded; historical restrictions are retained. |
 | GOV-002 | Active | One implementation owner, smallest sufficient lane, bounded delegation, independent review where required. Evidence distinguishes implemented, verified, accepted and released. Sections 17-22 govern NEW reviews; historical restrictions keep their terms. |
-| GOV-003 | Active | Warning budgets: decisions <=20 KiB, role history <=12 KiB, now.md <=100 lines, startup context <=6000 words. Budgets never authorize deletion; preserve before curating. Current work lives only in now.md. |
+| GOV-003 | Active | Warning budgets: decisions <=20 KiB, role history <=12 KiB, now.md <=100 lines, startup context <=6000 words. Budgets never authorize deletion; preserve before curating. now.md links canonical work rather than duplicating its ledger. |
 | GOV-004 | Accepted (#737) | Taskfile `check:*` targets are shared with CI; setup is separate; missing tools or lint fail. Offline checks validate structural references, not approvals. Small work may cite an issue instead of a spec. See [testing](../docs/testing.md#6-running-tests-locally-vs-ci). |
 | GOV-005 | Verified (#739, #740) | Scoped instructions and native skills replace eager guidance. Required review uses `task review:read-only`; installed-client limitations require explicit tool exclusions and matching-file loads. SpecKit upgrade is deferred, not installed. #739's merge does not retroactively certify its failing gate. See [P4 record](decisions/inbox/copilot-p4-native-integration.md). |
 | GOV-006 | Merged (#741); runtime approval proof pending | Acceptance uses one criterion/evidence/candidate record. Main protections follow the [control guide](../docs/agentic-acceptance-controls.md) and [P5 record](decisions/inbox/copilot-p5-acceptance-controls.md); owner kept environment admin bypass while retaining actual owner approval and all exact-candidate checks ([receipt](../docs/audits/2026-09-21.md)). Beta publishing and Ralph are unchanged. Stale proof, open review blocks or missing owner approval cannot support acceptance. No promotion or deployment is inferred. |

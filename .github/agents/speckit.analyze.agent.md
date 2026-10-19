@@ -12,9 +12,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge effective 4.0.0
-governs from the constitution's linked baseline. After activation this is an
-opt-in analysis of a selected SpecKit document set, never a per-change gate.
+This is an opt-in analysis of a selected SpecKit document set, never a per-change gate.
 An issue/PR can be canonical without this document set.
 
 Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted

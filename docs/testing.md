@@ -120,9 +120,8 @@ result-consuming UI.
 
 ## 6. Running tests locally vs. CI
 
-> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
-> 4.0.0 from the constitution's linked baseline. After activation use focused
-> local checks plus applicable exact-candidate CI, reusing unchanged valid
+> Under constitution 5.0.0 / Accepted ADR 0024, use focused local checks plus
+> applicable exact-candidate CI, reusing unchanged valid
 > evidence rather than running full suites repeatedly. Changed content
 > invalidates affected proof. Taskfile/CI remain executable sources; this is the
 > single command reference, not permission to execute tests/builds/setup.
@@ -238,22 +237,18 @@ treated as file links. Remote URLs are not fetched. Sparse-excluded tracked
 reference targets are reported as warnings; an ordinary missing target is an
 error. Diagnostics include file, line, rule code and severity; errors exit 1.
 
-While ADR 0024 is Proposed, effective 4.0.0 pointer rules remain: scalar
-`updated_at` (real YYYY-MM-DD), `focus_area`, `owner`, `work_artifact` and
-`tasks_artifact` frontmatter. Artifacts are canonical repository-relative existing
-Markdown files under docs/specs, or
-`https://github.com/briandenicola/Aurearia/issues/NUMBER`. Feature selection
-requires matching `spec.md`/`tasks.md`; a process plan or issue may serve both
-roles. Small issue repairs do not require an invented feature spec.
+The active pointer requires scalar `updated_at` (real YYYY-MM-DD), `focus_area`,
+`owner` and `work_artifact`. `tasks_artifact` is optional, but validated if supplied.
+Artifacts must be canonical repository-relative existing Markdown under docs/specs,
+or this repository's `https://github.com/briandenicola/Aurearia/issues/NUMBER`
+or `https://github.com/briandenicola/Aurearia/pull/NUMBER` URLs. Selected specs
+do not require a paired tasks ledger.
 
-Only when the constitution records **both version 5.0.0 and Amendment Status
-Accepted** does the simplified mode activate. `tasks_artifact` becomes optional,
-but is still validated if supplied. `work_artifact` may also identify
-`https://github.com/briandenicola/Aurearia/pull/NUMBER`, and selecting a spec no
-longer requires a paired tasks ledger. The other metadata, canonical-path,
-file-existence and repository-URL restrictions remain. A prepared version alone
-does not activate this mode. URL syntax is checked offline, not remote existence,
-owner authorization or lifecycle approval.
+This mode requires **both version 5.0.0 and Amendment Status Accepted**.
+Legacy/prepared policies retain mandatory `tasks_artifact`, issue-only remote
+URLs and paired feature spec/tasks rules. A prepared version alone does not
+activate simplified permissions. URL syntax is checked offline, not remote
+existence, owner authorization or lifecycle approval.
 Names/descriptions accept plain, quoted or block scalar text; the checker
 validates required metadata, not the entire YAML language.
 
@@ -281,10 +276,9 @@ runtime discovery and refusal evidence must come from the actual client.
 
 We do **not** gate PRs on a repo-wide coverage percentage. Coverage is a signal for blind spots, not a target to game.
 
-Effective constitution 4.0.0 §21.9 requires **"every new service method has ≥ 1
-unit test."** Its §21.6 separately requires exact-path regression evidence.
-After ADR 0024 is accepted, these retained coverage obligations live in §17;
-prepared 5.0.0 §21 does not contain numbered checklist items. Use coverage output
+Constitution 5.0.0 §17 retains **"new service methods need unit coverage"** and
+exact-path regression evidence (formerly 4.0.0 §21.9/§21.6).
+Section 21 no longer contains numbered checklist items. Use coverage output
 diagnostically, never a single percentage as proof of safety.
 
 ## 8. F013 golden collection fixtures

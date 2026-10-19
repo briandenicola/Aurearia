@@ -1,11 +1,9 @@
 # Work Routing
 
 How to choose an optional specialist. Subject to constitution sections 0 and 18.
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+Constitution 5.0.0 / Accepted ADR 0024 governs through owner-approved PR #828.
 
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge apply effective
-4.0.0 from the constitution's linked baseline. After activation, the canonical
-issue/PR owns evidence (no mandatory extra handoff/log/inbox); use one overall
+The canonical issue/PR owns evidence (no mandatory extra handoff/log/inbox); use one overall
 approved time/credit lease with meaningful checkpoints, not per-read permission.
 Routine work needs no independent review; feature/high-risk work needs one scoped
 review. Original blocks and native reviewer tool restrictions remain unchanged.

@@ -1,6 +1,5 @@
-<!-- Prepared for ADR 0024 / constitution 5.0.0; NOT active before §22 approval/merge.
-Until then apply effective 4.0.0 gates from the constitution's linked baseline,
-including its DoD dispositions, existing audit and historical review restrictions.
+<!-- Constitution 5.0.0 / Accepted ADR 0024, owner-approved PR #828.
+Preserve existing audit obligations and historical review restrictions.
 Keep one canonical record here or link the issue; do not duplicate ledgers. -->
 
 ## What changed?

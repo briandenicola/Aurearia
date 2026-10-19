@@ -2,11 +2,9 @@
 
 Guidelines for contributing to the Aurearia application.
 
-Read the constitution and applicable accepted ADRs first. This consumer prepares
-Proposed ADR 0024 / 5.0.0. Until §22 approval/merge, effective 4.0.0 (ADR 0019,
-PR #734) remains governing from the constitution's linked baseline, including
-existing review/audit obligations. No #827 gate or historical block is waived.
-The following lane/recording changes activate only with that amendment.
+Read the constitution and applicable accepted ADRs first. Constitution 5.0.0 /
+Accepted ADR 0024 governs through owner-approved PR #828. Existing audit
+obligations and historical reviewer restrictions remain intact.
 
 ## Getting Started
 

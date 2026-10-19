@@ -19,9 +19,7 @@ $ARGUMENTS
 
 Read the constitution, applicable accepted ADRs, and explicit approved work.
 ADR 0019 is Accepted via PR #734; follow the constitution's effective version.
-Prepared for Proposed ADR 0024 / 5.0.0: until §22 approval/merge apply effective
-4.0.0 from the constitution's linked baseline. After activation this workflow
-is optional for any lane; canonical issue/PR criteria may replace a task set.
+This workflow is optional for any lane; canonical issue/PR criteria may replace a task set.
 Stay on `beta` unless a branch is expressly authorized. Never guess the spec.
 Set `$env:SPECIFY_FEATURE` to its directory name in the same process as:
 

@@ -5,9 +5,7 @@ tools: ['github/github-mcp-server/issue_write']
 
 ## User Input
 
-> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
-> 4.0.0 from the constitution's linked baseline. After activation convert only a
-> selected optional task set; do not create duplicate task/evidence ledgers.
+> Convert only a selected optional task set; do not create duplicate task/evidence ledgers.
 > Issue creation is a publication action needing applicable explicit authority.
 
 ```text

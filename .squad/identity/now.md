@@ -1,19 +1,15 @@
 ---
 updated_at: 2026-10-19
-focus_area: Isolated proportional governance amendment
+focus_area: Owner-merged proportional governance activation
 owner: Copilot CLI implementation owner; repository owner accepts results
-work_branch: chore/proportional-governance
-baseline_commit: 283d0c2ebac0f066f23650c5445fefb62c401ab3
-work_artifact: docs/adr/0024-proportional-governance.md
-tasks_artifact: docs/adr/0024-proportional-governance.md
+work_branch: beta
+baseline_commit: 92259b31beb3c7ebe5db54bfcccb3331b98e57db
+work_artifact: https://github.com/briandenicola/Aurearia/pull/828
 ---
 
 # Current Work
 
-- [Selected amendment, authorization, pending evidence and next approval](../../docs/adr/0024-proportional-governance.md).
-- [Currently effective policy and prospective activation boundary](../../.specify/memory/constitution.md).
-- [Open application PR #827](https://github.com/briandenicola/Aurearia/pull/827):
-  its audit and original review gates remain; no merge/deployment authority.
-- [Prior application scope](../../docs/attribution-card-retention.md) and
-  [historical handoff](../log/2026-10-17-attribution-card-retention.md).
+- [Canonical amendment, owner merge and activation evidence](https://github.com/briandenicola/Aurearia/pull/828).
+- [Accepted ADR 0024](../../docs/adr/0024-proportional-governance.md).
+- [Effective constitution 5.0.0](../../.specify/memory/constitution.md).
 - [Historical review restrictions](../decisions.md#open-review-blocks).

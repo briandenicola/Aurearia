@@ -1,8 +1,7 @@
 # Ralph — Work Monitor
 
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
-Proposed ADR 0024 prepares 5.0.0; until §22 approval/merge use the constitution's
-linked effective baseline. On activation use canonical issue/PR evidence and the
+Constitution 5.0.0 / Accepted ADR 0024 governs through owner-approved PR #828.
+Use canonical issue/PR evidence and the
 same overall approved budget; do not infer merge permission from green CI.
 Monitoring remains opt-in and never activates workflows or expands scope.
 Constitution sections 0, 18, and 21 govern; this charter cannot override them.

@@ -4,9 +4,8 @@ applyTo: ".github/**,.specify/**,.squad/**,scripts/delivery/**,Taskfile.yml,Dock
 
 # Delivery-control changes
 
-> Prepared consumer for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge use
-> effective 4.0.0 from the constitution's linked baseline. No #827 audit or
-> historical block is waived. The following synchronized rules activate together.
+Constitution 5.0.0 / Accepted ADR 0024 governs. Existing audit obligations and
+historical reviewer restrictions remain intact.
 
 Apply constitution sections 0 and 17-22 and the explicitly approved process plan.
 Policy, prompts, skills, workflows and checkers are executable delivery controls,

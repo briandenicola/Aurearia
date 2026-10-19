@@ -4,9 +4,7 @@ description: Generate a custom checklist for the current feature based on user r
 
 ## Checklist Purpose: "Unit Tests for English"
 
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge effective 4.0.0
-governs from the constitution's linked baseline. After activation this checklist
-is optional, scoped to an explicit request, not a universal per-change ledger or
+This checklist is optional, scoped to an explicit request, not a universal per-change ledger or
 replacement for lane-required evidence/review.
 
 **CRITICAL CONCEPT**: Checklists are **UNIT TESTS FOR REQUIREMENTS WRITING** - they validate the quality, clarity, and completeness of requirements in a given domain.

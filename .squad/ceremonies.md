@@ -1,11 +1,8 @@
 # Ceremonies
 
 > Risk-based coordination under constitution sections 18 and 20.
-> ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
-
-> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
-> 4.0.0 from the constitution's linked baseline, including #827's audit.
-> The following prospective triggers activate together.
+> Constitution 5.0.0 / Accepted ADR 0024 governs through owner-approved PR #828.
+> Existing audit obligations and historical reviewer restrictions remain intact.
 
 ## Design Review
 

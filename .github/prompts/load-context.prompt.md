@@ -1,10 +1,8 @@
 Load the minimum context for the explicitly selected work under constitution
-sections 0 and 18. ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+sections 0 and 18. Constitution 5.0.0 / Accepted ADR 0024 governs via PR #828.
 Archival execution still requires authorization; historical blocks remain intact.
 
-Prepared for Proposed ADR 0024 / 5.0.0: until §22 approval/merge, effective
-4.0.0 governs from the constitution's linked baseline. After activation select
-the canonical issue/PR (or approved work order), with optional specs rather than
+Select the canonical issue/PR (or approved work order), with optional specs rather than
 a mandatory document set. Load scoped skills on demand; no legacy migration
 preflight is required. The current-work pointer links sources only.
 

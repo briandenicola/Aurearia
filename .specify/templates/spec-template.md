@@ -7,9 +7,7 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge apply effective
-4.0.0 from the constitution's linked baseline. After activation use this optional
-planning aid only when selected; no lane mandates a spec document set.
+Use this optional planning aid only when selected; no lane mandates a spec document set.
 Never amend a landed spec retroactively without authority.
 
 ## Scope and Non-Goals *(mandatory)*

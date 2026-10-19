@@ -1,9 +1,9 @@
 # Acceptance and Release Controls
 
-**Pending governance amendment:** Proposed ADR 0024 prepares 5.0.0; effective
-4.0.0 from the constitution's linked baseline governs until §22 approval/merge.
-No #827 audit or historical restriction is waived. After activation, the
-six-question PR/issue is the sole scope/criteria/evidence/review/outstanding
+**Accepted governance amendment:** Constitution 5.0.0 / ADR 0024 was approved
+and merged by the owner in #828 at `92259b31beb3c7ebe5db54bfcccb3331b98e57db`.
+No existing audit or historical restriction is waived. The six-question PR/issue
+is the sole scope/criteria/evidence/review/outstanding
 record; no mandatory separate inbox/log/history ledger. Routine work needs no
 independent review; feature/high-risk work needs one scoped read-only review.
 Use one overall approved budget; valid unchanged proof is reusable and repairs
@@ -11,7 +11,7 @@ need affected-delta review unless earlier evidence was invalidated.
 Explicit work orders may include implementation/tests/review/repair and beta
 commit/push/PR actions; conditional merge needs exact candidate eligibility with
 no unmet gates. Setup/live settings/deployment remain separately authorized.
-These prospective rules do not alter live protections or the historical control
+These rules do not alter live protections or the historical control
 receipts below, and do not activate Proposed ADR 0022.
 
 **Delivery revision authorized 2026-10-16:** the owner approved replacing

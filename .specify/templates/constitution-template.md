@@ -14,5 +14,5 @@ Do not advance ratification/last-amended metadata before acceptance.
 Preparation, verification/review, PR route/publication, approval/merge, settings,
 installation and release/deployment need their applicable distinct permissions.
 Unexecuted checks remain pending. Only the §22 approval/merge/announcement and
-ADR lifecycle action activates new policy. Proposed ADR 0024 / 5.0.0 is not active;
-effective 4.0.0 remains at the constitution's linked baseline until then.
+ADR lifecycle action activates new policy. The current effective baseline is
+constitution 5.0.0 / Accepted ADR 0024, owner-approved through PR #828.

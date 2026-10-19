@@ -6,9 +6,7 @@
 **Lane**: [feature / high risk]
 **Owner**: [implementation owner] | **Reviewer**: [independent reviewer]
 
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge apply effective
-4.0.0 from the constitution's linked baseline. After activation this template
-is optional for any lane; one issue/PR may hold criteria and evidence instead.
+This template is optional for any lane; one issue/PR may hold criteria and evidence instead.
 Use `.github/agents/speckit.plan.agent.md` only when this workflow is selected.
 
 ## Summary and Scope

@@ -11,9 +11,7 @@ handoffs:
 
 ## User Input
 
-> Proposed ADR 0024 / 5.0.0 consumer preparation only. Until §22 approval/merge,
-> effective 4.0.0 governs from the constitution's linked baseline. After activation,
-> specs are optional planning aids in every lane: use this workflow only when
+> Specs are optional planning aids in every lane: use this workflow only when
 > explicitly selected, never to generate mandatory multi-ledger administration.
 
 ```text

@@ -1,9 +1,7 @@
 End the selected work under constitution §§17–21.
-Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge use effective
-4.0.0 from the constitution's linked baseline, including recording obligations.
 Existing #827 audit and historical review blocks remain required.
 
-After activation, update the canonical issue/PR (approved work order before one
+Update the canonical issue/PR (approved work order before one
 exists): scope/criteria, implemented versus verified/accepted/released,
 exact tested/reviewed identity, evidence links, exceptions, blocks and next action.
 No duplicate inbox/log/history ledger is required; the pointer links sources only.

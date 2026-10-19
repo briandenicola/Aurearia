@@ -1,7 +1,10 @@
 # ADR 0024: Proportional Governance
 
 Date: 2026-10-19
-Status: Proposed
+Status: Accepted
+Accepted: 2026-10-19, owner-approved PR #828 into beta.
+Acceptance merge: `92259b31beb3c7ebe5db54bfcccb3331b98e57db`.
+Lifecycle: acceptance metadata only; the merged decision body below is preserved.
 
 ## Context
 

@@ -10,14 +10,13 @@ $ARGUMENTS
 
 ## Before Work
 
-> Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge use effective
-> 4.0.0 from the constitution's linked baseline. Existing #827 audit and historical
-> blocks remain. Prospective rules below do not authorize this session's checks.
+> Existing audit obligations and historical blocks remain.
+> This workflow does not grant execution authority.
 
 1. Read the constitution, explicit issue/spec/process plan, relevant decisions,
    and applicable accepted ADRs. ADR 0019 is Accepted via PR #734; constitution
-   4.0.0 governs until the recorded §22 activation; thereafter apply the accepted
-   version. Do not infer the work from `beta` or the newest spec.
+   5.0.0 governs through Accepted ADR 0024 / PR #828.
+   Do not infer the work from `beta` or the newest spec.
 2. Only when the owner selected a SpecKit task set, set `$env:SPECIFY_FEATURE` to the exact directory name in
    the same process as:
 

@@ -8,9 +8,7 @@ handoffs:
 
 ## User Input
 
-> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
-> 4.0.0 from the constitution's linked baseline. After activation this workflow
-> applies only to an explicitly selected optional spec; do not require a spec
+> This workflow applies only to an explicitly selected optional spec; do not require a spec
 > when canonical issue/PR criteria suffice.
 
 ```text

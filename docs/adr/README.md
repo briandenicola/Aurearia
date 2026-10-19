@@ -49,15 +49,15 @@ owner-approved merge of PR #734 into beta, as recorded in its lifecycle header.
 
 ## When to Open an ADR
 
-Pending [ADR 0024](0024-proportional-governance.md) prepares a narrower material-
-architecture trigger in constitution 5.0.0. Until §22 approval/merge, 4.0.0 and
-the accepted decisions below remain effective; do not treat this proposal as
-acceptance or retroactive clearance.
+[Accepted ADR 0024](0024-proportional-governance.md), merged in #828, narrows
+the trigger to material architecture under constitution 5.0.0 Principle VIII.
+Existing audit obligations and historical reviewer restrictions remain intact.
 
-Required for: principle additions or changes, new third-party
-services, auth or security changes, multi-service contract changes,
-data-model semantic migrations, UI/UX framework changes. See
-ADR 0001 for the full list.
+Required for material constitutional, service/security-boundary, significant
+provider/runtime-dependency, semantic-migration or UI-framework decisions.
+Routine DTO/query edits do not automatically require an ADR; lesser choices
+belong in canonical work. ADR 0024 supersedes conflicting universal triggers
+in ADR 0001 without rewriting its accepted body.
 
 ## Index
 
@@ -86,6 +86,6 @@ ADR 0001 for the full list.
 | 0021 | [Stateless MCP Adapter in the Go API](0021-stateless-mcp-api-adapter.md) | 2026-10-04 | Proposed |
 | 0022 | [Validate Once and Promote Verified Content](0022-validate-once-promote-verified-content.md) | 2026-10-16 | Proposed |
 | 0023 | [Private Original Attribution-Card Images](0023-private-attribution-card-images.md) | 2026-10-17 | Proposed |
-| 0024 | [Proportional Governance](0024-proportional-governance.md) | 2026-10-19 | Proposed |
+| 0024 | [Proportional Governance](0024-proportional-governance.md) | 2026-10-19 | Accepted |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

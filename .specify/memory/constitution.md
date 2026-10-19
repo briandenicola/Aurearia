@@ -1,7 +1,8 @@
 <!--
-Sync Impact Report — ADR 0024 (PROPOSED)
-Version preparation: 4.0.0 → 5.0.0, MAJOR: incompatible operational restructuring.
-Effective baseline remains 4.0.0 / Accepted ADR 0019, PR #734.
+Sync Impact Report — ADR 0024 (ACCEPTED)
+Version change: 4.0.0 → 5.0.0, MAJOR: incompatible operational restructuring.
+Owner approved and merged PR #828 into beta on 2026-10-19.
+Acceptance merge: 92259b31beb3c7ebe5db54bfcccb3331b98e57db.
 Baseline text: git show 283d0c2ebac0f066f23650c5445fefb62c401ab3:.specify/memory/constitution.md
 Principles I–IX retain identifiers and substantive safeguards; VIII narrows ADR
 ceremony to material architecture; IX permits focused local + exact-candidate CI.
@@ -12,32 +13,31 @@ instructions/delivery.instructions.md, agents/*.agent.md, prompts/*.prompt.md;
 .github/skills/aurearia-software-qc-audit/SKILL.md;
 .specify/templates/*.md; .squad/{routing,ceremonies}.md,
 .squad/agents/*/charter.md, .squad/identity/now.md;
-.squad/decisions.md (pending notice only, no acceptance announcement);
+.squad/decisions.md (acceptance announcement);
 CONTRIBUTING.md, docs/testing.md, docs/adr/README.md,
 docs/agentic-acceptance-controls.md; scripts/delivery/check-governance.mjs
 and governance.test.mjs. See ADR 0024 for bounded disposition.
-Delivery controls passed; isolated branch/review/publication authorized.
-Independent pre-push review passed; pending PR publication, exact-head CI,
-approval/merge, announcement and lifecycle transition.
+Delivery controls, independent review and all 20 PR checks passed.
+This lifecycle update records owner acceptance and removes preparation banners;
+approved operational policy, checker, fixtures and release controls are unchanged.
 Exceptions: no historical block cleared; #827 audit remains required.
 No live settings/workflows, installations, release or deployment changed.
 -->
 # Ancient Coins Constitution
 
 **Project**: Ancient Coins (self-hosted personal collection PWA)
-**Version**: 5.0.0 (prepared; not effective)
-**Amendment Status**: Proposed — [ADR 0024](../../docs/adr/0024-proportional-governance.md)
+**Version**: 5.0.0
+**Amendment Status**: Accepted — [ADR 0024](../../docs/adr/0024-proportional-governance.md)
 **Ratified**: 2026-04-28
-**Last Amended**: 2026-09-21
+**Last Amended**: 2026-10-19
 **Amendment Prepared**: 2026-10-19
 
-> **Activation boundary:** Constitution **4.0.0** / Accepted ADR 0019 remains
-> effective, accepted through owner-approved PR #734 on 2026-09-21 at
-> `ca85f7830349a4472cb5409c082b9485e7e34c44`. Its complete text is preserved at
+> **Effective:** Constitution **5.0.0** / Accepted ADR 0024 was approved and
+> merged by the owner through PR #828 on 2026-10-19 at
+> `92259b31beb3c7ebe5db54bfcccb3331b98e57db`. The previous 4.0.0 text is preserved at
 > [the preparation baseline](https://github.com/briandenicola/Aurearia/blob/283d0c2ebac0f066f23650c5445fefb62c401ab3/.specify/memory/constitution.md).
-> Everything below is prepared 5.0.0 text, activated only through §22.
-> Synchronized consumers carry the same boundary; they do not waive current
-> obligations, PR #827's pending audit, or historical reviewer restrictions.
+> Activation does not waive existing audit obligations or historical reviewer
+> restrictions, change live settings, or authorize release/deployment.
 
 ## §0. Hierarchy of Authority
 
@@ -295,6 +295,6 @@ Automation is preferred, never an excuse to silence a guard by changing authorit
 | 3.0.0 | 2026-06-09 | Brian | Consolidated 17 principles into 9 streamlined principles and made Simple Complete Changes Principle IV. | ADR 0005 |
 | 3.1.0 | 2026-06-11 | Brian | Added workflow-contract, blast-radius, configurable-value, and exact regression coverage gates to reduce repeated user-flow regressions. | ADR 0006 |
 | 4.0.0 | 2026-09-21 | Copilot; approved and merged by owner in PR #734 | Reconciles authority, proportional gates, current views, bounded agents, review restrictions, evidence-backed completion, and audit cadence. Accepted at ca85f7830349a4472cb5409c082b9485e7e34c44; historical review restrictions remain unchanged. | ADR 0019 |
-| 5.0.0 (Proposed) | Pending acceptance | Copilot; local preparation authorized by owner 2026-10-19 | Condensed durable policy, proportional review, one canonical work record and bounded delivery authorization; not effective until §22 approval/merge. | ADR 0024 |
+| 5.0.0 | 2026-10-19 | Copilot; approved and merged by owner in PR #828 | Condensed durable policy, proportional review, one canonical work record and bounded delivery authorization. Accepted at 92259b31beb3c7ebe5db54bfcccb3331b98e57db; existing restrictions retained. | ADR 0024 |
 
-**Prepared version**: 5.0.0 | **Effective version**: 4.0.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-09-21
+**Effective version**: 5.0.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-10-19

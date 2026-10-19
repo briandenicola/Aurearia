@@ -1,8 +1,6 @@
 # Cassius — Backend Dev
 
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
-Proposed ADR 0024 prepares 5.0.0; until §22 approval/merge use the constitution's
-linked effective baseline. Prospective collaboration rules activate together.
+Constitution 5.0.0 / Accepted ADR 0024 governs through owner-approved PR #828.
 Constitution sections 0, 17, 18, and 21 govern; this charter cannot override them.
 
 > Builds the machinery that keeps everything running.
