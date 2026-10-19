@@ -18,7 +18,10 @@ $ARGUMENTS
 ## Authority and Selection
 
 Read the constitution, applicable accepted ADRs, and explicit approved work.
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+ADR 0019 is Accepted via PR #734; follow the constitution's effective version.
+Prepared for Proposed ADR 0024 / 5.0.0: until §22 approval/merge apply effective
+4.0.0 from the constitution's linked baseline. After activation this workflow
+is optional for any lane; canonical issue/PR criteria may replace a task set.
 Stay on `beta` unless a branch is expressly authorized. Never guess the spec.
 Set `$env:SPECIFY_FEATURE` to its directory name in the same process as:
 
@@ -43,7 +46,8 @@ Use `.specify/templates/tasks-template.md` and actual repository paths.
 3. List dependencies and default to one implementation owner. `[P]` permits
    independent non-conflicting work, not automatic parallel agents.
 4. Finish with applicable §17 gates, directly affected docs/contracts,
-   independent review, lifecycle reconciliation, and durable handoff.
+   lane-required independent review and canonical issue/PR evidence.
+   Do not add mandatory inbox/log/history handoff tasks or duplicate broad audits.
 5. Record high-risk compatibility/recovery evidence and owner approval gates.
    No implicit project scaffolding, dependency setup, hardening, refactoring,
    release, or scope expansion.

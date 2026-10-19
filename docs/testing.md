@@ -120,6 +120,15 @@ result-consuming UI.
 
 ## 6. Running tests locally vs. CI
 
+> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
+> 4.0.0 from the constitution's linked baseline. After activation use focused
+> local checks plus applicable exact-candidate CI, reusing unchanged valid
+> evidence rather than running full suites repeatedly. Changed content
+> invalidates affected proof. Taskfile/CI remain executable sources; this is the
+> single command reference, not permission to execute tests/builds/setup.
+> Preserve actual security findings, failure/retry/ownership/privacy, strict
+> types, zero-warning lint, contracts and applicable runner/recovery proof.
+
 Use targeted checks for feedback and all applicable completion checks before
 claiming verification. Pure docs need document/link/consistency review and any
 existing doc checks. Executable prompts, policy, scripts, and workflow changes
@@ -229,13 +238,22 @@ treated as file links. Remote URLs are not fetched. Sparse-excluded tracked
 reference targets are reported as warnings; an ordinary missing target is an
 error. Diagnostics include file, line, rule code and severity; errors exit 1.
 
-The current pointer requires scalar `updated_at` (real YYYY-MM-DD), `focus_area`,
-`owner`, `work_artifact` and `tasks_artifact` frontmatter. Artifact paths are
-canonical repository-relative existing Markdown files under docs/specs, or
-`https://github.com/briandenicola/Aurearia/issues/NUMBER` for bounded issue work
-(URL syntax only; remote existence/authorization is not checked offline).
-Feature selection requires matching `spec.md`/`tasks.md`; a process plan or issue
-may serve both roles. No new feature spec is required for a small issue repair.
+While ADR 0024 is Proposed, effective 4.0.0 pointer rules remain: scalar
+`updated_at` (real YYYY-MM-DD), `focus_area`, `owner`, `work_artifact` and
+`tasks_artifact` frontmatter. Artifacts are canonical repository-relative existing
+Markdown files under docs/specs, or
+`https://github.com/briandenicola/Aurearia/issues/NUMBER`. Feature selection
+requires matching `spec.md`/`tasks.md`; a process plan or issue may serve both
+roles. Small issue repairs do not require an invented feature spec.
+
+Only when the constitution records **both version 5.0.0 and Amendment Status
+Accepted** does the simplified mode activate. `tasks_artifact` becomes optional,
+but is still validated if supplied. `work_artifact` may also identify
+`https://github.com/briandenicola/Aurearia/pull/NUMBER`, and selecting a spec no
+longer requires a paired tasks ledger. The other metadata, canonical-path,
+file-existence and repository-URL restrictions remain. A prepared version alone
+does not activate this mode. URL syntax is checked offline, not remote existence,
+owner authorization or lifecycle approval.
 Names/descriptions accept plain, quoted or block scalar text; the checker
 validates required metadata, not the entire YAML language.
 
@@ -263,9 +281,11 @@ runtime discovery and refusal evidence must come from the actual client.
 
 We do **not** gate PRs on a repo-wide coverage percentage. Coverage is a signal for blind spots, not a target to game.
 
-Constitution §21.9 requires **"every new service method has ≥ 1 unit test."**
-Section 21.6 separately requires exact-path regression evidence. Use coverage
-output diagnostically, never a single percentage as proof of safety.
+Effective constitution 4.0.0 §21.9 requires **"every new service method has ≥ 1
+unit test."** Its §21.6 separately requires exact-path regression evidence.
+After ADR 0024 is accepted, these retained coverage obligations live in §17;
+prepared 5.0.0 §21 does not contain numbered checklist items. Use coverage output
+diagnostically, never a single percentage as proof of safety.
 
 ## 8. F013 golden collection fixtures
 

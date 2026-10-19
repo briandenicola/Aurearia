@@ -1,5 +1,13 @@
 # Active Squad Decisions
 
+> **Pending preparation, not an acceptance announcement:** [ADR 0024](../docs/adr/0024-proportional-governance.md)
+> prepares constitution 5.0.0. Effective 4.0.0 and the decisions/blocks below
+> remain binding until §22 approval/merge. On activation, canonical issue/PR work
+> replaces mandatory multi-ledger administration; `now.md` only links sources,
+> including for GOV-003. Review/audit/completion triggers then follow 5.0.0,
+> without clearing existing blocks, #827's audit, or activating Proposed ADR 0022.
+> The merge announcement and acceptance evidence remain pending.
+
 Curated 2026-09-29 for issue #783 under Constitution 4.0.0 section 18.3. This is a
 current view, not a constitution or task ledger. Start with
 [current work](identity/now.md). Authority: Constitution > PRD > accepted ADRs >

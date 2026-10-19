@@ -11,6 +11,11 @@ handoffs:
 
 ## User Input
 
+> Proposed ADR 0024 / 5.0.0 consumer preparation only. Until §22 approval/merge,
+> effective 4.0.0 governs from the constitution's linked baseline. After activation,
+> specs are optional planning aids in every lane: use this workflow only when
+> explicitly selected, never to generate mandatory multi-ledger administration.
+
 ```text
 $ARGUMENTS
 ```
@@ -18,7 +23,7 @@ $ARGUMENTS
 ## Authority and Selection
 
 Read the constitution and applicable accepted ADRs. ADR 0019 is Accepted via
-PR #734; constitution 4.0.0 governs. Do not change a landed spec without
+PR #734; follow the constitution's effective version. Do not change a landed spec without
 amendment authority. Clarify material scope, behavior, and approval ambiguity;
 never invent product decisions or treat a proposal as approved.
 

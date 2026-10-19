@@ -120,6 +120,10 @@ export function checkGovernance(root) {
     });
   };
   const policy = read(constitution);
+  // Prospective pointer simplification must not activate from a prepared version
+  // header alone. Lifecycle approval is still human evidence, not this check.
+  const proportional = /^\*\*Version\*\*: 5\.0\.0(?:\s|$)/m.test(policy) &&
+    /^\*\*Amendment Status\*\*: Accepted(?:\s|$)/m.test(policy);
   const identifiers = new Set([...policy.matchAll(/^### ([IVXLCDM]+)\. /gm)].map(match => match[1]));
   if (!identifiers.size) report(constitution, 1, 'PRINCIPLE', 'No supported principle identifiers found');
   const roles = walk('.squad/agents').filter(file => /\/(?:charter|history)\.md$/.test(file));
@@ -225,22 +229,32 @@ export function checkGovernance(root) {
   }
 
   try {
-    const state = metadata(contents.get(currentWork) ?? '', ['updated_at', 'focus_area', 'owner', 'work_artifact', 'tasks_artifact']);
+    const state = metadata(contents.get(currentWork) ?? '', [
+      'updated_at', 'focus_area', 'owner', 'work_artifact',
+      ...(proportional ? [] : ['tasks_artifact']),
+    ]);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(state.updated_at) ||
         !Number.isFinite(Date.parse(state.updated_at)) ||
         new Date(state.updated_at).toISOString().slice(0, 10) !== state.updated_at) {
       report(currentWork, 2, 'STATE', 'updated_at must be a real YYYY-MM-DD date');
     }
-    for (const field of ['work_artifact', 'tasks_artifact']) {
+    const fields = ['work_artifact'];
+    if (!proportional || /^tasks_artifact:/m.test(contents.get(currentWork) ?? '')) {
+      // Validate an optional legacy alias if supplied; never ignore bad metadata.
+      if (proportional) state.tasks_artifact = metadata(contents.get(currentWork), ['tasks_artifact']).tasks_artifact;
+      fields.push('tasks_artifact');
+    }
+    for (const field of fields) {
       const value = state[field];
       if (/^https:\/\/github\.com\/briandenicola\/Aurearia\/issues\/[1-9]\d*$/.test(value)) continue;
+      if (proportional && /^https:\/\/github\.com\/briandenicola\/Aurearia\/pull\/[1-9]\d*$/.test(value)) continue;
       if (placeholder(value) || !/^(?:docs|specs)\//.test(value) ||
           posix(relative(root, local(value))) !== value ||
           !value.endsWith('.md') || !present(value) || !lstatSync(local(value)).isFile()) {
-        report(currentWork, 1, 'STATE', `${field} must name an existing canonical docs/specs Markdown path or repository issue URL`);
+        report(currentWork, 1, 'STATE', `${field} must name an existing canonical docs/specs Markdown path or permitted repository work URL`);
       }
     }
-    if (state.work_artifact.startsWith('specs/') &&
+    if (!proportional && state.work_artifact.startsWith('specs/') &&
         (!/^specs\/[^/]+\/spec\.md$/.test(state.work_artifact) ||
          state.tasks_artifact !== state.work_artifact.replace(/spec\.md$/, 'tasks.md'))) {
       report(currentWork, 1, 'STATE', 'Selected feature requires spec.md and matching tasks.md in the same directory');
