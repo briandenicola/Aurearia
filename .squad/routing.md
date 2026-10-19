@@ -3,6 +3,13 @@
 How to choose an optional specialist. Subject to constitution sections 0 and 18.
 ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 
+Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge apply effective
+4.0.0 from the constitution's linked baseline. After activation, the canonical
+issue/PR owns evidence (no mandatory extra handoff/log/inbox); use one overall
+approved time/credit lease with meaningful checkpoints, not per-read permission.
+Routine work needs no independent review; feature/high-risk work needs one scoped
+review. Original blocks and native reviewer tool restrictions remain unchanged.
+
 ## Routing Table
 
 | Work Type | Route To | Examples |
@@ -33,7 +40,7 @@ ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
 ## Rules
 
 1. **One implementation owner by default.** Delegate only bounded work needing separate context.
-2. **Scribe is optional after amendment acceptance.** The owner of the work remains responsible for durable handoff and waits for required recording.
+2. **Scribe is optional.** The implementation owner maintains canonical issue/PR evidence; the current-work pointer only links sources.
 3. **Simple work stays direct.** Do not spawn agents for a short lookup or single trace.
 4. **Choose the primary domain.** Consult others only for a concrete need.
 5. **No speculative fan-out.** "Team" does not remove scope, effort, or permission limits.
@@ -53,12 +60,12 @@ means stop, not an invitation to infer defaults.
 | Access | Named read/write paths, tool capabilities and prohibited side effects |
 | Evidence | Required checks and supplied outputs, clearly distinguished from independent observations |
 | Lease | Owner-approved maximum tool calls and elapsed time, checkpoint, and stop condition |
-| Persistence | Exact return format and named handoff destination; writer and caller responsible |
+| Persistence | Exact return format and canonical issue/PR destination; writer and caller responsible |
 
 Return PASS/BLOCK/INCOMPLETE, inspected/changed paths, evidence identity and
 provenance, unresolved work, lease use and stop reason. An empty result or changed
 files alone is INCOMPLETE. The caller inspects the result, verifies any authorized
-writes and persists the handoff before reporting completion. Do not infer a
+writes and records the result in canonical work before reporting completion. Do not infer a
 persisted record from a subagent's intention to write it.
 
 For required independent review use `task review:read-only` and the native

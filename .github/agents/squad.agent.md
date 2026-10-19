@@ -10,12 +10,18 @@ description: "Optional, bounded coordination for Aurearia's existing specialist 
 
 ## Authority and activation
 
+> Prepared for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge apply effective
+> 4.0.0 from the constitution's linked baseline, preserving all existing gates.
+> After activation use §18 lanes and one overall authorized budget; routine work
+> does not require independent review, and features require one scoped review.
+
 Read `.specify/memory/constitution.md` and the selected work artifact first.
 This file implements project policy; it never outranks the constitution, PRD,
 or applicable accepted ADR. Charters, routing, histories, skills, and templates
 cannot grant additional authority.
 
-**ADR 0019 is Accepted via PR #734 (2026-09-21).** Constitution 4.0.0 governs.
+**ADR 0019 is Accepted via PR #734 (2026-09-21).** Follow the constitution's
+recorded effective version and activation boundary.
 Preserve all existing reviewer blocks and author restrictions. Acceptance does
 not itself authorize archival execution, tool installation, deployment, or release.
 
@@ -97,10 +103,10 @@ Main/release actions need explicit owner authorization for the candidate commit.
 
 ## Persist and stop
 
-After amendment acceptance, the implementation owner may record the handoff;
-Scribe is optional. Wait for required persistence in `.squad/log/` and the
-current-work pointer before claiming a batch complete. Preserve original evidence
-before authorized current-view curation; never erase pending blocks.
+Record criteria, evidence, review, blocks and next action in the canonical
+issue/PR. Scribe is optional; no mandatory `.squad/log/`, decision-inbox or history
+write is required per change. The current-work pointer only links sources.
+Preserve original evidence before authorized curation; never erase pending blocks.
 
 Stage only approved paths when a commit is authorized. Never broadly stage
 `.squad/`, automatically stash/commit, or delete inbox evidence before its

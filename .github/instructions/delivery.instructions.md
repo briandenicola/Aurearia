@@ -4,6 +4,10 @@ applyTo: ".github/**,.specify/**,.squad/**,scripts/delivery/**,Taskfile.yml,Dock
 
 # Delivery-control changes
 
+> Prepared consumer for Proposed ADR 0024 / 5.0.0. Until §22 approval/merge use
+> effective 4.0.0 from the constitution's linked baseline. No #827 audit or
+> historical block is waived. The following synchronized rules activate together.
+
 Apply constitution sections 0 and 17-22 and the explicitly approved process plan.
 Policy, prompts, skills, workflows and checkers are executable delivery controls,
 not automatically pure documentation. Require independent review and relevant
@@ -24,7 +28,14 @@ behavior/negative evidence. Do not modify locked authority to silence a guard.
 - SpecKit upgrades must preserve local policies, explicit `SPECIFY_FEATURE`,
   no-branch preparation and the stdout/Boolean regression. Preview generated
   diffs in isolation; never force-reinitialize customized repository files.
-- Respect owner-approved staging paths and wait for durable handoff. Empty
+- Respect owner-approved staging paths and persist evidence in canonical work. Empty
   responses, changed files and framework status fields are not completion.
 - Do not infer live GitHub settings, deployments, release approval or reviewer
   clearance from a green check or a written requirement.
+
+Apply the lane and audit triggers in §§18/20: delivery controls are high risk,
+with one scoped independent review and applicable negative/security/recovery proof;
+do not add a duplicate broad audit unless major architecture/owner-designated
+major release requires it. Use one approved overall budget; do not renew
+permission for ordinary in-scope repairs or reads. Work-order permissions must
+be explicit; setup/live settings/deployment remain separate.

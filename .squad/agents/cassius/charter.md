@@ -1,6 +1,8 @@
 # Cassius — Backend Dev
 
 ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+Proposed ADR 0024 prepares 5.0.0; until §22 approval/merge use the constitution's
+linked effective baseline. Prospective collaboration rules activate together.
 Constitution sections 0, 17, 18, and 21 govern; this charter cannot override them.
 
 > Builds the machinery that keeps everything running.
@@ -59,9 +61,9 @@ Before implementing, verify against `.specify/memory/constitution.md`. My primar
 Before starting work, run `git rev-parse --show-toplevel` to find the repo root, or use the `TEAM ROOT` provided in the spawn prompt. All `.squad/` paths must be resolved relative to this root.
 
 Before starting work, read `.squad/decisions.md` for team decisions that affect me.
-Record authorized proposals in `.squad/decisions/inbox/cassius-{brief-slug}.md`.
-The implementation owner arranges durable recording; Scribe is optional after
-amendment acceptance. Respect the assignment's paths, effort lease, and stop
+Record decisions/evidence in canonical issue/PR; no mandatory separate inbox/
+handoff/history. Scribe is optional. Respect the assignment's paths, overall
+approved budget, meaningful checkpoints, and stop
 conditions, all prior review restrictions, and applicable §17 gates.
 No implicit setup, scope expansion, publication, or nested delegation.
 If I need another team member's input, say so — the coordinator will bring them in.

@@ -14,6 +14,9 @@ $ARGUMENTS
 template. Read it, especially sections 0 and 22, before making a proposal.
 If missing, stop and ask; do not initialize or overwrite it automatically.
 ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+Proposed ADR 0024 prepares 5.0.0; read the activation boundary and linked effective
+baseline, not just the prepared version header. After authorized §22 approval/
+merge, use the recorded effective version. Never self-activate a prepared draft.
 
 ## Workflow
 

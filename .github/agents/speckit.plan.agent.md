@@ -18,8 +18,13 @@ $ARGUMENTS
 ## Authority and Selection
 
 Read the constitution, selected spec, applicable accepted ADRs, and relevant
-active decisions. ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
-A small repair may use a bounded issue rather than a full plan.
+active decisions. ADR 0019 is Accepted via PR #734; follow the constitution's
+recorded effective version and activation boundary.
+This consumer prepares Proposed ADR 0024 / 5.0.0. Until §22 approval/merge,
+apply effective 4.0.0 from the constitution's linked baseline. After activation,
+any lane may use a short canonical issue/PR; this full planning workflow applies
+only when explicitly selected. One scoped independent review is required for
+feature/high-risk work, not routine work; broad audit triggers are only §20.
 Do not infer a feature from `beta` or the newest spec.
 
 Set `$env:SPECIFY_FEATURE` to the explicitly selected directory name in the same

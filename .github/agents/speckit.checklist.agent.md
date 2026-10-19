@@ -4,6 +4,11 @@ description: Generate a custom checklist for the current feature based on user r
 
 ## Checklist Purpose: "Unit Tests for English"
 
+Prepared for Proposed ADR 0024 / 5.0.0; until §22 approval/merge effective 4.0.0
+governs from the constitution's linked baseline. After activation this checklist
+is optional, scoped to an explicit request, not a universal per-change ledger or
+replacement for lane-required evidence/review.
+
 **CRITICAL CONCEPT**: Checklists are **UNIT TESTS FOR REQUIREMENTS WRITING** - they validate the quality, clarity, and completeness of requirements in a given domain.
 
 **NOT for verification/testing**:
@@ -34,7 +39,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Execution Steps
 
 Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
-via PR #734; constitution 4.0.0 governs. Explicitly select the spec,
+via PR #734; follow the constitution's effective version. Explicitly select the spec,
 never from `beta` or the newest directory. Set `$env:SPECIFY_FEATURE` to its exact
 directory name in the same process as the prerequisite command.
 Checklist completion is requirements evidence, not implementation acceptance.
