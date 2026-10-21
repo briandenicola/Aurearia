@@ -2,6 +2,21 @@
   <section class="card">
     <h2 class="text-lg font-medium mb-5 pb-3 border-b border-border-subtle">Appearance</h2>
 
+    <!-- Sync scope -->
+    <div class="flex justify-between items-center py-3 border-b border-border-subtle gap-4 md:flex-row flex-col md:items-center items-stretch">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-base font-medium">Sync Across Devices</span>
+        <span class="text-sm text-text-muted">Save theme, timezone, default view, tray color and sort to your account so every device you sign in on uses them. Turn off to keep this device's choices separate. Turning it on saves this device's current settings to your account.</span>
+        <span v-if="syncScopeError" class="mt-1 text-chip text-loss">{{ syncScopeError }}</span>
+      </div>
+      <BaseToggle
+        label="Sync across devices"
+        :model-value="syncAcrossDevices"
+        :disabled="syncScopeSaving"
+        @update:model-value="handleSyncScopeChange"
+      />
+    </div>
+
     <!-- Theme -->
     <div class="flex justify-between items-center py-3 border-b border-border-subtle gap-4 last:border-0 md:flex-row flex-col md:items-center items-stretch">
       <div class="flex flex-col gap-[0.15rem]">
@@ -179,6 +194,7 @@ import { ref } from 'vue'
 import type { Theme } from '@/types'
 import type { FeltColor } from '@/composables/useTrayPreference'
 import { useSettingsProfile } from '@/composables/useSettingsProfile'
+import { getPreferenceScope, setPreferenceScope } from '@/composables/usePreferenceSync'
 
 defineProps<{
   theme: Theme
@@ -211,6 +227,23 @@ async function handlePwaSwipeNavChange(value: boolean) {
     pwaSwipeNavError.value = 'Failed to save swipe navigation setting'
   } finally {
     pwaSwipeNavSaving.value = false
+  }
+}
+
+const syncAcrossDevices = ref(getPreferenceScope() === 'account')
+const syncScopeError = ref('')
+const syncScopeSaving = ref(false)
+
+async function handleSyncScopeChange(value: boolean) {
+  syncScopeError.value = ''
+  syncScopeSaving.value = true
+  syncAcrossDevices.value = value
+  try {
+    await setPreferenceScope(value ? 'account' : 'device')
+  } catch {
+    syncScopeError.value = 'Sync is on, but saving this device’s settings to your account failed'
+  } finally {
+    syncScopeSaving.value = false
   }
 }
 </script>

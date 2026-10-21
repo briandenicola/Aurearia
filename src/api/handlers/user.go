@@ -133,6 +133,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
 		"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
 		"pwaSwipeNavEnabled":             user.PWASwipeNavEnabled,
+		"preferences":                    userPreferencesPayload(&user),
 	})
 }
 
@@ -250,23 +251,24 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userID := c.GetUint("userId")
 
 	var req struct {
-		Email                          *string `json:"email"`
-		Bio                            *string `json:"bio"`
-		IsPublic                       *bool   `json:"isPublic"`
-		ZipCode                        *string `json:"zipCode"`
-		NumisBidsUsername              *string `json:"numisBidsUsername"`
-		NumisBidsPassword              *string `json:"numisBidsPassword"`
-		CNGUsername                    *string `json:"cngUsername"`
-		CNGPassword                    *string `json:"cngPassword"`
-		ParcelAppAPIKey                *string `json:"parcelAppAPIKey"`
-		PushoverUserKey                *string `json:"pushoverUserKey"`
-		CoinOfDayEnabled               *bool   `json:"coinOfDayEnabled"`
-		CoinOfDayIncludeWishlist       *bool   `json:"coinOfDayIncludeWishlist"`
-		EmperorTrackerEnabled          *bool   `json:"emperorTrackerEnabled"`
-		EmperorTrackerShowUsurpers     *bool   `json:"emperorTrackerShowUsurpers"`
-		EmperorTrackerShowEmpresses    *bool   `json:"emperorTrackerShowEmpresses"`
-		EmperorTrackerShowOtherFigures *bool   `json:"emperorTrackerShowOtherFigures"`
-		PWASwipeNavEnabled             *bool   `json:"pwaSwipeNavEnabled"`
+		Email                          *string                 `json:"email"`
+		Bio                            *string                 `json:"bio"`
+		IsPublic                       *bool                   `json:"isPublic"`
+		ZipCode                        *string                 `json:"zipCode"`
+		NumisBidsUsername              *string                 `json:"numisBidsUsername"`
+		NumisBidsPassword              *string                 `json:"numisBidsPassword"`
+		CNGUsername                    *string                 `json:"cngUsername"`
+		CNGPassword                    *string                 `json:"cngPassword"`
+		ParcelAppAPIKey                *string                 `json:"parcelAppAPIKey"`
+		PushoverUserKey                *string                 `json:"pushoverUserKey"`
+		CoinOfDayEnabled               *bool                   `json:"coinOfDayEnabled"`
+		CoinOfDayIncludeWishlist       *bool                   `json:"coinOfDayIncludeWishlist"`
+		EmperorTrackerEnabled          *bool                   `json:"emperorTrackerEnabled"`
+		EmperorTrackerShowUsurpers     *bool                   `json:"emperorTrackerShowUsurpers"`
+		EmperorTrackerShowEmpresses    *bool                   `json:"emperorTrackerShowEmpresses"`
+		EmperorTrackerShowOtherFigures *bool                   `json:"emperorTrackerShowOtherFigures"`
+		PWASwipeNavEnabled             *bool                   `json:"pwaSwipeNavEnabled"`
+		Preferences                    *userPreferencesRequest `json:"preferences"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -360,6 +362,12 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if req.PWASwipeNavEnabled != nil {
 		updates["pwa_swipe_nav_enabled"] = *req.PWASwipeNavEnabled
 	}
+	if req.Preferences != nil {
+		if err := req.Preferences.apply(updates); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 		goingPrivate := !*req.IsPublic && user.IsPublic
@@ -408,6 +416,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
 		"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
 		"pwaSwipeNavEnabled":             user.PWASwipeNavEnabled,
+		"preferences":                    userPreferencesPayload(&user),
 	})
 }
 

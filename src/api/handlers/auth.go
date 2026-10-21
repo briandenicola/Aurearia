@@ -181,6 +181,7 @@ func writeAuthResponse(c *gin.Context, statusCode int, result services.AuthResul
 			"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
 			"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
 			"pwaSwipeNavEnabled":             user.PWASwipeNavEnabled,
+			"preferences":                    userPreferencesPayload(&user),
 		},
 	})
 }

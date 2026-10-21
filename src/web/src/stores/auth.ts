@@ -4,6 +4,7 @@ import type { User, AuthResponse } from '@/types'
 import * as api from '@/api/client'
 import { onTokenRefreshed } from '@/api/client'
 import { clearPrivateMediaBlobCache } from '@/utils/media'
+import { applyAccountPreferences } from '@/composables/usePreferenceSync'
 
 const PRIVATE_MEDIA_CACHE_NAMES = ['coin-images']
 
@@ -20,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('token', data.token)
     localStorage.setItem('refreshToken', data.refreshToken)
     localStorage.setItem('user', JSON.stringify(data.user))
+    applyAccountPreferences(data.user.preferences)
   }
 
   function isUserSwitch(nextUser: User) {
