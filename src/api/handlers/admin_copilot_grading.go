@@ -203,7 +203,7 @@ func (h *AdminCopilotGradingHandler) RunNow(c *gin.Context) {
 }
 
 func parseGradeID(c *gin.Context) (uint, bool) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil || id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid grade ID"})
 		return 0, false

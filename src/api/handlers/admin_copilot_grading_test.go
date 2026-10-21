@@ -163,3 +163,13 @@ func jsonID(id uint) string {
 	payload, _ := json.Marshal(id)
 	return string(payload)
 }
+
+func TestAdminCopilotGradingRejectsIDsBeyondUint32(t *testing.T) {
+	router, _, _ := setupCopilotGradingRouter(t)
+
+	recorder := serveCopilotGrading(router, http.MethodGet, "/admin/copilot-grades/4294967296", nil)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("out-of-range id status = %d", recorder.Code)
+	}
+}
