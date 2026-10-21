@@ -70,6 +70,8 @@ type appDeps struct {
 	deepIdentificationSvc          *services.DeepIdentificationService
 	coinCopilotRepo                *repository.CoinCopilotRepository
 	coinCopilotSvc                 *services.CoinCopilotService
+	copilotGradeRepo               *repository.CoinCopilotGradeRepository
+	copilotGradingScheduler        *services.CopilotGradingScheduler
 	deepAnalysisHandoffSvc         *services.DeepAnalysisHandoffService
 	healthSvc                      *services.HealthService
 	healthScheduler                *services.CollectionHealthScheduler
@@ -297,6 +299,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		deepIdentificationSvc, settingsSvc, cfg.UploadDir,
 	)
 	coinCopilotSvc.StartWorkers(backgroundCtx)
+	copilotGradeRepo := repository.NewCoinCopilotGradeRepository(database.DB)
+	copilotGradingScheduler := services.NewCopilotGradingScheduler(copilotGradeRepo, coinCopilotRepo, agentProxy, settingsSvc, logger)
+	schedulerRegistry.Register(copilotGradingScheduler)
 	mcpSvc := services.NewMCPService(collectionSvc, coinRepo, auctionLotRepo, coinCopilotSvc)
 
 	// #218 external tool server: per-key rate limiter shared by the
@@ -346,6 +351,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		deepIdentificationSvc:          deepIdentificationSvc,
 		coinCopilotRepo:                coinCopilotRepo,
 		coinCopilotSvc:                 coinCopilotSvc,
+		copilotGradeRepo:               copilotGradeRepo,
+		copilotGradingScheduler:        copilotGradingScheduler,
 		deepAnalysisHandoffSvc:         deepAnalysisHandoffSvc,
 		healthSvc:                      healthSvc,
 		healthScheduler:                healthScheduler,

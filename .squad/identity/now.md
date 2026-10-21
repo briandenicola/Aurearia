@@ -1,23 +1,15 @@
 ---
-updated_at: 2026-10-18
-focus_area: Private original attribution-card retention and opt-in Share attachments
+updated_at: 2026-10-19
+focus_area: Owner-merged proportional governance activation
 owner: Copilot CLI implementation owner; repository owner accepts results
 work_branch: beta
-baseline_commit: 86f64bdda864c34948ae48dba8da04bdc67e5ece
-work_artifact: docs/attribution-card-retention.md
-tasks_artifact: docs/attribution-card-retention.md
+baseline_commit: 92259b31beb3c7ebe5db54bfcccb3331b98e57db
+work_artifact: https://github.com/briandenicola/Aurearia/pull/828
 ---
 
 # Current Work
 
-Retain attribution cards privately with opt-in Share attachments. Sale recording
-is unchanged. Prior delivery/share-title work merged in #826.
-
-## Next Action
-
-PR #827 is open. Repair its CodeQL extension-path alerts using fixed allowlisted
-suffixes; owner approved one reviewer read, then commit/push beta.
-See [repair](../log/2026-10-18-attribution-extension-codeql.md).
-Software QC audit remains required before merge; no merge/deployment authorized.
-No builds, installs, containers, main merge or deployment. See
-[handoff](../log/2026-10-17-attribution-card-retention.md).
+- [Canonical amendment, owner merge and activation evidence](https://github.com/briandenicola/Aurearia/pull/828).
+- [Accepted ADR 0024](../../docs/adr/0024-proportional-governance.md).
+- [Effective constitution 5.0.0](../../.specify/memory/constitution.md).
+- [Historical review restrictions](../decisions.md#open-review-blocks).

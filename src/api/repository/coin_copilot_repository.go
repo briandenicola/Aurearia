@@ -889,6 +889,9 @@ func (r *CoinCopilotRepository) DeleteThread(threadID string, userID uint) error
 			return err
 		}
 		if len(runIDs) > 0 {
+			if err := tx.Where("run_id IN ?", runIDs).Delete(&models.CoinCopilotRunGrade{}).Error; err != nil {
+				return err
+			}
 			if err := tx.Where("run_id IN ?", runIDs).Delete(&models.CoinCopilotResumeRequest{}).Error; err != nil {
 				return err
 			}

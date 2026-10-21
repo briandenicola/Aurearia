@@ -1,8 +1,13 @@
 Run the explicitly selected audit under constitution section 20.
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs the cadence.
+Constitution 5.0.0 / Accepted ADR 0024 governs the cadence.
+The software-QC trigger below is limited to major architectural changes or
+owner-designated major releases, NOT every high-risk feature or beta-to-main PR.
+Applicable high-risk security/compatibility/recovery proof remains mandatory.
+Existing #827 audit and historical review restrictions are not waived.
 
 1. Confirm the audit type and boundary:
-   - Software QC for major/high-risk work or release readiness: exact base/head,
+   - Software QC for major architecture or owner-designated major release
+     (and preserved existing audit obligations): exact base/head,
      requirements, contracts, and affected workflows.
    - Agentic delivery after an owner-designated major release: governance,
      instructions, state, enforcement, coordination, and prior corrective actions.

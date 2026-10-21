@@ -1,7 +1,8 @@
 # Ceremonies
 
 > Risk-based coordination under constitution sections 18 and 20.
-> ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+> Constitution 5.0.0 / Accepted ADR 0024 governs through owner-approved PR #828.
+> Existing audit obligations and historical reviewer restrictions remain intact.
 
 ## Design Review
 
@@ -9,7 +10,7 @@
 |-------|-------|
 | **Trigger** | risk-based within approved work |
 | **When** | before |
-| **Condition** | material shared contract, architecture, migration, or delivery-control decision |
+| **Condition** | one scoped feature/high-risk review; combine design concerns without a duplicate ceremony |
 | **Facilitator** | lead |
 | **Participants** | implementation owner and one independent reviewer; others only if needed |
 | **Time budget** | explicit bounded lease; stop at decision or blocker |
@@ -43,13 +44,15 @@
 
 ## Audits and closeout
 
-- Software QC: major/high-risk work and release readiness, scoped to the candidate.
+- Software QC: major architecture or owner-designated major releases, not every
+  beta-to-main PR. Keep existing audit obligations and applicable high-risk proof.
 - Agentic delivery: after every owner-designated major release; track prior actions.
 - Explicitly invoke and record the audit at release closeout. A skill is not a trigger.
 - Audits are read-only unless report/issue writes are authorized.
 - Preserve per-release SBOM/threat-model and scheduled product/dependency/restore reviews.
 - Record corrective-action evidence; a retrospective alone does not close a finding.
-- The implementation owner records the handoff or delegates to Scribe and waits.
+- The implementation owner records evidence in canonical issue/PR; no mandatory
+  separate handoff/inbox/history. Routine work needs no independent ceremony.
 - No ceremony authorizes scope expansion, commits, installs, deployments, or release.
 - Use the [assignment/return contract](routing.md#delegation-and-return-contract)
   for any delegated review or recording. A ceremony does not bypass the native

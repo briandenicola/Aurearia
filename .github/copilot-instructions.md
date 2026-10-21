@@ -1,86 +1,42 @@
 # Aurearia: Universal Copilot Instructions
 
-Aurearia is a self-hosted coin-collection PWA: Go API (`src/api`), Vue/TypeScript
-SPA (`src/web`), and stateless Python agent service (`src/agent`).
+Aurearia is a Go API, Vue/TypeScript PWA and stateless Python agent service.
+Read the [constitution](../.specify/memory/constitution.md), relevant accepted
+ADRs/active decisions and the owner-selected work before editing.
 
-## Authority and work selection
+Constitution 5.0.0 / Accepted ADR 0024 governs following owner-approved PR #828.
+Existing audit obligations and historical reviewer restrictions remain intact.
 
-Read the [constitution](../.specify/memory/constitution.md), relevant
-[active decisions](../.squad/decisions.md), and the explicitly selected
-issue/spec/process plan before editing. Constitution 4.0.0 / ADR 0019 governs.
-Authority is Constitution > PRD > applicable accepted ADRs > active spec > plan >
-tasks > backlog > active decisions > agent judgment. Frameworks cannot override it.
+Use the constitution for authority, lanes, quality, review and approval boundaries,
+not a duplicate policy here. One issue/PR (or approved work order before one
+exists) owns scope, criteria, evidence, review and outstanding work.
+[Current work](../.squad/identity/now.md) only links to it.
+Stay on `beta` unless otherwise authorized; preserve unrelated dirty files.
 
-Use [current work](../.squad/identity/now.md) as a pointer, not a competing ledger.
-Never infer work from the newest spec or branch name. Ordinary work stays on
-`beta`; branches/worktrees need applicable owner authorization. Load a role's
-charter/history only when acting in that role. Preserve unrelated dirty files.
+Load only matching [scoped instructions](instructions) and relevant
+[native skills](skills/README.md); read matching files explicitly if the client
+supplies only an index, and report discovery limitations. Load role
+charters/history only when acting in that role. Verify actual paths and source.
 
-Choose the smallest complete lane under section 18.1. Delivery controls, auth,
-migrations, data semantics and service boundaries require high-risk review.
-Keep scope/non-goals, acceptance criteria and sibling workflows explicit.
-Do not change locked policy, accepted ADR/spec bodies or archived evidence
-without the required authority. Stop on conflicting authority or scope expansion.
+Default to one implementation owner within the explicitly approved overall
+budget. No speculative/nested delegation or silent model escalation.
+Use the approved work order's named actions once; ordinary in-scope repairs do
+not need renewed approval. No implicit setup/install/live settings, publication,
+merge, release or deployment authority. Stop at budget, scope or authority limits.
 
-## On-demand guidance
+Use [testing](../docs/testing.md#6-running-tests-locally-vs-ci) for commands and
+Taskfile/CI as executable quality sources. Focused local checks plus applicable
+exact-candidate CI may reuse unchanged valid evidence; unexecuted proof is pending.
+Do not weaken tests, suppress warnings or substitute weaker types.
 
-Path-scoped rules live in [instructions](instructions). Load only matching
-`applyTo` guidance; if the client provides only its path/glob index, read the
-matching file explicitly. Do not eagerly load every language/design recipe.
-Reusable workflows live in [native skills](skills/README.md).
-Legacy `.squad/skills` entries are compatibility links, not separate authority.
-If native discovery is unavailable, read the relevant canonical file explicitly
-and report that fallback; do not claim the client discovered it.
+Where required by the lane, use ONE independent
+[read-only review](agents/aurearia-reviewer.agent.md) through `task review:read-only`
+with its native tool exclusions. Preserve original blocking-reviewer clearance
+rights and historical author restrictions. Review repairs over the affected
+delta unless broader evidence is invalidated; never self-clear.
 
-Preserve Go -> Python service boundaries, layered data access, typed contracts,
-ownership/auth/privacy rules and PWA behavior from the constitution.
-No emojis in UI text, prompts or AI responses. Use local design patterns/tokens.
-Verify paths, symbols and actual source before relying on a recipe.
-
-## Execution and review
-
-Default to one implementation owner. Squad is optional for genuinely separable
-work, not routine fan-out. Every delegation needs objective, authority, allowed
-paths, non-goals, evidence, an approved effort/checkpoint lease and stop condition.
-No nested delegation or silent expensive-model fallback. Use configured models.
-
-Required review must be independent. The
-[read-only reviewer](agents/aurearia-reviewer.agent.md) cannot implement fixes.
-Use `task review:read-only`; plain profile selection alone does not exclude the
-installed client's session SQL and skill-loading tools.
-For new reviews, the author may repair unless an independent reviser is required;
-only the blocking reviewer or an owner-appointed independent successor can clear
-the block. Preserve historical author restrictions. Assignment, changed files,
-empty responses and green CI are not review clearance or completion evidence.
-
-## Verification and persistence
-
-Use [testing section 6](../docs/testing.md#6-running-tests-locally-vs-ci) and
-applicable shared `task check:*` targets. Fast feedback is not completion.
-Missing tools or unauthorized checks remain incomplete. Setup/installations,
-builds, containers and publishing require their applicable owner authorization.
-Never install implicitly, skip missing lint, use `--quiet` to hide warnings,
-or replace strict `vue-tsc --build` with `--noEmit`. OpenAPI generation writes files.
-Runner-only race/security/browser/compatibility checks remain additional.
-
-Bind results and reviewer verdicts to the exact tested commit/tree. Distinguish
-implemented, verified, accepted and released. Main/release/deployment requires
-separate explicit owner approval; a beta push is not release authorization.
-
-The implementation owner persists completed/incomplete work, evidence, decisions,
-blocks and next action in `.squad/log/` and the current-work pointer, then verifies
-the write completed. Scribe is optional and may write only named artifacts.
-Record cross-cutting decisions in `.squad/decisions/inbox/` and reconcile active
-decisions without erasing history. Never use `SESSION-NOTES.md` or `.copilot-state.md`.
-Do not automatically stage, stash, commit, push or deploy as a handoff side effect.
-
-When authorized to commit, stage only approved paths, use Conventional Commits,
-cite applicable Principles/sections, and include:
-
-```text
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
-```
-
-Use the [PR checklist](pull_request_template.md) for sections 17/21.
-Software QC and post-major-release delivery audits are separate; invoke the
-appropriate audit explicitly under section 20. A skill is not a scheduled trigger.
+Keep candidate-bound results and authorization in canonical work, not duplicate
+inbox/log/history ledgers. Preserve historical evidence. Use the
+[six-question PR template](pull_request_template.md); distinguish authored,
+verified, accepted and released. Never auto-stage/stash/commit as a handoff.
+When committing is authorized, follow Principle VII and stage only approved paths.

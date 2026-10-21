@@ -172,6 +172,27 @@ RESULT_MODELS: dict[str, type[BaseModel]] = {
 LocalRunner = Callable[[dict[str, Any]], Awaitable[BaseModel | dict[str, Any] | str]]
 
 
+def _invalid_argument_fields(tool_name: str, exc: ValidationError) -> list[str]:
+    return sorted(
+        {
+            str(error["loc"][0])
+            for error in exc.errors()
+            if error.get("loc")
+            and isinstance(error["loc"][0], str)
+            and error["loc"][0] in ARG_MODELS[tool_name].model_fields
+        }
+    )
+
+
+def rejected_tool_argument_fields(tool_name: str, raw_args: dict[str, Any]) -> list[str] | None:
+    """Return the argument names that fail validation, or None when the arguments are valid."""
+    try:
+        ARG_MODELS[tool_name].model_validate(raw_args)
+    except ValidationError as exc:
+        return _invalid_argument_fields(tool_name, exc)
+    return None
+
+
 def _neutralize_text(value: str) -> str:
     value = _TOKEN_RE.sub("[REDACTED]", value)
     return _PROMPT_INJECTION_RE.sub("[UNTRUSTED INSTRUCTION REMOVED]", value)
@@ -286,19 +307,10 @@ class CopilotCollectionToolClient:
         try:
             args = ARG_MODELS[tool_name].model_validate(raw_args)
         except ValidationError as exc:
-            invalid_fields = sorted(
-                {
-                    str(error["loc"][0])
-                    for error in exc.errors()
-                    if error.get("loc")
-                    and isinstance(error["loc"][0], str)
-                    and error["loc"][0] in ARG_MODELS[tool_name].model_fields
-                }
-            )
             logger.warning(
                 "Coin Copilot tool arguments rejected tool=%s fields=%s",
                 tool_name,
-                ",".join(invalid_fields) or "unknown",
+                ",".join(_invalid_argument_fields(tool_name, exc)) or "unknown",
             )
             raise CopilotToolError("invalid_tool_call", "The tool arguments are invalid.") from exc
 

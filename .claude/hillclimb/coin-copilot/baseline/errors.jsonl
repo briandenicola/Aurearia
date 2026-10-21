@@ -1,0 +1,1 @@
+{"prompt_id": "shopping-03", "rep": 0, "failure_class": "harness_error", "message": "specialist stub could not serialize Decimal max_price; fixed in run_eval.py", "model": "claude-sonnet-5", "usage": {"input_tokens": 2, "output_tokens": 166, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 3373}}

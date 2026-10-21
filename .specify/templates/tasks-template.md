@@ -11,9 +11,8 @@ description: "Bounded feature tasks with required verification and independent a
 **Implementation owner**: [owner]
 **Non-goals / stop conditions**: [scope and approval boundaries]
 
-This template is subordinate to constitution 4.0.0 / ADR 0019, accepted via
-PR #734. Generate only tasks needed for the
-approved outcome; do not copy illustrative setup or technology scaffolding.
+This task set is optional; criteria/evidence may live only in canonical issue/PR. Generate only
+needed tasks; do not copy illustrative setup or technology scaffolding.
 
 **Tests are required where applicable**, not optional because the user omitted
 the word "tests." Include exact-path regression, failure, contract, and sibling
@@ -59,10 +58,12 @@ performance, refactoring, or security-hardening tasks outside the scope.
 
 - [ ] T006 Update directly affected docs/contracts and run applicable completion
   gates from `docs/testing.md` §6; preserve CI-only release evidence requirements.
-- [ ] T007 Obtain independent review of the exact commit/tree and explicit
+- [ ] T007 Obtain ONE lane-required independent review of the exact commit/tree and explicit
   clearance of any block from its reviewer; record remaining exceptions.
-- [ ] T008 Reconcile task/lifecycle state and persist an authorized handoff.
-  Publication and release remain separate owner-authorized actions.
+- [ ] T008 Reconcile lifecycle evidence in canonical work without a duplicate
+  handoff/inbox/history ledger. Execute publication only if explicitly included
+  in the bounded work order; conditional merge requires an eligible exact
+  candidate and all gates. Deployment/setup remain separately authorized.
 
 ## Dependencies and Execution
 

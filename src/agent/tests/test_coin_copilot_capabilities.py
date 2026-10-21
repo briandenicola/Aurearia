@@ -6,7 +6,11 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.llm.capabilities import CopilotCapabilityError, bind_coin_copilot_model
+from app.llm.capabilities import (
+    CopilotCapabilityError,
+    anthropic_web_research_tools,
+    bind_coin_copilot_model,
+)
 from app.main import app
 from app.models.requests import COPILOT_ALLOWED_TOOLS, LLMConfig
 from app.tools.copilot_collection_tools import build_copilot_tool_definitions
@@ -48,7 +52,14 @@ async def test_anthropic_binds_fixed_tools_strictly(monkeypatch):
     assert bound == "bound"
     bound_tools, options = model.calls[0]
     assert options == {"tool_choice": "auto", "strict": True}
-    assert {tool["name"] for tool in bound_tools} == set(COPILOT_ALLOWED_TOOLS)
+    client_tools = [tool for tool in bound_tools if "input_schema" in tool]
+    server_tools = [tool for tool in bound_tools if "input_schema" not in tool]
+    assert {tool["name"] for tool in client_tools} == set(COPILOT_ALLOWED_TOOLS)
+    assert [(tool["type"], tool["name"]) for tool in server_tools] == [
+        ("web_search_20260209", "web_search"),
+        ("web_fetch_20260209", "web_fetch"),
+    ]
+    assert all(tool["max_uses"] <= 6 for tool in server_tools)
 
     unsupported = {
         "exclusiveMaximum",
@@ -74,10 +85,24 @@ async def test_anthropic_binds_fixed_tools_strictly(monkeypatch):
             return set().union(*(schema_keys(item) for item in value))
         return set()
 
-    assert all(not (schema_keys(tool["input_schema"]) & unsupported) for tool in bound_tools)
-    get_coin = next(tool for tool in bound_tools if tool["name"] == "get_coin")
+    assert all(not (schema_keys(tool["input_schema"]) & unsupported) for tool in client_tools)
+    get_coin = next(tool for tool in client_tools if tool["name"] == "get_coin")
     assert get_coin["input_schema"]["properties"]["coin_id"]["type"] == "integer"
     assert get_coin["input_schema"]["required"] == ["coin_id"]
+
+
+@pytest.mark.parametrize(
+    ("model_name", "search_type", "fetch_type"),
+    [
+        ("claude-opus-5-5", "web_search_20260209", "web_fetch_20260209"),
+        ("claude-sonnet-5", "web_search_20260209", "web_fetch_20260209"),
+        ("claude-haiku-4-5-20251001", "web_search_20250305", "web_fetch_20250910"),
+    ],
+)
+def test_web_research_tool_variant_follows_model(model_name, search_type, fetch_type):
+    tools = anthropic_web_research_tools(model_name)
+    assert [tool["type"] for tool in tools] == [search_type, fetch_type]
+    assert all("allowed_domains" not in tool for tool in tools)
 
 
 @pytest.mark.asyncio

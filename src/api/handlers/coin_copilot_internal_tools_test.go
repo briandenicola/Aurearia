@@ -66,7 +66,7 @@ func TestCoinCopilotInternalToolBindsExecutionOwnerAndCallID(t *testing.T) {
 	if err := db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CollectionUpdateProposal{}, &models.AppSetting{},
 		&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{},
-		&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{},
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -40,6 +40,10 @@ export interface AppSettings extends Partial<NumistaSettings> {
   CoinCopilotEventRetentionHours?: string
   CoinCopilotCheckpointRetentionDays?: string
   CoinCopilotResumeWindowHours?: string
+  CopilotGradingEnabled?: string
+  CopilotGradingStartTime?: string
+  CopilotGradingDailyCap?: string
+  CopilotGradingJudgeModel?: string
   ScheduleTimezone?: string
   [key: string]: string | undefined
 }
@@ -147,4 +151,48 @@ export interface LogEntry {
   timestamp: string
   level: string
   message: string
+}
+
+// Coin Copilot grading: mirrors the Go repository.CopilotGradeRow and
+// CopilotGradeSummary returned by /admin/copilot-grades.
+export type CopilotCitesSources = 'yes' | 'no' | 'not_applicable'
+
+export interface CopilotGrade {
+  id: number
+  runId: string
+  threadId: string
+  quality: number
+  answersDirectly: boolean
+  grounded: boolean
+  accurate: boolean
+  citesSources: CopilotCitesSources
+  noOfferMenu: boolean
+  noFalseInability: boolean
+  explanation: string
+  judgeModel: string
+  judgeInputTokens: number
+  judgeOutputTokens: number
+  disputed: boolean
+  disputeNote?: string
+  disputedAt?: string
+  gradedAt: string
+  question: string
+  answer: string
+  completedAt?: string
+}
+
+export interface CopilotGradeListResponse {
+  grades: CopilotGrade[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface CopilotGradeSummary {
+  days: number
+  graded: number
+  disputed: number
+  avgQuality: number
+  trend: { day: string; avgQuality: number; graded: number }[]
+  failRates: Record<string, number>
 }

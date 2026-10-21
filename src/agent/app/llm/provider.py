@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Anthropic server-side tool — executed by Anthropic's servers, not us.
 WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search"}
 ANTHROPIC_CACHE_CONTROL = {"type": "ephemeral"}
+# These models reject forced tool use (`tool_choice` any/tool) with a 400, which
+# LangChain's function_calling structured output relies on.
+NO_FORCED_TOOL_MODEL_PREFIXES = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-1", "claude-mythos-5-1")
 
 
 def get_chat_model(config: LLMConfig) -> BaseChatModel:
@@ -50,7 +53,9 @@ def get_structured_model(config: LLMConfig, schema: type | dict[str, Any]) -> Ru
 
     Per-request config, no module-level state — same shape as
     `get_chat_model`/`get_search_model`. Anthropic uses tool-based structured
-    output (`method="function_calling"`, its reliable default); Ollama uses
+    output (`method="function_calling"`, its reliable default), except models
+    that reject forced tool use, which use Anthropic structured outputs
+    (`method="json_schema"`); Ollama uses
     its JSON/schema format mode (`method="json_schema"`), which is
     considerably less reliable across models and MUST be treated by callers
     as something that can return `parsing_error` or malformed output rather
@@ -61,7 +66,10 @@ def get_structured_model(config: LLMConfig, schema: type | dict[str, Any]) -> Ru
     making a second LLM call.
     """
     model = get_chat_model(config)
-    method = "json_schema" if config.provider == "ollama" else "function_calling"
+    rejects_forced_tools = config.provider == "anthropic" and (config.model or "").startswith(
+        NO_FORCED_TOOL_MODEL_PREFIXES
+    )
+    method = "json_schema" if config.provider == "ollama" or rejects_forced_tools else "function_calling"
     logger.debug("Binding structured output schema=%s method=%s", getattr(schema, "__name__", schema), method)
     return model.with_structured_output(schema, method=method, include_raw=True)
 

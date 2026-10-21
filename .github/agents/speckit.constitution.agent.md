@@ -13,7 +13,9 @@ $ARGUMENTS
 `.specify/memory/constitution.md` is an existing governing contract, not a blank
 template. Read it, especially sections 0 and 22, before making a proposal.
 If missing, stop and ask; do not initialize or overwrite it automatically.
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+Constitution 5.0.0 / Accepted ADR 0024 governs via owner-approved PR #828.
+For future amendments, verify the recorded effective version and actual §22
+approval/merge evidence. Never self-activate a prepared draft.
 
 ## Workflow
 

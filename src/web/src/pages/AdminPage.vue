@@ -193,6 +193,9 @@
           @update:health-settings-error="healthSettingsError = $event"
         />
 
+        <!-- Copilot Quality Tab -->
+        <AdminCopilotQualitySection v-if="activeTab === 'copilot'" />
+
         <!-- Health Tab -->
         <AdminHealthSection v-if="activeTab === 'health'" />
 
@@ -236,14 +239,15 @@ import AdminLogsSection from '@/components/admin/AdminLogsSection.vue'
 import AdminAISection from '@/components/admin/AdminAISection.vue'
 import AdminSchedulesSection from '@/components/admin/AdminSchedulesSection.vue'
 import AdminHealthSection from '@/components/admin/AdminHealthSection.vue'
+import AdminCopilotQualitySection from '@/components/admin/AdminCopilotQualitySection.vue'
 import AdminCatalogsSection from '@/components/admin/AdminCatalogsSection.vue'
 import AdminCoinPropertiesSection from '@/components/admin/AdminCoinPropertiesSection.vue'
 import AdminSecuritySection from '@/components/admin/AdminSecuritySection.vue'
 import AdminOIDCSection from '@/components/admin/AdminOIDCSection.vue'
-import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2, ShieldAlert, KeyRound } from 'lucide-vue-next'
+import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2, ShieldAlert, KeyRound, Gauge } from 'lucide-vue-next'
 import DesktopPageContext from '@/components/DesktopPageContext.vue'
 
-type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'oidc' | 'security' | 'schedules' | 'health' | 'logs'
+type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'oidc' | 'security' | 'schedules' | 'copilot' | 'health' | 'logs'
 type AdminGroupId = 'configuration' | 'operations'
 type AdminTab = {
   id: AdminTabId
@@ -261,6 +265,7 @@ const tabIcons: Record<AdminTabId, Component> = {
   oidc: KeyRound,
   security: ShieldAlert,
   schedules: CalendarClock,
+  copilot: Gauge,
   health: Activity,
   logs: ScrollText,
 }
@@ -274,6 +279,7 @@ const tabs: AdminTab[] = [
   { id: 'oidc', label: 'OIDC Login', group: 'configuration' },
   { id: 'security', label: 'Security', group: 'operations' },
   { id: 'schedules', label: 'Schedules', group: 'operations', aliases: ['schedule'] },
+  { id: 'copilot', label: 'Copilot Quality', group: 'operations', aliases: ['copilot-quality'] },
   { id: 'health', label: 'Health', group: 'operations' },
   { id: 'logs', label: 'Logs', group: 'operations', aliases: ['log'] },
 ]

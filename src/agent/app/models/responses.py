@@ -312,6 +312,22 @@ class CopilotCapabilityResponse(StrictResponseModel):
     supported: bool
 
 
+class CopilotGradeResponse(StrictResponseModel):
+    """Rubric verdict for one Coin Copilot run; quality is the share of applicable checks passed."""
+
+    quality: float = Field(ge=0, le=1)
+    answers_directly: bool
+    grounded: bool
+    accurate: bool
+    cites_sources: Literal["yes", "no", "not_applicable"]
+    no_offer_menu: bool
+    no_false_inability: bool
+    explanation: Annotated[str, StringConstraints(max_length=4000)]
+    judge_model: Annotated[str, StringConstraints(max_length=100)]
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+
+
 class CopilotCheckpointState(StrictResponseModel):
     """Complete durable continuation state emitted to Go."""
 

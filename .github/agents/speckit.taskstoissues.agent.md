@@ -5,6 +5,9 @@ tools: ['github/github-mcp-server/issue_write']
 
 ## User Input
 
+> Convert only a selected optional task set; do not create duplicate task/evidence ledgers.
+> Issue creation is a publication action needing applicable explicit authority.
+
 ```text
 $ARGUMENTS
 ```
@@ -14,7 +17,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Outline
 
 Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
-via PR #734; constitution 4.0.0 governs. Select the work explicitly;
+via PR #734; follow the constitution's effective version. Select the work explicitly;
 set `$env:SPECIFY_FEATURE` to its exact directory name in the same process as the
 prerequisite command. Never infer a feature from `beta` or the newest spec.
 Preview the bounded issue list and obtain approval for GitHub writes before

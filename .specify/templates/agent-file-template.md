@@ -2,7 +2,8 @@
 
 Task-scoped supporting guidance from the explicitly selected approved plan.
 Last updated: [DATE]. Subordinate to repository policy, never a replacement for
-hand-maintained instructions. ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+hand-maintained instructions. Use canonical issue/PR evidence, optional planning aids and
+lane-required review; never generate mandatory duplicate ledgers.
 
 Do not run an instruction generator without reviewing its target and preserving
 manual content. The existing writer is not proven compatible with this policy;

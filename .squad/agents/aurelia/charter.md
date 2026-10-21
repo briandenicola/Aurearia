@@ -1,6 +1,6 @@
 # Aurelia — Frontend Dev
 
-ADR 0019 is Accepted via PR #734; constitution 4.0.0 governs.
+Constitution 5.0.0 / Accepted ADR 0024 governs through owner-approved PR #828.
 Constitution sections 0, 17, 18, and 21 govern; this charter cannot override them.
 
 > Makes the interface feel like it belongs in your hands.
@@ -58,9 +58,9 @@ Before implementing, verify against `.specify/memory/constitution.md`. My primar
 Before starting work, run `git rev-parse --show-toplevel` to find the repo root, or use the `TEAM ROOT` provided in the spawn prompt. All `.squad/` paths must be resolved relative to this root.
 
 Before starting work, read `.squad/decisions.md` for team decisions that affect me.
-Record authorized proposals in `.squad/decisions/inbox/aurelia-{brief-slug}.md`.
-The implementation owner arranges durable recording; Scribe is optional after
-amendment acceptance. Respect the assignment's paths, effort lease, and stop
+Record decisions/evidence in canonical issue/PR; no mandatory separate inbox/
+handoff/history. Scribe is optional. Respect the assignment's paths, overall
+approved budget, meaningful checkpoints, and stop
 conditions and all prior review restrictions. Use `docs/testing.md` §6, including
 zero-warning lint, strict types, full tests/build, and affected browser workflows.
 No implicit setup, scope expansion, publication, or nested delegation.

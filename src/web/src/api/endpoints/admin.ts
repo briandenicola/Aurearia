@@ -16,6 +16,10 @@ import type {
   CoinOfDayRun,
   CollectionHealthSnapshotRun,
   CollectionHealthSnapshotRunResult,
+  CopilotGrade,
+  CopilotGradeListResponse,
+  CopilotGradeSummary,
+  CopilotGradingStatus,
   CreateSecurityIpRuleRequest,
   DeepIdentificationObservabilitySummary,
   LogEntry,
@@ -237,6 +241,22 @@ export const getCollectionHealthSnapshotRuns = (page = 1, limit = 20) =>
 
 export const getCollectionHealthSnapshotStatus = () =>
   api.get<SchedulerStatus>('/admin/collection-health/status')
+
+// Coin Copilot grading
+export const getCopilotGrades = (params: { page?: number; limit?: number; sort?: 'worst' | 'recent'; disputed?: boolean } = {}) =>
+  api.get<CopilotGradeListResponse>('/admin/copilot-grades', { params })
+
+export const getCopilotGradeSummary = (days = 30) =>
+  api.get<CopilotGradeSummary>('/admin/copilot-grades/summary', { params: { days } })
+
+export const disputeCopilotGrade = (id: number, disputed: boolean, note = '') =>
+  api.put<CopilotGrade>(`/admin/copilot-grades/${id}/dispute`, { disputed, note })
+
+export const getCopilotGradingStatus = () =>
+  api.get<CopilotGradingStatus>('/admin/copilot-grading/status')
+
+export const runCopilotGrading = () =>
+  api.post<{ message: string }>('/admin/copilot-grading/run')
 
 export const triggerCoinOfDayRun = () =>
   api.post<{ runId: number; status: string }>('/admin/coin-of-day/run')

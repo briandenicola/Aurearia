@@ -10,10 +10,14 @@ $ARGUMENTS
 
 ## Before Work
 
+> Existing audit obligations and historical blocks remain.
+> This workflow does not grant execution authority.
+
 1. Read the constitution, explicit issue/spec/process plan, relevant decisions,
    and applicable accepted ADRs. ADR 0019 is Accepted via PR #734; constitution
-   4.0.0 governs. Do not infer the work from `beta` or the newest spec.
-2. For feature tasks, set `$env:SPECIFY_FEATURE` to the exact directory name in
+   5.0.0 governs through Accepted ADR 0024 / PR #828.
+   Do not infer the work from `beta` or the newest spec.
+2. Only when the owner selected a SpecKit task set, set `$env:SPECIFY_FEATURE` to the exact directory name in
    the same process as:
 
    ```powershell
@@ -21,7 +25,9 @@ $ARGUMENTS
    ```
 
    Load returned spec/plan/tasks and relevant supporting documents. For bounded
-   non-feature work, use its approved issue/process plan instead.
+   work without that task set, use its approved issue/PR/work order instead.
+   Do not require a new spec/plan/tasks set for a feature whose canonical issue
+   already contains sufficient criteria.
 3. Inspect the worktree and existing helpers. Preserve unrelated edits.
    Confirm authorized task slice, paths, non-goals, owner, and stop conditions.
 4. Read actual checklist items and review records, not just checked-item counts.
@@ -51,9 +57,12 @@ Verify the actual acceptance criteria, contracts, failure paths, and applicable
 clear their own block; reassignment and green CI are not clearance.
 
 Report implemented versus verified/accepted/released status, changed paths,
-actual evidence, exceptions, and unresolved restrictions. Persist an authorized
-handoff and await required recording. No implicit commit, push, merge, deploy,
-or new task pickup. Release needs owner authorization for the candidate commit.
+actual evidence, exceptions, and unresolved restrictions in canonical work.
+Use one overall authorized budget and meaningful checkpoints, not per-read or
+per-repair permission. Explicit work orders may authorize relevant tests/review/
+repairs and beta commit/push/PR when green; execute only named actions.
+Conditional merge needs an exact eligible candidate and no unmet gate.
+Setup/live operations and deployment need applicable separate authority.
 
 ## Hooks
 

@@ -358,7 +358,7 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 			&models.QuickCaptureDraft{},
 			&models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.AppSetting{},
 			&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{},
-			&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotDeepHandoff{},
+			&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{}, &models.CoinCopilotDeepHandoff{},
 			&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 			&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
 		); err != nil {
@@ -548,7 +548,7 @@ func TestCoinCopilotSeamRestartResumeCancellationAndTerminalSSE(t *testing.T) {
 	})
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
-		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{},
 		&models.CollectorProfile{},
 	); err != nil {
 		t.Fatal(err)

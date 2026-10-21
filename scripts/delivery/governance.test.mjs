@@ -99,6 +99,41 @@ test('bounded issue work does not require an invented feature spec', t => {
   f.put('.squad/identity/now.md', '---\nupdated_at: 2026-09-21\nfocus_area: Issue fix\nowner: Maintainer\nwork_artifact: https://github.com/briandenicola/Aurearia/issues/721\ntasks_artifact: https://github.com/briandenicola/Aurearia/issues/721\n---\n');
   assert.deepEqual(checkGovernance(f.root), []);
 });
+function proportionalFixture(t, status = 'Accepted') {
+  const f = fixture(t);
+  f.put('.specify/memory/constitution.md',
+    `**Version**: 5.0.0\n**Amendment Status**: ${status}\n` +
+    ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'].map(id => `### ${id}. Principle\n`).join(''));
+  return f;
+}
+const pointer = work => `---\nupdated_at: 2026-10-19\nfocus_area: Canonical work\nowner: Maintainer\nwork_artifact: ${work}\n---\n`;
+test('activated proportional policy permits one canonical PR pointer without a tasks ledger', t => {
+  const f = proportionalFixture(t);
+  f.put('.squad/identity/now.md', pointer('https://github.com/briandenicola/Aurearia/pull/827'));
+  assert.deepEqual(checkGovernance(f.root), []);
+});
+test('prepared version alone does not activate proportional pointer permissions', t => {
+  for (const status of ['Proposed', 'Pending', '']) {
+    const f = proportionalFixture(t, status);
+    f.put('.squad/identity/now.md', pointer('https://github.com/briandenicola/Aurearia/pull/827'));
+    assert.ok(checkGovernance(f.root).some(item => item.code === 'STATE' && item.severity === 'error'));
+  }
+});
+test('activated canonical pointers still reject invalid sources and optional aliases', t => {
+  for (const work of [
+    'https://github.com/other/repository/pull/827',
+    'https://github.com/briandenicola/Aurearia/pull/0',
+    'https://github.com/briandenicola/Aurearia/pull/827?assumed=approved',
+    'docs/missing.md', 'docs/../CONTRIBUTING.md',
+  ]) {
+    const f = proportionalFixture(t);
+    f.put('.squad/identity/now.md', pointer(work));
+    assert.ok(checkGovernance(f.root).some(item => item.code === 'STATE' && item.severity === 'error'), work);
+  }
+  const f = proportionalFixture(t);
+  f.put('.squad/identity/now.md', pointer('docs/work.md').replace('work_artifact:', 'tasks_artifact: docs/missing.md\nwork_artifact:'));
+  assert.ok(checkGovernance(f.root).some(item => item.code === 'STATE' && item.severity === 'error'));
+});
 test('Proposed lifecycle and size findings warn without waiving invalid status links', t => {
   const f = fixture(t);
   f.put('docs/adr/README.md', '| 0001 | [Decision](0001-test.md) | date | Proposed |\n');

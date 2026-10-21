@@ -11,6 +11,7 @@ import asyncio
 import sys
 import types
 
+import pytest
 from pydantic import BaseModel
 
 from app.llm.provider import get_structured_model
@@ -149,10 +150,16 @@ def test_get_structured_model_is_stateless(monkeypatch):
         and not isinstance(value, type)
         and not isinstance(value, types.ModuleType)
     }
-    # Only the two documented constants (WEB_SEARCH_TOOL, ANTHROPIC_CACHE_CONTROL)
-    # and the module logger are expected module-level state — nothing that
-    # could carry a credential or cached model instance across calls.
-    assert set(module_level_state) <= {"WEB_SEARCH_TOOL", "ANTHROPIC_CACHE_CONTROL", "logger"}
+    # Only the documented constants (WEB_SEARCH_TOOL, ANTHROPIC_CACHE_CONTROL,
+    # NO_FORCED_TOOL_MODEL_PREFIXES) and the module logger are expected
+    # module-level state — nothing that could carry a credential or cached
+    # model instance across calls.
+    assert set(module_level_state) <= {
+        "WEB_SEARCH_TOOL",
+        "ANTHROPIC_CACHE_CONTROL",
+        "NO_FORCED_TOOL_MODEL_PREFIXES",
+        "logger",
+    }
 
 
 def test_unknown_provider_raises_before_binding_schema():
@@ -160,3 +167,22 @@ def test_unknown_provider_raises_before_binding_schema():
 
     with pytest.raises(ValueError, match="Unknown LLM provider"):
         get_structured_model(LLMConfig(provider="bogus"), DummySchema)
+
+
+@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-sonnet-5-5"])
+def test_anthropic_models_without_forced_tool_use_bind_json_schema(monkeypatch, model_name):
+    fake_module = types.SimpleNamespace(ChatAnthropic=_FakeAnthropicModel)
+    monkeypatch.setitem(sys.modules, "langchain_anthropic", fake_module)
+    captured: dict = {}
+
+    class _Capturing(_FakeAnthropicModel):
+        def with_structured_output(self, schema, **kwargs):
+            captured.update({"schema": schema, **kwargs})
+            return _FakeStructuredRunnable(conformant=True)
+
+    fake_module.ChatAnthropic = _Capturing
+
+    get_structured_model(LLMConfig(provider="anthropic", api_key="k", model=model_name), DummySchema)
+
+    assert captured["method"] == "json_schema"
+    assert captured["include_raw"] is True

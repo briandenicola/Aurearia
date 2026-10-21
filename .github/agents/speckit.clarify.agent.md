@@ -8,6 +8,9 @@ handoffs:
 
 ## User Input
 
+> This workflow applies only to an explicitly selected optional spec; do not require a spec
+> when canonical issue/PR criteria suffice.
+
 ```text
 $ARGUMENTS
 ```
@@ -17,7 +20,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Outline
 
 Respect constitution section 0 and applicable accepted ADRs. ADR 0019 is Accepted
-via PR #734; constitution 4.0.0 governs. Explicitly select the spec;
+via PR #734; follow the constitution's effective version. Explicitly select the spec;
 do not infer it from `beta` or the newest directory. Set `$env:SPECIFY_FEATURE`
 to its exact directory name in the same process as the prerequisite command.
 Do not retroactively edit a landed spec without amendment authority.

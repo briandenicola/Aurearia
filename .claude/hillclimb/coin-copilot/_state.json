@@ -1,0 +1,20 @@
+{
+  "metrics": [
+    {"id": "routing", "label": "Routing", "kind": "binary"},
+    {"id": "quality", "label": "Quality", "kind": "judge", "scale": 1},
+    {"id": "web_policy", "label": "Web policy", "kind": "binary"}
+  ],
+  "perf_fields": [
+    {"id": "cost_usd", "label": "Cost", "unit": "$"},
+    {"id": "tool_calls", "label": "Tool calls"},
+    {"id": "web_searches", "label": "Web searches"},
+    {"id": "latency_s", "label": "Latency", "unit": "s"}
+  ],
+  "prices": {"claude-sonnet-5": {"in": 2.0, "out": 10.0}, "claude-sonnet-5-5": {"in": 2.0, "out": 10.0}},
+  "harness_paths": [
+    "src/agent/evals/coin_copilot/run_eval.py",
+    "src/agent/evals/coin_copilot/cases.json",
+    "src/agent/evals/coin_copilot/collection.json",
+    "src/agent/evals/coin_copilot/baseline_prompt.txt"
+  ]
+}

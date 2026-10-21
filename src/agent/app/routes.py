@@ -3,6 +3,7 @@
 import json
 import logging
 
+import anthropic
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -19,6 +20,7 @@ from app.models.requests import (
     ComparablesSearchRequest,
     CopilotCapabilityRequest,
     CopilotExecuteRequest,
+    CopilotGradeRequest,
     DeepIdentifyRequest,
     GradeRequest,
     IntakeDraftRequest,
@@ -34,6 +36,7 @@ from app.models.responses import (
     AvailabilityVerdict,
     ComparablesSearchResponse,
     CopilotCapabilityResponse,
+    CopilotGradeResponse,
     GradeResponse,
     IntakeDraftResponse,
     MarketSignalResponse,
@@ -44,6 +47,7 @@ from app.models.responses import (
 from app.request_cancellation import ClientDisconnectedError, cancel_on_disconnect
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
+from app.teams import copilot_grading
 from app.teams.availability_check import (
     AvailabilityVerdictParseError,
     create_availability_check_team,
@@ -101,6 +105,50 @@ async def coin_copilot_capability(request: CopilotCapabilityRequest):
     except CopilotCapabilityError:
         return CopilotCapabilityResponse(supported=False)
     return CopilotCapabilityResponse(supported=True)
+
+
+@router.post("/copilot/grade", response_model=CopilotGradeResponse)
+async def grade_coin_copilot_run(request: CopilotGradeRequest):
+    """Grade one completed Coin Copilot run with the shared rubric judge. Stateless."""
+    if request.llm.provider != "anthropic" or not request.llm.api_key:
+        raise HTTPException(status_code=422, detail="Copilot grading requires an Anthropic judge model")
+    logger.info(
+        "POST /copilot/grade judge=%s messages=%d tools=%d",
+        request.llm.model,
+        len(request.messages),
+        len(request.tools),
+    )
+    transcript = copilot_grading.render_conversation(
+        [message.model_dump() for message in request.messages],
+        [tool.model_dump() for tool in request.tools],
+        request.answer,
+    )
+    client = anthropic.AsyncAnthropic(api_key=request.llm.api_key)
+    try:
+        graded = await copilot_grading.judge(
+            client, request.llm.model, copilot_grading.PRODUCTION_JUDGE_SYSTEM, transcript
+        )
+    except copilot_grading.GradingError as exc:
+        logger.warning("Copilot grading produced no verdict: %s", exc)
+        raise HTTPException(status_code=502, detail="Copilot grading produced no verdict") from exc
+    except anthropic.APIError as exc:
+        logger.warning("Copilot grading judge call failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Copilot grading judge call failed") from exc
+    finally:
+        await client.close()
+    verdict = graded["verdict"]
+    usage = graded["judge_usage"]
+    return CopilotGradeResponse(
+        quality=graded["quality"],
+        **{name: verdict[name] for name in copilot_grading.CRITERIA},
+        cites_sources=verdict["cites_sources"],
+        explanation=verdict["explanation"][:4000],
+        judge_model=graded["judge_model"],
+        input_tokens=int(usage.get("input_tokens") or 0)
+        + int(usage.get("cache_read_input_tokens") or 0)
+        + int(usage.get("cache_creation_input_tokens") or 0),
+        output_tokens=int(usage.get("output_tokens") or 0),
+    )
 
 
 @router.post("/copilot/execute")

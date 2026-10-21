@@ -69,7 +69,7 @@ func setupMCPRouteFixture(t *testing.T, rateLimit int) *mcpRouteFixture {
 		&models.CoinReference{}, &models.Tag{}, &models.CoinSet{}, &models.CoinSetMembership{},
 		&models.StorageLocation{}, &models.MintLocation{}, &models.AuctionLot{},
 		&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{},
-		&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.DeepIdentificationJob{},
+		&models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{}, &models.DeepIdentificationJob{},
 		&models.CoinCopilotDeepHandoff{},
 	); err != nil {
 		t.Fatal(err)

@@ -1,13 +1,15 @@
 ---
 name: aurearia-software-qc-audit
-description: "Audit an Aurearia major or high-risk changeset against approved scope, actual code, and exact verification evidence."
+description: "Audit owner-authorized major architecture or owner-designated major releases against scope, actual code and exact evidence; preserve existing audit obligations."
 ---
 
 ## Context
 
-Run this skill for owner-authorized major/high-risk work or release readiness
-under constitution section 20. Normal CI and per-change review do not replace
-cross-cutting scope, contract, deployment and recovery evidence.
+Under constitution 5.0.0 / Accepted ADR 0024, run this broad audit for
+owner-authorized major architectural
+changes or owner-designated major releases under §20, not every high-risk feature
+or beta-to-main PR. Feature/high-risk work retains one scoped independent review
+and applicable security/compatibility/recovery proof without a duplicate audit.
 
 The audit is read-only by default. Obtain applicable authorization before tests,
 builds, installations, live requests, report writes or issue creation. Use existing
@@ -16,13 +18,14 @@ INCOMPLETE, not passed or silently skipped. Findings are not permission to fix,
 merge, deploy or clear another reviewer's block. This software audit is distinct
 from the post-major-release agentic-delivery audit.
 
-**Trigger conditions (any one suffices):**
-- Material workflow or contract change spans layers (file count alone is not risk)
-- New external dependency, API contract, schema migration, or auth surface introduced
-- Security-sensitive paths modified (auth, permissions, secrets, user data)
-- AI agent or background scheduler behaviour changed
-- PWA/mobile interaction or service-worker boundary touched
-- Public deployment readiness being evaluated
+**Broad-audit triggers:**
+- Major architectural change within the approved scope
+- Owner-designated major release
+- An existing explicit audit requirement not separately resolved by its authority
+
+Changed auth/privacy/data-safety, destructive migration, service or delivery
+boundaries require applicable high-risk proof. File count, existing-contract
+touches, scheduler/UI changes or an ordinary PR alone do not trigger a broad audit.
 
 **Portability note:** Sections marked `[REPO-HOOK]` contain hooks specific to repositories that use a constitution/Quality Gate/Squad governance model. Skip or adapt those hooks when running in other repos.
 

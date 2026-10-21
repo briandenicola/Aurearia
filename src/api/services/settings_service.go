@@ -150,6 +150,12 @@ const (
 	// 355-wishlist-purchase-reminders: daily scheduler settings (FR-015).
 	SettingReminderCheckEnabled   = "ReminderCheckEnabled"
 	SettingReminderCheckStartTime = "ReminderCheckStartTime"
+
+	// Nightly rubric grading of completed Coin Copilot runs.
+	SettingCopilotGradingEnabled    = "CopilotGradingEnabled"
+	SettingCopilotGradingStartTime  = "CopilotGradingStartTime"
+	SettingCopilotGradingDailyCap   = "CopilotGradingDailyCap"
+	SettingCopilotGradingJudgeModel = "CopilotGradingJudgeModel"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -289,6 +295,12 @@ var settingDefaults = map[string]string{
 	// 355-wishlist-purchase-reminders defaults (FR-015).
 	SettingReminderCheckEnabled:   "true",
 	SettingReminderCheckStartTime: "08:00",
+
+	// Nightly Copilot grading defaults: off until an admin enables it.
+	SettingCopilotGradingEnabled:    "false",
+	SettingCopilotGradingStartTime:  "05:00",
+	SettingCopilotGradingDailyCap:   "50",
+	SettingCopilotGradingJudgeModel: "claude-sonnet-5-5",
 }
 
 type CoinCopilotSettings struct {

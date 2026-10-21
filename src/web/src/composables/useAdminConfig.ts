@@ -47,6 +47,10 @@ export function useAdminConfig() {
     CoinCopilotEventRetentionHours: '168',
     CoinCopilotCheckpointRetentionDays: '30',
     CoinCopilotResumeWindowHours: '168',
+    CopilotGradingEnabled: 'false',
+    CopilotGradingStartTime: '05:00',
+    CopilotGradingDailyCap: '50',
+    CopilotGradingJudgeModel: 'claude-sonnet-5-5',
     PublicAppURL: '',
     USPSAPIBaseURL: '',
     USPSAPIKey: '',
@@ -104,6 +108,10 @@ export function useAdminConfig() {
     CoinCopilotEventRetentionHours: '168',
     CoinCopilotCheckpointRetentionDays: '30',
     CoinCopilotResumeWindowHours: '168',
+    CopilotGradingEnabled: 'false',
+    CopilotGradingStartTime: '05:00',
+    CopilotGradingDailyCap: '50',
+    CopilotGradingJudgeModel: 'claude-sonnet-5-5',
     PublicAppURL: '',
     USPSAPIBaseURL: '',
     USPSAPIKey: '',
@@ -147,9 +155,12 @@ export function useAdminConfig() {
   const anthropicTestOk = ref(false)
   let savedAnthropicAPIKey = ''
   const anthropicModels = ref<AnthropicModel[]>([
+    { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
+    { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' },
+    { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5' },
     { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
-    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
     { id: 'claude-opus-5', name: 'Claude Opus 5' },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
   ])
 
   // SearXNG

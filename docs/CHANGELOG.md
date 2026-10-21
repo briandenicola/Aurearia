@@ -40,6 +40,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **October 2026 security-gate advisories** — Go 1.26.10 and its pinned builder
+  image fix a `crypto/x509` standard-library advisory reachable from WebAuthn
+  login. Constraints raise the agent's transitive aiohttp to 3.14.4 and certifi
+  to 2026.10.19; the web app moves to vite 8.1.6, markdown-it 15.0.3 and
+  follow-redirects 1.16.1. Audit thresholds are unchanged.
 - **Repeated beta/PR/main validation** - Full validation runs on beta; release
   PRs and main verify identical tested content and trusted source/image evidence.
   Owner-approved main publishing promotes the recorded beta digests without

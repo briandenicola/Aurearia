@@ -2,9 +2,9 @@
 
 Guidelines for contributing to the Aurearia application.
 
-Read constitution 4.0.0 and applicable accepted ADRs first. ADR 0019 was accepted
-via owner-approved PR #734. Policy acceptance does not itself authorize execution,
-publication, or release.
+Read the constitution and applicable accepted ADRs first. Constitution 5.0.0 /
+Accepted ADR 0024 governs through owner-approved PR #828. Existing audit
+obligations and historical reviewer restrictions remain intact.
 
 ## Getting Started
 
@@ -32,10 +32,14 @@ task up          # starts both API and web dev servers
 | Other branches/worktrees | Only when explicitly authorized |
 
 Select work by the owner-approved issue/spec/process plan, not the newest spec.
-Use the smallest sufficient lane from constitution §18.1. A bug needs a
-reproduction, bounded cause/non-goals, regression evidence, and review; a feature
-needs criteria, plan, and tasks. High-risk changes add compatibility/recovery
-evidence, independent review, and explicit owner approval.
+Use constitution §18.1: routine work needs brief scope, appropriate regression
+and CI, with no mandatory independent review; features need short criteria,
+workflow/error tests and one independent review. Changed security/privacy/data-
+safety, destructive migration, service or delivery boundaries add applicable
+security/compatibility/recovery proof. Merely touching existing contracts does
+not create a new boundary. ADRs are for material architecture.
+One issue/PR owns scope, criteria, evidence, review and outstanding work; specs
+are optional planning aids. No mandatory inbox/log/history document set.
 
 For SpecKit on `beta`, set `$env:SPECIFY_FEATURE` to the exact selected spec
 directory name in the same process as each script invocation. Do not run the
@@ -110,8 +114,11 @@ discovery. Squad is optional. Required independent review uses the read/search-o
 profile with supplied diffs/evidence and an owner-approved bounded lease.
 
 Keep pure-document review proportional, but exercise executable policy/prompts
-and workflows with relevant behavior/fixtures. Independent review and explicit
-owner release approval cannot be replaced by task checkboxes.
+and workflows with relevant behavior/fixtures. Lane-required independent review
+and actual owner release approval cannot be replaced by task checkboxes.
+Focused local evidence plus applicable exact-candidate CI may reuse unchanged
+proof. Broad audits are only for major architecture/owner-designated major
+releases; existing audit obligations remain.
 
 Use the PR template's canonical completion record to bind each criterion and
 affected workflow to its result, evidence link and tested commit/tree. Handoffs
