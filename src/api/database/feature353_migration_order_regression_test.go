@@ -434,6 +434,7 @@ var productionModelConstructors = map[string]func() any{
 	"CoinCopilotCheckpoint":         func() any { return &models.CoinCopilotCheckpoint{} },
 	"CoinCopilotEvent":              func() any { return &models.CoinCopilotEvent{} },
 	"CoinCopilotResumeRequest":      func() any { return &models.CoinCopilotResumeRequest{} },
+	"CoinCopilotRunGrade":           func() any { return &models.CoinCopilotRunGrade{} },
 }
 
 // readProductionAutoMigrateModelNames parses database.go's REAL, CURRENT source text and

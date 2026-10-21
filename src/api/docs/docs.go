@@ -1327,6 +1327,345 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/copilot-grades": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns rubric grades for completed Coin Copilot runs with their question and answer. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "List graded Copilot conversations",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "worst",
+                            "recent"
+                        ],
+                        "type": "string",
+                        "default": "worst",
+                        "description": "Sort order",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Only disputed (true) or undisputed (false) grades",
+                        "name": "disputed",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CopilotGradeListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/copilot-grades/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns average quality, a daily trend and per-criterion failure rates over undisputed grades. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Summarize Copilot grades",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Window in days (1-365)",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.CopilotGradeSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/copilot-grades/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one rubric grade with its question and answer. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get a graded Copilot conversation",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Grade ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.CopilotGradeRow"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/copilot-grades/{id}/dispute": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks or clears an admin's disagreement with a grade. Disputed grades are excluded from the summary. Admin only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Dispute a Copilot grade",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Grade ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Dispute",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CopilotGradeDisputeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.CopilotGradeRow"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/copilot-grading/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Starts grading completed, ungraded Copilot runs in the background, up to the daily cap. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Run Copilot grading now",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/copilot-grading/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns whether nightly Copilot grading is enabled or running, when it runs next, and the last cycle's result. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get Copilot grading status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CopilotGradingStatus"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/deep-identification/observability": {
             "get": {
                 "security": [
@@ -19986,6 +20325,38 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.CopilotGradeDisputeRequest": {
+            "type": "object",
+            "properties": {
+                "disputed": {
+                    "type": "boolean"
+                },
+                "note": {
+                    "type": "string",
+                    "maxLength": 500
+                }
+            }
+        },
+        "handlers.CopilotGradeListResponse": {
+            "type": "object",
+            "properties": {
+                "grades": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.CopilotGradeRow"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.DeleteAnalysisResponse": {
             "type": "object",
             "properties": {
@@ -25369,6 +25740,119 @@ const docTemplate = `{
                 }
             }
         },
+        "repository.CopilotGradeDay": {
+            "type": "object",
+            "properties": {
+                "avgQuality": {
+                    "type": "number"
+                },
+                "day": {
+                    "type": "string"
+                },
+                "graded": {
+                    "type": "integer"
+                }
+            }
+        },
+        "repository.CopilotGradeRow": {
+            "type": "object",
+            "properties": {
+                "accurate": {
+                    "type": "boolean"
+                },
+                "answer": {
+                    "type": "string"
+                },
+                "answersDirectly": {
+                    "type": "boolean"
+                },
+                "citesSources": {
+                    "type": "string"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "disputeNote": {
+                    "type": "string"
+                },
+                "disputed": {
+                    "type": "boolean"
+                },
+                "disputedAt": {
+                    "type": "string"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "gradedAt": {
+                    "type": "string"
+                },
+                "grounded": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "judgeInputTokens": {
+                    "type": "integer"
+                },
+                "judgeModel": {
+                    "type": "string"
+                },
+                "judgeOutputTokens": {
+                    "type": "integer"
+                },
+                "noFalseInability": {
+                    "type": "boolean"
+                },
+                "noOfferMenu": {
+                    "type": "boolean"
+                },
+                "quality": {
+                    "type": "number"
+                },
+                "question": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "string"
+                },
+                "threadId": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.CopilotGradeSummary": {
+            "type": "object",
+            "properties": {
+                "avgQuality": {
+                    "type": "number"
+                },
+                "days": {
+                    "type": "integer"
+                },
+                "disputed": {
+                    "type": "integer"
+                },
+                "failRates": {
+                    "description": "FailRates is the share of undisputed grades failing each criterion;\ncitesSources counts only grades where sources applied.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                },
+                "graded": {
+                    "type": "integer"
+                },
+                "trend": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.CopilotGradeDay"
+                    }
+                }
+            }
+        },
         "repository.DistributionCell": {
             "type": "object",
             "properties": {
@@ -25948,6 +26432,50 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "services.CopilotGradingCycle": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "graded": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "triggerType": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CopilotGradingStatus": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "isRunning": {
+                    "type": "boolean"
+                },
+                "lastCycle": {
+                    "$ref": "#/definitions/services.CopilotGradingCycle"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nextRunIn": {
+                    "type": "string",
+                    "example": "1h30m0s"
                 }
             }
         },

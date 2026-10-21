@@ -424,6 +424,28 @@ class CopilotCollectorContext(StrictRequestModel):
         return self
 
 
+class CopilotGradeTool(StrictRequestModel):
+    """A bounded tool fact from a graded run's latest checkpoint."""
+
+    tool_name: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    result: Any = None
+    truncated: bool = False
+
+
+class CopilotGradeRequest(StrictRequestModel):
+    """Grade one completed Coin Copilot run with the rubric judge. Stateless."""
+
+    llm: LLMConfig
+    messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_HISTORY_MESSAGES)
+    tools: list[CopilotGradeTool] = Field(default_factory=list, max_length=40)
+    answer: Annotated[str, StringConstraints(min_length=1, max_length=100000)]
+
+    @field_validator("messages")
+    @classmethod
+    def validate_messages_total_chars(cls, messages: list[ChatMessage]) -> list[ChatMessage]:
+        return _validate_history_total_chars(messages)
+
+
 class CopilotCapabilityRequest(StrictRequestModel):
     """Provider configuration used only to verify fixed Copilot tool binding."""
 

@@ -20,7 +20,7 @@ func newCopilotRepositoryTestDB(t *testing.T) (*gorm.DB, *CoinCopilotRepository)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}); err != nil {
+	if err := db.AutoMigrate(&models.CoinCopilotThread{}, &models.CoinCopilotRun{}, &models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{}); err != nil {
 		t.Fatal(err)
 	}
 	return db, NewCoinCopilotRepository(db)

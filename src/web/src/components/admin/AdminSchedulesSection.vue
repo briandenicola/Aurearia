@@ -120,6 +120,12 @@
       :settings-saving="settingsSaving"
       @save="emit('save')"
     />
+
+    <AdminCopilotGradingSchedule
+      :settings="settings"
+      :settings-saving="settingsSaving"
+      @save="emit('save')"
+    />
   </section>
 </template>
 
@@ -131,6 +137,7 @@ import AdminAuctionWatchBidDigestSchedule from '@/components/admin/schedules/Adm
 import AdminAvailabilitySchedule from '@/components/admin/schedules/AdminAvailabilitySchedule.vue'
 import AdminWishlistSearchAlertSchedule from '@/components/admin/schedules/AdminWishlistSearchAlertSchedule.vue'
 import AdminCoinOfDaySchedule from '@/components/admin/schedules/AdminCoinOfDaySchedule.vue'
+import AdminCopilotGradingSchedule from '@/components/admin/schedules/AdminCopilotGradingSchedule.vue'
 import AdminPurchaseReminderSchedule from '@/components/admin/schedules/AdminPurchaseReminderSchedule.vue'
 import AdminScheduleTimezone from '@/components/admin/schedules/AdminScheduleTimezone.vue'
 import AdminCollectionHealthSchedule from '@/components/admin/schedules/AdminCollectionHealthSchedule.vue'

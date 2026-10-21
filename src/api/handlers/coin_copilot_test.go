@@ -39,7 +39,7 @@ func setupCoinCopilotHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB, *services
 
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
-		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{},
 		&models.DeepIdentificationJob{}, &models.CoinCopilotDeepHandoff{},
 	); err != nil {
 		t.Fatal(err)

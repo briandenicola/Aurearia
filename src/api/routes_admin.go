@@ -124,6 +124,15 @@ func registerAdminRoutes(api *gin.RouterGroup, d *appDeps) {
 		admin.GET("/collection-health-snapshot-runs", adminHealthHandler.ListSnapshotRuns)
 		admin.GET("/collection-health/status", adminHealthHandler.GetSnapshotStatus)
 
+		// Graded Coin Copilot conversations and the nightly grading job
+		copilotGradingHandler := handlers.NewAdminCopilotGradingHandler(d.copilotGradeRepo, d.copilotGradingScheduler)
+		admin.GET("/copilot-grades", copilotGradingHandler.ListGrades)
+		admin.GET("/copilot-grades/summary", copilotGradingHandler.Summary)
+		admin.GET("/copilot-grades/:id", copilotGradingHandler.GetGrade)
+		admin.PUT("/copilot-grades/:id/dispute", copilotGradingHandler.SetDispute)
+		admin.GET("/copilot-grading/status", copilotGradingHandler.GetStatus)
+		admin.POST("/copilot-grading/run", copilotGradingHandler.RunNow)
+
 		// Deep Identification aggregate operational metrics
 		adminDeepIdentificationHandler := handlers.NewAdminDeepIdentificationHandler(d.deepIdentificationSvc)
 		admin.GET("/deep-identification/observability", adminDeepIdentificationHandler.Observability)

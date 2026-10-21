@@ -40,7 +40,7 @@ func newCopilotServiceTest(t *testing.T) (*gorm.DB, *CoinCopilotService) {
 	})
 	if err := db.AutoMigrate(
 		&models.AppSetting{}, &models.CoinCopilotThread{}, &models.CoinCopilotRun{},
-		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{},
+		&models.CoinCopilotCheckpoint{}, &models.CoinCopilotEvent{}, &models.CoinCopilotResumeRequest{}, &models.CoinCopilotRunGrade{},
 		&models.CollectorProfile{},
 	); err != nil {
 		t.Fatal(err)

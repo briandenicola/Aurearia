@@ -153,6 +153,17 @@ export interface SchedulerStatus {
   nextRunIn: number
 }
 
+export interface CopilotGradingStatus extends SchedulerStatus {
+  lastCycle?: {
+    triggerType: 'manual' | 'scheduled'
+    startedAt: string
+    completedAt?: string
+    graded: number
+    failed: number
+    skipped?: string
+  }
+}
+
 export interface CoinOfDayRun {
   id: number
   triggerType: 'manual' | 'scheduled'
