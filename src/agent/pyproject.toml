@@ -30,6 +30,10 @@ dev = [
     "ruff>=0.16.2,<1.0",
 ]
 
+[tool.setuptools.packages.find]
+# Only the service ships; evals/ and tests/ are development-only.
+include = ["app*"]
+
 [tool.uv]
 constraint-dependencies = [
     "langgraph-sdk>=0.4.4",
