@@ -1,0 +1,281 @@
+[
+  {
+    "id": "collection-01",
+    "tags": ["collection", "repo"],
+    "prompt": "Do I have moose coins?",
+    "expect_groups": [["search_my_collection"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Says plainly that no moose coins were found in the collection."]
+  },
+  {
+    "id": "collection-02",
+    "tags": ["collection", "synth"],
+    "prompt": "How many coins do I have and what's the whole collection worth?",
+    "expect_groups": [["collection_summary"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Gives the coin count and the total current value from the collection summary."]
+  },
+  {
+    "id": "collection-03",
+    "tags": ["collection", "synth"],
+    "prompt": "What are my three most valuable coins?",
+    "expect_groups": [["top_coins_by_value"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Names the Athens tetradrachm, the Vespasian denarius and the Alexander III tetradrachm as the top three by recorded value."]
+  },
+  {
+    "id": "collection-04",
+    "tags": ["collection", "synth"],
+    "prompt": "Show me everything I have from Hadrian.",
+    "expect_groups": [["search_my_collection"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Lists the Hadrian sestertius from the collection."]
+  },
+  {
+    "id": "collection-05",
+    "tags": ["collection", "synth"],
+    "prompt": "Which records in my collection are missing weight or diameter?",
+    "expect_groups": [["collection_summary", "search_my_collection", "get_coin"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "curator-01",
+    "tags": ["curator", "repo"],
+    "prompt": "Compare my Roman coins and identify collection gaps.",
+    "expect_groups": [["gap_analysis"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "curator-02",
+    "tags": ["curator", "synth"],
+    "prompt": "What should I focus on buying next to round out my collection?",
+    "expect_groups": [["collection_summary"], ["portfolio_review"], ["gap_analysis"]],
+    "web": "optional",
+    "outcome": "answer",
+    "judge_points": ["Grounds the suggestions in what the collection actually holds."]
+  },
+  {
+    "id": "curator-03",
+    "tags": ["curator", "synth"],
+    "prompt": "Give me a portfolio review. Am I too concentrated anywhere?",
+    "expect_groups": [["portfolio_review"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "curator-04",
+    "tags": ["curator", "repo"],
+    "prompt": "Compare my Flavian bronzes and identify gaps.",
+    "expect_groups": [["gap_analysis", "search_my_collection"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Notes that the collection holds no Flavian bronzes (the only Flavian coins are silver denarii)."]
+  },
+  {
+    "id": "shopping-01",
+    "tags": ["shopping", "real"],
+    "prompt": "Find Aurelian coins for sale online.",
+    "expect_groups": [["market_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": ["Reports that the configured dealer sources returned no matching listings rather than inventing any."]
+  },
+  {
+    "id": "shopping-02",
+    "tags": ["shopping", "real"],
+    "history": [
+      {"role": "user", "content": "Find Aurelian coins for sale online."},
+      {"role": "assistant", "content": "My role is limited to your personal coin collection. Would you like me to search?"}
+    ],
+    "prompt": "I am not asking about my collection. I am asking your to find coins for sell online of any Aurelian coin",
+    "expect_groups": [["market_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": ["Does not repeat the claim that shopping is outside its scope."]
+  },
+  {
+    "id": "shopping-03",
+    "tags": ["shopping", "synth"],
+    "prompt": "I'd like a Domitian denarius with a Minerva reverse for under $300. Anything available?",
+    "expect_groups": [["market_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": ["Presents the $275 CNG Domitian listing with its source URL."]
+  },
+  {
+    "id": "shopping-04",
+    "tags": ["shopping", "synth"],
+    "prompt": "Find me a nice Athenian owl tetradrachm to buy, budget around $1,500.",
+    "expect_groups": [["market_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "auction-01",
+    "tags": ["auction", "repo"],
+    "prompt": "Find Vespasian denarii at auction.",
+    "expect_groups": [["auction_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "auction-02",
+    "tags": ["auction", "synth"],
+    "prompt": "Any Domitian denarii coming up at auction soon?",
+    "expect_groups": [["auction_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": ["Presents the upcoming Domitian lot with its estimate, sale date and source URL."]
+  },
+  {
+    "id": "auction-03",
+    "tags": ["auction", "synth"],
+    "prompt": "What Roman Republican denarii are coming up in the next CNG e-auction?",
+    "expect_groups": [["auction_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "auction-04",
+    "tags": ["auction", "synth"],
+    "prompt": "Are there auction lots similar to my Domitian denarius?",
+    "expect_groups": [["similar_lots", "auction_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "price-01",
+    "tags": ["price", "synth"],
+    "prompt": "What do Domitian Minerva denarii sell for these days?",
+    "expect_groups": [["price_trends", "similar_lots"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": ["Quotes completed-sale prices from the results and keeps their hammer price basis."]
+  },
+  {
+    "id": "price-02",
+    "tags": ["price", "synth"],
+    "prompt": "Have Athenian owl tetradrachm prices gone up over the last few years?",
+    "expect_groups": [["price_trends"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "price-03",
+    "tags": ["price", "synth"],
+    "prompt": "What's my Vespasian denarius worth now?",
+    "expect_groups": [["search_my_collection", "get_coin", "top_coins_by_value"], ["price_trends", "similar_lots", "auction_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "price-04",
+    "tags": ["price", "real"],
+    "history": [
+      {"role": "user", "content": "Take a look at this lot - [CORINTHIA, Corinth. Gaius (Caligula). AD 37-41. Æ As (19mm, 6.04 g, 12h). Marcus Bellius Proculus and Publius Vipsanius Agrippa, duoviri. Struck AD 37-38. Near VF. | Classical Numismatic Group](https://auctions.cngcoins.com/lots/view/4-N73O7H/corinthia-corinth-gaius-caligula-ad-37-41-as-19mm-604-g-12h-marcus-bellius-proculus-and-publius-vipsanius-agrippa-duoviri-struck-ad-37-38-near-vf). It says Caligula but I'm not sure if its really a coin of him or a coin struck during his reign. What do you think"},
+      {"role": "assistant", "content": "It is a portrait of Caligula himself, not just a coin dated to his reign. CNG catalogues it as RPC I 1173a: bare head of Caligula on the obverse, Pegasus on the reverse, issued at Corinth under the duoviri M. Bellius Proculus and P. Vipsanius Agrippa."}
+    ],
+    "prompt": "The bidding is at $225 now and there's a 20% buyer's fee on top. What maximum bid would you set?",
+    "expect_groups": [["price_trends", "similar_lots", "auction_search"]],
+    "web": "after_specialist",
+    "outcome": "answer",
+    "judge_points": ["States a specific maximum bid.", "Accounts for the 20% buyer's fee without mixing hammer and fee-inclusive prices."]
+  },
+  {
+    "id": "deep-01",
+    "tags": ["deep_analysis", "synth"],
+    "prompt": "Run a deep analysis on my Maximinus I denarius.",
+    "expect_groups": [["search_my_collection", "get_coin"], ["deep_analysis_handoff"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Says the analysis was queued and points to the Deep Analysis review page."]
+  },
+  {
+    "id": "deep-02",
+    "tags": ["deep_analysis", "synth"],
+    "prompt": "What's the status of deep analysis job 314?",
+    "expect_groups": [["deep_analysis_handoff"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": []
+  },
+  {
+    "id": "deep-03",
+    "tags": ["deep_analysis", "synth"],
+    "prompt": "Job 314 on my Maximinus I denarius (coin 42) got the mint wrong. Please rerun the deep analysis.",
+    "expect_groups": [["deep_analysis_handoff"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Does not claim to have applied or accepted any proposed change."]
+  },
+  {
+    "id": "deep-04",
+    "tags": ["deep_analysis", "synth"],
+    "prompt": "Run deep analysis on my denarius.",
+    "expect_groups": [],
+    "forbid": ["deep_analysis_handoff"],
+    "web": "forbidden",
+    "outcome": "clarify",
+    "judge_points": ["Asks which of the several denarii in the collection is meant."]
+  },
+  {
+    "id": "research-01",
+    "tags": ["research", "real"],
+    "prompt": "Take a look at this lot - [CORINTHIA, Corinth. Gaius (Caligula). AD 37-41. Æ As (19mm, 6.04 g, 12h). Marcus Bellius Proculus and Publius Vipsanius Agrippa, duoviri. Struck AD 37-38. Near VF. | Classical Numismatic Group](https://auctions.cngcoins.com/lots/view/4-N73O7H/corinthia-corinth-gaius-caligula-ad-37-41-as-19mm-604-g-12h-marcus-bellius-proculus-and-publius-vipsanius-agrippa-duoviri-struck-ad-37-38-near-vf). It says Caligula but I'm not sure if its really a coin of him or a coin struck during his reign. What do you think",
+    "expect_groups": [],
+    "web": "fetch",
+    "outcome": "answer",
+    "judge_points": ["Concludes that the obverse portrait is Caligula himself, not just a coin dated to his reign.", "Identifies the type as RPC I 1173 (or 1173a).", "Cites at least one source by name or URL."]
+  },
+  {
+    "id": "research-02",
+    "tags": ["research", "synth"],
+    "prompt": "Who is shown on the reverse of the Augustus denarius with the two standing princes, and what's its RIC number?",
+    "expect_groups": [],
+    "web": "optional",
+    "outcome": "answer",
+    "judge_points": ["Identifies Gaius and Lucius Caesars.", "Gives RIC I 207 (Lugdunum), or a closely related RIC I number with the range explained."]
+  },
+  {
+    "id": "research-03",
+    "tags": ["research", "synth"],
+    "prompt": "What does IVDAEA CAPTA mean on Vespasian's coins?",
+    "expect_groups": [],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Explains it as 'Judaea captured', commemorating the suppression of the Jewish revolt and the fall of Jerusalem in AD 70."]
+  },
+  {
+    "id": "research-04",
+    "tags": ["research", "synth"],
+    "prompt": "How do I tell a Constantinian follis struck at Trier from one struck at Lyon?",
+    "expect_groups": [],
+    "web": "optional",
+    "outcome": "answer",
+    "judge_points": ["Points to the exergue mint mark (TR for Trier, LG or PLG for Lyon) as the deciding feature."]
+  },
+  {
+    "id": "research-05",
+    "tags": ["research", "synth"],
+    "prompt": "Is my Hadrian sestertius a common type?",
+    "expect_groups": [["search_my_collection", "get_coin"]],
+    "web": "optional",
+    "outcome": "answer",
+    "judge_points": ["Uses the details of the owned coin rather than answering about Hadrian sestertii in general."]
+  }
+]

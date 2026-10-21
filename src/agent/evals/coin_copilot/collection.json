@@ -1,0 +1,22 @@
+{
+  "summary": {
+    "totalCoins": 10,
+    "totalWishlist": 3,
+    "totalSold": 1,
+    "totalCurrentUsd": 3426,
+    "totalPurchaseUsd": 3045,
+    "missingFields": {"weightGrams": 2, "diameterMm": 1, "mint": 1}
+  },
+  "coins": [
+    {"id": 1, "name": "Domitian AR denarius, Minerva standing right", "category": "Roman", "denomination": "Denarius", "era": "Roman Imperial", "ruler": "Domitian", "mint": "Rome", "material": "Silver", "grade": "VF", "weightGrams": 3.31, "diameterMm": 19.0, "purchasePrice": 240, "currentValue": 275},
+    {"id": 7, "name": "Augustus AR denarius, Gaius and Lucius Caesars", "category": "Roman", "denomination": "Denarius", "era": "Roman Imperial", "ruler": "Augustus", "mint": "Lugdunum", "material": "Silver", "grade": "F", "weightGrams": 3.62, "diameterMm": 19.5, "purchasePrice": 180, "currentValue": 220},
+    {"id": 12, "name": "Hadrian AE sestertius, Fortuna standing", "category": "Roman", "denomination": "Sestertius", "era": "Roman Imperial", "ruler": "Hadrian", "mint": "Rome", "material": "Bronze", "grade": "F", "weightGrams": 24.8, "diameterMm": 32.0, "purchasePrice": 150, "currentValue": 160},
+    {"id": 19, "name": "Constantine I AE follis, SOLI INVICTO COMITI", "category": "Roman", "denomination": "Follis", "era": "Roman Imperial", "ruler": "Constantine I", "mint": "", "material": "Bronze", "grade": "VF", "weightGrams": null, "diameterMm": 21.0, "purchasePrice": 40, "currentValue": 45, "missingFields": ["mint", "weightGrams"]},
+    {"id": 23, "name": "Athens AR tetradrachm, owl", "category": "Greek", "denomination": "Tetradrachm", "era": "Classical Greek", "ruler": "", "mint": "Athens", "material": "Silver", "grade": "EF", "weightGrams": 17.2, "diameterMm": 24.0, "purchasePrice": 950, "currentValue": 1100},
+    {"id": 31, "name": "Aurelian AE antoninianus, RESTITVTOR ORBIS", "category": "Roman", "denomination": "Antoninianus", "era": "Roman Imperial", "ruler": "Aurelian", "mint": "Siscia", "material": "Billon", "grade": "VF", "weightGrams": 3.9, "diameterMm": 23.0, "purchasePrice": 35, "currentValue": 40},
+    {"id": 42, "name": "Maximinus I AR denarius, PAX AVGVSTI", "category": "Roman", "denomination": "Denarius", "era": "Roman Imperial", "ruler": "Maximinus I", "mint": "Rome", "material": "Silver", "grade": "VF", "weightGrams": 3.05, "diameterMm": 20.0, "purchasePrice": 120, "currentValue": 130},
+    {"id": 55, "name": "Vespasian AR denarius, IVDAEA CAPTA", "category": "Roman", "denomination": "Denarius", "era": "Roman Imperial", "ruler": "Vespasian", "mint": "Rome", "material": "Silver", "grade": "F", "weightGrams": null, "diameterMm": null, "purchasePrice": 900, "currentValue": 1000, "missingFields": ["weightGrams", "diameterMm"]},
+    {"id": 63, "name": "Probus AE antoninianus, SOLI INVICTO", "category": "Roman", "denomination": "Antoninianus", "era": "Roman Imperial", "ruler": "Probus", "mint": "Ticinum", "material": "Billon", "grade": "VF", "weightGrams": 3.7, "diameterMm": 22.0, "purchasePrice": 30, "currentValue": 6},
+    {"id": 70, "name": "Alexander III AR tetradrachm, Zeus enthroned", "category": "Greek", "denomination": "Tetradrachm", "era": "Hellenistic Greek", "ruler": "Alexander III", "mint": "Amphipolis", "material": "Silver", "grade": "VF", "weightGrams": 17.1, "diameterMm": 26.0, "purchasePrice": 400, "currentValue": 450}
+  ]
+}
