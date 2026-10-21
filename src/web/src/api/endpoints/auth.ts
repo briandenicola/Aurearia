@@ -2,6 +2,7 @@
 // re-exported from '@/api/client' so existing imports keep working.
 import { api } from '@/api/http'
 import type {
+  UserPreferences,
   ApiKey,
   ApiKeyCapability,
   AuthResponse,
@@ -142,8 +143,8 @@ interface PublicKeyCredentialRequestOptionsPublicKeyJSON {
 // --- Social / Profile API ---
 
 // Profile
-export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; cngUsername?: string; cngPassword?: string; parcelAppAPIKey?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean; coinOfDayIncludeWishlist?: boolean; emperorTrackerEnabled?: boolean; emperorTrackerShowUsurpers?: boolean; emperorTrackerShowEmpresses?: boolean; emperorTrackerShowOtherFigures?: boolean; pwaSwipeNavEnabled?: boolean }) =>
-  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; cngUsername: string; cngConfigured: boolean; parcelAppConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean; coinOfDayIncludeWishlist: boolean; emperorTrackerEnabled: boolean; emperorTrackerShowUsurpers: boolean; emperorTrackerShowEmpresses: boolean; emperorTrackerShowOtherFigures: boolean; pwaSwipeNavEnabled: boolean }>('/user/profile', data)
+export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; cngUsername?: string; cngPassword?: string; parcelAppAPIKey?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean; coinOfDayIncludeWishlist?: boolean; emperorTrackerEnabled?: boolean; emperorTrackerShowUsurpers?: boolean; emperorTrackerShowEmpresses?: boolean; emperorTrackerShowOtherFigures?: boolean; pwaSwipeNavEnabled?: boolean; preferences?: Partial<UserPreferences> }) =>
+  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; cngUsername: string; cngConfigured: boolean; parcelAppConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean; coinOfDayIncludeWishlist: boolean; emperorTrackerEnabled: boolean; emperorTrackerShowUsurpers: boolean; emperorTrackerShowEmpresses: boolean; emperorTrackerShowOtherFigures: boolean; pwaSwipeNavEnabled: boolean; preferences: UserPreferences }>('/user/profile', data)
 
 export const uploadAvatar = (file: File) => {
   const form = new FormData()

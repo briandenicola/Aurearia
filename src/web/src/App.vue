@@ -210,6 +210,7 @@ import { usePinnedSets } from '@/composables/usePinnedSets'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
+import { applyAccountPreferences } from '@/composables/usePreferenceSync'
 import { useImmersiveShell } from '@/composables/useImmersiveShell'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -614,8 +615,10 @@ onMounted(async () => {
         auth.user.pushoverEnabled = data.pushoverEnabled
         auth.user.coinOfDayEnabled = data.coinOfDayEnabled
         auth.user.pwaSwipeNavEnabled = data.pwaSwipeNavEnabled
+        auth.user.preferences = data.preferences
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
+      applyAccountPreferences(data.preferences)
 
       if (data.emailMissing) {
         const dismissed = localStorage.getItem('emailPromptDismissed')

@@ -64,7 +64,7 @@
           @save-timezone="(tz: string) => { timezone = tz; saveTimezone() }"
           @set-default-view="setDefaultView"
           @save-default-sort="(sort: string) => { defaultSort = sort; saveDefaultSort() }"
-          @set-tray-felt-color="(color) => { feltColor = color }"
+          @set-tray-felt-color="(color) => { feltColor = color; savePreference('trayFeltColor', color) }"
         />
 
         <SettingsDataSection v-if="activeTab === 'data'" ref="dataSection" />
@@ -116,6 +116,7 @@ import type { ConversationSummary } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
 import { useTrayPreference } from '@/composables/useTrayPreference'
+import { savePreference } from '@/composables/usePreferenceSync'
 import type { Theme } from '@/types'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import HelpSection from '@/components/HelpSection.vue'
@@ -258,6 +259,7 @@ function setTheme(t: Theme) {
   theme.value = t
   localStorage.setItem('theme', t)
   document.documentElement.setAttribute('data-theme', t)
+  savePreference('theme', t)
 }
 
 // Timezone
@@ -268,6 +270,7 @@ const timezone = ref(localStorage.getItem('timezone') || Intl.DateTimeFormat().r
 
 function saveTimezone() {
   localStorage.setItem('timezone', timezone.value)
+  savePreference('timezone', timezone.value)
 }
 
 // Default view
@@ -276,6 +279,7 @@ const defaultView = ref<'swipe' | 'grid'>((localStorage.getItem('defaultView') a
 function setDefaultView(v: 'swipe' | 'grid') {
   defaultView.value = v
   localStorage.setItem('defaultView', v)
+  savePreference('defaultView', v)
 }
 
 // Default sort
@@ -283,6 +287,7 @@ const defaultSort = ref(localStorage.getItem('defaultSort') || 'updated_at_desc'
 
 function saveDefaultSort() {
   localStorage.setItem('defaultSort', defaultSort.value)
+  savePreference('defaultSort', defaultSort.value)
 }
 
 // Saved Conversations

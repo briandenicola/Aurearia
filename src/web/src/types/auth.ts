@@ -1,6 +1,15 @@
 // auth types. Split out of the former single-file src/types/index.ts;
 // re-exported from '@/types' so existing imports keep working.
 
+/** Display preferences synced to the account. Empty string means "not set". */
+export interface UserPreferences {
+  theme: string
+  timezone: string
+  defaultView: string
+  defaultSort: string
+  trayFeltColor: string
+}
+
 export interface User {
   id: number
   username: string
@@ -23,6 +32,7 @@ export interface User {
   emperorTrackerShowEmpresses?: boolean
   emperorTrackerShowOtherFigures?: boolean
   pwaSwipeNavEnabled?: boolean
+  preferences?: UserPreferences
 }
 
 export interface AuthResponse {
@@ -158,6 +168,7 @@ export interface UserInfo {
   emperorTrackerShowEmpresses?: boolean
   emperorTrackerShowOtherFigures?: boolean
   pwaSwipeNavEnabled?: boolean
+  preferences?: UserPreferences
   lockedUntil?: string | null
   failedLoginAttempts?: number
   createdAt: string
