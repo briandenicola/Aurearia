@@ -38,6 +38,7 @@ from app.tools.copilot_collection_tools import (
     CopilotCollectionToolClient,
     CopilotToolError,
     build_copilot_tool_definitions,
+    rejected_tool_argument_fields,
 )
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,15 @@ def _tool_summary(tool_name: str, result: Any) -> str:
     if label is not None and outcome in _SPECIALIST_OUTCOME_SUMMARIES:
         return _SPECIALIST_OUTCOME_SUMMARIES[outcome].format(label=label)
     return _TOOL_SUMMARIES[tool_name]
+
+
+def _rejected_arguments_message(fields: list[str]) -> str:
+    named = f" ({', '.join(fields)})" if fields else ""
+    return (
+        f"This tool call was rejected because its arguments were invalid{named}; it did not run. "
+        "Retry with valid arguments, or if information is missing, ask the owner instead of "
+        "calling a tool with placeholder values."
+    )
 
 
 def _message_content(response: AIMessage) -> str:
@@ -586,6 +596,29 @@ async def run_coin_copilot(
                 )
 
             messages.append(response)
+
+            # A call with invalid arguments is answered with an error result so the
+            # model can correct itself; it never starts, so Go never sees it. The
+            # iteration, tool-call and time limits still bound repeated mistakes.
+            accepted_calls = []
+            for prepared_call in prepared_calls:
+                rejected_fields = rejected_tool_argument_fields(prepared_call[0], prepared_call[2])
+                if rejected_fields is None:
+                    accepted_calls.append(prepared_call)
+                    continue
+                logger.warning(
+                    "Coin Copilot returned invalid tool arguments tool=%s fields=%s",
+                    prepared_call[0],
+                    ",".join(rejected_fields) or "unknown",
+                )
+                messages.append(
+                    ToolMessage(
+                        content=_rejected_arguments_message(rejected_fields),
+                        tool_call_id=prepared_call[1],
+                        status="error",
+                    )
+                )
+            prepared_calls = accepted_calls
 
             execution_groups: list[list[tuple[str, str, dict[str, Any]]]] = []
             parallel_group: list[tuple[str, str, dict[str, Any]]] = []

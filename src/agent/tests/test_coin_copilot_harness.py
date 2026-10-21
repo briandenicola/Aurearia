@@ -1442,3 +1442,40 @@ def test_judgment_requests_get_a_specific_recommendation():
     assert "it is not a reason to hand the decision back to the owner" in prompt
     assert "label it as an estimate" in prompt
 
+
+@pytest.mark.asyncio
+async def test_invalid_tool_arguments_are_returned_to_the_model_instead_of_failing_the_run():
+    request = _request()
+    placeholder_call = AIMessage(
+        content="Which denarius do you mean?",
+        tool_calls=[{"name": "get_coin", "args": {"coin_id": 0}, "id": "call_bad", "type": "tool_call"}],
+    )
+    model = _SequenceModel([placeholder_call, AIMessage(content="Which denarius do you mean?")])
+    tool_client = _ToolClient([])
+
+    frames = await _frames(request, model, tool_client)
+
+    assert frames[-1].type == "completed"
+    assert tool_client.calls == []
+    assert not [frame for frame in frames if frame.type in ("tool_started", "tool_completed")]
+    rejection = model.messages[1][-1]
+    assert rejection.type == "tool" and rejection.status == "error"
+    assert rejection.tool_call_id == "call_bad"
+    assert "coin_id" in rejection.content
+
+
+@pytest.mark.asyncio
+async def test_repeated_invalid_tool_arguments_still_stop_at_the_iteration_limit():
+    request = _request(max_iterations=2)
+    bad = [
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "get_coin", "args": {"coin_id": 0}, "id": f"call_{n}", "type": "tool_call"}],
+        )
+        for n in range(3)
+    ]
+
+    frames = await _frames(request, _SequenceModel(bad), _ToolClient([]))
+
+    assert frames[-1].type == "failed"
+    assert frames[-1].payload.code == "iteration_limit_exceeded"
