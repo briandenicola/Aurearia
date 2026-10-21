@@ -38,6 +38,45 @@ _ANTHROPIC_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
 )
 
 
+# Models that accept the dynamic-filtering web tool variants; older models
+# keep the basic variants.
+_DYNAMIC_WEB_TOOL_MODEL_PREFIXES = (
+    "claude-opus-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+)
+WEB_SEARCH_MAX_USES = 5
+WEB_FETCH_MAX_USES = 6
+WEB_FETCH_MAX_CONTENT_TOKENS = 20000
+
+
+def anthropic_web_research_tools(model: str) -> list[dict[str, Any]]:
+    """Anthropic server-side web search and fetch, executed by Anthropic.
+
+    Web fetch only retrieves URLs already present in the conversation (the
+    owner's message or earlier search/fetch results), so it cannot be steered
+    to an address the model invents.
+    """
+    dynamic = model.startswith(_DYNAMIC_WEB_TOOL_MODEL_PREFIXES)
+    return [
+        {
+            "type": "web_search_20260209" if dynamic else "web_search_20250305",
+            "name": "web_search",
+            "max_uses": WEB_SEARCH_MAX_USES,
+        },
+        {
+            "type": "web_fetch_20260209" if dynamic else "web_fetch_20250910",
+            "name": "web_fetch",
+            "max_uses": WEB_FETCH_MAX_USES,
+            "max_content_tokens": WEB_FETCH_MAX_CONTENT_TOKENS,
+            "citations": {"enabled": True},
+        },
+    ]
+
+
 def _anthropic_compatible_tools(tools: list) -> list[dict[str, Any]]:
     """Remove unsupported JSON Schema validators from Anthropic tool inputs."""
 
@@ -101,7 +140,10 @@ async def bind_coin_copilot_model(
         provider_tools = tools
         binding_options = {"tool_choice": "auto"}
         if config.provider == "anthropic":
-            provider_tools = _anthropic_compatible_tools(tools)
+            provider_tools = [
+                *_anthropic_compatible_tools(tools),
+                *anthropic_web_research_tools(config.model),
+            ]
             binding_options["strict"] = True
         return model.bind_tools(provider_tools, **binding_options)
     except Exception as exc:
