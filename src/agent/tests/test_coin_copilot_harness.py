@@ -1433,3 +1433,12 @@ def test_research_guidance_keeps_collection_first_and_skips_needless_searches():
 
     assert "Questions about the owner's own coins start with the collection tools." in prompt
     assert "Answer settled general knowledge directly without searching." in prompt
+
+
+def test_judgment_requests_get_a_specific_recommendation():
+    prompt = " ".join(coin_copilot.COPILOT_SYSTEM_PROMPT.split())
+
+    assert "give a specific recommendation: a number, a range, or a clear yes or no" in prompt
+    assert "it is not a reason to hand the decision back to the owner" in prompt
+    assert "label it as an estimate" in prompt
+
