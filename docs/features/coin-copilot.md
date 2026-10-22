@@ -9,12 +9,19 @@
 
 ## Scope and rollout
 
-Coin Copilot can sequence collection search, coin detail, collection summary,
+Coin Copilot answers general numismatic questions (attribution, iconography,
+legends, catalog references, history, authenticity signals, grading, auction
+lots, and market value) as well as collection and shopping questions. The
+owner's collection is one source among many, not the boundary of its scope.
+
+It can sequence collection search, coin detail, collection summary,
 top-value, portfolio-review, structural gap-analysis, dealer search, auction
 search, completed-sale price-trend, similar-lot, and an owner-scoped Deep
-Analysis handoff: the 11 tools in `CoinCopilotAllowedTools`. It does not expose
-writes, approvals, coin-show search, long-term memory, arbitrary HTTP,
-filesystem, shell, code execution, or direct database access.
+Analysis handoff: the 11 tools in `CoinCopilotAllowedTools`. With an Anthropic
+model it can also use provider-executed web search and web fetch (see
+[Web research](#web-research)). It does not expose writes, approvals, coin-show
+search, long-term memory, arbitrary HTTP, filesystem, shell, code execution, or
+direct database access.
 
 The existing drawer calls `GET /api/agent/copilot/capability` before starting a
 run. Copilot mode is selected only when `CoinCopilotEnabled` is on (it defaults
@@ -23,6 +30,37 @@ Anthropic must bind the fixed tool schemas; Ollama must explicitly advertise
 the `tools` capability through `/api/show`. Disabled, unconfigured,
 unsupported, ambiguous, or unavailable states use the unchanged legacy
 `POST /api/agent/chat` flow.
+
+## Web research
+
+When the configured provider is Anthropic, the Python harness binds Anthropic's
+server-side `web_search` and `web_fetch` tools alongside the fixed callback
+tools (`anthropic_web_research_tools` in `src/agent/app/llm/capabilities.py`).
+Anthropic executes them; they never reach Go callbacks, so they are not in
+`CoinCopilotAllowedTools` and do not use the owner-bound credential.
+
+- Current models get the dynamic-filtering tool versions; older models get the
+  basic versions.
+- Each model call allows at most 5 searches and 6 fetches; each fetch is capped
+  at 20,000 content tokens and returns citations.
+- Web fetch can open only URLs already in the conversation (the owner's message
+  or earlier search/fetch results), so the model cannot fetch an address it
+  invents. Owners and MCP clients should include lot, listing, or catalog URLs
+  in the message or goal.
+- The prompt routes collection questions to collection tools and listings,
+  auctions, prices, and comparables to the specialist tools before any web
+  search, and answers settled knowledge without searching. Web evidence must
+  keep its source URL and is labelled as coming from the open web.
+- Fetched and searched pages are untrusted data, never instructions. Collection
+  details, prices the owner paid, and other private data must not appear in
+  search queries.
+- A long server-side research turn may stop with `pause_turn`; the harness
+  resends it so the provider resumes. Each resend counts as a reasoning
+  iteration and against the execution time limit.
+
+Ollama runs without web tools. Copilot is told so, answers from its own
+knowledge and the fixed tools, and says when a question needs a page it cannot
+read.
 
 ## External MCP lifecycle
 
@@ -34,7 +72,10 @@ feature flags, capability preflight, admission limits, idempotency,
 checkpoint-version checks, cancellation, or retention.
 
 The MCP lifecycle does not add new Coin Copilot reasoning tools and does not
-grant collection mutation. See [MCP Agentic Harness](mcp-agentic-harness.md)
+grant collection mutation. Runs started over MCP use the same prompt and, with
+an Anthropic model, the same web research, so external harnesses should send
+general numismatic research questions to `start_copilot_run` rather than
+treating Copilot as collection-only. See [MCP Agentic Harness](mcp-agentic-harness.md)
 for connection setup and the external tool boundary.
 
 ## Deep Analysis handoff
@@ -102,6 +143,8 @@ Example prompts:
 - `Find current dealer listings and upcoming auctions online for Julius Caesar denarii.`
 - `Find current dealer listings for Byzantine gold solidi under $1,000.`
 - `What is the completed-sale price trend for Athenian owl tetradrachms?`
+- `What is the RIC reference for a Hadrian denarius with FORTVNA REDVX reverse, and which museum examples match?`
+- `Read https://www.numisbids.com/... and tell me whether the attribution holds up.`
 - `Which coins in my collection are missing an era?`
 
 ## Disconnect, cancellation, and resume

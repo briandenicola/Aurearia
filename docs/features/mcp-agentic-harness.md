@@ -71,6 +71,13 @@ it reaches a terminal or paused state, and resume only with the checkpoint
 version returned by Aurearia. Coin Copilot must also be enabled and pass its
 existing provider/model capability preflight.
 
+Copilot is not limited to the collector's data. It answers general numismatic
+research questions (attribution, catalog references, history, authenticity,
+grading, market value) and, with an Anthropic model, researches them with web
+search and web fetch. Pass the collector's question as the goal with minimal
+rewording and include any URLs verbatim; web fetch can open only URLs present
+in the conversation. See [Coin Copilot web research](coin-copilot.md#web-research).
+
 ## Security boundaries
 
 - The external-tool admin setting defaults to off and gates both adapters.
@@ -80,7 +87,9 @@ existing provider/model capability preflight.
 - Cross-owner identifiers produce not-found behavior without leaking data.
 - MCP requests are limited to 128 KiB.
 - The MCP surface exposes no collection, wishlist, auction, settings, shell,
-  filesystem, arbitrary HTTP, or database mutation tools.
+  filesystem, arbitrary HTTP, or database mutation tools. Coin Copilot's web
+  search and fetch run inside the Copilot harness, executed by Anthropic, and
+  are not exposed as MCP tools.
 - Coin Copilot tools persist only their existing durable run state; they do not
   grant general application write access.
 

@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Coin Copilot web research** — With an Anthropic model, Coin Copilot answers
+  general numismatic questions (attribution, catalogue references, legends,
+  history, authenticity, grading) using provider-executed web search and web
+  fetch, reads links the owner shares, and cites its sources. Dealer, auction
+  and price questions still go to the specialist tools first. Ollama runs
+  without web tools. Runs started over MCP get the same behaviour; the MCP
+  skill and docs now route research questions to Copilot. See
+  [Coin Copilot](features/coin-copilot.md#web-research).
 - **Private original attribution cards** - Manual Add, Edit and confirmed AI
   intake retain card photographs privately. Share offers the originals as
   separate attachments alongside the generated collector ticket. Galleries,
