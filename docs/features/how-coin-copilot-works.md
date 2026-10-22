@@ -13,9 +13,12 @@ You ask in plain English: "Find me any Caligula coins under $500", "Which of my
 coins are missing an era?", "What have Athenian owls been selling for?". Copilot
 works out which steps it needs, asks a small team of specialised helpers to
 look things up, and writes one answer that cites where every fact came from.
-It is **read-only**: it can look at your collection and search trusted dealer
-and auction sites, but it can never change a coin, add to your wishlist, or buy
-anything on its own. Anything that changes your data is a button you press.
+It also answers general coin questions (who struck a type, what a legend
+means, which catalogue reference fits, whether an attribution holds up) and,
+with an Anthropic model, checks them on the web and cites its sources.
+It is **read-only**: it can look at your collection, search trusted dealer
+and auction sites and read public web pages, but it can never change a coin,
+add to your wishlist, or buy anything on its own. Anything that changes your data is a button you press.
 
 ## Two assistants, one chat box
 
@@ -56,6 +59,7 @@ flowchart LR
         D("🏪 Dealers<br/>vCoins · MA-Shops · Harlan J. Berk<br/>Forum · Catawiki"):::outside
         A("🔨 Auctions<br/>NumisBids · CNG"):::outside
         R("📚 References<br/>Numista · Nomisma / OCRE"):::outside
+        W("🌐 Open web<br/>search · read pages<br/>Anthropic models only"):::outside
     end
 
     You <--> App
@@ -65,6 +69,7 @@ flowchart LR
     H2 -. "collection summary" .-> App
     H3 --> D & A
     H4 --> App
+    Copilot -. "research · cited" .-> W
     App -. "Deep Analysis job" .-> R
 
     classDef person fill:#fff4d6,stroke:#b7791f,stroke-width:2px,color:#1f2328
@@ -90,9 +95,16 @@ Three things are worth knowing about this picture:
   the Aurearia server for exactly what a step needs, using a short-lived
   read-only pass that works for one conversation, for your coins only, and
   expires within three minutes.
-- **The outside world is a fixed list.** Copilot can only reach the dealer and
-  auction sites your administrator configured (*Admin → System → Dealer Search
-  Sources / Auction Search Sources*). It cannot browse the open web.
+- **Shopping uses a fixed list; research uses the web.** Dealer listings,
+  auction lots, price trends and similar lots come only from the sites your
+  administrator configured (*Admin → System → Dealer Search Sources / Auction
+  Search Sources*). For research questions, Copilot can also search the web and
+  read public pages, such as a lot link you paste or a museum or catalogue
+  entry, and cites each one. It only opens links you gave it or that its own
+  search found, never puts your coins or prices in a search, and treats what
+  it reads as evidence to weigh, not instructions. Web research needs an
+  Anthropic model; with Ollama, Copilot answers from what it knows and says
+  when it couldn't read a page.
 - **Copilot itself remembers nothing between conversations.** The server keeps
   the conversation, the step checklist and the results, so a run can be paused,
   resumed or replayed without the assistant holding anything in memory.
@@ -115,6 +127,13 @@ checklist and on the line that reports what it found.
 | **Analyze completed-sale price trends** | Looks at recent completed sales and says whether prices look rising, falling or flat, and how many verified sales that's based on | Configured auction houses | No |
 | **Find similar auction lots** | Finds and ranks auction lots similar to a coin you describe | Configured auction houses | No |
 | **Use existing Deep Analysis** | Starts, checks or re-runs a Deep Analysis identification job for one of your coins or an open Quick Capture draft | Your coin's photos, then reference catalogues | No: the result is a *proposal* you review on the Deep Analysis page |
+
+**Web research** isn't one of these helpers. With an Anthropic model, the AI
+service itself searches the web and reads pages (up to 5 searches and 6 page
+reads per planning round) to check attributions, catalogue references, legends
+and history, and to open links you paste. It doesn't appear as a step in the
+checklist and doesn't count toward the helper limits; its sources are cited in
+the answer instead.
 
 Copilot calls at most **three helpers at the same time**, and at most **twelve
 per run**. A Deep Analysis start or re-run always runs on its

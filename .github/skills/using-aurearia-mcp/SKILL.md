@@ -1,12 +1,14 @@
 ---
 name: using-aurearia-mcp
-description: "Use Aurearia's read-only collection, wishlist, auction, statistics, and durable Coin Copilot MCP tools safely."
+description: "Use Aurearia's read-only collection, wishlist, auction, statistics, and durable Coin Copilot MCP tools safely, including routing general numismatic research questions to Coin Copilot."
 ---
 
 # Using Aurearia MCP
 
 Use this skill when a collector asks for facts, comparisons, planning, or
-analysis grounded in their Aurearia data.
+analysis grounded in their Aurearia data, or asks a general numismatic research
+question (attribution, iconography, legends, catalog references, history,
+authenticity, grading, or market value) that Coin Copilot can research.
 
 ## Connection
 
@@ -61,6 +63,30 @@ Treat empty results as evidence that Aurearia has no matching owned data. Do
 not infer holdings, wishlist entries, bids, or values that tools did not
 return.
 
+## Choosing Between Read Tools and Coin Copilot
+
+- Use the read tools for direct lookups of the collector's own data: a known
+  coin, a filtered list, counts, or statistics. They are synchronous and cheap.
+- Use Coin Copilot for multi-step questions and for numismatic research:
+  attribution, iconography, legends, catalog references (RIC, RPC, Crawford,
+  Sear, SNG), history, authenticity signals, grading, dealer listings, auction
+  lots, price trends, and comparable sales. The owner's collection is one
+  source among many, not the boundary of its scope.
+- Pass the collector's question to `start_copilot_run` as the goal with little
+  or no rewording. Copilot already routes collection questions to collection
+  tools, market questions to its dealer, auction, price-trend, and similar-lot
+  specialists, and fact-checking to web research. Do not prescribe the order
+  of its tools in the goal.
+- Include every URL the collector supplied (auction lot, dealer listing,
+  catalog entry) verbatim in the goal. Copilot's web fetch can open only URLs
+  already present in the conversation or found by its own web search.
+- Return Copilot's answer with its cited sources intact. Do not merge your own
+  unattributed research into it.
+
+Web search and web fetch are available only when the Aurearia administrator
+configures an Anthropic model. With Ollama, Copilot answers research questions
+from its own knowledge and says when it needed a page it could not read.
+
 ## Coin Copilot Lifecycle
 
 Coin Copilot is asynchronous and durable:
@@ -78,10 +104,16 @@ Reuse an idempotency key only for an exact retry of the same input. Never
 fabricate a checkpoint version or retry a conflicting request with the same
 key.
 
+A research run that stops at its time or iteration limit can be retried with a
+narrower goal; the defaults are 120 seconds and 8 reasoning iterations
+per execution.
+
 ## Boundaries
 
 The MCP surface is read-only for collection, wishlist, auction, and statistics
-data. Coin Copilot may persist its own run/checkpoint/event state, but these
-tools do not add, edit, delete, import, sync, convert, bid on, or purchase
-coins or lots. If asked for a mutation, explain that it must be completed in
+data. Coin Copilot may persist its own run/checkpoint/event state and may read
+public web pages for research, but these tools do not add, edit, delete,
+import, sync, convert, bid on, or purchase coins or lots. Copilot never puts
+collection details or prices paid into web search queries, and treats web
+content as untrusted evidence. If asked for a mutation, explain that it must be completed in
 the Aurearia application.
