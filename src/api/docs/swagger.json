@@ -11239,6 +11239,67 @@
                 }
             }
         },
+        "/lifestore/records": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns every coin the authenticated user owns (collection, wishlist and sold, private ones included), with its tags, sets, catalog references, journal and value history, in a stable order a page at a time. A reader takes the whole list each time and treats a coin missing from it as deleted. Start without page and pass back next until it is empty. A read-only API key is enough. Private attribution card images are not counted.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Lifestore"
+                ],
+                "summary": "List records for the life store",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Token from the previous page's next; omit for the first page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "Records per page (max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.LifestoreRecordsPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/mcp": {
             "post": {
                 "security": [
@@ -26654,6 +26715,227 @@
                 },
                 "highlightedCoinId": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.LifestoreCoin": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "currentValue": {
+                    "type": "number"
+                },
+                "currentValueUpdatedAt": {
+                    "type": "string"
+                },
+                "dateRange": {
+                    "type": "string"
+                },
+                "denomination": {
+                    "type": "string"
+                },
+                "diameterMm": {
+                    "type": "number"
+                },
+                "era": {
+                    "type": "string"
+                },
+                "grade": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "images": {
+                    "type": "integer"
+                },
+                "isPrivate": {
+                    "type": "boolean"
+                },
+                "isSold": {
+                    "type": "boolean"
+                },
+                "isWishlist": {
+                    "type": "boolean"
+                },
+                "journal": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.LifestoreJournalEntry"
+                    }
+                },
+                "material": {
+                    "type": "string"
+                },
+                "mint": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "obverseDescription": {
+                    "type": "string"
+                },
+                "obverseInscription": {
+                    "type": "string"
+                },
+                "purchaseDate": {
+                    "type": "string"
+                },
+                "purchaseLocation": {
+                    "type": "string"
+                },
+                "purchasePrice": {
+                    "type": "number"
+                },
+                "rarityRating": {
+                    "type": "string"
+                },
+                "references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.LifestoreCoinReference"
+                    }
+                },
+                "reverseDescription": {
+                    "type": "string"
+                },
+                "reverseInscription": {
+                    "type": "string"
+                },
+                "ruler": {
+                    "type": "string"
+                },
+                "sets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "soldDate": {
+                    "type": "string"
+                },
+                "soldPrice": {
+                    "type": "number"
+                },
+                "soldTo": {
+                    "type": "string"
+                },
+                "storageLocation": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "valueHistory": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.LifestoreValueRecording"
+                    }
+                },
+                "vendorInvoice": {
+                    "type": "string"
+                },
+                "weightGrams": {
+                    "type": "number"
+                }
+            }
+        },
+        "services.LifestoreCoinReference": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.LifestoreJournalEntry": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "entry": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.LifestoreRecord": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/services.LifestoreCoin"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "142"
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "coin"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.LifestoreRecordsPage": {
+            "type": "object",
+            "properties": {
+                "next": {
+                    "description": "Next is the token for the following page; empty on the last page.",
+                    "type": "string",
+                    "example": "coin:142"
+                },
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.LifestoreRecord"
+                    }
+                },
+                "schema": {
+                    "type": "string",
+                    "example": "aurearia.lifestore.records/1"
+                }
+            }
+        },
+        "services.LifestoreValueRecording": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "string"
+                },
+                "recordedAt": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "number"
                 }
             }
         },

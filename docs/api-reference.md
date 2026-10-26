@@ -1125,6 +1125,51 @@ curl -X POST http://localhost:8080/api/user/import \
 
 ---
 
+### Life store feed
+
+#### GET /api/lifestore/records
+
+Every coin the caller owns, a page at a time, for the household life store (a read-only service that keeps a copy of the household's apps). It covers the collection, the wishlist and sold coins, private ones included, each with its tags, sets, catalog references, journal and value history. Private attribution card images are not counted.
+
+A reader takes the whole list each time, skips what has not changed and treats a coin that is no longer listed as deleted. Start without `page`, then pass back `next` until it is empty. A key with only `read` is enough.
+
+| Query | Meaning |
+|---|---|
+| `page` | The previous page's `next`; omit for the first page. A token the server did not give out is a 400. |
+| `limit` | Records per page, 1 to 500 (default 100). |
+
+**Example:**
+
+```sh
+curl "http://localhost:8080/api/lifestore/records?limit=100" -H "X-API-Key: ak_..."
+```
+
+```json
+{
+  "schema": "aurearia.lifestore.records/1",
+  "records": [
+    {
+      "kind": "coin",
+      "id": "142",
+      "updatedAt": "2026-10-20T14:03:11Z",
+      "data": {
+        "id": 142, "name": "Denarius of Trajan", "category": "Roman", "ruler": "Trajan",
+        "purchasePrice": 120, "purchaseDate": "2024-05-04T00:00:00Z", "currentValue": 180.5,
+        "isWishlist": false, "isSold": false, "storageLocation": "Tray A",
+        "tags": ["favorites"], "sets": ["Twelve Caesars"],
+        "references": [{ "catalog": "RIC", "volume": "II", "number": "98", "uri": "" }],
+        "images": 2,
+        "journal": [{ "entry": "Bought at the spring show", "createdAt": "2024-05-04T00:00:00Z" }],
+        "valueHistory": [{ "value": 180.5, "confidence": "high", "source": "ai_scheduled", "recordedAt": "2025-05-04T00:00:00Z" }]
+      }
+    }
+  ],
+  "next": "coin:142"
+}
+```
+
+Amounts are in the collection's own currency; Aurearia does not store one.
+
 ### API Keys
 
 Manage API keys for programmatic access. API keys are an alternative to JWT

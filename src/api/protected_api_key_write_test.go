@@ -72,7 +72,7 @@ func TestProtectedRoutes_ReadOnlyAPIKeyCannotChangeData(t *testing.T) {
 	}
 
 	// A read key still reads.
-	for _, path := range []string{"/api/coins", coinPath, "/api/auth/api-keys"} {
+	for _, path := range []string{"/api/coins", coinPath, "/api/auth/api-keys", "/api/lifestore/records"} {
 		if w := call("ak_read_only", http.MethodGet, path, ""); w.Code != http.StatusOK {
 			t.Errorf("read key GET %s = %d, want 200: %s", path, w.Code, w.Body.String())
 		}

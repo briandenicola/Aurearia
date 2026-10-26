@@ -43,6 +43,8 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, d.logger)
 		coinLookupHandler := handlers.NewCoinLookupHandler(d.coinLookupSvc, d.logger)
 		protected.GET("/coins", coinHandler.List)
+		lifestoreHandler := handlers.NewLifestoreHandler(services.NewLifestoreRecordsService(d.coinRepo))
+		protected.GET("/lifestore/records", lifestoreHandler.ListRecords)
 		protected.GET("/coins/:id", coinHandler.Get)
 		protected.POST("/coins", coinHandler.Create)
 		protected.POST("/coins/:id/duplicate", d.writeRateLimit, coinHandler.Duplicate)
