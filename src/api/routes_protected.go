@@ -14,6 +14,7 @@ import (
 func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 	protected := api.Group("")
 	protected.Use(middleware.AuthRequiredWithSecurity(d.cfg.JWTSecret, d.apiKeyAuth, d.securitySvc))
+	protected.Use(middleware.RequireAPIKeyWriteForChanges())
 	protected.Use(d.apiRateLimit)
 	{
 		coinReferenceRepo := repository.NewCoinReferenceRepository(database.DB)

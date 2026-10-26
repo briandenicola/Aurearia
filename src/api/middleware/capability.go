@@ -31,3 +31,29 @@ func RequireCapability(scope string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequireAPIKeyWriteForChanges lets an API key change data only when it has
+// write capability. A request authenticated by API key with a method other
+// than GET, HEAD or OPTIONS is refused with 403 unless the key has write.
+// JWT (browser) requests and API-key reads pass unchanged. Mount it on route
+// groups whose handlers do not check capabilities themselves.
+func RequireAPIKeyWriteForChanges() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		capabilities, isAPIKey := c.Get("apiKeyCapabilities")
+		if !isAPIKey {
+			c.Next()
+			return
+		}
+		switch c.Request.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			c.Next()
+			return
+		}
+		capStr, ok := capabilities.(string)
+		if !ok || !models.HasAPICapability(capStr, "write") {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "This API key is read-only. Use a key with write capability to change data."})
+			return
+		}
+		c.Next()
+	}
+}

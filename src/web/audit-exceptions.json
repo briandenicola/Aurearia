@@ -1,0 +1,11 @@
+{
+  "exceptions": [
+    {
+      "advisory": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "reason": "Reached only through @imgly/background-removal 1.7.0, which requires zod ^3; no patched 3.x exists and zod 4 breaks imgly's schema at load (z.function().args is not a function). imgly validates only its own configuration object built by app code, not user input, so oversized collections cannot reach it. Remove when imgly ships on zod 4.",
+      "approvedBy": "briandenicola (owner), PR #836",
+      "expires": "2027-01-31"
+    }
+  ]
+}
