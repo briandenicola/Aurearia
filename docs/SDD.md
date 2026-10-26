@@ -920,7 +920,7 @@ The system implements a multi-layered authentication strategy:
 
 **Workflow: `security-scan.yml`** (PRs to `main`/`beta`, weekly schedule, manual trigger):
 - `gitleaks`, `govulncheck`, `npm audit --audit-level=high`, and `pip-audit`
-- Scan steps are blocking for secrets and actionable high-risk dependency findings: Gitleaks fails on any non-allowlisted secret, govulncheck fails on actionable Go vulnerabilities, npm audit fails at high/critical, and pip-audit fails on any Python vulnerability because it has no portable severity threshold
+- Scan steps are blocking for secrets and actionable high-risk dependency findings: Gitleaks fails on any non-allowlisted secret, govulncheck fails on actionable Go vulnerabilities, npm audit fails at high/critical unless the advisory has a reviewed, expiring exception in `src/web/audit-exceptions.json`, and pip-audit fails on any Python vulnerability because it has no portable severity threshold
 
 **Workflow: `docker-publish.yml`** (Push to `main`):
 - Builds and pushes both container images to Docker Hub

@@ -594,7 +594,7 @@ The `.github/workflows/security-scan.yml` workflow runs on pull requests to `mai
 |---|---|
 | `Gitleaks` | Any detected secret unless precisely allowlisted in `.gitleaks.toml` |
 | `Govulncheck` | Any actionable Go vulnerability reported by `govulncheck ./...` |
-| `npm audit` | Any high or critical npm advisory (`npm audit --audit-level=high`) |
+| `npm audit` | Any high or critical npm advisory, except one listed in `src/web/audit-exceptions.json` with a reason, owner approval and an expiry date (`scripts/delivery/npm-audit-gate.mjs`). An expired exception fails again |
 | `pip-audit` | Any Python vulnerability; this is stricter than high/critical because `pip-audit` does not provide a portable severity threshold |
 
 Temporary exceptions must be narrow, reviewed, and documented with an owner and
