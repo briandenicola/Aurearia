@@ -55,6 +55,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   otherwise. Browser sessions, write keys, the external tools and MCP are
   unchanged.
 
+- **Late-October 2026 dependency advisories** — DOMPurify 3.4.17 (critical
+  sanitizer bypasses), undici 8.12.3, serialize-javascript 7.1.4 and vitest
+  4.1.12 come from their patched releases. The fast-uri override moves from
+  3.1.8, which is now affected, to 3.1.9. The agent's dev-only pip-audit
+  toolchain constrains filelock to 4.2.1 or later. zod under
+  @imgly/background-removal has no compatible fix and is recorded as a
+  reviewed audit exception.
+
 - **October 2026 security-gate advisories** — Go 1.26.10 and its pinned builder
   image fix a `crypto/x509` standard-library advisory reachable from WebAuthn
   login. Constraints raise the agent's transitive aiohttp to 3.14.4 and certifi
