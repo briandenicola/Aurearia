@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Life store feed** — `GET /api/lifestore/records` lists every coin the
+  caller owns, collection, wishlist and sold, with tags, sets, catalog
+  references, journal and value history, a page at a time, for the household's
+  read-only life store. A read-only API key is enough; nothing can be changed
+  through it. See the [API reference](api-reference.md#life-store-feed).
+
 - **Coin Copilot web research** — With an Anthropic model, Coin Copilot answers
   general numismatic questions (attribution, catalogue references, legends,
   history, authenticity, grading) using provider-executed web search and web

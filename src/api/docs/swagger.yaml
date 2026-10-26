@@ -4954,6 +4954,153 @@ definitions:
       highlightedCoinId:
         type: integer
     type: object
+  services.LifestoreCoin:
+    properties:
+      category:
+        type: string
+      createdAt:
+        type: string
+      currentValue:
+        type: number
+      currentValueUpdatedAt:
+        type: string
+      dateRange:
+        type: string
+      denomination:
+        type: string
+      diameterMm:
+        type: number
+      era:
+        type: string
+      grade:
+        type: string
+      id:
+        type: integer
+      images:
+        type: integer
+      isPrivate:
+        type: boolean
+      isSold:
+        type: boolean
+      isWishlist:
+        type: boolean
+      journal:
+        items:
+          $ref: '#/definitions/services.LifestoreJournalEntry'
+        type: array
+      material:
+        type: string
+      mint:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      obverseDescription:
+        type: string
+      obverseInscription:
+        type: string
+      purchaseDate:
+        type: string
+      purchaseLocation:
+        type: string
+      purchasePrice:
+        type: number
+      rarityRating:
+        type: string
+      references:
+        items:
+          $ref: '#/definitions/services.LifestoreCoinReference'
+        type: array
+      reverseDescription:
+        type: string
+      reverseInscription:
+        type: string
+      ruler:
+        type: string
+      sets:
+        items:
+          type: string
+        type: array
+      soldDate:
+        type: string
+      soldPrice:
+        type: number
+      soldTo:
+        type: string
+      storageLocation:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
+      valueHistory:
+        items:
+          $ref: '#/definitions/services.LifestoreValueRecording'
+        type: array
+      vendorInvoice:
+        type: string
+      weightGrams:
+        type: number
+    type: object
+  services.LifestoreCoinReference:
+    properties:
+      catalog:
+        type: string
+      number:
+        type: string
+      uri:
+        type: string
+      volume:
+        type: string
+    type: object
+  services.LifestoreJournalEntry:
+    properties:
+      createdAt:
+        type: string
+      entry:
+        type: string
+    type: object
+  services.LifestoreRecord:
+    properties:
+      data:
+        $ref: '#/definitions/services.LifestoreCoin'
+      id:
+        example: "142"
+        type: string
+      kind:
+        example: coin
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  services.LifestoreRecordsPage:
+    properties:
+      next:
+        description: Next is the token for the following page; empty on the last page.
+        example: coin:142
+        type: string
+      records:
+        items:
+          $ref: '#/definitions/services.LifestoreRecord'
+        type: array
+      schema:
+        example: aurearia.lifestore.records/1
+        type: string
+    type: object
+  services.LifestoreValueRecording:
+    properties:
+      confidence:
+        type: string
+      recordedAt:
+        type: string
+      source:
+        type: string
+      value:
+        type: number
+    type: object
   services.MarketSignal:
     properties:
       currency:
@@ -12772,6 +12919,49 @@ paths:
       summary: Get top coins by current value
       tags:
       - Internal
+  /lifestore/records:
+    get:
+      description: Returns every coin the authenticated user owns (collection, wishlist
+        and sold, private ones included), with its tags, sets, catalog references,
+        journal and value history, in a stable order a page at a time. A reader takes
+        the whole list each time and treats a coin missing from it as deleted. Start
+        without page and pass back next until it is empty. A read-only API key is
+        enough. Private attribution card images are not counted.
+      parameters:
+      - description: Token from the previous page's next; omit for the first page
+        in: query
+        name: page
+        type: string
+      - default: 100
+        description: Records per page (max 500)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.LifestoreRecordsPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List records for the life store
+      tags:
+      - Lifestore
   /mcp:
     post:
       consumes:
