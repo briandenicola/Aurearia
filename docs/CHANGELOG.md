@@ -48,6 +48,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Read-only API keys can no longer change data** — On the REST API, a key
+  with only `read` (or `read,copilot`) capability could create, edit and
+  delete coins and other records, and create a new key for itself. Any POST,
+  PUT, PATCH or DELETE made with an API key now needs `write`, and returns 403
+  otherwise. Browser sessions, write keys, the external tools and MCP are
+  unchanged.
+
 - **October 2026 security-gate advisories** — Go 1.26.10 and its pinned builder
   image fix a `crypto/x509` standard-library advisory reachable from WebAuthn
   login. Constraints raise the agent's transitive aiohttp to 3.14.4 and certifi

@@ -248,8 +248,10 @@ curl -X DELETE http://localhost:8080/api/auth/webauthn/credentials/CREDENTIAL_ID
 ## API Keys (Programmatic Access)
 
 API keys provide a simple authentication method for scripts, CI pipelines,
-third-party integrations, and MCP clients. External-tool routes enforce the
-key's capability tokens.
+third-party integrations, and MCP clients. Every route enforces the key's
+capability tokens: on the REST API a key without `write` can read but any
+POST, PUT, PATCH or DELETE is refused with 403, and external-tool and MCP
+routes check their own capabilities.
 
 ### Generating a Key
 
@@ -372,8 +374,10 @@ export WEBAUTHN_ORIGIN=https://coins.example.com
 ### API Key Handling
 
 - Treat API keys like passwords. They authenticate as the owning user wherever
-  API-key authentication is accepted; external-tool routes additionally
-  enforce their capability tokens.
+  API-key authentication is accepted, limited by their capability tokens: a
+  `read` key cannot change data anywhere. A `write` key can change anything
+  the owner can on the REST API, including creating and revoking keys, so
+  give it only to clients that need it.
 - Keys are shown **only once** at generation. Store them in a secrets manager or password vault.
 - Send keys only in `X-API-Key`. Never place them in URLs, prompts, logs, or
   committed client configuration.
