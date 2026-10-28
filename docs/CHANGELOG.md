@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Coin viewer for MCP Apps hosts** — In MCP clients that support MCP Apps
+  (Claude Desktop, VS Code GitHub Copilot, Goose, MCPJam and others),
+  `search_collection` and `get_coin` now open an interactive coin viewer with
+  photo thumbnails and a detail view, instead of only JSON. Photos load
+  through the new app-only `get_coin_images` tool, so they stay behind the
+  API key. Text-only clients see no change. See
+  [MCP Agentic Harness](features/mcp-agentic-harness.md#coin-viewer-mcp-apps).
+
 - **Change an API key's access in place** — Settings → Keys has an access
   picker next to each key, and `PATCH /api/auth/api-keys/{id}` sets it, so a
   script or app keeps its key when it needs Read/Write or Copilot. Creating,

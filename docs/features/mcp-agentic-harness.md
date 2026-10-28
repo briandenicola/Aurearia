@@ -50,10 +50,35 @@ verification, rotation, and troubleshooting instructions, see
 | `list_auction_lots` | List owned auction lots with bounded filters and pagination |
 | `get_auction_lot` | Read one owned auction lot |
 | `auction_counts` | Read auction status counts, optionally by source |
+| `get_coin_images` | Read owned coin photo thumbnails or medium images (for the coin viewer) |
 
 Collection search excludes wishlist and sold records. Use `list_wishlist` for
 wishlist data. Inputs, page sizes, query lengths, and returned auction text are
 bounded at the service boundary.
+
+## Coin viewer (MCP Apps)
+
+In hosts that support [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps),
+`search_collection` and `get_coin` results open an interactive coin viewer
+instead of plain JSON: a photo grid of matching coins, and a detail view with
+obverse, reverse, and other photos when a coin is selected. The viewer is the
+static resource `ui://aurearia/coin-viewer.html`; it makes no network requests
+of its own and loads photos by calling `get_coin_images` through the host.
+
+`get_coin_images` is marked app-only (`_meta.ui.visibility: ["app"]`), so
+MCP Apps hosts hide it from the model. It returns JPEG variants as image
+content blocks:
+
+- `size: "thumb"` (default): 1-20 coin ids, one image per coin, primary first.
+- `size: "medium"`: exactly one coin id, up to six images.
+- At most 2 MiB of image data per call; `truncated: true` means some photos
+  were left out. Attribution cards and other owners' coins are never returned.
+
+Hosts without MCP Apps support keep receiving the same JSON text as before and
+may show `get_coin_images` to their model like any other tool. Hermes Agent's
+CLI and messaging surfaces are text-only today, so they show no viewer. To try
+the viewer, connect a host such as Claude Desktop, VS Code GitHub Copilot,
+Goose, or [MCPJam](https://www.mcpjam.com/).
 
 ## Coin Copilot lifecycle tools
 
@@ -86,6 +111,8 @@ in the conversation. See [Coin Copilot web research](coin-copilot.md#web-researc
 - Copilot tools are registered only for an exact `copilot` capability token.
 - Cross-owner identifiers produce not-found behavior without leaking data.
 - MCP requests are limited to 128 KiB.
+- The only MCP resource is the static, self-contained coin viewer HTML; it
+  contains no user data and declares no external network domains.
 - The MCP surface exposes no collection, wishlist, auction, settings, shell,
   filesystem, arbitrary HTTP, or database mutation tools. Coin Copilot's web
   search and fetch run inside the Copilot harness, executed by Anthropic, and

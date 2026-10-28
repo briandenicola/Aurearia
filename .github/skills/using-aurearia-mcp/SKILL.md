@@ -58,6 +58,9 @@ key rotation, and status-code troubleshooting, see
   page.
 - `get_auction_lot`: fetch one known owned auction lot by id.
 - `auction_counts`: read auction status counts, optionally by source.
+- `get_coin_images`: owned coin photos as image content, used by the coin
+  viewer UI. Call it directly only when the collector asks to see a coin and
+  the host can show images; prefer `size: "thumb"` and few coin ids.
 
 Treat empty results as evidence that Aurearia has no matching owned data. Do
 not infer holdings, wishlist entries, bids, or values that tools did not

@@ -1,6 +1,7 @@
 # ADR 0021: Stateless MCP Adapter in the Go API
 
 Date: 2026-10-04
+Amended: 2026-10-28 (MCP Apps coin viewer)
 Status: Proposed
 
 ## Context
@@ -32,8 +33,47 @@ durable service and are registered only when the key has an exact `copilot`
 capability. `write` does not imply `copilot`, and Copilot does not imply
 collection mutation access.
 
-MCP prompts, resources, roots, sampling, stateful sessions, direct Python
-calls, arbitrary HTTP, and mutation tools are not exposed.
+MCP prompts, roots, sampling, stateful sessions, direct Python calls,
+arbitrary HTTP, and mutation tools are not exposed. The only resource is the
+MCP Apps view described in the amendment below.
+
+### Amendment 2026-10-28: MCP Apps coin viewer
+
+Text-only results are hard to browse in UI-capable hosts, and the MCP Apps
+extension (`io.modelcontextprotocol/ui`, spec 2026-01-26) is now supported by
+several of them. The adapter therefore serves one interactive view:
+
+- **One embedded, static resource.** `ui://aurearia/coin-viewer.html` is a
+  single self-contained HTML file compiled into the Go binary with
+  `go:embed`, served with MIME type `text/html;profile=mcp-app`. It contains
+  no user data, loads no external scripts, styles, or fonts, and declares no
+  `csp` domains, so hosts apply the default deny-all network policy. It is the
+  only resource registered; no resource templates are exposed.
+- **Opt-in through tool metadata.** `search_collection` and `get_coin` carry
+  `_meta.ui.resourceUri` (plus the deprecated flat `ui/resourceUri` key for
+  older hosts). Their inputs, outputs, and JSON text content are unchanged.
+  The stateless transport cannot see a client's `initialize` capabilities, so
+  the metadata is always advertised; hosts without the extension ignore it.
+- **Images through an app-only tool, not URLs.** Coin media under `/uploads`
+  requires the owner's credential, which a sandboxed view cannot hold. The
+  read-only `get_coin_images` tool, marked `_meta.ui.visibility: ["app"]`,
+  returns pre-generated thumbnail or medium JPEG variants as MCP image content
+  blocks, which the view renders as `data:` URIs. This keeps media behind the
+  existing API-key owner scope and avoids adding signed or unauthenticated
+  media URLs.
+- **Bounds.** Thumbnails: 1-20 coins, one image each. Medium: exactly one
+  coin, up to six images. At most 2 MiB of image bytes per call. Attribution
+  cards (ADR 0023) and foreign coins are never returned. Legacy uploads
+  without a variant fall back only to originals of at most 512 KiB that sniff
+  as JPEG, PNG, GIF, or WebP.
+
+Hosts without MCP Apps support do not honour `visibility`, so their models can
+discover and call `get_coin_images`. They then receive the owner's own coin
+photos as image content, bounded as above. This is accepted: the same key can
+already read that media over `/uploads`.
+
+The view renders coin text with `textContent`, never `innerHTML`, so
+owner-entered fields cannot inject markup.
 
 ## Consequences
 
@@ -51,15 +91,25 @@ calls, arbitrary HTTP, and mutation tools are not exposed.
 - Clients poll durable Copilot runs instead of receiving MCP server-initiated
   notifications.
 - API-key management gains another explicit capability combination.
+- The MCP surface now includes one static UI resource and one app-oriented
+  image tool whose payloads are larger than other read tools.
+- Viewer behaviour can only be verified in an MCP Apps host; text-only hosts
+  (including Hermes Agent's CLI and messaging surfaces today) see no change.
 
 ## Rollback
 
 Set `ExternalToolServerEnabled=false` to disable MCP and the existing external
 tool surface immediately. Removing the `/api/mcp` route and SDK dependency does
 not affect persisted collection, auction, API-key, or Coin Copilot data.
+Removing only the coin viewer means deleting `handlers/mcp_apps.go`, the
+embedded HTML, and the `Meta` lines on `search_collection` and `get_coin`; no
+persisted data depends on it.
 
 ## Related
 
 - [Feature 366](../../specs/366-mcp-agentic-harness/spec.md)
 - [ADR 0016](0016-go-owned-durable-coin-copilot-state.md)
+- [ADR 0023](0023-private-attribution-card-images.md) - card images excluded
+  from the viewer
+- [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx)
 - [External Tool Server](../external-tool-server.md)

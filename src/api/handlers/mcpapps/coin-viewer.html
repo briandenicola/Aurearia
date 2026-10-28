@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurearia coin viewer</title>
+<!--
+  Placeholder MCP App view (io.modelcontextprotocol/ui, spec 2026-01-26).
+  Self-contained: no external scripts, styles, fonts, or network access.
+  Images arrive as base64 content blocks from the app-only get_coin_images
+  tool and render as data: URIs, which the default MCP Apps CSP allows.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --surface: #f6f4ef;
+    --text: #1f1d1a;
+    --muted: #6b665d;
+    --border: #e2ddd2;
+    --accent: #9a7b2f;
+    --radius: 10px;
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg: #1b1a18;
+    --surface: #262421;
+    --text: #f1ede6;
+    --muted: #a8a196;
+    --border: #3a3732;
+    --accent: #d4b46a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); }
+  main { padding: 12px; }
+  .status { color: var(--muted); padding: 8px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .card {
+    display: flex; flex-direction: column; text-align: left; padding: 0; cursor: pointer;
+    background: var(--surface); color: inherit; font: inherit;
+    border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  }
+  .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
+  .thumb { aspect-ratio: 1; width: 100%; background: var(--border); display: grid; place-items: center; color: var(--muted); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card-body { padding: 8px 10px 10px; }
+  .name { font-weight: 600; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .back {
+    background: none; border: 1px solid var(--border); color: inherit; font: inherit;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  .back:hover { border-color: var(--accent); }
+  .detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 520px) { .detail { grid-template-columns: 1fr; } }
+  .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .gallery figure { margin: 0; }
+  .gallery img { width: 100%; border-radius: 8px; display: block; background: var(--border); }
+  .gallery figcaption { color: var(--muted); font-size: 12px; text-transform: capitalize; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .missing { margin-top: 12px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main id="app"><p class="status">Waiting for coin data…</p></main>
+<script>
+(() => {
+  "use strict";
+
+  const PROTOCOL_VERSION = "2026-01-26";
+  const root = document.getElementById("app");
+  const pending = new Map();
+  let nextId = 1;
+  let lastList = null;
+
+  // --- JSON-RPC over postMessage -----------------------------------------
+  function send(message) {
+    window.parent.postMessage(message, "*");
+  }
+
+  function request(method, params) {
+    const id = nextId++;
+    send({ jsonrpc: "2.0", id, method, params });
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      setTimeout(() => {
+        if (pending.delete(id)) reject(new Error(method + " timed out"));
+      }, 30000);
+    });
+  }
+
+  function notify(method, params) {
+    send({ jsonrpc: "2.0", method, params });
+  }
+
+  async function callTool(name, args) {
+    const result = await request("tools/call", { name, arguments: args });
+    if (!result || result.isError) throw new Error(name + " failed");
+    return result;
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+
+    if (message.id !== undefined && !message.method) {
+      const waiter = pending.get(message.id);
+      if (!waiter) return;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message || "request failed"));
+      else waiter.resolve(message.result);
+      return;
+    }
+
+    switch (message.method) {
+      case "ui/notifications/tool-input":
+        setStatus("Loading…");
+        break;
+      case "ui/notifications/tool-result":
+        renderToolResult(message.params);
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(message.params);
+        break;
+      case "ui/resource-teardown":
+        if (message.id !== undefined) send({ jsonrpc: "2.0", id: message.id, result: {} });
+        break;
+      default:
+        if (message.id !== undefined) {
+          send({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } });
+        }
+    }
+  });
+
+  // --- Host context ---------------------------------------------------------
+  function applyHostContext(context) {
+    if (!context) return;
+    if (context.theme === "light" || context.theme === "dark") {
+      document.documentElement.dataset.theme = context.theme;
+    }
+    const variables = context.styles && context.styles.variables;
+    if (variables) {
+      for (const [key, value] of Object.entries(variables)) {
+        if (typeof value === "string" && key.startsWith("--")) {
+          document.documentElement.style.setProperty(key, value);
+        }
+      }
+    }
+  }
+
+  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    document.documentElement.dataset.theme = "dark";
+  }
+
+  new ResizeObserver(() => {
+    const rect = document.documentElement.getBoundingClientRect();
+    notify("ui/notifications/size-changed", { width: Math.ceil(rect.width), height: Math.ceil(rect.height) });
+  }).observe(document.documentElement);
+
+  // --- Rendering ------------------------------------------------------------
+  function el(tag, attrs, children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+      if (key === "text") node.textContent = value;
+      else if (key === "onclick") node.addEventListener("click", value);
+      else node.setAttribute(key, value);
+    }
+    for (const child of children || []) if (child) node.append(child);
+    return node;
+  }
+
+  function setStatus(text) {
+    root.replaceChildren(el("p", { class: "status", text }));
+  }
+
+  function structured(result) {
+    if (result && result.structuredContent) return result.structuredContent;
+    const text = result && result.content && result.content.find((block) => block.type === "text");
+    try { return text ? JSON.parse(text.text) : null; } catch { return null; }
+  }
+
+  function imagesFrom(result) {
+    const refs = (structured(result) || {}).images || [];
+    const blocks = (result.content || []).filter((block) => block.type === "image");
+    return refs.map((ref, index) => blocks[index] && {
+      ...ref,
+      src: "data:" + blocks[index].mimeType + ";base64," + blocks[index].data,
+    }).filter(Boolean);
+  }
+
+  function renderToolResult(result) {
+    if (!result || result.isError) return setStatus("The tool returned an error.");
+    const data = structured(result);
+    if (data && Array.isArray(data.coins)) renderList(data.coins);
+    else if (data && data.coin) renderDetail(data.coin);
+    else setStatus("Nothing to show.");
+  }
+
+  function subtitle(coin) {
+    return [coin.ruler, coin.denomination, coin.era].filter(Boolean).join(" · ");
+  }
+
+  function renderList(coins) {
+    lastList = coins;
+    if (coins.length === 0) return setStatus("No coins matched.");
+    const thumbs = new Map();
+    const grid = el("div", { class: "grid" }, coins.map((coin) => {
+      const thumb = el("div", { class: "thumb", text: "…" });
+      thumbs.set(coin.id, thumb);
+      return el("button", { class: "card", type: "button", onclick: () => openCoin(coin.id) }, [
+        thumb,
+        el("div", { class: "card-body" }, [
+          el("div", { class: "name", text: coin.name }),
+          el("div", { class: "sub", text: subtitle(coin) }),
+        ]),
+      ]);
+    }));
+    root.replaceChildren(el("p", { class: "status", text: coins.length + " coin(s)" }), grid);
+
+    callTool("get_coin_images", { coinIds: coins.map((coin) => coin.id), size: "thumb" })
+      .then((result) => {
+        const loaded = new Set();
+        for (const image of imagesFrom(result)) {
+          const thumb = thumbs.get(image.coinId);
+          if (!thumb) continue;
+          thumb.replaceChildren(el("img", { src: image.src, alt: image.imageType }));
+          loaded.add(image.coinId);
+        }
+        for (const [id, thumb] of thumbs) if (!loaded.has(id)) thumb.textContent = "No photo";
+      })
+      .catch(() => { for (const thumb of thumbs.values()) thumb.textContent = "No photo"; });
+  }
+
+  async function openCoin(coinId) {
+    setStatus("Loading coin…");
+    try {
+      const data = structured(await callTool("get_coin", { coinId }));
+      renderDetail(data && data.coin);
+    } catch {
+      setStatus("Could not load that coin.");
+    }
+  }
+
+  function formatNumber(value, suffix) {
+    if (typeof value !== "number") return null;
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 }) + (suffix || "");
+  }
+
+  function renderDetail(coin) {
+    if (!coin) return setStatus("Coin not found.");
+    const rows = [
+      ["Ruler", coin.ruler], ["Denomination", coin.denomination], ["Era", coin.era],
+      ["Mint", coin.mint], ["Material", coin.material], ["Grade", coin.grade],
+      ["Category", coin.category], ["Weight", formatNumber(coin.weightGrams, " g")],
+      ["Diameter", formatNumber(coin.diameterMm, " mm")],
+      ["Purchase price", formatNumber(coin.purchasePrice)],
+      ["Current value", formatNumber(coin.currentValue)],
+    ].filter(([, value]) => value);
+
+    const gallery = el("div", { class: "gallery" }, [el("p", { class: "status", text: "Loading photos…" })]);
+    const toolbar = el("div", { class: "toolbar" }, [
+      lastList && el("button", { class: "back", type: "button", text: "← Results", onclick: () => renderList(lastList) }),
+    ]);
+    const facts = el("div", {}, [
+      el("h1", { text: coin.name }),
+      el("dl", {}, rows.flatMap(([label, value]) => [el("dt", { text: label }), el("dd", { text: String(value) })])),
+      coin.missingFields && coin.missingFields.length
+        ? el("p", { class: "missing", text: "Missing: " + coin.missingFields.join(", ") })
+        : null,
+    ]);
+    root.replaceChildren(toolbar, el("div", { class: "detail" }, [gallery, facts]));
+
+    callTool("get_coin_images", { coinIds: [coin.id], size: "medium" })
+      .then((result) => {
+        const images = imagesFrom(result);
+        if (images.length === 0) return gallery.replaceChildren(el("p", { class: "status", text: "No photos." }));
+        gallery.replaceChildren(...images.map((image) => el("figure", {}, [
+          el("img", { src: image.src, alt: image.imageType }),
+          el("figcaption", { text: image.imageType }),
+        ])));
+      })
+      .catch(() => gallery.replaceChildren(el("p", { class: "status", text: "Photos unavailable." })));
+  }
+
+  // --- Lifecycle ------------------------------------------------------------
+  request("ui/initialize", {
+    protocolVersion: PROTOCOL_VERSION,
+    appInfo: { name: "aurearia-coin-viewer", version: "0.1.0" },
+    appCapabilities: { availableDisplayModes: ["inline"] },
+  }).then((result) => {
+    applyHostContext(result && result.hostContext);
+    notify("ui/notifications/initialized", {});
+  }).catch(() => setStatus("This host did not initialize the coin viewer."));
+})();
+</script>
+</body>
+</html>
