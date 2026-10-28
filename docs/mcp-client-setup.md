@@ -29,8 +29,8 @@ Choose the least-privilege capability:
 
 | Client need | Capability | Expected tools |
 |---|---|---:|
-| Collection, wishlist, auction, and statistics reads | `read` | 8 |
-| Reads plus Coin Copilot lifecycle | `read,copilot` | 12 |
+| Collection, wishlist, auction, and statistics reads | `read` | 9 |
+| Reads plus Coin Copilot lifecycle | `read,copilot` | 13 |
 
 Do not choose `write` for an MCP-only client. `write` applies to the separate
 OpenAPI adapter and never implies `copilot`.
@@ -90,7 +90,7 @@ Start Copilot CLI and run:
 /mcp show aurearia
 ```
 
-Confirm that the expected 8 or 12 tools appear. Copilot stores configured
+Confirm that the expected 9 or 13 tools appear. Copilot stores configured
 servers in its user MCP configuration. Treat that configuration as sensitive
 because the command expands the API key before saving it.
 

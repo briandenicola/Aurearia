@@ -133,7 +133,7 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "aurearia",
 		Version: "1.0.0",
-	}, nil)
+	}, &mcp.ServerOptions{Capabilities: mcpServerCapabilities()})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_collection",

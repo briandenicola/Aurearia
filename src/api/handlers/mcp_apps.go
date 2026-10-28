@@ -10,10 +10,11 @@ import (
 
 // MCP Apps (io.modelcontextprotocol/ui, spec 2026-01-26) lets UI-capable
 // hosts render an interactive view for a tool result. Hosts without the
-// extension ignore tool _meta and keep using the JSON text content, so the
-// metadata is always advertised; the stateless transport cannot see the
-// client's initialize capabilities anyway.
+// extension ignore the capability and tool _meta and keep using the JSON text
+// content, so both are always advertised; the stateless transport cannot see
+// the client's initialize capabilities anyway.
 const (
+	mcpAppsExtension    = "io.modelcontextprotocol/ui"
 	mcpAppMIMEType      = "text/html;profile=mcp-app"
 	mcpCoinViewerURI    = "ui://aurearia/coin-viewer.html"
 	mcpAppVisibilityApp = "app"
@@ -40,6 +41,18 @@ type mcpCoinImageRef struct {
 type mcpCoinImagesOutput struct {
 	Images    []mcpCoinImageRef `json:"images"`
 	Truncated bool              `json:"truncated"`
+}
+
+// mcpServerCapabilities declares the MCP Apps extension. Some hosts (Claude
+// Desktop among them) ignore tool UI metadata unless the server declares the
+// extension at initialize. Logging stays declared to match the SDK default
+// that a non-nil Capabilities would otherwise drop.
+func mcpServerCapabilities() *mcp.ServerCapabilities {
+	capabilities := &mcp.ServerCapabilities{Logging: &mcp.LoggingCapabilities{}}
+	capabilities.AddExtension(mcpAppsExtension, map[string]any{
+		"mimeTypes": []string{mcpAppMIMEType},
+	})
+	return capabilities
 }
 
 // mcpCoinViewerToolMeta links a model-visible tool to the coin viewer. The
