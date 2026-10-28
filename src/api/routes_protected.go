@@ -370,9 +370,12 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 
 		// API key management
 		apiKeyHandler := handlers.NewApiKeyHandler(d.apiKeyRepo, d.logger, d.cfg.JWTSecret)
-		protected.POST("/auth/api-keys", apiKeyHandler.Generate)
+		// Keys are created, changed and revoked signed in, so a key can't
+		// mint another or raise its own access.
+		protected.POST("/auth/api-keys", middleware.RejectAPIKeyAuth(), apiKeyHandler.Generate)
 		protected.GET("/auth/api-keys", apiKeyHandler.List)
-		protected.DELETE("/auth/api-keys/:id", apiKeyHandler.Revoke)
+		protected.PATCH("/auth/api-keys/:id", middleware.RejectAPIKeyAuth(), apiKeyHandler.Update)
+		protected.DELETE("/auth/api-keys/:id", middleware.RejectAPIKeyAuth(), apiKeyHandler.Revoke)
 
 		// WebAuthn registration (requires auth)
 		protected.POST("/auth/webauthn/register/begin", d.webauthnHandler.RegisterBegin)

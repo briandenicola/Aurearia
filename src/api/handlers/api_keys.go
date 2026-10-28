@@ -27,6 +27,10 @@ type generateApiKeyRequest struct {
 	Scope string `json:"scope" example:"read"`
 }
 
+type updateApiKeyRequest struct {
+	Scope string `json:"scope" binding:"required" example:"read,write"`
+}
+
 type generateApiKeyResponse struct {
 	Key    string        `json:"key" example:"ak_a1b2c3d4e5f6..."`
 	ApiKey models.ApiKey `json:"apiKey"`
@@ -43,6 +47,7 @@ type generateApiKeyResponse struct {
 //	@Success		201		{object}	generateApiKeyResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auth/api-keys [post]
@@ -121,6 +126,52 @@ func (h *ApiKeyHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, keys)
 }
 
+// Update changes an API key's capabilities without replacing the key.
+//
+//	@Summary		Change an API key's access
+//	@Description	Sets an existing key's capabilities to an allowlisted combination (read, read,write, read,copilot or read,write,copilot). The key value is unchanged, so whatever uses it keeps working. Signed-in sessions only.
+//	@Tags			API Keys
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int					true	"API Key ID"
+//	@Param			body	body		updateApiKeyRequest	true	"New capabilities"
+//	@Success		200		{object}	models.ApiKey
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/auth/api-keys/{id} [patch]
+func (h *ApiKeyHandler) Update(c *gin.Context) {
+	userID := c.GetUint("userId")
+	keyID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid key ID"})
+		return
+	}
+	var req updateApiKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
+		return
+	}
+	if err := repository.ValidateCapabilities(req.Scope); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scope"})
+		return
+	}
+	apiKey, err := h.repo.FindByIDAndUser(uint(keyID), userID)
+	if err != nil || apiKey.RevokedAt != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "API key not found"})
+		return
+	}
+	if err := h.repo.UpdateCapabilities(apiKey, req.Scope); err != nil {
+		h.logger.Error("api-keys", "Failed to change API key %d: %v", apiKey.ID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to change the key's access"})
+		return
+	}
+	h.logger.Info("api-keys", "Changed API key %d '%s' to capabilities %s for user %d", apiKey.ID, apiKey.Name, apiKey.Capabilities, userID)
+	c.JSON(http.StatusOK, apiKey)
+}
+
 // Revoke soft-deletes an API key by setting its revoked_at timestamp.
 //
 //	@Summary		Revoke an API key
@@ -131,6 +182,7 @@ func (h *ApiKeyHandler) List(c *gin.Context) {
 //	@Success		200	{object}	MessageResponse
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
 //	@Failure		404	{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auth/api-keys/{id} [delete]

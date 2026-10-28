@@ -2325,6 +2325,14 @@ definitions:
           $ref: '#/definitions/repository.TrayAggregate'
         type: array
     type: object
+  handlers.updateApiKeyRequest:
+    properties:
+      scope:
+        example: read,write
+        type: string
+    required:
+    - scope
+    type: object
   handlers.updateSetProposalRequest:
     properties:
       color:
@@ -9145,6 +9153,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -9178,6 +9190,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -9185,6 +9201,52 @@ paths:
       security:
       - BearerAuth: []
       summary: Revoke an API key
+      tags:
+      - API Keys
+    patch:
+      consumes:
+      - application/json
+      description: Sets an existing key's capabilities to an allowlisted combination
+        (read, read,write, read,copilot or read,write,copilot). The key value is unchanged,
+        so whatever uses it keeps working. Signed-in sessions only.
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: New capabilities
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateApiKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ApiKey'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change an API key's access
       tags:
       - API Keys
   /auth/change-password:
