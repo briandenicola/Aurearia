@@ -3,6 +3,8 @@
     <h2 class="text-xl font-medium mb-5 pb-3 border-b border-border-subtle">Keys</h2>
     <p class="text-sm text-text-muted mb-4">
       Generate API keys to access your collection from external tools and scripts. Use the <code>X-API-Key</code> header to authenticate.
+      Read can look but not change anything; Read/Write can also add, edit and delete; Copilot lets a key run Coin Copilot.
+      Change a key's access below without replacing it.
     </p>
 
     <!-- Generate form -->
@@ -89,13 +91,14 @@
       <div
         v-for="key in apiKeys"
         :key="key.id"
-        class="flex justify-between items-center py-[0.6rem] border-b border-border-subtle last:border-0 gap-3"
+        class="flex flex-wrap justify-between items-center py-[0.6rem] border-b border-border-subtle last:border-0 gap-3"
         :class="{ 'opacity-50': key.revokedAt }"
       >
-        <div class="flex flex-col gap-[0.1rem] min-w-0">
+        <div class="flex flex-col gap-[0.1rem] min-w-0 flex-1 basis-48">
           <div class="flex items-center gap-2">
-            <span class="text-base font-medium">{{ key.name }}</span>
+            <span class="text-base font-medium break-words">{{ key.name }}</span>
             <span
+              v-if="key.revokedAt"
               class="chip-sm shrink-0"
               :class="key.capabilities !== 'read'
                 ? 'bg-gold-glow text-gold border border-gold-dim'
@@ -114,13 +117,22 @@
           v-if="key.revokedAt"
           class="chip-sm shrink-0 bg-surface text-text-muted"
         >Revoked</span>
-        <button
-          v-else
-          class="btn btn-danger btn-sm"
-          @click="handleRevokeKey(key.id)"
-        >
-          Revoke
-        </button>
+        <div v-else class="flex items-center gap-2">
+          <select
+            class="form-select min-w-0"
+            :value="key.capabilities"
+            :aria-label="`Access for ${key.name}`"
+            @change="handleKeyAccess(key, ($event.target as HTMLSelectElement).value as ApiKeyCapability)"
+          >
+            <option v-for="value in ACCESS" :key="value" :value="value">{{ capabilityLabel(value) }}</option>
+          </select>
+          <button
+            class="btn btn-danger btn-sm"
+            @click="handleRevokeKey(key.id)"
+          >
+            Revoke
+          </button>
+        </div>
       </div>
     </div>
     <p v-else-if="!generatingKey" class="text-sm text-text-muted mt-2">No API keys yet.</p>
@@ -130,7 +142,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Check, Clipboard, KeyRound } from 'lucide-vue-next'
-import { generateApiKey, listApiKeys, revokeApiKey } from '@/api/client'
+import { generateApiKey, listApiKeys, revokeApiKey, updateApiKey } from '@/api/client'
 import type { ApiKey, ApiKeyCapability } from '@/types'
 
 const apiKeys = ref<ApiKey[]>([])
@@ -188,6 +200,24 @@ async function copyKey() {
     document.body.removeChild(textarea)
     keyCopied.value = true
     setTimeout(() => { keyCopied.value = false }, 3000)
+  }
+}
+
+/** Every access a key can have, as the API allows them. */
+const ACCESS: ApiKeyCapability[] = ['read', 'read,write', 'read,copilot', 'read,write,copilot']
+
+async function handleKeyAccess(key: ApiKey, scope: ApiKeyCapability) {
+  const before = key.capabilities
+  key.capabilities = scope
+  apiKeyMsg.value = ''
+  apiKeyError.value = false
+  try {
+    key.capabilities = (await updateApiKey(key.id, scope)).data.capabilities
+    apiKeyMsg.value = `${key.name} is now ${capabilityLabel(key.capabilities)}.`
+  } catch {
+    key.capabilities = before
+    apiKeyMsg.value = `Couldn't change the access for ${key.name}. It still has its old access.`
+    apiKeyError.value = true
   }
 }
 

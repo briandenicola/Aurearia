@@ -303,6 +303,26 @@ curl -X DELETE http://localhost:8080/api/auth/api-keys/1 \
 
 Revoked keys are soft-deleted and immediately rejected on future requests.
 
+### Changing a Key's Access
+
+Change what an existing key may do without replacing it, so whatever uses it
+keeps working. In Settings → Keys pick the new access next to the key, or:
+
+```sh
+curl -X PATCH http://localhost:8080/api/auth/api-keys/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"scope": "read,write"}'
+```
+
+The scope must be one of the four combinations below. A revoked key, or
+another user's, answers 404.
+
+Creating, changing and revoking keys needs a signed-in (JWT) session: an API
+key, even one with `write`, gets 403 on `POST`, `PATCH` and `DELETE`
+`/api/auth/api-keys`, so a key can't mint another or raise its own access.
+Listing keys with a key still works.
+
 ### Key Details
 
 | Property | Value |

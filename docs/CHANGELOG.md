@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Change an API key's access in place** — Settings → Keys has an access
+  picker next to each key, and `PATCH /api/auth/api-keys/{id}` sets it, so a
+  script or app keeps its key when it needs Read/Write or Copilot. Creating,
+  changing and revoking keys now needs a signed-in session: an API key, even a
+  write key, can no longer mint another key or change its own access. See
+  [Authentication](authentication.md#changing-a-keys-access).
+
 - **Life store feed** — `GET /api/lifestore/records` lists every coin the
   caller owns, collection, wishlist and sold, with tags, sets, catalog
   references, journal and value history, a page at a time, for the household's

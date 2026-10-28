@@ -65,6 +65,9 @@ export const generateApiKey = (name: string, scope?: ApiKeyCapability) =>
 
 export const listApiKeys = () => api.get<ApiKey[]>('/auth/api-keys')
 
+export const updateApiKey = (id: number, scope: ApiKeyCapability) =>
+  api.patch<ApiKey>(`/auth/api-keys/${id}`, { scope })
+
 export const revokeApiKey = (id: number) => api.delete(`/auth/api-keys/${id}`)
 
 // WebAuthn
