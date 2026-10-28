@@ -87,6 +87,19 @@ func (r *ApiKeyRepository) FindByIDAndUser(keyID uint, userID uint) (*models.Api
 	return &apiKey, nil
 }
 
+// UpdateCapabilities changes what an existing key may do. The key itself
+// (its hash) is unchanged, so whatever uses it keeps working.
+func (r *ApiKeyRepository) UpdateCapabilities(apiKey *models.ApiKey, capabilities string) error {
+	if err := ValidateCapabilities(capabilities); err != nil {
+		return err
+	}
+	if err := r.db.Model(apiKey).Update("capabilities", capabilities).Error; err != nil {
+		return err
+	}
+	apiKey.Capabilities = capabilities
+	return nil
+}
+
 // Revoke sets the revoked_at timestamp on an API key.
 func (r *ApiKeyRepository) Revoke(apiKey *models.ApiKey) error {
 	now := time.Now()

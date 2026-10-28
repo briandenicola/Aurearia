@@ -97,9 +97,21 @@ func TestProtectedRoutes_ReadOnlyAPIKeyCannotChangeData(t *testing.T) {
 		t.Fatalf("a read key minted a key: %d keys", n)
 	}
 
-	// A write key keeps working as before.
-	if w := call("ak_read_write", http.MethodPost, "/api/auth/api-keys", `{"name":"another","capabilities":"read"}`); w.Code == http.StatusForbidden {
-		t.Errorf("write key POST /api/auth/api-keys = 403: %s", w.Body.String())
+	// A write key changes data, but no key manages keys: that is done signed
+	// in, so a key can't mint another or raise its own access.
+	for _, tc := range []struct{ method, path, body string }{
+		{http.MethodPost, "/api/auth/api-keys", `{"name":"another","scope":"read,write,copilot"}`},
+		{http.MethodPatch, "/api/auth/api-keys/2", `{"scope":"read,write,copilot"}`},
+		{http.MethodDelete, "/api/auth/api-keys/1", ""},
+	} {
+		if w := call("ak_read_write", tc.method, tc.path, tc.body); w.Code != http.StatusForbidden {
+			t.Errorf("write key %s %s = %d, want 403: %s", tc.method, tc.path, w.Code, w.Body.String())
+		}
+	}
+	var keys []models.ApiKey
+	db.Where("user_id = ?", owner.ID).Order("id").Find(&keys)
+	if len(keys) != 2 || keys[1].Capabilities != "read,write" || keys[0].RevokedAt != nil {
+		t.Fatalf("keys after a write key tried to manage them = %+v", keys)
 	}
 	if w := call("ak_read_write", http.MethodDelete, coinPath, ""); w.Code == http.StatusForbidden {
 		t.Errorf("write key DELETE %s = 403: %s", coinPath, w.Body.String())
