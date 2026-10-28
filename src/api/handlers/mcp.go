@@ -138,6 +138,7 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_collection",
 		Description: "Search coins owned by the authenticated user. Read-only.",
+		Meta:        mcpCoinViewerToolMeta(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpSearchInput) (*mcp.CallToolResult, mcpCoinListOutput, error) {
 		coins, err := h.service.SearchCollection(userID, input.Query, input.Limit)
 		return nil, mcpCoinListOutput{Coins: coins}, h.safeToolError("search_collection", err)
@@ -146,6 +147,7 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_coin",
 		Description: "Get one coin owned by the authenticated user. Read-only.",
+		Meta:        mcpCoinViewerToolMeta(),
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpCoinIDInput) (*mcp.CallToolResult, mcpCoinOutput, error) {
 		coin, err := h.service.GetCoin(userID, input.CoinID)
 		return nil, mcpCoinOutput{Coin: coin}, h.safeToolError("get_coin", err)
@@ -201,6 +203,8 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 		counts, err := h.service.AuctionCounts(userID, input.Source)
 		return nil, mcpAuctionCountsOutput{Counts: counts}, h.safeToolError("auction_counts", err)
 	})
+
+	h.addCoinViewerApp(server, userID)
 
 	if models.HasAPICapability(capabilities, "copilot") {
 		h.addCopilotTools(server, userID)

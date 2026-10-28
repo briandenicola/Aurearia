@@ -37,6 +37,7 @@ type mcpRouteFixture struct {
 	foreignCoinID uint
 	ownerLotID    uint
 	foreignLotID  uint
+	uploadDir     string
 }
 
 type apiKeyRoundTripper struct {
@@ -119,11 +120,13 @@ func setupMCPRouteFixture(t *testing.T, rateLimit int) *mcpRouteFixture {
 		services.NewLogger(10), "http://api:8080",
 	)
 	coinRepo := repository.NewCoinRepository(db)
+	uploadDir := t.TempDir()
 	mcpSvc := services.NewMCPService(
 		services.NewCollectionToolsService(coinRepo, nil),
 		coinRepo,
 		repository.NewAuctionLotRepository(db),
 		copilotSvc,
+		services.NewImageService(repository.NewImageRepository(db), uploadDir),
 	)
 	handler := NewMCPHandler(mcpSvc, services.NewLogger(10))
 
@@ -167,6 +170,7 @@ func setupMCPRouteFixture(t *testing.T, rateLimit int) *mcpRouteFixture {
 		ownerUserID: owner.ID,
 		ownerCoinID: ownerCoin.ID, foreignCoinID: foreignCoin.ID,
 		ownerLotID: ownerLot.ID, foreignLotID: foreignLot.ID,
+		uploadDir: uploadDir,
 	}
 }
 
@@ -224,7 +228,7 @@ func TestMCPToolDiscoveryRequiresExactCopilotCapability(t *testing.T) {
 			sort.Strings(names)
 
 			for _, readTool := range []string{
-				"auction_counts", "collection_stats", "get_auction_lot", "get_coin",
+				"auction_counts", "collection_stats", "get_auction_lot", "get_coin", "get_coin_images",
 				"list_auction_lots", "list_wishlist", "search_collection", "top_coins_by_value",
 			} {
 				if !containsString(names, readTool) {
@@ -238,9 +242,9 @@ func TestMCPToolDiscoveryRequiresExactCopilotCapability(t *testing.T) {
 					t.Fatalf("tool %q present=%v, want %v; tools=%v", copilotTool, got, tc.wantCopilot, names)
 				}
 			}
-			wantCount := 8
+			wantCount := 9
 			if tc.wantCopilot {
-				wantCount = 12
+				wantCount = 13
 			}
 			if len(names) != wantCount {
 				t.Fatalf("tool count=%d, want %d: %v", len(names), wantCount, names)
@@ -264,6 +268,7 @@ func TestMCPRouteInvokesEveryToolAndPreservesOwnerBoundary(t *testing.T) {
 		{name: "list_auction_lots", arguments: map[string]any{}},
 		{name: "get_auction_lot", arguments: map[string]any{"auctionLotId": fixture.ownerLotID}},
 		{name: "auction_counts", arguments: map[string]any{}},
+		{name: "get_coin_images", arguments: map[string]any{"coinIds": []uint{fixture.ownerCoinID}}},
 	}
 	for _, call := range readCalls {
 		if result := callMCPTool(t, session, call.name, call.arguments); result.IsError {
@@ -451,8 +456,8 @@ func TestMCPToolSurfaceContainsNoMutationOrArbitraryExecutionTools(t *testing.T)
 			}
 		}
 	}
-	if len(result.Tools) != 12 {
-		t.Fatalf("tools=%d, want 12", len(result.Tools))
+	if len(result.Tools) != 13 {
+		t.Fatalf("tools=%d, want 13", len(result.Tools))
 	}
 }
 

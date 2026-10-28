@@ -22,7 +22,7 @@ func newMCPServiceReadTest(t *testing.T) (*gorm.DB, *MCPService) {
 	coinRepo := repository.NewCoinRepository(db)
 	auctionRepo := repository.NewAuctionLotRepository(db)
 	collectionSvc := NewCollectionToolsService(coinRepo, nil)
-	return db, NewMCPService(collectionSvc, coinRepo, auctionRepo, nil)
+	return db, NewMCPService(collectionSvc, coinRepo, auctionRepo, nil, nil)
 }
 
 func TestMCPServiceScopesWishlistAndAuctionsToOwner(t *testing.T) {

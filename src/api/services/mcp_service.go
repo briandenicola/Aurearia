@@ -56,6 +56,7 @@ type MCPService struct {
 	coinRepo      *repository.CoinRepository
 	auctionRepo   *repository.AuctionLotRepository
 	copilotSvc    *CoinCopilotService
+	imageSvc      *ImageService
 }
 
 func NewMCPService(
@@ -63,12 +64,14 @@ func NewMCPService(
 	coinRepo *repository.CoinRepository,
 	auctionRepo *repository.AuctionLotRepository,
 	copilotSvc *CoinCopilotService,
+	imageSvc *ImageService,
 ) *MCPService {
 	return &MCPService{
 		collectionSvc: collectionSvc,
 		coinRepo:      coinRepo,
 		auctionRepo:   auctionRepo,
 		copilotSvc:    copilotSvc,
+		imageSvc:      imageSvc,
 	}
 }
 
@@ -157,6 +160,45 @@ func (s *MCPService) AuctionCounts(userID uint, source string) (map[string]int64
 		return s.auctionRepo.CountByStatus(userID)
 	}
 	return s.auctionRepo.CountByStatusForSource(userID, models.AuctionSource(source))
+}
+
+// MCP Apps image bounds: thumbnails back a search result grid, medium
+// variants back a single coin detail view.
+const (
+	mcpMaxThumbCoins       = 20
+	mcpThumbsPerCoin       = 1
+	mcpMediumImagesPerCoin = 6
+	mcpMaxInlineImageBytes = 2 * 1024 * 1024
+)
+
+// GetCoinImages returns inline owner-scoped photo variants for MCP App views.
+// Thumbnails allow up to 20 coins with one image each; medium variants allow
+// exactly one coin with up to six images.
+func (s *MCPService) GetCoinImages(userID uint, coinIDs []uint, size string) ([]InlineCoinImage, bool, error) {
+	limits := InlineCoinImageLimits{MaxTotalBytes: mcpMaxInlineImageBytes}
+	switch VariantSize(size) {
+	case "", VariantSizeThumb:
+		if len(coinIDs) < 1 || len(coinIDs) > mcpMaxThumbCoins {
+			return nil, false, ErrMCPInvalidRequest
+		}
+		limits.Size, limits.PerCoin = VariantSizeThumb, mcpThumbsPerCoin
+	case VariantSizeMedium:
+		if len(coinIDs) != 1 {
+			return nil, false, ErrMCPInvalidRequest
+		}
+		limits.Size, limits.PerCoin = VariantSizeMedium, mcpMediumImagesPerCoin
+	default:
+		return nil, false, ErrMCPInvalidRequest
+	}
+	for _, id := range coinIDs {
+		if id == 0 {
+			return nil, false, ErrMCPInvalidRequest
+		}
+	}
+	if s.imageSvc == nil {
+		return []InlineCoinImage{}, false, nil
+	}
+	return s.imageSvc.LoadOwnedCoinImages(userID, coinIDs, limits)
 }
 
 func (s *MCPService) StartCopilot(userID uint, input CoinCopilotStartInput) (*models.CoinCopilotRun, bool, error) {

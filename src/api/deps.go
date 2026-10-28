@@ -302,7 +302,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	copilotGradeRepo := repository.NewCoinCopilotGradeRepository(database.DB)
 	copilotGradingScheduler := services.NewCopilotGradingScheduler(copilotGradeRepo, coinCopilotRepo, agentProxy, settingsSvc, logger)
 	schedulerRegistry.Register(copilotGradingScheduler)
-	mcpSvc := services.NewMCPService(collectionSvc, coinRepo, auctionLotRepo, coinCopilotSvc)
+	mcpSvc := services.NewMCPService(collectionSvc, coinRepo, auctionLotRepo, coinCopilotSvc, imageSvc)
 
 	// #218 external tool server: per-key rate limiter shared by the
 	// authenticated /api/v1/tools routes.
