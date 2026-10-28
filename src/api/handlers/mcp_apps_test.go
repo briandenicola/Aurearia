@@ -77,6 +77,19 @@ func TestMCPCoinViewerAppIsAdvertisedAndServed(t *testing.T) {
 	fixture := setupMCPRouteFixture(t, 100)
 	session := connectMCPRoute(t, fixture, "read")
 
+	capabilities := session.InitializeResult().Capabilities
+	extension, ok := capabilities.Extensions[mcpAppsExtension].(map[string]any)
+	if !ok {
+		t.Fatalf("initialize extensions=%#v, want %s declared", capabilities.Extensions, mcpAppsExtension)
+	}
+	mimeTypes, _ := extension["mimeTypes"].([]any)
+	if len(mimeTypes) != 1 || mimeTypes[0] != mcpAppMIMEType {
+		t.Fatalf("%s mimeTypes=%#v, want [%s]", mcpAppsExtension, extension["mimeTypes"], mcpAppMIMEType)
+	}
+	if capabilities.Logging == nil || capabilities.Tools == nil || capabilities.Resources == nil {
+		t.Fatalf("capabilities=%+v, want logging, tools and resources kept", capabilities)
+	}
+
 	tools, err := session.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)

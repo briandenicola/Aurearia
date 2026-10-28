@@ -52,8 +52,11 @@ several of them. The adapter therefore serves one interactive view:
 - **Opt-in through tool metadata.** `search_collection` and `get_coin` carry
   `_meta.ui.resourceUri` (plus the deprecated flat `ui/resourceUri` key for
   older hosts). Their inputs, outputs, and JSON text content are unchanged.
-  The stateless transport cannot see a client's `initialize` capabilities, so
-  the metadata is always advertised; hosts without the extension ignore it.
+  The server also declares the `io.modelcontextprotocol/ui` extension in its
+  `initialize` capabilities, because some hosts, Claude Desktop included,
+  ignore tool UI metadata without it. The stateless transport cannot see a
+  client's `initialize` capabilities, so both are always advertised; hosts
+  without the extension ignore them.
 - **Images through an app-only tool, not URLs.** Coin media under `/uploads`
   requires the owner's credential, which a sandboxed view cannot hold. The
   read-only `get_coin_images` tool, marked `_meta.ui.visibility: ["app"]`,
