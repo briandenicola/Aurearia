@@ -306,11 +306,12 @@ Revoked keys are soft-deleted and immediately rejected on future requests.
 ### Changing a Key's Access
 
 Change what an existing key may do without replacing it, so whatever uses it
-keeps working. In Settings → Keys pick the new access next to the key, or:
+keeps working. In Settings → Keys pick the new access next to the key, or,
+with your JWT in `$TOKEN`:
 
 ```sh
 curl -X PATCH http://localhost:8080/api/auth/api-keys/1 \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"scope": "read,write"}'
 ```
