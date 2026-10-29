@@ -2,7 +2,13 @@
 
 Date: 2026-10-04
 Amended: 2026-10-28 (MCP Apps coin viewer)
-Status: Proposed
+Status: Accepted
+Accepted: 2026-10-29, owner-approved PR #PENDING into beta.
+
+Lifecycle note: The body below is the decision as implemented and amended
+through #844-#849 and verified on beta, including in Claude Desktop. Acceptance
+records the owner's decision only; the independent reviews still outstanding
+on #846 and #849 remain open.
 
 ## Context
 
@@ -78,8 +84,8 @@ discover and call `get_coin_images`. They then receive the owner's own coin
 photos as image content, bounded as above. This is accepted: the same key can
 already read that media over `/uploads`.
 
-The view renders coin text with `textContent`, never `innerHTML`, so
-owner-entered fields cannot inject markup.
+The view renders coin text through Vue text interpolation only, never
+`v-html` or `innerHTML`, so owner-entered fields cannot inject markup.
 
 ## Consequences
 
