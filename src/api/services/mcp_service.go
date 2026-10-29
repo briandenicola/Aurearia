@@ -76,7 +76,7 @@ func NewMCPService(
 }
 
 func (s *MCPService) SearchCollection(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
-	if err := validateMCPQueryLimit(query, limit, 20); err != nil {
+	if err := validateMCPQueryLimit(query, limit); err != nil {
 		return nil, err
 	}
 	return s.collectionSvc.SearchActiveCollection(userID, query, limit)
@@ -87,7 +87,7 @@ func (s *MCPService) GetCoin(userID, coinID uint) (*CollectionCoinSummary, error
 }
 
 func (s *MCPService) ListWishlist(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
-	if err := validateMCPQueryLimit(query, limit, 50); err != nil {
+	if err := validateMCPQueryLimit(query, limit); err != nil {
 		return nil, err
 	}
 	return s.collectionSvc.SearchWishlist(userID, query, limit)
@@ -98,7 +98,7 @@ func (s *MCPService) CollectionStats(userID uint) (*repository.CollectionStats, 
 }
 
 func (s *MCPService) TopCoinsByValue(userID uint, limit *int) ([]CollectionCoinSummary, error) {
-	if limit != nil && (*limit < 1 || *limit > 10) {
+	if limit != nil && *limit < 1 {
 		return nil, ErrMCPInvalidRequest
 	}
 	return s.collectionSvc.TopCoinsByValue(userID, limit)
@@ -236,8 +236,12 @@ func validAuctionSource(value string) bool {
 	}
 }
 
-func validateMCPQueryLimit(query string, limit *int, max int) error {
-	if len(query) > 200 || (limit != nil && (*limit < 1 || *limit > max)) {
+// validateMCPQueryLimit rejects oversized queries and non-positive limits.
+// Limits above a tool's maximum are not errors: the collection service caps
+// them, as each tool's schema description states, because agents pick
+// generous limits without knowing the maximum.
+func validateMCPQueryLimit(query string, limit *int) error {
+	if len(query) > 200 || (limit != nil && *limit < 1) {
 		return ErrMCPInvalidRequest
 	}
 	return nil

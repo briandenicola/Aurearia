@@ -473,3 +473,46 @@ func containsString(values []string, target string) bool {
 	}
 	return false
 }
+
+func TestMCPLimitBoundsAreDescribedAndOversizedLimitsAreCapped(t *testing.T) {
+	fixture := setupMCPRouteFixture(t, 100)
+	session := connectMCPRoute(t, fixture, "read")
+
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBounds := map[string]string{
+		"search_collection":  "values above 20 return 20",
+		"list_wishlist":      "values above 50 return 50",
+		"top_coins_by_value": "values above 10 return 10",
+	}
+	for _, tool := range tools.Tools {
+		want, ok := wantBounds[tool.Name]
+		if !ok {
+			continue
+		}
+		schema, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(schema, []byte(want)) {
+			t.Fatalf("%s limit schema=%s, want description %q", tool.Name, schema, want)
+		}
+		delete(wantBounds, tool.Name)
+	}
+	if len(wantBounds) != 0 {
+		t.Fatalf("tools missing: %v", wantBounds)
+	}
+
+	for _, name := range []string{"search_collection", "list_wishlist", "top_coins_by_value"} {
+		if result := callMCPTool(t, session, name, map[string]any{"limit": 500}); result.IsError {
+			t.Fatalf("%s limit 500 returned tool error: %+v", name, result.Content)
+		}
+		result := callMCPTool(t, session, name, map[string]any{"limit": 0})
+		raw, _ := json.Marshal(result)
+		if !result.IsError || !bytes.Contains(raw, []byte("invalid tool input")) {
+			t.Fatalf("%s limit 0 result=%s, want invalid tool input", name, raw)
+		}
+	}
+}

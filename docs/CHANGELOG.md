@@ -71,6 +71,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **MCP collection searches no longer fail on a large `limit`** —
+  `search_collection`, `list_wishlist` and `top_coins_by_value` rejected any
+  `limit` above their maximum (20, 50 and 10) with "invalid tool input", and
+  their schemas never said what the maximum was, so agents that asked for
+  more got an error instead of results. Each tool's schema now states its
+  default and maximum, and larger values return the maximum. A `limit` below
+  1 is still rejected.
+
 - **Read-only API keys can no longer change data** — On the REST API, a key
   with only `read` (or `read,copilot`) capability could create, edit and
   delete coins and other records, and create a new key for itself. Any POST,

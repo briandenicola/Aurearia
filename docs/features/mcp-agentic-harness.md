@@ -54,7 +54,10 @@ verification, rotation, and troubleshooting instructions, see
 
 Collection search excludes wishlist and sold records. Use `list_wishlist` for
 wishlist data. Inputs, page sizes, query lengths, and returned auction text are
-bounded at the service boundary.
+bounded at the service boundary. For `search_collection` (default 5, maximum
+20), `list_wishlist` (default 20, maximum 50), and `top_coins_by_value`
+(default 3, maximum 10), a larger `limit` returns the maximum rather than an
+error; a `limit` below 1 is rejected.
 
 ## Coin viewer (MCP Apps)
 
