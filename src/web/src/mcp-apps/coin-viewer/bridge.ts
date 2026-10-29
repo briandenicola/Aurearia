@@ -120,6 +120,19 @@ export class McpAppBridge implements ViewerBridge {
   }
 }
 
+// Matches the viewer's bottom padding, so hiding overflow up to this amount
+// never hides content.
+export const OVERFLOW_TOLERANCE_PX = 12
+
+// Hosts that draw a border inside a frame sized to the reported height (as
+// Claude Desktop does for prefersBorder) leave the view a few pixels short,
+// which shows a scrollbar with nothing to scroll. Hide that small overflow;
+// anything larger means the host capped the height, so keep scrolling.
+export function overflowFor(contentHeight: number, viewportHeight: number): '' | 'hidden' {
+  const overflow = contentHeight - viewportHeight
+  return overflow > 0 && overflow <= OVERFLOW_TOLERANCE_PX ? 'hidden' : ''
+}
+
 // Reports the document's natural size to the host, measured the way the
 // official SDK does: html is briefly set to max-content so the measurement is
 // not pinned to the iframe's current height, which would otherwise stop the
@@ -138,6 +151,7 @@ export function startAutoResize(report: (width: number, height: number) => void)
       root.style.height = 'max-content'
       const height = Math.ceil(root.getBoundingClientRect().height)
       root.style.height = previous
+      root.style.overflowY = overflowFor(height, window.innerHeight)
       const width = Math.ceil(window.innerWidth)
       if (width !== lastWidth || height !== lastHeight) {
         lastWidth = width
@@ -150,7 +164,13 @@ export function startAutoResize(report: (width: number, height: number) => void)
   const observer = new ResizeObserver(measure)
   observer.observe(document.documentElement)
   observer.observe(document.body)
-  return () => observer.disconnect()
+  // The host resizing the frame changes the viewport, not the document, so
+  // re-check overflow on window resize too.
+  window.addEventListener('resize', measure)
+  return () => {
+    observer.disconnect()
+    window.removeEventListener('resize', measure)
+  }
 }
 
 export function applyHostContext(context: HostContext | undefined, root: HTMLElement = document.documentElement): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { McpAppBridge, PROTOCOL_VERSION, applyHostContext } from '../bridge'
+import { McpAppBridge, OVERFLOW_TOLERANCE_PX, PROTOCOL_VERSION, applyHostContext, overflowFor } from '../bridge'
 
 function setup(handlers = {}) {
   const host = { postMessage: vi.fn() }
@@ -96,5 +96,16 @@ describe('applyHostContext', () => {
     expect(root.dataset.theme).toBe('light')
     expect(root.style.getPropertyValue('--color-text-primary')).toBe('#111')
     expect(root.style.getPropertyValue('color')).toBe('')
+  })
+})
+
+describe('overflowFor', () => {
+  it('hides only overflow that fits inside the viewer bottom padding', () => {
+    expect(overflowFor(300, 300)).toBe('')
+    expect(overflowFor(290, 300)).toBe('')
+    expect(overflowFor(302, 300)).toBe('hidden')
+    expect(overflowFor(300 + OVERFLOW_TOLERANCE_PX, 300)).toBe('hidden')
+    expect(overflowFor(301 + OVERFLOW_TOLERANCE_PX, 300)).toBe('')
+    expect(overflowFor(1200, 400)).toBe('')
   })
 })

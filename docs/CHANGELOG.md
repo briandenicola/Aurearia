@@ -71,6 +71,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **No empty scrollbar in the MCP coin viewer** — In Claude Desktop the coin
+  viewer showed a scrollbar with nothing to scroll, because the border the host
+  draws around the panel made the frame a few pixels shorter than the viewer's
+  height. The viewer now hides overflow that small, and keeps scrolling when
+  a host caps the panel height.
+
 - **MCP collection searches no longer fail on a large `limit`** —
   `search_collection`, `list_wishlist` and `top_coins_by_value` rejected any
   `limit` above their maximum (20, 50 and 10) with "invalid tool input", and
