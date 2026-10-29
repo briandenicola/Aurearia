@@ -80,6 +80,30 @@ func (r *ImageRepository) FindCoinImageByType(coinID uint, imageType models.Imag
 	return &image, nil
 }
 
+// ListOwnedCoinPhotos returns ordinary photos (never attribution cards) for
+// the given coins, restricted to coins owned by userID. Rows are ordered per
+// coin with the primary image first, then obverse, reverse, and the rest.
+func (r *ImageRepository) ListOwnedCoinPhotos(userID uint, coinIDs []uint) ([]models.CoinImage, error) {
+	images := make([]models.CoinImage, 0)
+	if len(coinIDs) == 0 {
+		return images, nil
+	}
+	err := r.db.Model(&models.CoinImage{}).
+		Joins("JOIN coins ON coins.id = coin_images.coin_id").
+		Where("coins.user_id = ? AND coin_images.coin_id IN ? AND coin_images.image_type <> ?",
+			userID, coinIDs, models.ImageTypeCard).
+		Order("coin_images.coin_id ASC").
+		Order("coin_images.is_primary DESC").
+		Order(`CASE coin_images.image_type
+			WHEN 'obverse' THEN 0
+			WHEN 'reverse' THEN 1
+			ELSE 2
+		END`).
+		Order("coin_images.id ASC").
+		Find(&images).Error
+	return images, err
+}
+
 // FindCoinImageMediaByPath returns image ownership and visibility metadata for a stored file path.
 func (r *ImageRepository) FindCoinImageMediaByPath(filePath string) (*CoinImageMediaAccess, error) {
 	var media CoinImageMediaAccess

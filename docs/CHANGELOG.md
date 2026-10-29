@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Refined MCP coin viewer for large collections** — The coin viewer says
+  "Showing 20 of 312 coins", pages through the rest with **Show more**, and
+  can filter inside the panel without asking Claude again. Results above
+  eight coins switch to compact rows (with a grid/list toggle). Cards show
+  attribution, era and mint, grade, metal and value; the detail view groups
+  attribution and physical facts, shows value, price paid and gain or loss,
+  and switches between obverse and reverse photos.
+
+- **MCP collection search reports how many coins matched** —
+  `search_collection` now returns the total number of matches with each page
+  and accepts an `offset`, so agents and the coin viewer can tell when a
+  result was cut off at 20 and fetch the rest. See
+  [MCP Agentic Harness](features/mcp-agentic-harness.md#read-only-data-tools).
+
+- **Coin viewer for MCP Apps hosts** — In MCP clients that support MCP Apps
+  (Claude Desktop, VS Code GitHub Copilot, Goose, MCPJam and others),
+  `search_collection` and `get_coin` now open an interactive coin viewer with
+  photo thumbnails and a detail view, instead of only JSON. Photos load
+  through the new app-only `get_coin_images` tool, so they stay behind the
+  API key. The viewer is built with Vue, sizes itself to its content, and
+  keeps thumbnails when you go back from a coin to the results. Text-only
+  clients see no change. See
+  [MCP Agentic Harness](features/mcp-agentic-harness.md#coin-viewer-mcp-apps).
+
 - **Change an API key's access in place** — Settings → Keys has an access
   picker next to each key, and `PATCH /api/auth/api-keys/{id}` sets it, so a
   script or app keeps its key when it needs Read/Write or Copilot. Creating,
@@ -60,6 +84,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   See `specs/_backlog/F034-auction-outbid-notification.md`.
 
 ### Fixed
+
+- **Clearer coin details in the MCP coin viewer** — The detail view listed
+  missing fields by their internal names (`weightGrams`, `vendorSku`) and could
+  show a field and list it as missing at the same time (material "Other").
+  Missing fields now read as words, fields the server counts as missing are no
+  longer shown as values, prices use the same US-dollar format as the rest of
+  Aurearia, and obverse and reverse photos sit in matching square frames.
+
+- **No empty scrollbar in the MCP coin viewer** — In Claude Desktop the coin
+  viewer showed a scrollbar with nothing to scroll, because the border the host
+  draws around the panel made the frame a few pixels shorter than the viewer's
+  height. The viewer now hides overflow that small, and keeps scrolling when
+  a host caps the panel height.
+
+- **MCP collection searches no longer fail on a large `limit`** —
+  `search_collection`, `list_wishlist` and `top_coins_by_value` rejected any
+  `limit` above their maximum (20, 50 and 10) with "invalid tool input", and
+  their schemas never said what the maximum was, so agents that asked for
+  more got an error instead of results. Each tool's schema now states its
+  default and maximum, and larger values return the maximum. A `limit` below
+  1 is still rejected.
 
 - **Read-only API keys can no longer change data** — On the REST API, a key
   with only `read` (or `read,copilot`) capability could create, edit and

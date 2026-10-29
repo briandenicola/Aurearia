@@ -56,6 +56,7 @@ type MCPService struct {
 	coinRepo      *repository.CoinRepository
 	auctionRepo   *repository.AuctionLotRepository
 	copilotSvc    *CoinCopilotService
+	imageSvc      *ImageService
 }
 
 func NewMCPService(
@@ -63,20 +64,32 @@ func NewMCPService(
 	coinRepo *repository.CoinRepository,
 	auctionRepo *repository.AuctionLotRepository,
 	copilotSvc *CoinCopilotService,
+	imageSvc *ImageService,
 ) *MCPService {
 	return &MCPService{
 		collectionSvc: collectionSvc,
 		coinRepo:      coinRepo,
 		auctionRepo:   auctionRepo,
 		copilotSvc:    copilotSvc,
+		imageSvc:      imageSvc,
 	}
 }
 
-func (s *MCPService) SearchCollection(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
-	if err := validateMCPQueryLimit(query, limit, 20); err != nil {
+// mcpMaxSearchOffset bounds paging through search results.
+const mcpMaxSearchOffset = 100_000
+
+func (s *MCPService) SearchCollection(userID uint, query string, limit, offset *int) (*CollectionSearchPage, error) {
+	if err := validateMCPQueryLimit(query, limit); err != nil {
 		return nil, err
 	}
-	return s.collectionSvc.SearchActiveCollection(userID, query, limit)
+	start := 0
+	if offset != nil {
+		if *offset < 0 || *offset > mcpMaxSearchOffset {
+			return nil, ErrMCPInvalidRequest
+		}
+		start = *offset
+	}
+	return s.collectionSvc.SearchActiveCollectionPage(userID, query, limit, start)
 }
 
 func (s *MCPService) GetCoin(userID, coinID uint) (*CollectionCoinSummary, error) {
@@ -84,7 +97,7 @@ func (s *MCPService) GetCoin(userID, coinID uint) (*CollectionCoinSummary, error
 }
 
 func (s *MCPService) ListWishlist(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
-	if err := validateMCPQueryLimit(query, limit, 50); err != nil {
+	if err := validateMCPQueryLimit(query, limit); err != nil {
 		return nil, err
 	}
 	return s.collectionSvc.SearchWishlist(userID, query, limit)
@@ -95,7 +108,7 @@ func (s *MCPService) CollectionStats(userID uint) (*repository.CollectionStats, 
 }
 
 func (s *MCPService) TopCoinsByValue(userID uint, limit *int) ([]CollectionCoinSummary, error) {
-	if limit != nil && (*limit < 1 || *limit > 10) {
+	if limit != nil && *limit < 1 {
 		return nil, ErrMCPInvalidRequest
 	}
 	return s.collectionSvc.TopCoinsByValue(userID, limit)
@@ -159,6 +172,45 @@ func (s *MCPService) AuctionCounts(userID uint, source string) (map[string]int64
 	return s.auctionRepo.CountByStatusForSource(userID, models.AuctionSource(source))
 }
 
+// MCP Apps image bounds: thumbnails back a search result grid, medium
+// variants back a single coin detail view.
+const (
+	mcpMaxThumbCoins       = 20
+	mcpThumbsPerCoin       = 1
+	mcpMediumImagesPerCoin = 6
+	mcpMaxInlineImageBytes = 2 * 1024 * 1024
+)
+
+// GetCoinImages returns inline owner-scoped photo variants for MCP App views.
+// Thumbnails allow up to 20 coins with one image each; medium variants allow
+// exactly one coin with up to six images.
+func (s *MCPService) GetCoinImages(userID uint, coinIDs []uint, size string) ([]InlineCoinImage, bool, error) {
+	limits := InlineCoinImageLimits{MaxTotalBytes: mcpMaxInlineImageBytes}
+	switch VariantSize(size) {
+	case "", VariantSizeThumb:
+		if len(coinIDs) < 1 || len(coinIDs) > mcpMaxThumbCoins {
+			return nil, false, ErrMCPInvalidRequest
+		}
+		limits.Size, limits.PerCoin = VariantSizeThumb, mcpThumbsPerCoin
+	case VariantSizeMedium:
+		if len(coinIDs) != 1 {
+			return nil, false, ErrMCPInvalidRequest
+		}
+		limits.Size, limits.PerCoin = VariantSizeMedium, mcpMediumImagesPerCoin
+	default:
+		return nil, false, ErrMCPInvalidRequest
+	}
+	for _, id := range coinIDs {
+		if id == 0 {
+			return nil, false, ErrMCPInvalidRequest
+		}
+	}
+	if s.imageSvc == nil {
+		return []InlineCoinImage{}, false, nil
+	}
+	return s.imageSvc.LoadOwnedCoinImages(userID, coinIDs, limits)
+}
+
 func (s *MCPService) StartCopilot(userID uint, input CoinCopilotStartInput) (*models.CoinCopilotRun, bool, error) {
 	return s.copilotSvc.Start(userID, input)
 }
@@ -194,8 +246,12 @@ func validAuctionSource(value string) bool {
 	}
 }
 
-func validateMCPQueryLimit(query string, limit *int, max int) error {
-	if len(query) > 200 || (limit != nil && (*limit < 1 || *limit > max)) {
+// validateMCPQueryLimit rejects oversized queries and non-positive limits.
+// Limits above a tool's maximum are not errors: the collection service caps
+// them, as each tool's schema description states, because agents pick
+// generous limits without knowing the maximum.
+func validateMCPQueryLimit(query string, limit *int) error {
+	if len(query) > 200 || (limit != nil && *limit < 1) {
 		return ErrMCPInvalidRequest
 	}
 	return nil

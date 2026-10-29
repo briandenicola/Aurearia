@@ -220,6 +220,10 @@ Read operations:
 - `list_auction_lots`
 - `get_auction_lot`
 - `auction_counts`
+- `get_coin_images` (app-only; used by the MCP Apps coin viewer)
+
+`search_collection` and `get_coin` also link the `ui://aurearia/coin-viewer.html`
+MCP Apps view. See [Coin viewer](features/mcp-agentic-harness.md#coin-viewer-mcp-apps).
 
 Keys with the explicit `copilot` capability also receive:
 

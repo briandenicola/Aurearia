@@ -1,0 +1,102 @@
+/*
+ * Surfaces and body type follow the host's MCP Apps style variables when it
+ * sends them; the accent stays Aurearia gold. Headings use a classical serif
+ * stack that prefers Aurearia's Cinzel when installed locally: MCP Apps hosts
+ * block web font downloads by default, so nothing is fetched.
+ */
+:root {
+  color-scheme: light dark;
+  --viewer-accent: #9a7b2e;
+  --viewer-heading: #6b5520;
+  --viewer-text: var(--color-text-primary, #2c2416);
+  --viewer-muted: var(--color-text-secondary, #5c5040);
+  --viewer-faint: var(--color-text-tertiary, #8a7e6c);
+  --viewer-surface: var(--color-background-secondary, #faf7f2);
+  --viewer-surface-hover: var(--color-background-tertiary, #f3ede2);
+  --viewer-photo: #ede5d8;
+  --viewer-border: var(--color-border-tertiary, rgba(154, 123, 46, 0.2));
+  --viewer-border-strong: rgba(154, 123, 46, 0.5);
+  --viewer-up: #146e44;
+  --viewer-down: #a63125;
+  --viewer-radius: var(--border-radius-lg, 10px);
+  /* The app's shared typography token names (design-token rule), mapped to
+     the host's font and a locally installed classical serif. */
+  --font-family-sans: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  --font-family-display: 'Cinzel', 'Trajan Pro', 'Optima', 'Palatino Linotype', Palatino, Georgia, serif;
+  --mat-gold: #b8960c;
+  --mat-silver: #8e959c;
+  --mat-bronze: #a8692c;
+  --mat-copper: #9a5b2c;
+  --mat-electrum: #b8a640;
+}
+
+:root[data-theme='dark'] {
+  --viewer-accent: #c9a84c;
+  --viewer-heading: #d4b96a;
+  --viewer-text: var(--color-text-primary, #e8e0d0);
+  --viewer-muted: var(--color-text-secondary, #a09880);
+  --viewer-faint: var(--color-text-tertiary, #706858);
+  --viewer-surface: var(--color-background-secondary, #262421);
+  --viewer-surface-hover: var(--color-background-tertiary, #2e2b27);
+  --viewer-photo: #121110;
+  --viewer-border: var(--color-border-tertiary, rgba(201, 168, 76, 0.15));
+  --viewer-border-strong: rgba(201, 168, 76, 0.4);
+  --viewer-up: #2ecc71;
+  --viewer-down: #fb8476;
+  --mat-gold: #ffd700;
+  --mat-silver: #c0c0c0;
+  --mat-bronze: #cd7f32;
+  --mat-copper: #b87333;
+  --mat-electrum: #e8d876;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font: 14px/1.45 var(--font-family-sans);
+  color: var(--viewer-text);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--viewer-accent);
+  outline-offset: 2px;
+}
+
+.material-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.material-dot.gold { background: var(--mat-gold); }
+.material-dot.silver { background: var(--mat-silver); }
+.material-dot.bronze { background: var(--mat-bronze); }
+.material-dot.copper { background: var(--mat-copper); }
+.material-dot.electrum { background: var(--mat-electrum); }
+
+.grade {
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 18px;
+  color: var(--viewer-muted);
+  border: 1px solid var(--viewer-border-strong);
+  border-radius: 4px;
+}

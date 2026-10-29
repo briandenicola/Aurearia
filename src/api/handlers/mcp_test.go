@@ -37,6 +37,7 @@ type mcpRouteFixture struct {
 	foreignCoinID uint
 	ownerLotID    uint
 	foreignLotID  uint
+	uploadDir     string
 }
 
 type apiKeyRoundTripper struct {
@@ -119,11 +120,13 @@ func setupMCPRouteFixture(t *testing.T, rateLimit int) *mcpRouteFixture {
 		services.NewLogger(10), "http://api:8080",
 	)
 	coinRepo := repository.NewCoinRepository(db)
+	uploadDir := t.TempDir()
 	mcpSvc := services.NewMCPService(
 		services.NewCollectionToolsService(coinRepo, nil),
 		coinRepo,
 		repository.NewAuctionLotRepository(db),
 		copilotSvc,
+		services.NewImageService(repository.NewImageRepository(db), uploadDir),
 	)
 	handler := NewMCPHandler(mcpSvc, services.NewLogger(10))
 
@@ -167,6 +170,7 @@ func setupMCPRouteFixture(t *testing.T, rateLimit int) *mcpRouteFixture {
 		ownerUserID: owner.ID,
 		ownerCoinID: ownerCoin.ID, foreignCoinID: foreignCoin.ID,
 		ownerLotID: ownerLot.ID, foreignLotID: foreignLot.ID,
+		uploadDir: uploadDir,
 	}
 }
 
@@ -224,7 +228,7 @@ func TestMCPToolDiscoveryRequiresExactCopilotCapability(t *testing.T) {
 			sort.Strings(names)
 
 			for _, readTool := range []string{
-				"auction_counts", "collection_stats", "get_auction_lot", "get_coin",
+				"auction_counts", "collection_stats", "get_auction_lot", "get_coin", "get_coin_images",
 				"list_auction_lots", "list_wishlist", "search_collection", "top_coins_by_value",
 			} {
 				if !containsString(names, readTool) {
@@ -238,9 +242,9 @@ func TestMCPToolDiscoveryRequiresExactCopilotCapability(t *testing.T) {
 					t.Fatalf("tool %q present=%v, want %v; tools=%v", copilotTool, got, tc.wantCopilot, names)
 				}
 			}
-			wantCount := 8
+			wantCount := 9
 			if tc.wantCopilot {
-				wantCount = 12
+				wantCount = 13
 			}
 			if len(names) != wantCount {
 				t.Fatalf("tool count=%d, want %d: %v", len(names), wantCount, names)
@@ -264,6 +268,7 @@ func TestMCPRouteInvokesEveryToolAndPreservesOwnerBoundary(t *testing.T) {
 		{name: "list_auction_lots", arguments: map[string]any{}},
 		{name: "get_auction_lot", arguments: map[string]any{"auctionLotId": fixture.ownerLotID}},
 		{name: "auction_counts", arguments: map[string]any{}},
+		{name: "get_coin_images", arguments: map[string]any{"coinIds": []uint{fixture.ownerCoinID}}},
 	}
 	for _, call := range readCalls {
 		if result := callMCPTool(t, session, call.name, call.arguments); result.IsError {
@@ -451,8 +456,8 @@ func TestMCPToolSurfaceContainsNoMutationOrArbitraryExecutionTools(t *testing.T)
 			}
 		}
 	}
-	if len(result.Tools) != 12 {
-		t.Fatalf("tools=%d, want 12", len(result.Tools))
+	if len(result.Tools) != 13 {
+		t.Fatalf("tools=%d, want 13", len(result.Tools))
 	}
 }
 
@@ -467,4 +472,82 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestMCPLimitBoundsAreDescribedAndOversizedLimitsAreCapped(t *testing.T) {
+	fixture := setupMCPRouteFixture(t, 100)
+	session := connectMCPRoute(t, fixture, "read")
+
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBounds := map[string]string{
+		"search_collection":  "values above 20 return 20",
+		"list_wishlist":      "values above 50 return 50",
+		"top_coins_by_value": "values above 10 return 10",
+	}
+	for _, tool := range tools.Tools {
+		want, ok := wantBounds[tool.Name]
+		if !ok {
+			continue
+		}
+		schema, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(schema, []byte(want)) {
+			t.Fatalf("%s limit schema=%s, want description %q", tool.Name, schema, want)
+		}
+		delete(wantBounds, tool.Name)
+	}
+	if len(wantBounds) != 0 {
+		t.Fatalf("tools missing: %v", wantBounds)
+	}
+
+	for _, name := range []string{"search_collection", "list_wishlist", "top_coins_by_value"} {
+		if result := callMCPTool(t, session, name, map[string]any{"limit": 500}); result.IsError {
+			t.Fatalf("%s limit 500 returned tool error: %+v", name, result.Content)
+		}
+		result := callMCPTool(t, session, name, map[string]any{"limit": 0})
+		raw, _ := json.Marshal(result)
+		if !result.IsError || !bytes.Contains(raw, []byte("invalid tool input")) {
+			t.Fatalf("%s limit 0 result=%s, want invalid tool input", name, raw)
+		}
+	}
+}
+
+func TestMCPSearchCollectionReturnsTotalAndPages(t *testing.T) {
+	fixture := setupMCPRouteFixture(t, 100)
+	extra := make([]*models.Coin, 0, 6)
+	for i := 0; i < 6; i++ {
+		extra = append(extra, &models.Coin{UserID: fixture.ownerUserID, Name: fmt.Sprintf("Owner follis %d", i)})
+	}
+	if err := fixture.db.Create(&extra).Error; err != nil {
+		t.Fatal(err)
+	}
+	session := connectMCPRoute(t, fixture, "read")
+
+	result := callMCPTool(t, session, "search_collection", map[string]any{"query": "Owner", "limit": 4, "offset": 4})
+	if result.IsError {
+		t.Fatalf("search returned tool error: %+v", result.Content)
+	}
+	encoded, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page mcpCoinSearchOutput
+	if err := json.Unmarshal(encoded, &page); err != nil {
+		t.Fatal(err)
+	}
+	// 6 follis plus the fixture's active "Owner coin"; the wishlist coin is excluded.
+	if page.Total != 7 || page.Offset != 4 || page.Limit != 4 || page.Query != "Owner" || len(page.Coins) != 3 {
+		t.Fatalf("page=%s, want total 7, offset 4, limit 4, query Owner, 3 coins", encoded)
+	}
+
+	negative := callMCPTool(t, session, "search_collection", map[string]any{"offset": -1})
+	raw, _ := json.Marshal(negative)
+	if !negative.IsError || !bytes.Contains(raw, []byte("invalid tool input")) {
+		t.Fatalf("negative offset result=%s, want invalid tool input", raw)
+	}
 }

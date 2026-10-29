@@ -403,6 +403,90 @@ func (s *ImageService) safeExistingUploadPath(relPath string) (string, error) {
 	return fullPath, nil
 }
 
+// maxInlineOriginalBytes bounds the fallback to an original upload when a
+// legacy image has no generated size variant.
+const maxInlineOriginalBytes = 512 * 1024
+
+// InlineCoinImage is an owner-scoped coin photo loaded into memory for
+// transports that cannot fetch authenticated media URLs.
+type InlineCoinImage struct {
+	CoinID    uint
+	ImageID   uint
+	ImageType models.ImageType
+	IsPrimary bool
+	MIMEType  string
+	Data      []byte
+}
+
+// InlineCoinImageLimits bounds an inline image load.
+type InlineCoinImageLimits struct {
+	Size          VariantSize
+	PerCoin       int
+	MaxTotalBytes int
+}
+
+// LoadOwnedCoinImages reads size variants of the owner's ordinary coin photos.
+// Attribution cards and foreign coins are never returned. Images without the
+// requested variant fall back to small originals only. Truncated reports that
+// at least one eligible image was skipped because of the byte budget.
+func (s *ImageService) LoadOwnedCoinImages(userID uint, coinIDs []uint, limits InlineCoinImageLimits) (images []InlineCoinImage, truncated bool, err error) {
+	rows, err := s.repo.ListOwnedCoinPhotos(userID, coinIDs)
+	if err != nil {
+		return nil, false, err
+	}
+	images = make([]InlineCoinImage, 0, len(rows))
+	perCoin := make(map[uint]int, len(coinIDs))
+	remaining := limits.MaxTotalBytes
+	for _, row := range rows {
+		if perCoin[row.CoinID] >= limits.PerCoin {
+			continue
+		}
+		data, mimeType, ok := s.readInlineImage(row.FilePath, limits.Size)
+		if !ok {
+			continue
+		}
+		if len(data) > remaining {
+			truncated = true
+			continue
+		}
+		remaining -= len(data)
+		perCoin[row.CoinID]++
+		images = append(images, InlineCoinImage{
+			CoinID: row.CoinID, ImageID: row.ID, ImageType: row.ImageType,
+			IsPrimary: row.IsPrimary, MIMEType: mimeType, Data: data,
+		})
+	}
+	return images, truncated, nil
+}
+
+func (s *ImageService) readInlineImage(relPath string, size VariantSize) ([]byte, string, bool) {
+	fullPath, err := s.safeExistingUploadPath(relPath)
+	if err != nil {
+		return nil, "", false
+	}
+	if variant := s.ResolveVariantPath(fullPath, string(size)); variant != "" {
+		data, err := os.ReadFile(variant)
+		if err != nil {
+			return nil, "", false
+		}
+		return data, "image/jpeg", true
+	}
+	info, err := os.Stat(fullPath)
+	if err != nil || info.Size() > maxInlineOriginalBytes {
+		return nil, "", false
+	}
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, "", false
+	}
+	switch mimeType := http.DetectContentType(data); mimeType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return data, mimeType, true
+	default:
+		return nil, "", false
+	}
+}
+
 // ResolveVariantPath returns the on-disk path for a named size variant of origFullPath.
 // It returns "" if the size is "full"/empty or if the variant file does not exist on disk.
 func (s *ImageService) ResolveVariantPath(origFullPath, size string) string {

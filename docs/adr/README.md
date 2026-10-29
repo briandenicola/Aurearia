@@ -83,7 +83,7 @@ in ADR 0001 without rewriting its accepted body.
 | 0018 | [Role-Specific Deep Analysis](0018-role-specific-deep-analysis.md) | 2026-09-19 | Accepted (PR #732) |
 | 0019 | [Evidence-Based Agentic Delivery](0019-evidence-based-agentic-delivery.md) | 2026-09-21 | Accepted (PR #734) |
 | 0020 | [Browser Speech Recognition for Identification Notes](0020-browser-speech-identification-notes.md) | 2026-10-01 | Accepted (PR #801) |
-| 0021 | [Stateless MCP Adapter in the Go API](0021-stateless-mcp-api-adapter.md) | 2026-10-04 | Proposed |
+| 0021 | [Stateless MCP Adapter in the Go API](0021-stateless-mcp-api-adapter.md) | 2026-10-04 | Accepted |
 | 0022 | [Validate Once and Promote Verified Content](0022-validate-once-promote-verified-content.md) | 2026-10-16 | Proposed |
 | 0023 | [Private Original Attribution-Card Images](0023-private-attribution-card-images.md) | 2026-10-17 | Proposed |
 | 0024 | [Proportional Governance](0024-proportional-governance.md) | 2026-10-19 | Accepted |
