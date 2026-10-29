@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **MCP collection search reports how many coins matched** —
+  `search_collection` now returns the total number of matches with each page
+  and accepts an `offset`, so agents and the coin viewer can tell when a
+  result was cut off at 20 and fetch the rest. See
+  [MCP Agentic Harness](features/mcp-agentic-harness.md#read-only-data-tools).
+
 - **Coin viewer for MCP Apps hosts** — In MCP clients that support MCP Apps
   (Claude Desktop, VS Code GitHub Copilot, Goose, MCPJam and others),
   `search_collection` and `get_coin` now open an interactive coin viewer with

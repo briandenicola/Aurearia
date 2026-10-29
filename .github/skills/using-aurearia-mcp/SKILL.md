@@ -47,7 +47,9 @@ key rotation, and status-code troubleshooting, see
 ## Read Tools
 
 - `search_collection`: search owned coins. Use a focused query. `limit`
-  defaults to 5 and larger values are capped at 20.
+  defaults to 5 and larger values are capped at 20. The result includes
+  `total`; when it exceeds the coins returned, say so or page with `offset`
+  instead of implying the list is complete.
 - `get_coin`: fetch one known owned coin by id.
 - `list_wishlist`: query wishlist entries; use this rather than guessing that
   a collection search result is a wishlist item.

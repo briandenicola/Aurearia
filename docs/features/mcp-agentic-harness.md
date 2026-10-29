@@ -59,6 +59,10 @@ bounded at the service boundary. For `search_collection` (default 5, maximum
 (default 3, maximum 10), a larger `limit` returns the maximum rather than an
 error; a `limit` below 1 is rejected.
 
+`search_collection` returns one page of matches with `total`, `offset`,
+`limit`, and the `query` it ran. When `total` is larger than the coins
+returned, pass `offset` (the number already seen) to fetch the next page.
+
 ## Coin viewer (MCP Apps)
 
 In hosts that support [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps),

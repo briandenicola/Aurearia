@@ -75,11 +75,21 @@ func NewMCPService(
 	}
 }
 
-func (s *MCPService) SearchCollection(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
+// mcpMaxSearchOffset bounds paging through search results.
+const mcpMaxSearchOffset = 100_000
+
+func (s *MCPService) SearchCollection(userID uint, query string, limit, offset *int) (*CollectionSearchPage, error) {
 	if err := validateMCPQueryLimit(query, limit); err != nil {
 		return nil, err
 	}
-	return s.collectionSvc.SearchActiveCollection(userID, query, limit)
+	start := 0
+	if offset != nil {
+		if *offset < 0 || *offset > mcpMaxSearchOffset {
+			return nil, ErrMCPInvalidRequest
+		}
+		start = *offset
+	}
+	return s.collectionSvc.SearchActiveCollectionPage(userID, query, limit, start)
 }
 
 func (s *MCPService) GetCoin(userID, coinID uint) (*CollectionCoinSummary, error) {

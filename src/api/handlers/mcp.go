@@ -24,8 +24,19 @@ func NewMCPHandler(service *services.MCPService, logger *services.Logger) *MCPHa
 }
 
 type mcpSearchInput struct {
-	Query string `json:"query,omitempty" jsonschema:"Optional text to match against owned coin fields"`
-	Limit *int   `json:"limit,omitempty" jsonschema:"Maximum results to return, at least 1. Default 5; values above 20 return 20"`
+	Query  string `json:"query,omitempty" jsonschema:"Optional text to match against owned coin fields"`
+	Limit  *int   `json:"limit,omitempty" jsonschema:"Maximum results to return, at least 1. Default 5; values above 20 return 20"`
+	Offset *int   `json:"offset,omitempty" jsonschema:"Number of matching coins to skip, for paging. Default 0; compare with total in the result"`
+}
+
+// mcpCoinSearchOutput carries one page of matches plus the total, so callers
+// can tell when there are more coins than the page shows.
+type mcpCoinSearchOutput struct {
+	Coins  []services.CollectionCoinSummary `json:"coins"`
+	Total  int64                            `json:"total"`
+	Offset int                              `json:"offset"`
+	Limit  int                              `json:"limit"`
+	Query  string                           `json:"query"`
 }
 
 type mcpWishlistInput struct {
@@ -142,11 +153,16 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_collection",
-		Description: "Search coins owned by the authenticated user. Read-only.",
+		Description: "Search coins owned by the authenticated user. Returns one page of matches and the total match count; use offset to page. Read-only.",
 		Meta:        mcpCoinViewerToolMeta(),
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpSearchInput) (*mcp.CallToolResult, mcpCoinListOutput, error) {
-		coins, err := h.service.SearchCollection(userID, input.Query, input.Limit)
-		return nil, mcpCoinListOutput{Coins: coins}, h.safeToolError("search_collection", err)
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpSearchInput) (*mcp.CallToolResult, mcpCoinSearchOutput, error) {
+		page, err := h.service.SearchCollection(userID, input.Query, input.Limit, input.Offset)
+		if err != nil {
+			return nil, mcpCoinSearchOutput{}, h.safeToolError("search_collection", err)
+		}
+		return nil, mcpCoinSearchOutput{
+			Coins: page.Coins, Total: page.Total, Offset: page.Offset, Limit: page.Limit, Query: input.Query,
+		}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
