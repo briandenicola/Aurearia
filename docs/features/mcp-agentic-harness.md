@@ -54,7 +54,10 @@ verification, rotation, and troubleshooting instructions, see
 
 Collection search excludes wishlist and sold records. Use `list_wishlist` for
 wishlist data. Inputs, page sizes, query lengths, and returned auction text are
-bounded at the service boundary.
+bounded at the service boundary. For `search_collection` (default 5, maximum
+20), `list_wishlist` (default 20, maximum 50), and `top_coins_by_value`
+(default 3, maximum 10), a larger `limit` returns the maximum rather than an
+error; a `limit` below 1 is rejected.
 
 ## Coin viewer (MCP Apps)
 
@@ -73,6 +76,11 @@ content blocks:
 - `size: "medium"`: exactly one coin id, up to six images.
 - At most 2 MiB of image data per call; `truncated: true` means some photos
   were left out. Attribution cards and other owners' coins are never returned.
+
+The viewer is a Vue 3 app in `src/web/src/mcp-apps/coin-viewer`. After
+changing it, run `npm run build:mcp-app` in `src/web` and commit the
+regenerated `src/api/handlers/mcpapps/coin-viewer.html`, which the Go API
+embeds. `npm run test` fails if that file is out of date.
 
 Hosts without MCP Apps support keep receiving the same JSON text as before and
 may show `get_coin_images` to their model like any other tool. Hermes Agent's

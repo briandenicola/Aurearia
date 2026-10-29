@@ -9,6 +9,7 @@
     "prepare-background-removal-assets": "node scripts/download-background-removal-assets.mjs",
     "preview": "vite preview",
     "build-only": "vite build",
+    "build:mcp-app": "vite build --config vite.config.mcp-app.ts",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --ext .vue,.ts,.tsx --max-warnings 0",
     "test": "node --test scripts/download-background-removal-assets.test.mjs && vitest run",

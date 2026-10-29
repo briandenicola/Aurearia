@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -84,11 +85,43 @@ func TestMCPServiceValidatesAuctionFiltersAndBounds(t *testing.T) {
 	if _, err := service.AuctionCounts(1, "other"); !errors.Is(err, ErrMCPInvalidRequest) {
 		t.Fatalf("counts err=%v, want ErrMCPInvalidRequest", err)
 	}
-	tooMany := 21
-	if _, err := service.SearchCollection(1, "", &tooMany); !errors.Is(err, ErrMCPInvalidRequest) {
-		t.Fatalf("search limit err=%v, want ErrMCPInvalidRequest", err)
+	zero := 0
+	if _, err := service.SearchCollection(1, "", &zero); !errors.Is(err, ErrMCPInvalidRequest) {
+		t.Fatalf("search limit 0 err=%v, want ErrMCPInvalidRequest", err)
+	}
+	if _, err := service.TopCoinsByValue(1, &zero); !errors.Is(err, ErrMCPInvalidRequest) {
+		t.Fatalf("top coins limit 0 err=%v, want ErrMCPInvalidRequest", err)
 	}
 	if _, err := service.ListWishlist(1, string(make([]byte, 201)), nil); !errors.Is(err, ErrMCPInvalidRequest) {
 		t.Fatalf("wishlist query err=%v, want ErrMCPInvalidRequest", err)
+	}
+}
+
+func TestMCPServiceCapsOversizedLimitsInsteadOfRejecting(t *testing.T) {
+	db, service := newMCPServiceReadTest(t)
+	coins := make([]*models.Coin, 0, 85)
+	for i := 0; i < 25; i++ {
+		value := float64(i + 1)
+		coins = append(coins, &models.Coin{UserID: 1, Name: fmt.Sprintf("Collection %02d", i), CurrentValue: &value})
+	}
+	for i := 0; i < 60; i++ {
+		coins = append(coins, &models.Coin{UserID: 1, Name: fmt.Sprintf("Wishlist %02d", i), IsWishlist: true})
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	generous := 500
+	collection, err := service.SearchCollection(1, "", &generous)
+	if err != nil || len(collection) != 20 {
+		t.Fatalf("search len=%d err=%v, want 20 capped results", len(collection), err)
+	}
+	wishlist, err := service.ListWishlist(1, "", &generous)
+	if err != nil || len(wishlist) != 50 {
+		t.Fatalf("wishlist len=%d err=%v, want 50 capped results", len(wishlist), err)
+	}
+	top, err := service.TopCoinsByValue(1, &generous)
+	if err != nil || len(top) != 10 {
+		t.Fatalf("top coins len=%d err=%v, want 10 capped results", len(top), err)
 	}
 }

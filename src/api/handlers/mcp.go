@@ -25,7 +25,12 @@ func NewMCPHandler(service *services.MCPService, logger *services.Logger) *MCPHa
 
 type mcpSearchInput struct {
 	Query string `json:"query,omitempty" jsonschema:"Optional text to match against owned coin fields"`
-	Limit *int   `json:"limit,omitempty" jsonschema:"Maximum results to return"`
+	Limit *int   `json:"limit,omitempty" jsonschema:"Maximum results to return, at least 1. Default 5; values above 20 return 20"`
+}
+
+type mcpWishlistInput struct {
+	Query string `json:"query,omitempty" jsonschema:"Optional text to match against owned wishlist coin fields"`
+	Limit *int   `json:"limit,omitempty" jsonschema:"Maximum results to return, at least 1. Default 20; values above 50 return 50"`
 }
 
 type mcpCoinIDInput struct {
@@ -33,7 +38,7 @@ type mcpCoinIDInput struct {
 }
 
 type mcpLimitInput struct {
-	Limit *int `json:"limit,omitempty" jsonschema:"Maximum results to return"`
+	Limit *int `json:"limit,omitempty" jsonschema:"Maximum results to return, at least 1. Default 3; values above 10 return 10"`
 }
 
 type mcpCoinListOutput struct {
@@ -156,7 +161,7 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_wishlist",
 		Description: "List wishlist coins owned by the authenticated user with optional search. Read-only.",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpSearchInput) (*mcp.CallToolResult, mcpCoinListOutput, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpWishlistInput) (*mcp.CallToolResult, mcpCoinListOutput, error) {
 		coins, err := h.service.ListWishlist(userID, input.Query, input.Limit)
 		return nil, mcpCoinListOutput{Coins: coins}, h.safeToolError("list_wishlist", err)
 	})
