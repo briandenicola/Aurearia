@@ -3,7 +3,7 @@
 Date: 2026-10-04
 Amended: 2026-10-28 (MCP Apps coin viewer)
 Status: Accepted
-Accepted: 2026-10-29, owner-approved PR #PENDING into beta.
+Accepted: 2026-10-29, owner-approved PR #850 into beta.
 
 Lifecycle note: The body below is the decision as implemented and amended
 through #844-#849 and verified on beta, including in Claude Desktop. Acceptance
