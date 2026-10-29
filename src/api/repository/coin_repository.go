@@ -370,14 +370,25 @@ func (r *CoinRepository) FindOwnedByNameCandidates(userID uint, name string, lim
 
 // ListOwnedByFilters returns owner-scoped coins filtered for collection chat queries.
 func (r *CoinRepository) ListOwnedByFilters(userID uint, filters OwnedCoinFilters, limit int) ([]models.Coin, error) {
+	return r.ListOwnedByFiltersPage(userID, filters, limit, 0)
+}
+
+// ListOwnedByFiltersPage is ListOwnedByFilters starting after offset matches.
+// The id tie-breaker keeps pages stable when coins share an updated_at.
+func (r *CoinRepository) ListOwnedByFiltersPage(userID uint, filters OwnedCoinFilters, limit, offset int) ([]models.Coin, error) {
 	if limit < 1 {
 		limit = 5
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	var coins []models.Coin
 	query := r.db.Model(&models.Coin{}).Scopes(OwnedBy(userID))
 	query = applyOwnedFilterConditions(query, filters)
 	err := query.
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "updated_at"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true}).
+		Offset(offset).
 		Limit(limit).
 		Find(&coins).Error
 	return coins, err

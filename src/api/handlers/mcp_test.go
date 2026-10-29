@@ -516,3 +516,38 @@ func TestMCPLimitBoundsAreDescribedAndOversizedLimitsAreCapped(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPSearchCollectionReturnsTotalAndPages(t *testing.T) {
+	fixture := setupMCPRouteFixture(t, 100)
+	extra := make([]*models.Coin, 0, 6)
+	for i := 0; i < 6; i++ {
+		extra = append(extra, &models.Coin{UserID: fixture.ownerUserID, Name: fmt.Sprintf("Owner follis %d", i)})
+	}
+	if err := fixture.db.Create(&extra).Error; err != nil {
+		t.Fatal(err)
+	}
+	session := connectMCPRoute(t, fixture, "read")
+
+	result := callMCPTool(t, session, "search_collection", map[string]any{"query": "Owner", "limit": 4, "offset": 4})
+	if result.IsError {
+		t.Fatalf("search returned tool error: %+v", result.Content)
+	}
+	encoded, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page mcpCoinSearchOutput
+	if err := json.Unmarshal(encoded, &page); err != nil {
+		t.Fatal(err)
+	}
+	// 6 follis plus the fixture's active "Owner coin"; the wishlist coin is excluded.
+	if page.Total != 7 || page.Offset != 4 || page.Limit != 4 || page.Query != "Owner" || len(page.Coins) != 3 {
+		t.Fatalf("page=%s, want total 7, offset 4, limit 4, query Owner, 3 coins", encoded)
+	}
+
+	negative := callMCPTool(t, session, "search_collection", map[string]any{"offset": -1})
+	raw, _ := json.Marshal(negative)
+	if !negative.IsError || !bytes.Contains(raw, []byte("invalid tool input")) {
+		t.Fatalf("negative offset result=%s, want invalid tool input", raw)
+	}
+}

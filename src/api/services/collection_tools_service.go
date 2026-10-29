@@ -148,15 +148,59 @@ func (s *CollectionToolsService) SearchActiveCollection(userID uint, query strin
 }
 
 func (s *CollectionToolsService) searchCollection(userID uint, query string, limit *int, activeOnly bool) ([]CollectionCoinSummary, error) {
-	searchLimit := 5
-	if limit != nil {
-		if *limit > 20 {
-			searchLimit = 20
-		} else if *limit > 0 {
-			searchLimit = *limit
-		}
+	coins, err := s.coinRepo.ListOwnedByFilters(userID, s.searchFilters(query, activeOnly), collectionSearchLimit(limit))
+	if err != nil {
+		return nil, err
 	}
+	return toCoinSummaries(coins), nil
+}
 
+// CollectionSearchPage is one page of an active-collection search with the
+// total number of matches, so callers can tell when results were cut off.
+type CollectionSearchPage struct {
+	Coins  []CollectionCoinSummary
+	Total  int64
+	Offset int
+	Limit  int
+}
+
+// SearchActiveCollectionPage is SearchActiveCollection with an offset and the
+// total match count, using the same filters for both.
+func (s *CollectionToolsService) SearchActiveCollectionPage(userID uint, query string, limit *int, offset int) (*CollectionSearchPage, error) {
+	filters := s.searchFilters(query, true)
+	pageLimit := collectionSearchLimit(limit)
+	coins, err := s.coinRepo.ListOwnedByFiltersPage(userID, filters, pageLimit, offset)
+	if err != nil {
+		return nil, err
+	}
+	total, err := s.coinRepo.CountOwnedByFilters(userID, filters)
+	if err != nil {
+		return nil, err
+	}
+	return &CollectionSearchPage{Coins: toCoinSummaries(coins), Total: total, Offset: offset, Limit: pageLimit}, nil
+}
+
+// collectionSearchLimit applies the search default of 5 and maximum of 20.
+func collectionSearchLimit(limit *int) int {
+	if limit == nil || *limit < 1 {
+		return 5
+	}
+	if *limit > 20 {
+		return 20
+	}
+	return *limit
+}
+
+func toCoinSummaries(coins []models.Coin) []CollectionCoinSummary {
+	summaries := make([]CollectionCoinSummary, 0, len(coins))
+	for _, coin := range coins {
+		summaries = append(summaries, toCoinSummary(coin))
+	}
+	return summaries
+}
+
+// searchFilters turns a natural-language collection query into owner filters.
+func (s *CollectionToolsService) searchFilters(query string, activeOnly bool) repository.OwnedCoinFilters {
 	filters := repository.OwnedCoinFilters{
 		Search: strings.TrimSpace(query),
 	}
@@ -206,18 +250,7 @@ func (s *CollectionToolsService) searchCollection(userID uint, query string, lim
 		filters.Wishlist = &active
 		filters.Sold = &active
 	}
-
-	coins, err := s.coinRepo.ListOwnedByFilters(userID, filters, searchLimit)
-	if err != nil {
-		return nil, err
-	}
-
-	summaries := make([]CollectionCoinSummary, 0, len(coins))
-	for _, coin := range coins {
-		summaries = append(summaries, toCoinSummary(coin))
-	}
-
-	return summaries, nil
+	return filters
 }
 
 // SearchWishlist returns owner-scoped wishlist entries matching an optional query.
