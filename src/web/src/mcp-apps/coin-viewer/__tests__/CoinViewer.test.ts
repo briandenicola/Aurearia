@@ -89,6 +89,27 @@ describe('CoinViewer', () => {
     expect(wrapper.text()).toContain('Missing: mint')
   })
 
+  it('shows readable missing fields, hides rows the server counts as missing, and formats prices', async () => {
+    const wrapper = mount(CoinViewer, {
+      props: {
+        bridge: fakeBridge(),
+        result: {
+          structuredContent: {
+            coin: {
+              id: 15, name: 'eid mar', era: 'ancient', material: 'Other', category: 'Other', purchasePrice: 5,
+              missingFields: ['material', 'weightGrams', 'vendorSku', 'referenceUrl', 'someNewField'],
+            },
+          },
+        },
+      },
+    })
+    await flushPromises()
+    const labels = wrapper.findAll('dt').map((node) => node.text())
+    expect(labels).toEqual(['Era', 'Category', 'Purchase price'])
+    expect(wrapper.findAll('dd').map((node) => node.text())).toEqual(['ancient', 'Other', '$5.00'])
+    expect(wrapper.find('.missing').text()).toBe('Missing: material, weight, vendor SKU, reference link, some new field')
+  })
+
   it('reports empty results compactly and errors plainly', async () => {
     const empty = mount(CoinViewer, { props: { bridge: fakeBridge(), result: listResult([]) } })
     await flushPromises()

@@ -71,6 +71,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Clearer coin details in the MCP coin viewer** — The detail view listed
+  missing fields by their internal names (`weightGrams`, `vendorSku`) and could
+  show a field and list it as missing at the same time (material "Other").
+  Missing fields now read as words, fields the server counts as missing are no
+  longer shown as values, prices use the same US-dollar format as the rest of
+  Aurearia, and obverse and reverse photos sit in matching square frames.
+
 - **No empty scrollbar in the MCP coin viewer** — In Claude Desktop the coin
   viewer showed a scrollbar with nothing to scroll, because the border the host
   draws around the panel made the frame a few pixels shorter than the viewer's
