@@ -48,7 +48,10 @@ several of them. The adapter therefore serves one interactive view:
   `go:embed`, served with MIME type `text/html;profile=mcp-app`. It contains
   no user data, loads no external scripts, styles, or fonts, and declares no
   `csp` domains, so hosts apply the default deny-all network policy. It is the
-  only resource registered; no resource templates are exposed.
+  only resource registered; no resource templates are exposed. The file is
+  generated from Vue sources in `src/web/src/mcp-apps/coin-viewer` by
+  `npm run build:mcp-app` and committed; a web test rebuilds it and fails when
+  the committed copy is stale, so the Go build needs no Node toolchain.
 - **Opt-in through tool metadata.** `search_collection` and `get_coin` carry
   `_meta.ui.resourceUri` (plus the deprecated flat `ui/resourceUri` key for
   older hosts). Their inputs, outputs, and JSON text content are unchanged.

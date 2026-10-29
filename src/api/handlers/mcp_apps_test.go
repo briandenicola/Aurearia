@@ -133,7 +133,7 @@ func TestMCPCoinViewerAppIsAdvertisedAndServed(t *testing.T) {
 		t.Fatalf("contents=%d, want 1", len(read.Contents))
 	}
 	contents := read.Contents[0]
-	if contents.MIMEType != mcpAppMIMEType || !strings.Contains(contents.Text, `"ui/initialize"`) {
+	if contents.MIMEType != mcpAppMIMEType || !strings.Contains(contents.Text, "ui/initialize") {
 		t.Fatalf("viewer contents mime=%q, missing ui/initialize handshake", contents.MIMEType)
 	}
 	for _, external := range []string{"<script src", "<link ", "@import", "fetch("} {

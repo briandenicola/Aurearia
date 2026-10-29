@@ -13,7 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `search_collection` and `get_coin` now open an interactive coin viewer with
   photo thumbnails and a detail view, instead of only JSON. Photos load
   through the new app-only `get_coin_images` tool, so they stay behind the
-  API key. Text-only clients see no change. See
+  API key. The viewer is built with Vue, sizes itself to its content, and
+  keeps thumbnails when you go back from a coin to the results. Text-only
+  clients see no change. See
   [MCP Agentic Harness](features/mcp-agentic-harness.md#coin-viewer-mcp-apps).
 
 - **Change an API key's access in place** — Settings → Keys has an access

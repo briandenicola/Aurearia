@@ -74,6 +74,11 @@ content blocks:
 - At most 2 MiB of image data per call; `truncated: true` means some photos
   were left out. Attribution cards and other owners' coins are never returned.
 
+The viewer is a Vue 3 app in `src/web/src/mcp-apps/coin-viewer`. After
+changing it, run `npm run build:mcp-app` in `src/web` and commit the
+regenerated `src/api/handlers/mcpapps/coin-viewer.html`, which the Go API
+embeds. `npm run test` fails if that file is out of date.
+
 Hosts without MCP Apps support keep receiving the same JSON text as before and
 may show `get_coin_images` to their model like any other tool. Hermes Agent's
 CLI and messaging surfaces are text-only today, so they show no viewer. To try

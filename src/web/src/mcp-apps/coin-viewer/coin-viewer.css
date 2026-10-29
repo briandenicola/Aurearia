@@ -1,0 +1,40 @@
+/*
+ * Surfaces and type follow the host's MCP Apps style variables when it sends
+ * them; the accent stays Aurearia gold. Fallbacks cover hosts that send none.
+ */
+:root {
+  color-scheme: light dark;
+  --viewer-accent: #9a7b2e;
+  --viewer-heading: #6b5520;
+  --viewer-text: var(--color-text-primary, #2c2416);
+  --viewer-muted: var(--color-text-secondary, #5c5040);
+  --viewer-surface: var(--color-background-secondary, #faf7f2);
+  --viewer-placeholder: var(--color-background-tertiary, #ede5d8);
+  --viewer-border: var(--color-border-tertiary, rgba(154, 123, 46, 0.2));
+  --viewer-radius: var(--border-radius-lg, 10px);
+  --viewer-font: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
+}
+
+:root[data-theme='dark'] {
+  --viewer-accent: #c9a84c;
+  --viewer-heading: #d4b96a;
+  --viewer-text: var(--color-text-primary, #e8e0d0);
+  --viewer-muted: var(--color-text-secondary, #a09880);
+  --viewer-surface: var(--color-background-secondary, #262421);
+  --viewer-placeholder: var(--color-background-tertiary, #3a3732);
+  --viewer-border: var(--color-border-tertiary, rgba(201, 168, 76, 0.15));
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font: 14px/1.45 var(--viewer-font);
+  color: var(--viewer-text);
+  background: transparent;
+}
