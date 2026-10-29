@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Refined MCP coin viewer for large collections** — The coin viewer says
+  "Showing 20 of 312 coins", pages through the rest with **Show more**, and
+  can filter inside the panel without asking Claude again. Results above
+  eight coins switch to compact rows (with a grid/list toggle). Cards show
+  attribution, era and mint, grade, metal and value; the detail view groups
+  attribution and physical facts, shows value, price paid and gain or loss,
+  and switches between obverse and reverse photos.
+
 - **MCP collection search reports how many coins matched** —
   `search_collection` now returns the total number of matches with each page
   and accepts an `offset`, so agents and the coin viewer can tell when a

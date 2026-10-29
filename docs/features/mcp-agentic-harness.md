@@ -81,6 +81,11 @@ content blocks:
 - At most 2 MiB of image data per call; `truncated: true` means some photos
   were left out. Attribution cards and other owners' coins are never returned.
 
+When a search matches more coins than it returns, the viewer shows the total
+and a **Show more** button that pages through the rest, and its filter box
+runs a new search, both by calling `search_collection` through the host
+without another model turn. Larger results default to compact rows.
+
 The viewer is a Vue 3 app in `src/web/src/mcp-apps/coin-viewer`. After
 changing it, run `npm run build:mcp-app` in `src/web` and commit the
 regenerated `src/api/handlers/mcpapps/coin-viewer.html`, which the Go API
