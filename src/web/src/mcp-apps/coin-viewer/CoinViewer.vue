@@ -46,8 +46,8 @@
               <dd>{{ value }}</dd>
             </template>
           </dl>
-          <p v-if="detailCoin.missingFields?.length" class="missing">
-            Missing: {{ detailCoin.missingFields.join(', ') }}
+          <p v-if="missing.length" class="missing">
+            Missing: {{ missing.join(', ') }}
           </p>
         </div>
       </div>
@@ -62,7 +62,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import CoinCard from './CoinCard.vue'
 import type { ViewerBridge } from './bridge'
 import type { CallToolResult, CoinImage, CoinSummary } from './types'
-import { coinFrom, coinsFrom, detailRows, imagesFrom } from './viewer-data'
+import { coinFrom, coinsFrom, detailRows, imagesFrom, missingLabels } from './viewer-data'
 
 const props = defineProps<{
   bridge: ViewerBridge
@@ -85,6 +85,7 @@ const galleryState = ref<LoadState>('loading')
 let detailRequest = 0
 
 const rows = computed(() => (detailCoin.value ? detailRows(detailCoin.value) : []))
+const missing = computed(() => (detailCoin.value ? missingLabels(detailCoin.value) : []))
 
 watch(
   () => props.result,
@@ -221,9 +222,13 @@ figure {
   margin: 0;
 }
 
+/* Square frames keep obverse and reverse aligned whatever each photo's crop;
+   contain keeps the whole coin visible. */
 figure img {
   display: block;
   width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
   background: var(--viewer-placeholder);
   border-radius: 8px;
 }

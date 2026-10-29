@@ -54,19 +54,51 @@ function formatNumber(value: number | null | undefined, suffix = ''): string | n
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 }) + suffix
 }
 
+// Same formatting as the web app's formatCurrency, which shows coin prices in
+// US dollars; keep them in step so the viewer never disagrees with Aurearia.
+function formatPrice(value: number | null | undefined): string | null {
+  if (typeof value !== 'number') return null
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+}
+
+// Readable names for the keys in CollectionCoinSummary.missingFields.
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  weightGrams: 'weight',
+  diameterMm: 'diameter',
+  purchasePrice: 'purchase price',
+  currentValue: 'current value',
+  purchaseDate: 'purchase date',
+  storageLocation: 'storage location',
+  vendorSku: 'vendor SKU',
+  vendorInvoice: 'vendor invoice',
+  referenceUrl: 'reference link',
+  referenceText: 'reference',
+}
+
+export function missingLabels(coin: CoinSummary): string[] {
+  return (coin.missingFields ?? []).map(
+    (field) => MISSING_FIELD_LABELS[field] ?? field.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase(),
+  )
+}
+
+// Rows the server reports as missing are left out even when they hold a
+// placeholder (material "Other"), so a field is never shown and missing at once.
 export function detailRows(coin: CoinSummary): Array<[string, string]> {
-  const rows: Array<[string, string | null | undefined]> = [
-    ['Ruler', coin.ruler],
-    ['Denomination', coin.denomination],
-    ['Era', coin.era],
-    ['Mint', coin.mint],
-    ['Material', coin.material],
-    ['Grade', coin.grade],
-    ['Category', coin.category],
-    ['Weight', formatNumber(coin.weightGrams, ' g')],
-    ['Diameter', formatNumber(coin.diameterMm, ' mm')],
-    ['Purchase price', formatNumber(coin.purchasePrice)],
-    ['Current value', formatNumber(coin.currentValue)],
+  const missing = new Set(coin.missingFields ?? [])
+  const rows: Array<[string, string, string | null | undefined]> = [
+    ['ruler', 'Ruler', coin.ruler],
+    ['denomination', 'Denomination', coin.denomination],
+    ['era', 'Era', coin.era],
+    ['mint', 'Mint', coin.mint],
+    ['material', 'Material', coin.material],
+    ['grade', 'Grade', coin.grade],
+    ['category', 'Category', coin.category],
+    ['weightGrams', 'Weight', formatNumber(coin.weightGrams, ' g')],
+    ['diameterMm', 'Diameter', formatNumber(coin.diameterMm, ' mm')],
+    ['purchasePrice', 'Purchase price', formatPrice(coin.purchasePrice)],
+    ['currentValue', 'Current value', formatPrice(coin.currentValue)],
   ]
-  return rows.filter((row): row is [string, string] => Boolean(row[1]))
+  return rows
+    .filter(([field, , value]) => Boolean(value) && !missing.has(field))
+    .map(([, label, value]) => [label, value as string])
 }
