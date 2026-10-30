@@ -194,11 +194,16 @@ func applyOwnedFilterConditions(query *gorm.DB, filters OwnedCoinFilters) *gorm.
 		query = query.Where("is_sold = ?", *filters.Sold)
 	}
 	if filters.Search != "" {
+		// The same fields as the collection list's search, so a term that finds a coin
+		// in the app also finds it through chat and MCP.
 		term := "%" + strings.TrimSpace(filters.Search) + "%"
-		query = query.Where(
-			"name LIKE ? OR denomination LIKE ? OR ruler LIKE ? OR notes LIKE ?",
-			term, term, term, term,
-		)
+		conditions := make([]string, len(searchFields))
+		args := make([]any, len(searchFields))
+		for i, f := range searchFields {
+			conditions[i] = f + " LIKE ?"
+			args[i] = term
+		}
+		query = query.Where(strings.Join(conditions, " OR "), args...)
 	}
 	missingConditions := make([]string, 0, len(filters.MissingFields))
 	for _, field := range filters.MissingFields {

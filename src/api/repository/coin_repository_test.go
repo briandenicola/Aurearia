@@ -1338,3 +1338,41 @@ func TestCoinRepository_UpdateHelpers_WithLoadedSetsDoNotSyncMemberships(t *test
 		})
 	}
 }
+
+func TestCoinRepository_OwnedFilterSearchMatchesCollectionListFields(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	coins := []models.Coin{
+		{Name: "Elephant denarius", Mint: "Military mint traveling with Caesar", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1},
+		{Name: "Commemorative 2 euro", ReverseInscription: "FIFA World Cup 2026", Category: models.CategoryModern, Material: models.MaterialBronze, UserID: 1},
+		{Name: "Tetradrachm", Era: models.EraAncient, ObverseInscription: "ΑΘΕ", RarityRating: "Scarce", Category: models.CategoryGreek, Material: models.MaterialSilver, UserID: 1},
+		{Name: "Someone else's coin", Mint: "Military mint", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 2},
+	}
+	for i := range coins {
+		if err := db.Create(&coins[i]).Error; err != nil {
+			t.Fatalf("create coin: %v", err)
+		}
+	}
+
+	for _, tc := range []struct {
+		search string
+		want   string
+	}{
+		{"military mint", "Elephant denarius"},
+		{"World Cup 2026", "Commemorative 2 euro"},
+		{"ΑΘΕ", "Tetradrachm"},
+		{"scarce", "Tetradrachm"},
+	} {
+		got, err := repo.ListOwnedByFiltersPage(1, OwnedCoinFilters{Search: tc.search}, 20, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", tc.search, err)
+		}
+		if len(got) != 1 || got[0].Name != tc.want {
+			t.Errorf("search %q: got %d coins %v, want only %q", tc.search, len(got), coinNames(got), tc.want)
+		}
+		count, err := repo.CountOwnedByFilters(1, OwnedCoinFilters{Search: tc.search})
+		if err != nil || count != 1 {
+			t.Errorf("count %q: got %d (%v), want 1", tc.search, count, err)
+		}
+	}
+}
