@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -165,5 +166,58 @@ func TestMCPServiceSearchPagesThroughAllMatchesWithTotal(t *testing.T) {
 		if _, err := service.SearchCollection(1, "", nil, &offset); !errors.Is(err, ErrMCPInvalidRequest) {
 			t.Fatalf("offset %d err=%v, want ErrMCPInvalidRequest", bad, err)
 		}
+	}
+}
+
+func TestMCPServiceListAuctionLotsUpcomingFiltersAndSortsByEnd(t *testing.T) {
+	db, service := newMCPServiceReadTest(t)
+	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	at := func(d time.Duration) *time.Time { v := now.Add(d); return &v }
+
+	lots := []*models.AuctionLot{
+		{UserID: 1, Title: "ends in 3d", NumisBidsURL: "u1", Status: models.AuctionStatusBidding, AuctionEndTime: at(72 * time.Hour)},
+		{UserID: 1, Title: "ended yesterday", NumisBidsURL: "u2", Status: models.AuctionStatusBidding, AuctionEndTime: at(-24 * time.Hour)},
+		// auction_end_time wins over sale_date: sale date is future but the lot already closed.
+		{UserID: 1, Title: "closed, future sale date", NumisBidsURL: "u3", Status: models.AuctionStatusBidding, SaleDate: at(48 * time.Hour), AuctionEndTime: at(-time.Hour)},
+		{UserID: 1, Title: "sale date in 1d", NumisBidsURL: "u4", Status: models.AuctionStatusBidding, SaleDate: at(24 * time.Hour)},
+		{UserID: 1, Title: "ends in 1h", NumisBidsURL: "u5", Status: models.AuctionStatusBidding, AuctionEndTime: at(time.Hour)},
+		{UserID: 1, Title: "no dates", NumisBidsURL: "u6", Status: models.AuctionStatusBidding},
+		{UserID: 1, Title: "watching, ends in 2h", NumisBidsURL: "u7", Status: models.AuctionStatusWatching, AuctionEndTime: at(2 * time.Hour)},
+		{UserID: 2, Title: "foreign, ends in 30m", NumisBidsURL: "u8", Status: models.AuctionStatusBidding, AuctionEndTime: at(30 * time.Minute)},
+	}
+	if err := db.Create(&lots).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.ListAuctionLots(1, MCPAuctionListInput{Status: string(models.AuctionStatusBidding), Upcoming: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, 0, len(result.Lots))
+	for _, lot := range result.Lots {
+		got = append(got, lot.Title)
+	}
+	want := []string{"ends in 1h", "sale date in 1d", "ends in 3d"}
+	if fmt.Sprint(got) != fmt.Sprint(want) || result.Total != int64(len(want)) {
+		t.Fatalf("got %v (total %d), want %v", got, result.Total, want)
+	}
+
+	// Without upcoming the existing behavior is unchanged: every owned bidding lot.
+	all, err := service.ListAuctionLots(1, MCPAuctionListInput{Status: string(models.AuctionStatusBidding)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Total != 6 {
+		t.Fatalf("total without upcoming = %d, want 6", all.Total)
+	}
+
+	// Pagination over the upcoming ordering is stable.
+	page2, err := service.ListAuctionLots(1, MCPAuctionListInput{Status: string(models.AuctionStatusBidding), Upcoming: true, Page: 2, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page2.Lots) != 1 || page2.Lots[0].Title != "ends in 3d" {
+		t.Fatalf("page 2 = %+v, want only 'ends in 3d'", page2.Lots)
 	}
 }

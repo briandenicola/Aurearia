@@ -57,7 +57,10 @@ key rotation, and status-code troubleshooting, see
   and value statistics.
 - `top_coins_by_value`: read a bounded highest-value active-collection list.
 - `list_auction_lots`: query owned auction lots by status, source, search, and
-  page.
+  page. For "upcoming" or "ending soon" questions pass `upcoming: true`
+  (combine with `status: "bidding"` or `"watching"`): the server filters out
+  ended lots by its own clock and sorts soonest-ending first, so do not filter
+  dates yourself. Lots with no known end date are excluded in this mode.
 - `get_auction_lot`: fetch one known owned auction lot by id.
 - `auction_counts`: read auction status counts, optionally by source.
 - `get_coin_images`: owned coin photos as image content, used by the coin

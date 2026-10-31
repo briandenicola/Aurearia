@@ -47,7 +47,7 @@ verification, rotation, and troubleshooting instructions, see
 | `list_wishlist` | Search owned wishlist entries |
 | `collection_stats` | Read collection, wishlist, sold, distribution, and value statistics |
 | `top_coins_by_value` | Read a bounded highest-value active-collection list |
-| `list_auction_lots` | List owned auction lots with bounded filters and pagination |
+| `list_auction_lots` | List owned auction lots with bounded filters and pagination; `upcoming: true` returns only lots not yet ended, soonest first |
 | `get_auction_lot` | Read one owned auction lot |
 | `auction_counts` | Read auction status counts, optionally by source |
 | `get_coin_images` | Read owned coin photo thumbnails or medium images (for the coin viewer) |

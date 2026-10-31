@@ -42,6 +42,9 @@ type MCPAuctionListInput struct {
 	Search string
 	Page   int
 	Limit  int
+	// Upcoming keeps only lots whose auction has not yet ended (per the server clock)
+	// and orders them soonest-ending first.
+	Upcoming bool
 }
 
 type MCPAuctionListResult struct {
@@ -57,6 +60,7 @@ type MCPService struct {
 	auctionRepo   *repository.AuctionLotRepository
 	copilotSvc    *CoinCopilotService
 	imageSvc      *ImageService
+	now           func() time.Time
 }
 
 func NewMCPService(
@@ -72,6 +76,7 @@ func NewMCPService(
 		auctionRepo:   auctionRepo,
 		copilotSvc:    copilotSvc,
 		imageSvc:      imageSvc,
+		now:           time.Now,
 	}
 }
 
@@ -129,7 +134,7 @@ func (s *MCPService) ListAuctionLots(userID uint, input MCPAuctionListInput) (*M
 	if page < 1 || limit < 1 || limit > 50 || len(input.Search) > 200 {
 		return nil, ErrMCPInvalidRequest
 	}
-	lots, total, err := s.auctionRepo.List(userID, repository.AuctionLotListFilters{
+	filters := repository.AuctionLotListFilters{
 		Status:    input.Status,
 		Source:    input.Source,
 		Search:    strings.TrimSpace(input.Search),
@@ -137,7 +142,14 @@ func (s *MCPService) ListAuctionLots(userID uint, input MCPAuctionListInput) (*M
 		SortOrder: "desc",
 		Page:      page,
 		Limit:     limit,
-	})
+	}
+	if input.Upcoming {
+		now := s.now()
+		filters.EndingAfter = &now
+		filters.SortByEnding = true
+		filters.SortOrder = "asc"
+	}
+	lots, total, err := s.auctionRepo.List(userID, filters)
 	if err != nil {
 		return nil, err
 	}

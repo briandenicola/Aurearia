@@ -73,6 +73,13 @@ type AuctionLotListFilters struct {
 	SortOrder string
 	Page      int
 	Limit     int
+	// EndingAfter, when set, keeps only lots whose known auction end is after this
+	// instant: auction_end_time when present, otherwise sale_date. Lots with neither
+	// are excluded because their end cannot be determined.
+	EndingAfter *time.Time
+	// SortByEnding orders by that same effective end (auction_end_time, falling back
+	// to sale_date), honoring SortOrder, and overrides SortField.
+	SortByEnding bool
 }
 
 // AuctionLotUpsertResult describes whether an upsert inserted a new lot and calendar event,
@@ -117,6 +124,11 @@ func (r *AuctionLotRepository) List(userID uint, filters AuctionLotListFilters) 
 		like := "%" + filters.Search + "%"
 		query = query.Where("title LIKE ? OR description LIKE ? OR auction_house LIKE ?", like, like, like)
 	}
+	if filters.EndingAfter != nil {
+		query = query.Where("(auction_end_time IS NOT NULL AND auction_end_time > ?) OR "+
+			"(auction_end_time IS NULL AND sale_date IS NOT NULL AND sale_date > ?)",
+			*filters.EndingAfter, *filters.EndingAfter)
+	}
 
 	query.Count(&total)
 
@@ -145,11 +157,21 @@ func (r *AuctionLotRepository) List(userID uint, filters AuctionLotListFilters) 
 	}
 	offset := (page - 1) * limit
 
-	err := query.
-		Order(clause.OrderByColumn{
+	if filters.SortByEnding {
+		// Lots without any end sort last in both directions; id breaks ties so
+		// pagination is stable.
+		query = query.
+			Order("COALESCE(auction_end_time, sale_date) IS NULL").
+			Order("COALESCE(auction_end_time, sale_date) " + sortOrder). // sortOrder is "asc" or "desc" only
+			Order("id " + sortOrder)
+	} else {
+		query = query.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: sortField},
 			Desc:   sortOrder != "asc",
-		}).
+		})
+	}
+
+	err := query.
 		Limit(limit).
 		Offset(offset).
 		Find(&lots).Error
