@@ -65,11 +65,12 @@ type mcpStatsOutput struct {
 }
 
 type mcpAuctionListInput struct {
-	Status string `json:"status,omitempty" jsonschema:"Optional status: watching, bidding, won, lost, or passed"`
-	Source string `json:"source,omitempty" jsonschema:"Optional source: numisbids or cng"`
-	Search string `json:"search,omitempty" jsonschema:"Optional title, description, or auction house search"`
-	Page   int    `json:"page,omitempty" jsonschema:"Page number starting at 1"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"Page size from 1 through 50"`
+	Status   string `json:"status,omitempty" jsonschema:"Optional status: watching, bidding, won, lost, or passed"`
+	Source   string `json:"source,omitempty" jsonschema:"Optional source: numisbids or cng"`
+	Search   string `json:"search,omitempty" jsonschema:"Optional title, description, or auction house search"`
+	Page     int    `json:"page,omitempty" jsonschema:"Page number starting at 1"`
+	Limit    int    `json:"limit,omitempty" jsonschema:"Page size from 1 through 50"`
+	Upcoming bool   `json:"upcoming,omitempty" jsonschema:"When true, return only lots whose auction has not yet ended (judged by the server clock using auctionEndTime, else saleDate; lots with neither are excluded), sorted soonest-ending first"`
 }
 
 type mcpAuctionIDInput struct {
@@ -200,11 +201,11 @@ func (h *MCPHandler) newServer(userID uint, capabilities string) *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_auction_lots",
-		Description: "List auction lots owned by the authenticated user with bounded filters and pagination. Read-only.",
+		Description: "List auction lots owned by the authenticated user with bounded filters and pagination. Set upcoming=true to get only lots that have not yet ended, soonest first. Read-only.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input mcpAuctionListInput) (*mcp.CallToolResult, *services.MCPAuctionListResult, error) {
 		result, err := h.service.ListAuctionLots(userID, services.MCPAuctionListInput{
 			Status: input.Status, Source: input.Source, Search: input.Search,
-			Page: input.Page, Limit: input.Limit,
+			Page: input.Page, Limit: input.Limit, Upcoming: input.Upcoming,
 		})
 		return nil, result, h.safeToolError("list_auction_lots", err)
 	})

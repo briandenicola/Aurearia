@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Upcoming auctions over MCP** — `list_auction_lots` accepts `upcoming: true`
+  to return only lots whose auction has not yet ended (by `auctionEndTime`,
+  falling back to `saleDate`), sorted soonest-ending first. Questions like
+  "show me upcoming auctions I'm bidding on" now resolve in one call instead of
+  client-side date filtering across every page.
+
 - **Refined MCP coin viewer for large collections** — The coin viewer says
   "Showing 20 of 312 coins", pages through the rest with **Show more**, and
   can filter inside the panel without asking Claude again. Results above

@@ -266,6 +266,7 @@ func TestMCPRouteInvokesEveryToolAndPreservesOwnerBoundary(t *testing.T) {
 		{name: "collection_stats", arguments: map[string]any{}},
 		{name: "top_coins_by_value", arguments: map[string]any{"limit": 1}},
 		{name: "list_auction_lots", arguments: map[string]any{}},
+		{name: "list_auction_lots", arguments: map[string]any{"status": "bidding", "upcoming": true}},
 		{name: "get_auction_lot", arguments: map[string]any{"auctionLotId": fixture.ownerLotID}},
 		{name: "auction_counts", arguments: map[string]any{}},
 		{name: "get_coin_images", arguments: map[string]any{"coinIds": []uint{fixture.ownerCoinID}}},
