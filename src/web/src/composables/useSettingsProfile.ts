@@ -49,6 +49,7 @@ export function useSettingsProfile() {
   const cngUsername = ref(auth.user?.cngUsername || '')
   const cngPassword = ref('')
   const parcelAppAPIKey = ref('')
+  const paperlessUrl = ref(auth.user?.paperlessUrl || '')
   const pushoverKey = ref('')
   const pushoverTesting = ref(false)
   const pushoverTestMsg = ref('')
@@ -144,6 +145,7 @@ export function useSettingsProfile() {
         isPublic: profilePublic.value,
         numisBidsUsername: nbUsername.value,
         cngUsername: cngUsername.value,
+        paperlessUrl: paperlessUrl.value,
         coinOfDayEnabled: coinOfDayEnabled.value,
         coinOfDayIncludeWishlist: coinOfDayIncludeWishlist.value,
         emperorTrackerEnabled: emperorTrackerEnabled.value,
@@ -174,6 +176,8 @@ export function useSettingsProfile() {
         auth.user.cngUsername = res.data.cngUsername
         auth.user.cngConfigured = res.data.cngConfigured
         auth.user.parcelAppConfigured = res.data.parcelAppConfigured
+        auth.user.paperlessUrl = res.data.paperlessUrl
+        paperlessUrl.value = res.data.paperlessUrl ?? ''
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
         auth.user.coinOfDayIncludeWishlist = res.data.coinOfDayIncludeWishlist
@@ -277,6 +281,7 @@ export function useSettingsProfile() {
     cngUsername,
     cngPassword,
     parcelAppAPIKey,
+    paperlessUrl,
     pushoverKey,
     pushoverTesting,
     pushoverTestMsg,

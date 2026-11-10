@@ -5,8 +5,9 @@ import { computed } from 'vue'
 import type { Coin, CoinDetailMetadataRow } from '@/types'
 import { formatCurrency } from '@/utils/format'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
+import { resolveInvoiceLink } from '@/utils/paperless'
 
-export function useCoinDetailMetadataRows(coin: Coin | null) {
+export function useCoinDetailMetadataRows(coin: Coin | null, paperlessBaseUrl?: string | null) {
   const rows = computed<CoinDetailMetadataRow[]>(() => {
     if (!coin) return []
 
@@ -47,10 +48,13 @@ export function useCoinDetailMetadataRows(coin: Coin | null) {
     }
 
     if (coin.vendorInvoice) {
+      const invoiceLink = resolveInvoiceLink(coin.vendorInvoice, paperlessBaseUrl)
       result.push({
         key: 'vendorInvoice',
         label: 'Vendor Invoice',
-        value: coin.vendorInvoice,
+        value: invoiceLink?.label ?? coin.vendorInvoice,
+        url: invoiceLink?.url ?? null,
+        valueClass: invoiceLink ? 'gold' : undefined,
       })
     }
 
