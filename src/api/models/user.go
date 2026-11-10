@@ -25,6 +25,7 @@ type User struct {
 	CNGPassword                    string   `gorm:"type:text" json:"-"`
 	ParcelAppAPIKey                string   `gorm:"type:text" json:"-"`
 	PushoverUserKey                string   `gorm:"type:varchar(100)" json:"-"`
+	PaperlessURL                   string   `gorm:"column:paperless_url;type:varchar(500);not null;default:''" json:"-"`
 	PushoverEnabled                bool     `gorm:"default:false" json:"pushoverEnabled"`
 	CoinOfDayEnabled               bool     `gorm:"default:true" json:"coinOfDayEnabled"`
 	CoinOfDayIncludeWishlist       bool     `gorm:"not null;default:true" json:"coinOfDayIncludeWishlist"`

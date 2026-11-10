@@ -125,6 +125,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"cngUsername":                    user.CNGUsername,
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
+		"paperlessUrl":                   user.PaperlessURL,
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
 		"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,
@@ -260,6 +261,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		CNGUsername                    *string                 `json:"cngUsername"`
 		CNGPassword                    *string                 `json:"cngPassword"`
 		ParcelAppAPIKey                *string                 `json:"parcelAppAPIKey"`
+		PaperlessURL                   *string                 `json:"paperlessUrl"`
 		PushoverUserKey                *string                 `json:"pushoverUserKey"`
 		CoinOfDayEnabled               *bool                   `json:"coinOfDayEnabled"`
 		CoinOfDayIncludeWishlist       *bool                   `json:"coinOfDayIncludeWishlist"`
@@ -336,6 +338,14 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		}
 		updates["parcel_app_api_key"] = encrypted
 	}
+	if req.PaperlessURL != nil {
+		paperlessURL, err := normalizePaperlessURL(*req.PaperlessURL)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		updates["paperless_url"] = paperlessURL
+	}
 	if req.PushoverUserKey != nil {
 		key := strings.TrimSpace(*req.PushoverUserKey)
 		updates["pushover_user_key"] = key
@@ -408,6 +418,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"cngUsername":                    user.CNGUsername,
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
+		"paperlessUrl":                   user.PaperlessURL,
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
 		"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,

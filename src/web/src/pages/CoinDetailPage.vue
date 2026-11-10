@@ -172,6 +172,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
+import { useAuthStore } from '@/stores/auth'
 import SellModal from '@/components/SellModal.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
 import PurchaseReminderModal from '@/components/coin/PurchaseReminderModal.vue'
@@ -228,9 +229,10 @@ const obverseImage = computed(() => coin.value?.images?.find(i => i.imageType ==
 const reverseImage = computed(() => coin.value?.images?.find(i => i.imageType === 'reverse') ?? null)
 
 // T015: Metadata rows
+const authStore = useAuthStore()
 const metadataRows = computed(() => {
   if (!coin.value) return []
-  return useCoinDetailMetadataRows(coin.value).rows.value
+  return useCoinDetailMetadataRows(coin.value, authStore.user?.paperlessUrl).rows.value
 })
 const { refresh: refreshQuickAccess, forget: forgetQuickAccess } = useQuickAccess()
 

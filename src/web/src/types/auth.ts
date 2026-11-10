@@ -24,6 +24,8 @@ export interface User {
   cngUsername?: string
   cngConfigured?: boolean
   parcelAppConfigured?: boolean
+  /** Base URL of the user's paperless-ngx instance; empty when not configured. */
+  paperlessUrl?: string
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
   coinOfDayIncludeWishlist?: boolean
