@@ -82,6 +82,15 @@
       ParcelApp key connected
     </div>
 
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">Paperless-ngx</h3>
+    <p class="mb-3 text-sm text-text-muted">
+      Link each coin's Vendor Invoice to your paperless-ngx archive. Invoice numbers open a paperless search; a pasted paperless document URL opens that document directly.
+    </p>
+    <div class="form-group">
+      <label class="form-label">Paperless-ngx URL</label>
+      <input v-model="paperlessUrl" type="url" class="form-input" placeholder="https://paperless.example.com" autocomplete="off" />
+    </div>
+
     <h3 class="mb-3 mt-5 text-base text-text-secondary">Pushover Notifications</h3>
     <p class="mb-3 text-sm text-text-muted">
       Receive push notifications on your phone when wishlist items become unavailable or friends add new coins.
@@ -129,7 +138,7 @@ import { useSettingsProfile } from '@/composables/useSettingsProfile'
 
 const auth = useAuthStore()
 const {
-  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, pushoverKey,
+  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, paperlessUrl, pushoverKey,
   pushoverTesting, pushoverTestMsg, pushoverTestError, handleTestPushover,
   profileMsg, profileError, profileSaving,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile,
