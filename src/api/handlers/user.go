@@ -126,6 +126,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"paperlessUrl":                   user.PaperlessURL,
+		"paperlessTags":                  user.PaperlessTags,
 		"paperlessConfigured":            user.PaperlessURL != "" && user.PaperlessAPIToken != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
@@ -264,6 +265,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		ParcelAppAPIKey                *string                 `json:"parcelAppAPIKey"`
 		PaperlessURL                   *string                 `json:"paperlessUrl"`
 		PaperlessAPIToken              *string                 `json:"paperlessApiToken"`
+		PaperlessTags                  *string                 `json:"paperlessTags"`
 		PushoverUserKey                *string                 `json:"pushoverUserKey"`
 		CoinOfDayEnabled               *bool                   `json:"coinOfDayEnabled"`
 		CoinOfDayIncludeWishlist       *bool                   `json:"coinOfDayIncludeWishlist"`
@@ -361,6 +363,14 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		}
 		updates["paperless_api_token"] = encrypted
 	}
+	if req.PaperlessTags != nil {
+		tags, err := normalizePaperlessTags(*req.PaperlessTags)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		updates["paperless_tags"] = tags
+	}
 	if req.PushoverUserKey != nil {
 		key := strings.TrimSpace(*req.PushoverUserKey)
 		updates["pushover_user_key"] = key
@@ -434,6 +444,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"paperlessUrl":                   user.PaperlessURL,
+		"paperlessTags":                  user.PaperlessTags,
 		"paperlessConfigured":            user.PaperlessURL != "" && user.PaperlessAPIToken != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,

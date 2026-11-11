@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -156,7 +157,7 @@ func TestHTTPPaperlessClient_WorksWithPaperlessV3VersionRules(t *testing.T) {
 	if err := client.Ping(ctx, srv.URL, "tkn"); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
-	taskID, err := client.PostDocument(ctx, srv.URL, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", strings.NewReader("PDF"))
+	taskID, err := client.PostDocument(ctx, srv.URL, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", nil, strings.NewReader("PDF"))
 	if err != nil || taskID != "task-1" {
 		t.Fatalf("upload: %q %v", taskID, err)
 	}
@@ -216,5 +217,64 @@ func TestHTTPPaperlessClient_GetTaskReadsRealPaperless333Response(t *testing.T) 
 	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "9713b04a-fb87-451e-bd58-0831eaaad05e")
 	if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 4965 {
 		t.Fatalf("task: %+v %v", task, err)
+	}
+}
+
+func TestHTTPPaperlessClient_UploadSendsTagsAndLooksUpTagIDs(t *testing.T) {
+	var postedTags []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags/":
+			// Same paginated shape as the owner's /api/tasks/ and /api/documents/.
+			name := r.URL.Query().Get("name__iexact")
+			tags := map[string]int{"coins": 3, "brian": 8, "shopping": 12}
+			if id, ok := tags[strings.ToLower(name)]; ok {
+				_, _ = fmt.Fprintf(w, `{"count":1,"next":null,"previous":null,"results":[{"id":%d,"name":%q}]}`, id, strings.ToLower(name))
+				return
+			}
+			_, _ = w.Write([]byte(`{"count":0,"next":null,"previous":null,"results":[]}`))
+		case "/api/documents/post_document/":
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			postedTags = r.MultipartForm.Value["tags"]
+			_, _ = w.Write([]byte(`"task-1"`))
+		}
+	}))
+	defer srv.Close()
+	client := &HTTPPaperlessClient{client: srv.Client()}
+	ctx := context.Background()
+
+	ids, err := client.TagIDs(ctx, srv.URL, "tkn", []string{"coins", "Brian", "shopping"})
+	if err != nil || fmt.Sprint(ids) != "[3 8 12]" {
+		t.Fatalf("tag ids: %v %v", ids, err)
+	}
+	if _, err := client.TagIDs(ctx, srv.URL, "tkn", []string{"missing"}); !errors.Is(err, ErrPaperlessTagNotFound) {
+		t.Fatalf("expected missing tag error, got %v", err)
+	}
+	if _, err := client.PostDocument(ctx, srv.URL, "tkn", "t", "inv.pdf", "application/pdf", ids, strings.NewReader("PDF")); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if fmt.Sprint(postedTags) != "[3 8 12]" {
+		t.Fatalf("expected one tags field per id, got %v", postedTags)
+	}
+}
+
+// Recorded from the owner's paperless-ngx 3.3.3: GET /api/tags/?name__iexact=coins
+const paperlessV10TagLookupResponse = `{"count":1,"next":null,"previous":null,"results":[{"id":82,"slug":"coins","name":"coins","color":"#ae8fe3","text_color":"#000000","match":"","matching_algorithm":6,"is_insensitive":true,"is_inbox_tag":false,"document_count":0,"owner":4,"user_can_change":true,"parent":null,"children":[]}],"display_count":1}`
+
+func TestHTTPPaperlessClient_TagIDsReadsRealPaperless333Response(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags/" || r.URL.Query().Get("name__iexact") != "coins" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(paperlessV10TagLookupResponse))
+	}))
+	defer srv.Close()
+	ids, err := (&HTTPPaperlessClient{client: srv.Client()}).TagIDs(context.Background(), srv.URL, "tkn", []string{"coins"})
+	if err != nil || fmt.Sprint(ids) != "[82]" {
+		t.Fatalf("tag ids: %v %v", ids, err)
 	}
 }

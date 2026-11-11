@@ -137,6 +137,22 @@ func (s *PaperlessInvoiceService) TestConnection(ctx context.Context, userID uin
 	return s.client.Ping(ctx, baseURL, token)
 }
 
+// SplitPaperlessTags splits the comma-separated tag setting into trimmed,
+// non-empty, de-duplicated names.
+func SplitPaperlessTags(raw string) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		name := strings.TrimSpace(part)
+		if name == "" || seen[strings.ToLower(name)] {
+			continue
+		}
+		seen[strings.ToLower(name)] = true
+		names = append(names, name)
+	}
+	return names
+}
+
 func invoiceDocumentTitle(coin *models.Coin) string {
 	title := strings.TrimSpace(coin.Name)
 	if invoice := strings.TrimSpace(coin.VendorInvoice); invoice != "" {
@@ -163,7 +179,19 @@ func (s *PaperlessInvoiceService) UploadInvoice(ctx context.Context, userID, coi
 	if err != nil {
 		return nil, err
 	}
-	taskID, err := s.client.PostDocument(ctx, baseURL, token, invoiceDocumentTitle(coin), filename, contentType, body)
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	var tagIDs []int
+	if names := SplitPaperlessTags(user.PaperlessTags); len(names) > 0 {
+		tagIDs, err = s.client.TagIDs(ctx, baseURL, token, names)
+		if err != nil {
+			s.logWarn("coin %d: tag lookup failed, upload not sent: %s", coinID, DescribePaperlessError(err))
+			return nil, err
+		}
+	}
+	taskID, err := s.client.PostDocument(ctx, baseURL, token, invoiceDocumentTitle(coin), filename, contentType, tagIDs, body)
 	if err != nil {
 		return nil, err
 	}

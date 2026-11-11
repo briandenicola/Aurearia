@@ -11,7 +11,7 @@ vi.mock('@/api/client', () => ({ testPaperlessConnection: () => mockTestPaperles
 vi.mock('@/composables/useSettingsProfile', () => ({
   useSettingsProfile: () => ({
     nbUsername: ref(''), nbPassword: ref(''), cngUsername: ref(''), cngPassword: ref(''),
-    parcelAppAPIKey: ref(''), paperlessUrl: ref('http://paperless-ngx:8000'), paperlessApiToken: ref(''),
+    parcelAppAPIKey: ref(''), paperlessUrl: ref('http://paperless-ngx:8000'), paperlessApiToken: ref(''), paperlessTags: ref('coins, shopping'),
     pushoverKey: ref(''), pushoverTesting: ref(false), pushoverTestMsg: ref(''), pushoverTestError: ref(false),
     handleTestPushover: vi.fn(), profileMsg: ref(''), profileError: ref(false), profileSaving: ref(false),
     nbValidating: ref(false), nbValidationError: ref(''), cngValidating: ref(false), cngValidationError: ref(''),
@@ -50,6 +50,11 @@ describe('SettingsConnectionsSection paperless-ngx test', () => {
     const result = wrapper.get('[data-testid="paperless-test-result"]')
     expect(result.text()).toBe(cause)
     expect(result.classes()).toContain('text-loss')
+  })
+
+  it('shows the saved paperless tags', () => {
+    const wrapper = mount(SettingsConnectionsSection)
+    expect((wrapper.get('[data-testid="paperless-tags"]').element as HTMLInputElement).value).toBe('coins, shopping')
   })
 
   it('hides the test button until a URL and token are saved', () => {

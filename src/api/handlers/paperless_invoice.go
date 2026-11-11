@@ -47,6 +47,8 @@ func (h *PaperlessInvoiceHandler) respondServiceError(c *gin.Context, err error)
 		h.fail(c, http.StatusBadGateway, err.Error(), err)
 	case errors.Is(err, services.ErrPaperlessNotConfigured):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, services.ErrPaperlessTagNotFound):
+		h.fail(c, http.StatusBadRequest, services.DescribePaperlessError(err), err)
 	case errors.Is(err, services.ErrPaperlessTaskFailed):
 		h.fail(c, http.StatusBadGateway, err.Error(), err)
 	case errors.Is(err, services.ErrOutboundTargetBlocked):

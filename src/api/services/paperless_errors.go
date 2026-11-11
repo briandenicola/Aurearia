@@ -32,6 +32,8 @@ func DescribePaperlessError(err error) string {
 	switch {
 	case errors.Is(err, ErrPaperlessNotConfigured):
 		return err.Error()
+	case errors.Is(err, ErrPaperlessTagNotFound):
+		return err.Error() + ". Check the tag names in Settings → Connections."
 	case errors.Is(err, ErrOutboundTargetBlocked):
 		return "The paperless-ngx URL points at a blocked address (localhost or link-local). Use the host's LAN name or IP."
 	case errors.As(err, &paperless):

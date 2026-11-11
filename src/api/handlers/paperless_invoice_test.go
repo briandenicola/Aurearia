@@ -24,7 +24,11 @@ type stubPaperlessClient struct {
 	pingErr     error
 }
 
-func (s *stubPaperlessClient) PostDocument(context.Context, string, string, string, string, string, io.Reader) (string, error) {
+func (s *stubPaperlessClient) TagIDs(context.Context, string, string, []string) ([]int, error) {
+	return nil, nil
+}
+
+func (s *stubPaperlessClient) PostDocument(context.Context, string, string, string, string, string, []int, io.Reader) (string, error) {
 	return "", errors.New("not used")
 }
 

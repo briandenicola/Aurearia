@@ -27,6 +27,7 @@ type User struct {
 	PushoverUserKey                string   `gorm:"type:varchar(100)" json:"-"`
 	PaperlessURL                   string   `gorm:"column:paperless_url;type:varchar(500);not null;default:''" json:"-"`
 	PaperlessAPIToken              string   `gorm:"column:paperless_api_token;type:text" json:"-"`
+	PaperlessTags                  string   `gorm:"column:paperless_tags;type:varchar(500);not null;default:''" json:"-"`
 	PushoverEnabled                bool     `gorm:"default:false" json:"pushoverEnabled"`
 	CoinOfDayEnabled               bool     `gorm:"default:true" json:"coinOfDayEnabled"`
 	CoinOfDayIncludeWishlist       bool     `gorm:"not null;default:true" json:"coinOfDayIncludeWishlist"`

@@ -26,6 +26,8 @@ export interface User {
   parcelAppConfigured?: boolean
   /** Base URL of the user's paperless-ngx instance; empty when not configured. */
   paperlessUrl?: string
+  /** Comma-separated paperless-ngx tag names added to every invoice upload. */
+  paperlessTags?: string
   /** True when both the paperless-ngx URL and API token are saved. */
   paperlessConfigured?: boolean
   pushoverEnabled?: boolean
@@ -164,6 +166,7 @@ export interface UserInfo {
   cngConfigured?: boolean
   parcelAppConfigured?: boolean
   paperlessUrl?: string
+  paperlessTags?: string
   paperlessConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean

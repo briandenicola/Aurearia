@@ -96,6 +96,11 @@
       <input v-model="paperlessApiToken" type="password" class="form-input" placeholder="Token from paperless-ngx → My Profile" autocomplete="new-password" />
       <span class="mt-1 block text-chip text-text-muted">Needed for uploads. Encrypted at rest and only used for your invoices.</span>
     </div>
+    <div class="form-group">
+      <label class="form-label">Paperless-ngx Tags</label>
+      <input v-model="paperlessTags" type="text" class="form-input" placeholder="e.g. coins, shopping" autocomplete="off" data-testid="paperless-tags" />
+      <span class="mt-1 block text-chip text-text-muted">Comma-separated. Added to every invoice you upload. The tags must already exist in paperless-ngx.</span>
+    </div>
     <div v-if="auth.user?.paperlessConfigured" class="mt-1 flex flex-wrap items-center gap-2">
       <span class="text-chip text-text-muted">URL and token saved.</span>
       <button
@@ -167,7 +172,7 @@ import { testPaperlessConnection } from '@/api/client'
 
 const auth = useAuthStore()
 const {
-  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, paperlessUrl, paperlessApiToken, pushoverKey,
+  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, paperlessUrl, paperlessApiToken, paperlessTags, pushoverKey,
   pushoverTesting, pushoverTestMsg, pushoverTestError, handleTestPushover,
   profileMsg, profileError, profileSaving,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile,
