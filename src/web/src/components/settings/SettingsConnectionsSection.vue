@@ -84,7 +84,7 @@
 
     <h3 class="mb-3 mt-5 text-base text-text-secondary">Paperless-ngx</h3>
     <p class="mb-3 text-sm text-text-muted">
-      Link each coin's Vendor Invoice to your paperless-ngx archive, and upload invoices from the coin's edit page. Without an API token, invoice numbers still open a paperless search.
+      Link each coin's Vendor Invoice to your paperless-ngx archive, and upload invoices from the coin's detail or edit page. Without an API token, invoice numbers still open a paperless search.
     </p>
     <div class="form-group">
       <label class="form-label">Paperless-ngx URL</label>

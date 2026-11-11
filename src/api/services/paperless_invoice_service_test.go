@@ -7,8 +7,10 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -216,3 +218,39 @@ func TestParsePaperlessDocumentID(t *testing.T) {
 }
 
 func intPtr(v int) *int { return &v }
+
+func TestIsDisallowedPaperlessIP(t *testing.T) {
+	allowed := []string{"192.168.1.20", "10.0.0.5", "172.18.0.4", "100.101.102.103", "203.0.113.9", "fd00::10", "2001:db8::1"}
+	blocked := []string{"127.0.0.1", "::1", "169.254.169.254", "fe80::1", "0.0.0.0", "224.0.0.1", "255.255.255.255", "198.18.0.1", "::"}
+	for _, raw := range allowed {
+		if IsDisallowedPaperlessIP(net.ParseIP(raw)) {
+			t.Errorf("%s should be allowed for paperless-ngx", raw)
+		}
+	}
+	for _, raw := range blocked {
+		if !IsDisallowedPaperlessIP(net.ParseIP(raw)) {
+			t.Errorf("%s should be blocked for paperless-ngx", raw)
+		}
+	}
+}
+
+type staticPaperlessResolver map[string][]netip.Addr
+
+func (r staticPaperlessResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.Addr, error) {
+	if addrs, ok := r[host]; ok {
+		return addrs, nil
+	}
+	return nil, fmt.Errorf("no such host %s", host)
+}
+
+func TestPaperlessDialContext_BlocksMetadataAndLoopbackHostnames(t *testing.T) {
+	dial := paperlessDialContext(staticPaperlessResolver{
+		"metadata.internal": {netip.MustParseAddr("169.254.169.254")},
+		"sneaky.local":      {netip.MustParseAddr("127.0.0.1")},
+	})
+	for _, host := range []string{"metadata.internal:80", "sneaky.local:8000", "127.0.0.1:8000", "[::1]:8000"} {
+		if _, err := dial(context.Background(), "tcp", host); !errors.Is(err, ErrOutboundTargetBlocked) {
+			t.Errorf("dial %s: expected blocked, got %v", host, err)
+		}
+	}
+}

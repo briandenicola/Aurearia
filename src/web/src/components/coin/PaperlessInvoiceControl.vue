@@ -1,5 +1,5 @@
 <template>
-  <div class="mt-2 flex flex-wrap items-center gap-2" data-testid="paperless-invoice-control">
+  <div v-if="hasContent" class="mt-2 flex flex-wrap items-center gap-2" data-testid="paperless-invoice-control">
     <SafeExternalLink
       v-if="invoiceLink && !hideLink"
       :href="invoiceLink.url"
@@ -10,9 +10,8 @@
       Open in Paperless
     </SafeExternalLink>
 
-    <template v-if="coinId">
+    <template v-if="coinId && paperlessConfigured">
       <button
-        v-if="paperlessConfigured"
         type="button"
         class="btn btn-secondary btn-sm inline-flex min-h-9 items-center gap-1"
         :disabled="busy"
@@ -30,15 +29,7 @@
         data-testid="paperless-invoice-file"
         @change="onFileSelected"
       />
-      <router-link
-        v-if="!paperlessConfigured"
-        to="/settings"
-        class="text-chip text-text-muted underline"
-      >
-        Connect paperless-ngx to upload invoices
-      </router-link>
     </template>
-    <span v-else-if="paperlessConfigured" class="text-chip text-text-muted">Save the coin to upload an invoice to Paperless.</span>
 
     <p v-if="message" class="m-0 w-full text-chip" :class="error ? 'text-loss' : 'text-text-muted'" role="status">{{ message }}</p>
   </div>
@@ -78,6 +69,9 @@ const paperlessConfigured = computed(() => Boolean(auth.user?.paperlessConfigure
 const invoiceLink = computed(() =>
   resolveInvoiceLink(props.invoice, auth.user?.paperlessUrl, linkedDocumentId.value ?? props.documentId),
 )
+// Render nothing at all unless there is a link to show or paperless is fully
+// connected (URL + token) — no "not set up" prompts.
+const hasContent = computed(() => Boolean((invoiceLink.value && !props.hideLink) || (paperlessConfigured.value && props.coinId)))
 
 onBeforeUnmount(() => {
   cancelled = true

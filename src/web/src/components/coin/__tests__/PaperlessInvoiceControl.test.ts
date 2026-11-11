@@ -82,18 +82,25 @@ describe('PaperlessInvoiceControl', () => {
     expect(wrapper.text()).toContain('paperless-ngx rejected the API token')
   })
 
-  it('points to Settings instead of uploading when paperless is not connected', () => {
+  it('renders nothing when paperless is not set up at all', () => {
+    authUser.paperlessUrl = ''
+    authUser.paperlessConfigured = false
+    const wrapper = mountControl({ coinId: 5, invoice: 'INV-1' })
+    expect(wrapper.find('[data-testid="paperless-invoice-control"]').exists()).toBe(false)
+    expect(wrapper.text()).toBe('')
+  })
+
+  it('shows only the search link, no upload or prompt, when only the URL is saved', () => {
     authUser.paperlessConfigured = false
     const wrapper = mountControl({ coinId: 5, invoice: 'INV-1' })
     expect(wrapper.find('[data-testid="paperless-invoice-upload"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Connect paperless-ngx to upload invoices')
-    // Search link still works with just the URL.
+    expect(wrapper.text()).not.toMatch(/connect|settings/i)
     expect(wrapper.get('[data-testid="paperless-invoice-link"]').attributes('href')).toBe('https://paperless.local/documents?query=INV-1')
   })
 
-  it('asks to save first on a new coin', () => {
+  it('renders nothing on an unsaved coin without an invoice link', () => {
     const wrapper = mountControl({ invoice: '' })
-    expect(wrapper.text()).toContain('Save the coin to upload an invoice to Paperless.')
+    expect(wrapper.find('[data-testid="paperless-invoice-control"]').exists()).toBe(false)
   })
 })
 
