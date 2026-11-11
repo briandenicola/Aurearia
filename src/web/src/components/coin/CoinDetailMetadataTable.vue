@@ -32,6 +32,18 @@
         </SafeExternalLink>
       </template>
 
+      <!-- In-app action (e.g. open the invoice viewer) -->
+      <button
+        v-else-if="row.activatable"
+        type="button"
+        class="row-value gold inline-flex items-center justify-end gap-1.5 border-0 bg-transparent p-0 transition-colors hover:text-bronze"
+        :data-testid="`metadata-action-${row.key}`"
+        @click="emit('activate', row.key)"
+      >
+        {{ row.value }}
+        <FileText :size="16" class="flex-none" aria-hidden="true" />
+      </button>
+
       <!-- Standard rows -->
       <template v-else>
         <span
@@ -57,6 +69,7 @@
 
 <script setup lang="ts">
 import type { CoinDetailMetadataRow } from '@/types'
+import { FileText } from 'lucide-vue-next'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 defineProps<{
@@ -65,5 +78,6 @@ defineProps<{
 
 const emit = defineEmits<{
   edit: [key: string]
+  activate: [key: string]
 }>()
 </script>

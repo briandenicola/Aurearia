@@ -1,62 +1,29 @@
 import { describe, it, expect } from 'vitest'
-import { resolveInvoiceLink } from '@/utils/paperless'
+import { externalInvoiceUrl, paperlessDocumentUrl } from '@/utils/paperless'
 
-describe('resolveInvoiceLink', () => {
-  it('returns null for an empty invoice', () => {
-    expect(resolveInvoiceLink('', 'https://paperless.local')).toBeNull()
-    expect(resolveInvoiceLink(undefined, 'https://paperless.local')).toBeNull()
+describe('paperlessDocumentUrl', () => {
+  it('builds the document details URL from the configured base', () => {
+    expect(paperlessDocumentUrl('https://paperless.local/', 42)).toBe('https://paperless.local/documents/42/details')
+    expect(paperlessDocumentUrl('http://10.0.0.5:8000/paperless', 7)).toBe('http://10.0.0.5:8000/paperless/documents/7/details')
   })
 
-  it('returns null when no paperless URL is configured and the invoice is plain text', () => {
-    expect(resolveInvoiceLink('INV-2026-0421', '')).toBeNull()
-  })
-
-  it('builds a paperless search link for a plain invoice number', () => {
-    expect(resolveInvoiceLink('INV 2026/0421', 'https://paperless.local/')).toEqual({
-      url: 'https://paperless.local/documents?query=INV%202026%2F0421',
-      label: 'INV 2026/0421',
-    })
-  })
-
-  it('keeps a subpath on the configured base URL', () => {
-    expect(resolveInvoiceLink('411', 'http://10.0.0.5:8000/paperless')?.url).toBe(
-      'http://10.0.0.5:8000/paperless/documents?query=411',
-    )
-  })
-
-  it('links directly to a pasted paperless document URL', () => {
-    expect(resolveInvoiceLink('https://paperless.local/documents/123/details', '')).toEqual({
-      url: 'https://paperless.local/documents/123/details',
-      label: 'Document #123',
-    })
-  })
-
-  it('links directly to other http(s) URLs with a generic label', () => {
-    expect(resolveInvoiceLink('https://vendor.example.com/inv.pdf', '')?.label).toBe('View invoice')
-  })
-
-  it('rejects non-http configured base URLs', () => {
-    expect(resolveInvoiceLink('INV-1', 'javascript:alert(1)')).toBeNull()
+  it('returns null without a usable base or document', () => {
+    expect(paperlessDocumentUrl('', 42)).toBeNull()
+    expect(paperlessDocumentUrl('javascript:alert(1)', 42)).toBeNull()
+    expect(paperlessDocumentUrl('https://paperless.local', null)).toBeNull()
+    expect(paperlessDocumentUrl('https://paperless.local', 0)).toBeNull()
   })
 })
 
-describe('resolveInvoiceLink with an uploaded paperless document', () => {
-  it('prefers the linked document over a search', () => {
-    expect(resolveInvoiceLink('INV-1', 'https://paperless.local/', 42)).toEqual({
-      url: 'https://paperless.local/documents/42/details',
-      label: 'INV-1',
-    })
+describe('externalInvoiceUrl', () => {
+  it('returns a pasted http(s) URL', () => {
+    expect(externalInvoiceUrl(' https://paperless.local/documents/3/details ')).toBe('https://paperless.local/documents/3/details')
   })
 
-  it('links the document even when the invoice field is empty', () => {
-    expect(resolveInvoiceLink('', 'https://paperless.local', 42)).toEqual({
-      url: 'https://paperless.local/documents/42/details',
-      label: 'Document #42',
-    })
-  })
-
-  it('falls back when no paperless URL is configured', () => {
-    expect(resolveInvoiceLink('INV-1', '', 42)).toBeNull()
-    expect(resolveInvoiceLink('', '', 42)).toBeNull()
+  it('never turns a plain invoice number into a link', () => {
+    expect(externalInvoiceUrl('INV-2026-0421')).toBeNull()
+    expect(externalInvoiceUrl('487323')).toBeNull()
+    expect(externalInvoiceUrl('')).toBeNull()
+    expect(externalInvoiceUrl('javascript:alert(1)')).toBeNull()
   })
 })

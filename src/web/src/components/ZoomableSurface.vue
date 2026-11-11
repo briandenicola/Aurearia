@@ -1,6 +1,6 @@
 <template>
-  <div class="zoomable-surface">
-    <div v-if="interactive" class="zoomable-toolbar" aria-label="Chart zoom controls">
+  <div class="zoomable-surface" :class="{ 'is-bare': bare }">
+    <div v-if="interactive && !bare" class="zoomable-toolbar" aria-label="Chart zoom controls">
       <span class="zoomable-status" aria-live="polite">{{ Math.round(scale * 100) }}%</span>
       <button
         type="button"
@@ -43,7 +43,7 @@
       @lostpointercapture="handlePointerCancel"
       @keydown="handleKeydown"
     >
-      <div class="zoomable-content" :style="contentStyle">
+      <div ref="contentRef" class="zoomable-content" :style="contentStyle">
         <slot />
       </div>
     </div>
@@ -60,7 +60,9 @@ interface Point {
 }
 
 interface ChartWheelEvent extends Event {
+  deltaX: number
   deltaY: number
+  ctrlKey: boolean
   clientX: number
   clientY: number
 }
@@ -72,15 +74,25 @@ const props = withDefaults(defineProps<{
   scaleStep?: number
   keyboardPanStep?: number
   interactive?: boolean
+  /** Document-viewer variant: no zoom toolbar, no frame; fills its container. */
+  bare?: boolean
+  /** Wheel/trackpad scrolling pans the content; pinch (ctrl+wheel) still zooms. */
+  wheelPans?: boolean
+  /** Keep the content from being panned past its edges. */
+  boundPan?: boolean
 }>(), {
   minScale: 0.75,
   maxScale: 3,
   scaleStep: 0.2,
   keyboardPanStep: 24,
   interactive: true,
+  bare: false,
+  wheelPans: false,
+  boundPan: false,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
+const contentRef = ref<HTMLElement | null>(null)
 const scale = ref(1)
 const pan = ref<Point>({ x: 0, y: 0 })
 const isPanning = ref(false)
@@ -96,6 +108,23 @@ const contentStyle = computed(() => ({
 
 function clamp(value: number): number {
   return Math.min(props.maxScale, Math.max(props.minScale, value))
+}
+
+function boundedPan(next: Point): Point {
+  if (!props.boundPan) return next
+  const viewport = viewportRef.value
+  const content = contentRef.value
+  if (!viewport || !content) return next
+  const minX = Math.min(0, viewport.clientWidth - content.offsetWidth * scale.value)
+  const minY = Math.min(0, viewport.clientHeight - content.offsetHeight * scale.value)
+  return {
+    x: Math.min(0, Math.max(minX, next.x)),
+    y: Math.min(0, Math.max(minY, next.y)),
+  }
+}
+
+function setPan(next: Point) {
+  pan.value = boundedPan(next)
 }
 
 function viewportCenter(): Point {
@@ -115,10 +144,10 @@ function zoomAt(nextScale: number, clientPoint: Point) {
     y: (local.y - pan.value.y) / scale.value,
   }
   scale.value = clamped
-  pan.value = {
+  setPan({
     x: local.x - contentPoint.x * clamped,
     y: local.y - contentPoint.y * clamped,
-  }
+  })
 }
 
 function zoomIn() {
@@ -144,6 +173,10 @@ function handleWheel(event: Event) {
   if (!interactive.value) return
   const wheelEvent = event as ChartWheelEvent
   wheelEvent.preventDefault()
+  if (props.wheelPans && !wheelEvent.ctrlKey) {
+    setPan({ x: pan.value.x - (wheelEvent.deltaX || 0), y: pan.value.y - wheelEvent.deltaY })
+    return
+  }
   const direction = wheelEvent.deltaY < 0 ? 1 : -1
   zoomAt(scale.value + direction * props.scaleStep, { x: wheelEvent.clientX, y: wheelEvent.clientY })
 }
@@ -188,7 +221,7 @@ function handlePointerMove(event: PointerEvent) {
   if (Math.abs(dx) + Math.abs(dy) > 1) {
     event.preventDefault()
     isPanning.value = true
-    pan.value = { x: pan.value.x + dx, y: pan.value.y + dy }
+    setPan({ x: pan.value.x + dx, y: pan.value.y + dy })
   }
   lastPointer.value = current
 }
@@ -241,7 +274,7 @@ function handleKeydown(event: KeyboardEvent) {
   const delta = deltas[event.key]
   if (!delta) return
   event.preventDefault()
-  pan.value = { x: pan.value.x + delta.x, y: pan.value.y + delta.y }
+  setPan({ x: pan.value.x + delta.x, y: pan.value.y + delta.y })
 }
 
 function activePointerPair(): Point[] {
@@ -310,6 +343,19 @@ function centerOfActivePointers(): Point {
 .zoomable-viewport.is-panning {
   cursor: grabbing;
   user-select: none;
+}
+
+.zoomable-surface.is-bare {
+  height: 100%;
+  gap: 0;
+}
+
+.zoomable-surface.is-bare .zoomable-viewport {
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .zoomable-content {

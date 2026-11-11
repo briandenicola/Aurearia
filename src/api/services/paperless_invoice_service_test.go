@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,6 +26,9 @@ import (
 var paperlessServiceDBCounter atomic.Uint64
 
 type fakePaperlessClient struct {
+	mu         sync.Mutex
+	files      map[PaperlessFileKind]*PaperlessFile
+	fileDocID  int
 	postErr    error
 	postTitle  string
 	tasks      []*PaperlessTask
@@ -45,7 +49,28 @@ func (f *fakePaperlessClient) PostDocument(_ context.Context, _, token, title, _
 	return "task-123", nil
 }
 
+func (f *fakePaperlessClient) GetDocumentFile(_ context.Context, _, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error) {
+	if token != "secret-token" {
+		return nil, fmt.Errorf("unexpected token %q", token)
+	}
+	f.fileDocID = documentID
+	file, ok := f.files[kind]
+	if !ok {
+		return nil, &PaperlessError{Operation: string(kind), StatusCode: http.StatusNotFound}
+	}
+	return file, nil
+}
+
+func (f *fakePaperlessClient) setTasks(tasks ...*PaperlessTask) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tasks = tasks
+	f.taskCalls = 0
+}
+
 func (f *fakePaperlessClient) GetTask(_ context.Context, _, _, taskID string) (*PaperlessTask, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if taskID != "task-123" {
 		return nil, fmt.Errorf("unexpected task %q", taskID)
 	}
@@ -82,7 +107,8 @@ func setupPaperlessInvoiceService(t *testing.T, client PaperlessClient, configur
 		t.Fatalf("create coin: %v", err)
 	}
 	svc := NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client).
-		WithPolling(time.Millisecond, 50*time.Millisecond)
+		WithPolling(time.Millisecond, 50*time.Millisecond).
+		WithBackgroundPolling(time.Hour, time.Millisecond)
 	return svc, db, user, coin
 }
 
@@ -131,8 +157,7 @@ func TestPaperlessInvoiceService_UploadReturnsPendingThenResolves(t *testing.T) 
 	}
 
 	docID := 7
-	client.tasks = []*PaperlessTask{{Status: PaperlessTaskSuccess, DocumentID: &docID}}
-	client.taskCalls = 0
+	client.setTasks(&PaperlessTask{Status: PaperlessTaskSuccess, DocumentID: &docID})
 	resolved, err := svc.ResolveTask(context.Background(), user.ID, coin.ID, "task-123")
 	if err != nil || resolved.Status != "linked" {
 		t.Fatalf("resolve: %+v %v", resolved, err)
@@ -182,6 +207,9 @@ func TestHTTPPaperlessClient_PostDocumentAndGetTask(t *testing.T) {
 				return
 			}
 			_, _ = w.Write([]byte(`"abc-123"`))
+		case r.Method == http.MethodGet && r.URL.Path == "/paperless/api/documents/55/preview/":
+			w.Header().Set("Content-Type", "application/pdf")
+			_, _ = w.Write([]byte("%PDF-1.7"))
 		case r.Method == http.MethodGet && r.URL.Path == "/paperless/api/tasks/" && r.URL.Query().Get("task_id") == "abc-123":
 			_, _ = w.Write([]byte(`[{"status":"SUCCESS","related_document":"55","result":"ok"}]`))
 		default:
@@ -199,6 +227,18 @@ func TestHTTPPaperlessClient_PostDocumentAndGetTask(t *testing.T) {
 	task, err := client.GetTask(context.Background(), base, "tkn", taskID)
 	if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 55 {
 		t.Fatalf("task: %+v %v", task, err)
+	}
+	file, err := client.GetDocumentFile(context.Background(), base, "tkn", 55, PaperlessFilePreview)
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	previewBody, _ := io.ReadAll(file.Body)
+	file.Body.Close()
+	if file.ContentType != "application/pdf" || string(previewBody) != "%PDF-1.7" {
+		t.Fatalf("preview: %q %q", file.ContentType, previewBody)
+	}
+	if _, err := client.GetDocumentFile(context.Background(), base, "tkn", 0, PaperlessFilePreview); err == nil {
+		t.Fatal("document id 0 must be rejected")
 	}
 	_, err = client.PostDocument(context.Background(), base, "wrong", "", "inv.pdf", "", strings.NewReader("x"))
 	var pErr *PaperlessError
@@ -252,5 +292,103 @@ func TestPaperlessDialContext_BlocksMetadataAndLoopbackHostnames(t *testing.T) {
 		if _, err := dial(context.Background(), "tcp", host); !errors.Is(err, ErrOutboundTargetBlocked) {
 			t.Errorf("dial %s: expected blocked, got %v", host, err)
 		}
+	}
+}
+
+func storedTaskID(t *testing.T, db *gorm.DB, coinID uint) string {
+	t.Helper()
+	var coin models.Coin
+	if err := db.First(&coin, coinID).Error; err != nil {
+		t.Fatalf("reload coin: %v", err)
+	}
+	return coin.PaperlessTaskID
+}
+
+func TestPaperlessInvoiceService_BackgroundLinksAfterRequestReturns(t *testing.T) {
+	client := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskStarted}}}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+	svc.WithBackgroundPolling(5*time.Millisecond, 5*time.Second)
+
+	result, err := svc.UploadInvoice(context.Background(), user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("x"))
+	if err != nil || result.Status != "pending" {
+		t.Fatalf("expected pending upload, got %+v %v", result, err)
+	}
+	if got := storedTaskID(t, db, coin.ID); got != "task-123" {
+		t.Fatalf("pending task id not stored on coin, got %q", got)
+	}
+
+	docID := 91
+	client.setTasks(&PaperlessTask{Status: PaperlessTaskSuccess, DocumentID: &docID})
+	deadline := time.Now().Add(3 * time.Second)
+	for storedDocumentID(t, db, coin.ID) == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := storedDocumentID(t, db, coin.ID); got == nil || *got != 91 {
+		t.Fatalf("background follow-up did not link the document, got %v", got)
+	}
+	if got := storedTaskID(t, db, coin.ID); got != "" {
+		t.Fatalf("task id should be cleared once linked, got %q", got)
+	}
+}
+
+func TestPaperlessInvoiceService_ResolveIgnoresStaleTask(t *testing.T) {
+	client := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskStarted}}}
+	svc, _, user, coin := setupPaperlessInvoiceService(t, client, true)
+	if _, err := svc.ResolveTask(context.Background(), user.ID, coin.ID, "task-123"); !errors.Is(err, ErrPaperlessTaskFailed) {
+		t.Fatalf("a task the coin is not waiting on must not be resolved, got %v", err)
+	}
+}
+
+func TestPaperlessInvoiceService_OpenDocumentOnlyServesLinkedDocument(t *testing.T) {
+	client := &fakePaperlessClient{files: map[PaperlessFileKind]*PaperlessFile{
+		PaperlessFilePreview:   {Body: io.NopCloser(strings.NewReader("%PDF")), ContentType: "application/pdf", ContentLength: 4},
+		PaperlessFileThumbnail: {Body: io.NopCloser(strings.NewReader("png")), ContentType: "image/webp", ContentLength: 3},
+	}}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+
+	if _, err := svc.OpenDocument(context.Background(), user.ID, coin.ID, PaperlessFilePreview); !errors.Is(err, ErrPaperlessNoDocument) {
+		t.Fatalf("expected no document, got %v", err)
+	}
+	if err := db.Model(&models.Coin{}).Where("id = ?", coin.ID).Update("paperless_document_id", 55).Error; err != nil {
+		t.Fatal(err)
+	}
+	file, err := svc.OpenDocument(context.Background(), user.ID, coin.ID, PaperlessFilePreview)
+	if err != nil {
+		t.Fatalf("open preview: %v", err)
+	}
+	body, _ := io.ReadAll(file.Body)
+	if file.ContentType != "application/pdf" || string(body) != "%PDF" || client.fileDocID != 55 {
+		t.Fatalf("unexpected preview %q %q doc=%d", file.ContentType, body, client.fileDocID)
+	}
+	if _, err := svc.OpenDocument(context.Background(), user.ID+99, coin.ID, PaperlessFilePreview); !errors.Is(err, ErrPaperlessCoinNotFound) {
+		t.Fatalf("another user's coin must not be readable, got %v", err)
+	}
+}
+
+func TestPaperlessInvoiceService_OpenDocumentRejectsUndisplayableTypes(t *testing.T) {
+	for _, ct := range []string{"text/html; charset=utf-8", "image/svg+xml", "application/octet-stream", ""} {
+		client := &fakePaperlessClient{files: map[PaperlessFileKind]*PaperlessFile{
+			PaperlessFilePreview: {Body: io.NopCloser(strings.NewReader("<script>")), ContentType: ct, ContentLength: 8},
+		}}
+		svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+		db.Model(&models.Coin{}).Where("id = ?", coin.ID).Update("paperless_document_id", 5)
+		if _, err := svc.OpenDocument(context.Background(), user.ID, coin.ID, PaperlessFilePreview); !errors.Is(err, ErrPaperlessUnsupportedFile) {
+			t.Fatalf("content type %q must be rejected, got %v", ct, err)
+		}
+	}
+}
+
+func TestPaperlessInvoiceService_UnlinkKeepsPaperlessUntouched(t *testing.T) {
+	client := &fakePaperlessClient{}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+	db.Model(&models.Coin{}).Where("id = ?", coin.ID).Updates(map[string]interface{}{"paperless_document_id": 12, "paperless_task_id": "t"})
+	if err := svc.UnlinkDocument(user.ID, coin.ID); err != nil {
+		t.Fatalf("unlink: %v", err)
+	}
+	if storedDocumentID(t, db, coin.ID) != nil || storedTaskID(t, db, coin.ID) != "" {
+		t.Fatal("unlink should clear the document and task on the coin")
+	}
+	if client.fileDocID != 0 || client.postedBody != "" {
+		t.Fatal("unlink must not call paperless-ngx")
 	}
 }

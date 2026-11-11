@@ -5,9 +5,9 @@ import { computed } from 'vue'
 import type { Coin, CoinDetailMetadataRow } from '@/types'
 import { formatCurrency } from '@/utils/format'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
-import { resolveInvoiceLink } from '@/utils/paperless'
+import { externalInvoiceUrl } from '@/utils/paperless'
 
-export function useCoinDetailMetadataRows(coin: Coin | null, paperlessBaseUrl?: string | null) {
+export function useCoinDetailMetadataRows(coin: Coin | null, options: { paperlessConfigured?: boolean } = {}) {
   const rows = computed<CoinDetailMetadataRow[]>(() => {
     if (!coin) return []
 
@@ -47,14 +47,16 @@ export function useCoinDetailMetadataRows(coin: Coin | null, paperlessBaseUrl?: 
       })
     }
 
-    if (coin.vendorInvoice || coin.paperlessDocumentId) {
-      const invoiceLink = resolveInvoiceLink(coin.vendorInvoice, paperlessBaseUrl, coin.paperlessDocumentId)
+    if (coin.vendorInvoice || (coin.paperlessDocumentId && options.paperlessConfigured)) {
+      const hasDocument = Boolean(coin.paperlessDocumentId && options.paperlessConfigured)
+      const pastedUrl = hasDocument ? null : externalInvoiceUrl(coin.vendorInvoice)
       result.push({
         key: 'vendorInvoice',
         label: 'Vendor Invoice',
-        value: invoiceLink?.label ?? (coin.vendorInvoice || `Paperless document #${coin.paperlessDocumentId}`),
-        url: invoiceLink?.url ?? null,
-        valueClass: invoiceLink ? 'gold' : undefined,
+        value: coin.vendorInvoice || 'View invoice',
+        url: pastedUrl,
+        valueClass: pastedUrl ? 'gold' : undefined,
+        activatable: hasDocument,
       })
     }
 

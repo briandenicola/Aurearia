@@ -36,6 +36,24 @@ type PaperlessTask struct {
 type PaperlessClient interface {
 	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error)
 	GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error)
+	GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error)
+}
+
+// PaperlessFileKind selects which rendition of a document to fetch.
+type PaperlessFileKind string
+
+const (
+	// PaperlessFilePreview is paperless-ngx's viewable rendition (archived PDF, or the original image).
+	PaperlessFilePreview PaperlessFileKind = "preview"
+	// PaperlessFileThumbnail is the small page-1 thumbnail paperless-ngx generates.
+	PaperlessFileThumbnail PaperlessFileKind = "thumb"
+)
+
+// PaperlessFile is a streamed document rendition. Callers must close Body.
+type PaperlessFile struct {
+	Body          io.ReadCloser
+	ContentType   string
+	ContentLength int64
 }
 
 // PaperlessError carries a non-2xx paperless response without echoing tokens.
@@ -281,4 +299,29 @@ func parsePaperlessDocumentID(raw json.RawMessage) *int {
 		}
 	}
 	return nil
+}
+
+func (c *HTTPPaperlessClient) GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error) {
+	if documentID <= 0 || (kind != PaperlessFilePreview && kind != PaperlessFileThumbnail) {
+		return nil, errors.New("invalid paperless-ngx document request")
+	}
+	endpoint, err := paperlessEndpoint(baseURL, fmt.Sprintf("/api/documents/%d/%s/", documentID, kind))
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Token "+token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("paperless-ngx %s request failed: %w", kind, err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		defer resp.Body.Close()
+		excerpt, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+		return nil, &PaperlessError{Operation: string(kind), StatusCode: resp.StatusCode, BodyExcerpt: strings.TrimSpace(string(excerpt))}
+	}
+	return &PaperlessFile{Body: resp.Body, ContentType: resp.Header.Get("Content-Type"), ContentLength: resp.ContentLength}, nil
 }

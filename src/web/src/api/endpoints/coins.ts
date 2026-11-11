@@ -310,6 +310,15 @@ export const uploadInvoiceToPaperless = (coinId: number, file: File) => {
 export const resolvePaperlessInvoiceTask = (coinId: number, taskId: string) =>
   api.post<PaperlessInvoiceResult>(`/coins/${coinId}/invoice/paperless/tasks/${encodeURIComponent(taskId)}`)
 
+export const getInvoiceDocument = (coinId: number) =>
+  api.get<Blob>(`/coins/${coinId}/invoice/paperless/document`, { responseType: 'blob', timeout: 90_000 })
+
+export const getInvoiceThumbnail = (coinId: number) =>
+  api.get<Blob>(`/coins/${coinId}/invoice/paperless/thumbnail`, { responseType: 'blob' })
+
+export const unlinkInvoiceDocument = (coinId: number) =>
+  api.delete(`/coins/${coinId}/invoice/paperless`)
+
 export const uploadImage = (coinId: number, file: File, imageType: string, isPrimary: boolean, circleClip?: boolean) => {
   const formData = new FormData()
   formData.append('image', file)

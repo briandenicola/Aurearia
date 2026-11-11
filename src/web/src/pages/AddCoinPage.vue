@@ -189,6 +189,7 @@ import {
   extractText,
   updateCoin,
   uploadImage,
+  uploadInvoiceToPaperless,
 } from '@/api/client'
 import { useCoinsStore } from '@/stores/coins'
 import CoinForm from '@/components/CoinForm.vue'
@@ -230,6 +231,7 @@ const formDisabled = computed(() =>
 type PendingImage = { file: File; face: 'obverse' | 'reverse' | 'card'; primary: boolean; circleClip: boolean }
 const pendingImages: PendingImage[] = []
 let pendingCard: File | null = null
+let pendingInvoice: File | null = null
 let savedNotes = ''
 
 const obverseFile = ref<File | null>(null)
@@ -555,6 +557,7 @@ async function handleManualSubmit() {
       pendingImages.push({ file: formComp.reverseFile, face: 'reverse', primary: false, circleClip: false })
     }
 
+    pendingInvoice = formComp?.invoiceFile ?? null
     pendingCard = formComp?.cardFile ?? null
     if (pendingCard) {
       pendingImages.push({ file: pendingCard, face: 'card', primary: false, circleClip: false })
@@ -590,6 +593,10 @@ async function completeSavedCoin() {
       await updateCoin(coinID, { notes })
     }
     pendingCard = null
+  }
+  if (pendingInvoice) {
+    await uploadInvoiceToPaperless(coinID, pendingInvoice)
+    pendingInvoice = null
   }
   saveCompletionError.value = ''
   await router.push(`/coin/${coinID}`)

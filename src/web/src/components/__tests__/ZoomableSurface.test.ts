@@ -128,3 +128,72 @@ describe('ZoomableSurface', () => {
     expect(wrapper.find('.zoomable-content').attributes('style')).toContain('translate(0px, 0px) scale(1)')
   })
 })
+
+describe('ZoomableSurface document-viewer options', () => {
+  function mountDocumentSurface() {
+    const wrapper = mount(ZoomableSurface, {
+      props: { ariaLabel: 'Invoice document', bare: true, wheelPans: true, boundPan: true, minScale: 1, maxScale: 4 },
+      slots: { default: '<div class="doc" />' },
+    })
+    const viewport = wrapper.find('.zoomable-viewport')
+    const viewportEl = viewport.element as HTMLElement
+    Object.defineProperty(viewportEl, 'clientWidth', { value: 400 })
+    Object.defineProperty(viewportEl, 'clientHeight', { value: 300 })
+    viewportEl.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300, toJSON: () => ({}) })
+    const contentEl = wrapper.find('.zoomable-content').element as HTMLElement
+    Object.defineProperty(contentEl, 'offsetWidth', { value: 400 })
+    Object.defineProperty(contentEl, 'offsetHeight', { value: 1200 })
+    return { wrapper, viewport, contentEl }
+  }
+
+  function wheel(el: Element, init: { deltaX?: number; deltaY: number; ctrlKey?: boolean }) {
+    const event = new Event('wheel', { bubbles: true, cancelable: true })
+    Object.defineProperties(event, {
+      deltaX: { value: init.deltaX ?? 0 },
+      deltaY: { value: init.deltaY },
+      ctrlKey: { value: init.ctrlKey ?? false },
+      clientX: { value: 200 },
+      clientY: { value: 150 },
+    })
+    el.dispatchEvent(event)
+  }
+
+  it('hides the chart zoom toolbar in the bare variant', () => {
+    const { wrapper } = mountDocumentSurface()
+    expect(wrapper.find('.zoomable-toolbar').exists()).toBe(false)
+    expect(wrapper.find('.zoomable-surface').classes()).toContain('is-bare')
+  })
+
+  it('scrolls with the wheel instead of zooming, and stops at the document edges', async () => {
+    const { viewport, contentEl } = mountDocumentSurface()
+    wheel(viewport.element, { deltaY: 300 })
+    await nextTick()
+    expect(contentEl.style.transform).toBe('translate(0px, -300px) scale(1)')
+
+    wheel(viewport.element, { deltaY: 5000 })
+    await nextTick()
+    // 1200px of content in a 300px viewport can scroll at most 900px.
+    expect(contentEl.style.transform).toBe('translate(0px, -900px) scale(1)')
+
+    wheel(viewport.element, { deltaY: -9999 })
+    await nextTick()
+    expect(contentEl.style.transform).toBe('translate(0px, 0px) scale(1)')
+  })
+
+  it('still zooms on trackpad pinch (ctrl + wheel)', async () => {
+    const { viewport, contentEl } = mountDocumentSurface()
+    wheel(viewport.element, { deltaY: -100, ctrlKey: true })
+    await nextTick()
+    expect(contentEl.style.transform).toContain('scale(1.2)')
+  })
+
+  it('keeps the default chart behaviour unchanged (wheel zooms, toolbar shown)', async () => {
+    const wrapper = mount(ZoomableSurface, { props: { ariaLabel: 'Chart' }, slots: { default: '<svg />' } })
+    expect(wrapper.find('.zoomable-toolbar').exists()).toBe(true)
+    const viewportEl = wrapper.find('.zoomable-viewport').element as HTMLElement
+    viewportEl.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300, toJSON: () => ({}) })
+    wheel(viewportEl, { deltaY: -100 })
+    await nextTick()
+    expect((wrapper.find('.zoomable-content').element as HTMLElement).style.transform).toContain('scale(1.2)')
+  })
+})

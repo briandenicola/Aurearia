@@ -208,7 +208,7 @@
       </fieldset>
 
       <!-- Purchase Info -->
-      <fieldset class="m-0 rounded-md border border-border-subtle bg-card p-5">
+      <fieldset class="m-0 min-w-0 rounded-md border border-border-subtle bg-card p-5">
         <h2 class="mb-4 font-display text-lg font-medium text-gold">Purchase & Value</h2>
         <div class="grid gap-3 md:grid-cols-2">
           <div class="form-group min-w-0">
@@ -238,11 +238,14 @@
           <div class="form-group min-w-0">
             <label class="form-label">Vendor Invoice</label>
             <input v-model="form.vendorInvoice" class="form-input" placeholder="e.g. INV-2026-0421" />
-            <PaperlessInvoiceControl
+            <InvoiceDocumentField
+              ref="invoiceField"
               :coin-id="coinId"
-              :invoice="form.vendorInvoice"
+              :invoice-number="form.vendorInvoice"
               :document-id="form.paperlessDocumentId"
-              @linked="(id) => { form.paperlessDocumentId = id }"
+              :task-id="form.paperlessTaskId"
+              @update:document-id="(id) => { form.paperlessDocumentId = id }"
+              @update:task-id="(id) => { form.paperlessTaskId = id }"
             />
           </div>
         </div>
@@ -314,7 +317,7 @@ import { X, Camera } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
-import PaperlessInvoiceControl from '@/components/coin/PaperlessInvoiceControl.vue'
+import InvoiceDocumentField from '@/components/coin/InvoiceDocumentField.vue'
 
 function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
   return Array.isArray(data) ? data : data.mintLocations ?? []
@@ -565,7 +568,11 @@ onBeforeUnmount(() => {
 })
 
 // Expose pending images for parent to upload after save
+const invoiceField = ref<InstanceType<typeof InvoiceDocumentField> | null>(null)
+const invoiceFile = computed(() => invoiceField.value?.pendingFile ?? null)
+
 defineExpose({
+  invoiceFile,
   obverseFile,
   reverseFile,
   cardFile,
