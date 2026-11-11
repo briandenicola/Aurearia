@@ -260,3 +260,21 @@ func TestHTTPPaperlessClient_UploadSendsTagsAndLooksUpTagIDs(t *testing.T) {
 		t.Fatalf("expected one tags field per id, got %v", postedTags)
 	}
 }
+
+// Recorded from the owner's paperless-ngx 3.3.3: GET /api/tags/?name__iexact=coins
+const paperlessV10TagLookupResponse = `{"count":1,"next":null,"previous":null,"results":[{"id":82,"slug":"coins","name":"coins","color":"#ae8fe3","text_color":"#000000","match":"","matching_algorithm":6,"is_insensitive":true,"is_inbox_tag":false,"document_count":0,"owner":4,"user_can_change":true,"parent":null,"children":[]}],"display_count":1}`
+
+func TestHTTPPaperlessClient_TagIDsReadsRealPaperless333Response(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags/" || r.URL.Query().Get("name__iexact") != "coins" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(paperlessV10TagLookupResponse))
+	}))
+	defer srv.Close()
+	ids, err := (&HTTPPaperlessClient{client: srv.Client()}).TagIDs(context.Background(), srv.URL, "tkn", []string{"coins"})
+	if err != nil || fmt.Sprint(ids) != "[82]" {
+		t.Fatalf("tag ids: %v %v", ids, err)
+	}
+}
