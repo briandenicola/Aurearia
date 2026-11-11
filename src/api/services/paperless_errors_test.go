@@ -180,3 +180,30 @@ func TestDescribePaperlessError_NotAcceptable(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestHTTPPaperlessClient_GetTaskReadsV10TaskFormat(t *testing.T) {
+	for name, body := range map[string]string{
+		// paperless-ngx 3.x (API v10): paginated, related_document_ids list.
+		"related_document_ids": `{"count":1,"results":[{"task_id":"task-1","status":"SUCCESS","related_document_ids":[42],"result_data":{"document_id":42}}]}`,
+		// v10 with only result_data populated.
+		"result_data only": `{"count":1,"results":[{"status":"success","related_document_ids":[],"result_data":{"document_id":42}}]}`,
+		// v9 shape still works.
+		"v9 related_document": `[{"status":"SUCCESS","related_document":"42","result":"ok"}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := paperlessV3Server(t, body)
+			task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "task-1")
+			if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 42 {
+				t.Fatalf("task: %+v %v", task, err)
+			}
+		})
+	}
+}
+
+func TestHTTPPaperlessClient_GetTaskReportsV10Failures(t *testing.T) {
+	srv := paperlessV3Server(t, `{"count":1,"results":[{"status":"FAILURE","related_document_ids":[],"result_data":{"error":"Not consuming inv.pdf: It is a duplicate."},"result":{"code":"duplicate"}}]}`)
+	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "task-1")
+	if err != nil || task.Status != PaperlessTaskFailure || task.Result != "Not consuming inv.pdf: It is a duplicate." {
+		t.Fatalf("task: %+v %v", task, err)
+	}
+}

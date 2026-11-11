@@ -269,10 +269,68 @@ func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) e
 	return err
 }
 
+// paperlessTaskPayload covers both task formats. API v9 reports the new
+// document as related_document; v10 (paperless-ngx 3.x) reports
+// related_document_ids and result_data.document_id instead. Result fields are
+// raw so a type change cannot fail the whole parse.
 type paperlessTaskPayload struct {
-	Status          string          `json:"status"`
-	Result          string          `json:"result"`
-	RelatedDocument json.RawMessage `json:"related_document"`
+	Status             string            `json:"status"`
+	Result             json.RawMessage   `json:"result"`
+	RelatedDocument    json.RawMessage   `json:"related_document"`
+	RelatedDocumentIDs []json.RawMessage `json:"related_document_ids"`
+	ResultData         json.RawMessage   `json:"result_data"`
+}
+
+type paperlessTaskResultData struct {
+	DocumentID json.RawMessage `json:"document_id"`
+	Message    string          `json:"message"`
+	Error      string          `json:"error"`
+}
+
+func (p paperlessTaskPayload) documentID() *int {
+	if id := parsePaperlessDocumentID(p.RelatedDocument); id != nil {
+		return id
+	}
+	for _, raw := range p.RelatedDocumentIDs {
+		if id := parsePaperlessDocumentID(raw); id != nil {
+			return id
+		}
+	}
+	var data paperlessTaskResultData
+	if len(p.ResultData) > 0 && json.Unmarshal(p.ResultData, &data) == nil {
+		return parsePaperlessDocumentID(data.DocumentID)
+	}
+	return nil
+}
+
+func (p paperlessTaskPayload) message() string {
+	var text string
+	if len(p.Result) > 0 && json.Unmarshal(p.Result, &text) == nil && strings.TrimSpace(text) != "" {
+		return strings.TrimSpace(text)
+	}
+	var data paperlessTaskResultData
+	if len(p.ResultData) > 0 && json.Unmarshal(p.ResultData, &data) == nil {
+		if msg := strings.TrimSpace(data.Error); msg != "" {
+			return msg
+		}
+		return strings.TrimSpace(data.Message)
+	}
+	return ""
+}
+
+// normalizePaperlessTaskStatus maps v9/v10 status spellings onto the states
+// Aurearia acts on; anything unrecognised stays pending.
+func normalizePaperlessTaskStatus(status string) string {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "SUCCESS", "SUCCEEDED", "COMPLETED", "COMPLETE":
+		return PaperlessTaskSuccess
+	case "FAILURE", "FAILED", "ERROR", "REVOKED":
+		return PaperlessTaskFailure
+	case "STARTED", "RUNNING", "PROCESSING":
+		return PaperlessTaskStarted
+	default:
+		return PaperlessTaskPending
+	}
 }
 
 func (c *HTTPPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error) {
@@ -296,9 +354,11 @@ func (c *HTTPPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskI
 		// Paperless can take a moment before the task row exists.
 		return &PaperlessTask{Status: PaperlessTaskPending}, nil
 	}
-	task := &PaperlessTask{Status: strings.ToUpper(tasks[0].Status), Result: tasks[0].Result}
-	task.DocumentID = parsePaperlessDocumentID(tasks[0].RelatedDocument)
-	return task, nil
+	return &PaperlessTask{
+		Status:     normalizePaperlessTaskStatus(tasks[0].Status),
+		Result:     tasks[0].message(),
+		DocumentID: tasks[0].documentID(),
+	}, nil
 }
 
 // parsePaperlessTasks accepts the task list as a plain array or as a
