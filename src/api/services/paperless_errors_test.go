@@ -124,3 +124,59 @@ func TestDescribePaperlessError_NeverIncludesToken(t *testing.T) {
 		t.Fatal("description leaked the API token")
 	}
 }
+
+// paperlessV3Server mimics paperless-ngx 3.x: it accepts only API versions 9
+// and 10 in the Accept header and answers 406 to anything else.
+func paperlessV3Server(t *testing.T, tasksBody string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if strings.Contains(accept, "version=") && !strings.Contains(accept, "version=9") && !strings.Contains(accept, "version=10") {
+			w.WriteHeader(http.StatusNotAcceptable)
+			_, _ = w.Write([]byte(`{"detail":"Invalid version in \"Accept\" header."}`))
+			return
+		}
+		switch r.URL.Path {
+		case "/api/documents/post_document/":
+			_, _ = w.Write([]byte(`"task-1"`))
+		case "/api/tasks/":
+			_, _ = w.Write([]byte(tasksBody))
+		default:
+			_, _ = w.Write([]byte(`{"count":0,"results":[]}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestHTTPPaperlessClient_WorksWithPaperlessV3VersionRules(t *testing.T) {
+	srv := paperlessV3Server(t, `[{"status":"SUCCESS","related_document":"42","result":"ok"}]`)
+	client := &HTTPPaperlessClient{client: srv.Client()}
+	ctx := context.Background()
+	if err := client.Ping(ctx, srv.URL, "tkn"); err != nil {
+		t.Fatalf("ping: %v", err)
+	}
+	taskID, err := client.PostDocument(ctx, srv.URL, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", strings.NewReader("PDF"))
+	if err != nil || taskID != "task-1" {
+		t.Fatalf("upload: %q %v", taskID, err)
+	}
+	task, err := client.GetTask(ctx, srv.URL, "tkn", taskID)
+	if err != nil || task.DocumentID == nil || *task.DocumentID != 42 {
+		t.Fatalf("task: %+v %v", task, err)
+	}
+}
+
+func TestHTTPPaperlessClient_GetTaskAcceptsPaginatedTasks(t *testing.T) {
+	srv := paperlessV3Server(t, `{"count":1,"results":[{"status":"SUCCESS","related_document":7}]}`)
+	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "task-1")
+	if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 7 {
+		t.Fatalf("task: %+v %v", task, err)
+	}
+}
+
+func TestDescribePaperlessError_NotAcceptable(t *testing.T) {
+	err := pingStatus(t, http.StatusNotAcceptable, `{"detail":"Invalid version"}`)
+	if got := DescribePaperlessError(err); !strings.Contains(got, "HTTP 406") {
+		t.Fatalf("got %q", got)
+	}
+}

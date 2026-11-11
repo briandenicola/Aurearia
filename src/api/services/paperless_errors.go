@@ -38,6 +38,8 @@ func DescribePaperlessError(err error) string {
 		switch paperless.StatusCode {
 		case http.StatusUnauthorized, http.StatusForbidden:
 			return "paperless-ngx rejected the API token. Copy a fresh token from paperless-ngx → My Profile."
+		case http.StatusNotAcceptable:
+			return fmt.Sprintf("paperless-ngx refused the API version Aurearia requested for the %s (HTTP 406). Response: %s", paperless.Operation, paperless.BodyExcerpt)
 		case http.StatusNotFound:
 			return fmt.Sprintf("paperless-ngx returned 404 for the %s. Check the URL is the paperless-ngx root, without /api or another path.", paperless.Operation)
 		default:
