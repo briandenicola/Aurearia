@@ -8,6 +8,9 @@ updates:
     labels:
       - dependencies
       - go
+    groups:
+      gomod-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /src/web
@@ -22,6 +25,9 @@ updates:
         versions: [">=8.0.0"]
       - dependency-name: typescript
         versions: [">=6.0.0"]
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
@@ -31,6 +37,9 @@ updates:
     labels:
       - dependencies
       - ci
+    groups:
+      github-actions-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: uv
     directory: /src/agent
@@ -40,3 +49,6 @@ updates:
     labels:
       - dependencies
       - python
+    groups:
+      uv-minor-patch:
+        update-types: [minor, patch]
