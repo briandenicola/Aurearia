@@ -96,3 +96,14 @@ describe('PaperlessInvoiceControl', () => {
     expect(wrapper.text()).toContain('Save the coin to upload an invoice to Paperless.')
   })
 })
+
+describe('PaperlessInvoiceControl on the detail page', () => {
+  it('keeps the upload button but hides its own link when hideLink is set', () => {
+    const wrapper = mount(PaperlessInvoiceControl, {
+      props: { coinId: 3, invoice: 'INV-1', documentId: 4, hideLink: true },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+    expect(wrapper.find('[data-testid="paperless-invoice-link"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="paperless-invoice-upload"]').exists()).toBe(true)
+  })
+})

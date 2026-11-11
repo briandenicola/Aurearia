@@ -1,7 +1,7 @@
 <template>
   <div class="mt-2 flex flex-wrap items-center gap-2" data-testid="paperless-invoice-control">
     <SafeExternalLink
-      v-if="invoiceLink"
+      v-if="invoiceLink && !hideLink"
       :href="invoiceLink.url"
       class="inline-flex min-h-9 items-center gap-1 text-sm text-gold hover:text-bronze"
       data-testid="paperless-invoice-link"
@@ -56,6 +56,8 @@ const props = defineProps<{
   coinId?: number
   invoice?: string | null
   documentId?: number | null
+  /** Set where the invoice link is already shown (e.g. the detail table row). */
+  hideLink?: boolean
 }>()
 
 const emit = defineEmits<{ linked: [documentId: number] }>()

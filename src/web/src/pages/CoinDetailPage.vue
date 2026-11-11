@@ -110,6 +110,15 @@
             <h3 class="mb-3 font-display text-base font-medium text-heading">Details</h3>
             <CoinDetailMetadataTable :rows="displayRows" @edit="handleMetadataEdit" />
           </div>
+          <PaperlessInvoiceControl
+            v-if="!coin.isWishlist"
+            class="-mt-3 mb-6"
+            :coin-id="coin.id"
+            :invoice="coin.vendorInvoice"
+            :document-id="coin.paperlessDocumentId"
+            hide-link
+            @linked="refreshCoin"
+          />
 
           <CoinReferencesSection
             :coin-id="coin.id"
@@ -181,6 +190,7 @@ import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
 import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
 import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'
+import PaperlessInvoiceControl from '@/components/coin/PaperlessInvoiceControl.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
