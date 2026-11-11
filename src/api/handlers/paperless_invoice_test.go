@@ -24,7 +24,11 @@ type stubPaperlessClient struct {
 	pingErr     error
 }
 
-func (s *stubPaperlessClient) PostDocument(context.Context, string, string, string, string, string, io.Reader) (string, error) {
+func (s *stubPaperlessClient) TagIDs(context.Context, string, string, []string) ([]int, error) {
+	return nil, nil
+}
+
+func (s *stubPaperlessClient) PostDocument(context.Context, string, string, string, string, string, []int, io.Reader) (string, error) {
 	return "", errors.New("not used")
 }
 
@@ -53,8 +57,8 @@ func setupPaperlessInvoiceRouter(t *testing.T, client services.PaperlessClient) 
 	coin := models.Coin{Name: "Denarius", UserID: user.ID}
 	db.Create(&coin)
 
-	svc := services.NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client)
-	h := NewPaperlessInvoiceHandler(svc)
+	svc := services.NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client, nil)
+	h := NewPaperlessInvoiceHandler(svc, services.NewLogger(100))
 	r := gin.New()
 	r.Use(func(c *gin.Context) { c.Set("userId", user.ID); c.Next() })
 	r.GET("/api/coins/:id/invoice/paperless/document", h.InvoiceDocument)

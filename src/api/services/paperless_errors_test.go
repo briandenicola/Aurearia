@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -156,7 +157,7 @@ func TestHTTPPaperlessClient_WorksWithPaperlessV3VersionRules(t *testing.T) {
 	if err := client.Ping(ctx, srv.URL, "tkn"); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
-	taskID, err := client.PostDocument(ctx, srv.URL, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", strings.NewReader("PDF"))
+	taskID, err := client.PostDocument(ctx, srv.URL, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", nil, strings.NewReader("PDF"))
 	if err != nil || taskID != "task-1" {
 		t.Fatalf("upload: %q %v", taskID, err)
 	}
@@ -187,8 +188,6 @@ func TestHTTPPaperlessClient_GetTaskReadsV10TaskFormat(t *testing.T) {
 		"related_document_ids": `{"count":1,"results":[{"task_id":"task-1","status":"SUCCESS","related_document_ids":[42],"result_data":{"document_id":42}}]}`,
 		// v10 with only result_data populated.
 		"result_data only": `{"count":1,"results":[{"status":"success","related_document_ids":[],"result_data":{"document_id":42}}]}`,
-		// Only paperless's result text carries the id.
-		"result text only": `{"count":1,"results":[{"status":"SUCCESS","related_document_ids":[],"result_message":"Success. New document id 42 created"}]}`,
 		// v9 shape still works.
 		"v9 related_document": `[{"status":"SUCCESS","related_document":"42","result":"ok"}]`,
 	} {
@@ -202,10 +201,80 @@ func TestHTTPPaperlessClient_GetTaskReadsV10TaskFormat(t *testing.T) {
 	}
 }
 
-func TestHTTPPaperlessClient_GetTaskReportsV10Failures(t *testing.T) {
-	srv := paperlessV3Server(t, `{"count":1,"results":[{"status":"FAILURE","related_document_ids":[],"result_data":{"error":"Not consuming inv.pdf: It is a duplicate."},"result":{"code":"duplicate"}}]}`)
+func TestHTTPPaperlessClient_GetTaskReportsFailures(t *testing.T) {
+	srv := paperlessV3Server(t, `{"count":1,"results":[{"status":"FAILURE","related_document_ids":[],"result":"Not consuming inv.pdf: It is a duplicate."}]}`)
 	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "task-1")
 	if err != nil || task.Status != PaperlessTaskFailure || task.Result != "Not consuming inv.pdf: It is a duplicate." {
 		t.Fatalf("task: %+v %v", task, err)
+	}
+}
+
+// Recorded from the owner's paperless-ngx 3.3.3 (API v10), trimmed to two tasks.
+const paperlessV10TasksResponse = `{"count":9464,"next":null,"previous":null,"results":[{"id":9463,"task_id":"9713b04a-fb87-451e-bd58-0831eaaad05e","task_type":"consume_file","task_type_display":"Consume File","trigger_source":"api_upload","trigger_source_display":"API Upload","status":"success","status_display":"Success","date_created":"2026-11-11T22:13:12.955151Z","date_started":"2026-11-11T22:13:12.970956Z","date_done":"2026-11-11T22:13:17.816012Z","duration_seconds":4.845056,"wait_time_seconds":0.015805,"input_data":{"filename":"invoice.pdf","mime_type":"application/pdf"},"result_data":{"document_id":4965},"related_document_ids":[4965],"acknowledged":false,"owner":4},{"id":9464,"task_id":"46036ced-a4b4-45ec-82c5-8725a4770872","task_type":"mail_fetch","status":"success","result_data":null,"related_document_ids":[],"acknowledged":false,"owner":null}]}`
+
+func TestHTTPPaperlessClient_GetTaskReadsRealPaperless333Response(t *testing.T) {
+	srv := paperlessV3Server(t, paperlessV10TasksResponse)
+	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "9713b04a-fb87-451e-bd58-0831eaaad05e")
+	if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 4965 {
+		t.Fatalf("task: %+v %v", task, err)
+	}
+}
+
+func TestHTTPPaperlessClient_UploadSendsTagsAndLooksUpTagIDs(t *testing.T) {
+	var postedTags []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags/":
+			// Same paginated shape as the owner's /api/tasks/ and /api/documents/.
+			name := r.URL.Query().Get("name__iexact")
+			tags := map[string]int{"coins": 3, "brian": 8, "shopping": 12}
+			if id, ok := tags[strings.ToLower(name)]; ok {
+				_, _ = fmt.Fprintf(w, `{"count":1,"next":null,"previous":null,"results":[{"id":%d,"name":%q}]}`, id, strings.ToLower(name))
+				return
+			}
+			_, _ = w.Write([]byte(`{"count":0,"next":null,"previous":null,"results":[]}`))
+		case "/api/documents/post_document/":
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			postedTags = r.MultipartForm.Value["tags"]
+			_, _ = w.Write([]byte(`"task-1"`))
+		}
+	}))
+	defer srv.Close()
+	client := &HTTPPaperlessClient{client: srv.Client()}
+	ctx := context.Background()
+
+	ids, err := client.TagIDs(ctx, srv.URL, "tkn", []string{"coins", "Brian", "shopping"})
+	if err != nil || fmt.Sprint(ids) != "[3 8 12]" {
+		t.Fatalf("tag ids: %v %v", ids, err)
+	}
+	if _, err := client.TagIDs(ctx, srv.URL, "tkn", []string{"missing"}); !errors.Is(err, ErrPaperlessTagNotFound) {
+		t.Fatalf("expected missing tag error, got %v", err)
+	}
+	if _, err := client.PostDocument(ctx, srv.URL, "tkn", "t", "inv.pdf", "application/pdf", ids, strings.NewReader("PDF")); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if fmt.Sprint(postedTags) != "[3 8 12]" {
+		t.Fatalf("expected one tags field per id, got %v", postedTags)
+	}
+}
+
+// Recorded from the owner's paperless-ngx 3.3.3: GET /api/tags/?name__iexact=coins
+const paperlessV10TagLookupResponse = `{"count":1,"next":null,"previous":null,"results":[{"id":82,"slug":"coins","name":"coins","color":"#ae8fe3","text_color":"#000000","match":"","matching_algorithm":6,"is_insensitive":true,"is_inbox_tag":false,"document_count":0,"owner":4,"user_can_change":true,"parent":null,"children":[]}],"display_count":1}`
+
+func TestHTTPPaperlessClient_TagIDsReadsRealPaperless333Response(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags/" || r.URL.Query().Get("name__iexact") != "coins" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(paperlessV10TagLookupResponse))
+	}))
+	defer srv.Close()
+	ids, err := (&HTTPPaperlessClient{client: srv.Client()}).TagIDs(context.Background(), srv.URL, "tkn", []string{"coins"})
+	if err != nil || fmt.Sprint(ids) != "[82]" {
+		t.Fatalf("tag ids: %v %v", ids, err)
 	}
 }

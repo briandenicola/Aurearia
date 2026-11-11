@@ -46,9 +46,26 @@ type PaperlessInvoiceService struct {
 	// watched server-side after the upload request has returned.
 	backgroundTimeout  time.Duration
 	backgroundInterval time.Duration
+	logger             *Logger
 }
 
-func NewPaperlessInvoiceService(coinRepo *repository.CoinRepository, userRepo *repository.UserRepository, credentials *CredentialEncryptionService, client PaperlessClient) *PaperlessInvoiceService {
+func (s *PaperlessInvoiceService) logInfo(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Info("paperless", format, args...)
+		return
+	}
+	log.Printf("[paperless] "+format, args...)
+}
+
+func (s *PaperlessInvoiceService) logWarn(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Warn("paperless", format, args...)
+		return
+	}
+	log.Printf("[paperless] "+format, args...)
+}
+
+func NewPaperlessInvoiceService(coinRepo *repository.CoinRepository, userRepo *repository.UserRepository, credentials *CredentialEncryptionService, client PaperlessClient, logger *Logger) *PaperlessInvoiceService {
 	if credentials == nil {
 		credentials = NewDisabledCredentialEncryptionService()
 	}
@@ -63,7 +80,8 @@ func NewPaperlessInvoiceService(coinRepo *repository.CoinRepository, userRepo *r
 		pollInterval:       1500 * time.Millisecond,
 		pollTimeout:        15 * time.Second,
 		backgroundTimeout:  10 * time.Minute,
-		backgroundInterval: 5 * time.Second,
+		backgroundInterval: 3 * time.Second,
+		logger:             logger,
 	}
 }
 
@@ -119,6 +137,22 @@ func (s *PaperlessInvoiceService) TestConnection(ctx context.Context, userID uin
 	return s.client.Ping(ctx, baseURL, token)
 }
 
+// SplitPaperlessTags splits the comma-separated tag setting into trimmed,
+// non-empty, de-duplicated names.
+func SplitPaperlessTags(raw string) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		name := strings.TrimSpace(part)
+		if name == "" || seen[strings.ToLower(name)] {
+			continue
+		}
+		seen[strings.ToLower(name)] = true
+		names = append(names, name)
+	}
+	return names
+}
+
 func invoiceDocumentTitle(coin *models.Coin) string {
 	title := strings.TrimSpace(coin.Name)
 	if invoice := strings.TrimSpace(coin.VendorInvoice); invoice != "" {
@@ -145,28 +179,52 @@ func (s *PaperlessInvoiceService) UploadInvoice(ctx context.Context, userID, coi
 	if err != nil {
 		return nil, err
 	}
-	taskID, err := s.client.PostDocument(ctx, baseURL, token, invoiceDocumentTitle(coin), filename, contentType, body)
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	var tagIDs []int
+	if names := SplitPaperlessTags(user.PaperlessTags); len(names) > 0 {
+		tagIDs, err = s.client.TagIDs(ctx, baseURL, token, names)
+		if err != nil {
+			s.logWarn("coin %d: tag lookup failed, upload not sent: %s", coinID, DescribePaperlessError(err))
+			return nil, err
+		}
+	}
+	taskID, err := s.client.PostDocument(ctx, baseURL, token, invoiceDocumentTitle(coin), filename, contentType, tagIDs, body)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.coinRepo.UpdateField(coin, "paperless_task_id", taskID); err != nil {
 		return nil, err
 	}
+	s.logInfo("coin %d: uploaded %q, waiting for task %s", coinID, filename, taskID)
+	// Paperless has the file. From here the server links the coin on its own,
+	// whether or not this request, or any page, is still open.
+	s.watchInBackground(userID, coinID, taskID)
 
+	pending := &PaperlessInvoiceResult{Status: "pending", TaskID: taskID}
 	deadline := time.Now().Add(s.pollTimeout)
 	for {
 		result, err := s.checkTask(ctx, coin, baseURL, token, taskID)
-		if err != nil || result.Status == "linked" {
-			return result, err
+		switch {
+		case errors.Is(err, ErrPaperlessTaskFailed):
+			return nil, err
+		case err != nil:
+			// The upload succeeded; a failed status check (including a dropped
+			// request) must not look like a failed upload, or the user re-uploads
+			// and creates a duplicate. The background watcher keeps checking.
+			s.logWarn("coin %d: task %s: status check during upload failed, background watcher continues: %s", coinID, taskID, DescribePaperlessError(err))
+			return pending, nil
+		case result.Status == "linked":
+			return result, nil
 		}
 		if time.Now().After(deadline) {
-			s.watchInBackground(userID, coinID, taskID)
 			return result, nil
 		}
 		select {
 		case <-ctx.Done():
-			s.watchInBackground(userID, coinID, taskID)
-			return &PaperlessInvoiceResult{Status: "pending", TaskID: taskID}, nil
+			return pending, nil
 		case <-time.After(s.pollInterval):
 		}
 	}
@@ -179,13 +237,13 @@ func (s *PaperlessInvoiceService) watchInBackground(userID, coinID uint, taskID 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("paperless: task %s for coin %d still pending after %s; giving up", taskID, coinID, s.backgroundTimeout)
+				s.logWarn("coin %d: task %s still pending after %s; stopped watching (opening the coin re-checks it)", coinID, taskID, s.backgroundTimeout)
 				return
 			case <-time.After(s.backgroundInterval):
 			}
 			result, err := s.ResolveTask(ctx, userID, coinID, taskID)
 			if err != nil {
-				log.Printf("paperless: task %s for coin %d: %v", taskID, coinID, err)
+				s.logWarn("coin %d: task %s: %s", coinID, taskID, DescribePaperlessError(err))
 				return
 			}
 			if result.Status != "pending" {
@@ -232,6 +290,7 @@ func (s *PaperlessInvoiceService) checkTask(ctx context.Context, coin *models.Co
 		}); err != nil {
 			return nil, err
 		}
+		s.logInfo("coin %d: linked to document %d (task %s)", coin.ID, *task.DocumentID, taskID)
 		return &PaperlessInvoiceResult{Status: "linked", TaskID: taskID, DocumentID: task.DocumentID}, nil
 	case PaperlessTaskFailure:
 		if err := s.coinRepo.UpdateField(coin, "paperless_task_id", ""); err != nil {
@@ -241,6 +300,7 @@ func (s *PaperlessInvoiceService) checkTask(ctx context.Context, coin *models.Co
 		if len(msg) > 300 {
 			msg = msg[:300]
 		}
+		s.logWarn("coin %d: task %s failed in paperless: %s", coin.ID, taskID, msg)
 		return nil, fmt.Errorf("%w: %s", ErrPaperlessTaskFailed, msg)
 	default:
 		return &PaperlessInvoiceResult{Status: "pending", TaskID: taskID}, nil

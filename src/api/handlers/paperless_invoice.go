@@ -22,11 +22,19 @@ var (
 )
 
 type PaperlessInvoiceHandler struct {
-	svc *services.PaperlessInvoiceService
+	svc    *services.PaperlessInvoiceService
+	logger *services.Logger
 }
 
-func NewPaperlessInvoiceHandler(svc *services.PaperlessInvoiceService) *PaperlessInvoiceHandler {
-	return &PaperlessInvoiceHandler{svc: svc}
+func NewPaperlessInvoiceHandler(svc *services.PaperlessInvoiceService, logger *services.Logger) *PaperlessInvoiceHandler {
+	return &PaperlessInvoiceHandler{svc: svc, logger: logger}
+}
+
+// fail logs the request's paperless error to the app logger (Admin → Logs)
+// and answers with the same description the user sees.
+func (h *PaperlessInvoiceHandler) fail(c *gin.Context, status int, msg string, err error) {
+	h.logger.Error("paperless", "%s %s: %s (%v)", c.Request.Method, c.Request.URL.Path, msg, err)
+	c.JSON(status, gin.H{"error": msg})
 }
 
 func (h *PaperlessInvoiceHandler) respondServiceError(c *gin.Context, err error) {
@@ -36,15 +44,17 @@ func (h *PaperlessInvoiceHandler) respondServiceError(c *gin.Context, err error)
 	case errors.Is(err, services.ErrPaperlessNoDocument):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, services.ErrPaperlessUnsupportedFile):
-		respondError(c, http.StatusBadGateway, err.Error(), err)
+		h.fail(c, http.StatusBadGateway, err.Error(), err)
 	case errors.Is(err, services.ErrPaperlessNotConfigured):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, services.ErrPaperlessTagNotFound):
+		h.fail(c, http.StatusBadRequest, services.DescribePaperlessError(err), err)
 	case errors.Is(err, services.ErrPaperlessTaskFailed):
-		respondError(c, http.StatusBadGateway, err.Error(), err)
+		h.fail(c, http.StatusBadGateway, err.Error(), err)
 	case errors.Is(err, services.ErrOutboundTargetBlocked):
-		respondError(c, http.StatusBadRequest, services.DescribePaperlessError(err), err)
+		h.fail(c, http.StatusBadRequest, services.DescribePaperlessError(err), err)
 	default:
-		respondError(c, http.StatusBadGateway, services.DescribePaperlessError(err), err)
+		h.fail(c, http.StatusBadGateway, services.DescribePaperlessError(err), err)
 	}
 }
 
@@ -100,7 +110,7 @@ func (h *PaperlessInvoiceHandler) UploadInvoice(c *gin.Context) {
 	}
 	file, err := fileHeader.Open()
 	if err != nil {
-		respondError(c, http.StatusBadRequest, "Could not read invoice file", err)
+		h.fail(c, http.StatusBadRequest, "Could not read invoice file", err)
 		return
 	}
 	defer file.Close()

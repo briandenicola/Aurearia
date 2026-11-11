@@ -7,7 +7,10 @@ import { formatCurrency } from '@/utils/format'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { externalInvoiceUrl } from '@/utils/paperless'
 
-export function useCoinDetailMetadataRows(coin: Coin | null, options: { paperlessConfigured?: boolean } = {}) {
+export function useCoinDetailMetadataRows(
+  coin: Coin | null,
+  options: { paperlessConfigured?: boolean; paperlessError?: string } = {},
+) {
   const rows = computed<CoinDetailMetadataRow[]>(() => {
     if (!coin) return []
 
@@ -47,7 +50,21 @@ export function useCoinDetailMetadataRows(coin: Coin | null, options: { paperles
       })
     }
 
-    if (coin.vendorInvoice || (coin.paperlessDocumentId && options.paperlessConfigured)) {
+    const invoiceProcessing = Boolean(options.paperlessConfigured && coin.paperlessTaskId && !coin.paperlessDocumentId)
+    if (options.paperlessConfigured && options.paperlessError && !coin.paperlessDocumentId) {
+      result.push({
+        key: 'vendorInvoice',
+        label: 'Vendor Invoice',
+        value: `Upload failed: ${options.paperlessError}`,
+        valueClass: 'text-loss',
+      })
+    } else if (invoiceProcessing) {
+      result.push({
+        key: 'vendorInvoice',
+        label: 'Vendor Invoice',
+        value: coin.vendorInvoice ? `${coin.vendorInvoice} (processing in paperless…)` : 'Processing in paperless…',
+      })
+    } else if (coin.vendorInvoice || (coin.paperlessDocumentId && options.paperlessConfigured)) {
       const hasDocument = Boolean(coin.paperlessDocumentId && options.paperlessConfigured)
       const pastedUrl = hasDocument ? null : externalInvoiceUrl(coin.vendorInvoice)
       result.push({

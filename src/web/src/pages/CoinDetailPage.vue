@@ -199,6 +199,7 @@ import { useCoinShareCard } from '@/composables/useCoinShareCard'
 import { usePurchaseReminder, formatReminderDateValue } from '@/composables/usePurchaseReminder'
 import { useQuickAccess } from '@/composables/useQuickAccess'
 import { useCoinDetailSwipeNav } from '@/composables/useCoinDetailSwipeNav'
+import { usePaperlessTaskWatch } from '@/composables/usePaperlessTaskWatch'
 import type { CoinDetailMetadataRow, CoinImage, ShipmentUpsertInput } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
@@ -238,9 +239,22 @@ const reverseImage = computed(() => coin.value?.images?.find(i => i.imageType ==
 
 // T015: Metadata rows
 const authStore = useAuthStore()
+// A pending paperless upload links on the server; re-check here so the row
+// updates without opening the Edit page.
+const { error: paperlessError } = usePaperlessTaskWatch(
+  computed(() => coin.value?.id),
+  computed(() => (coin.value?.paperlessDocumentId ? '' : coin.value?.paperlessTaskId)),
+  computed(() => Boolean(authStore.user?.paperlessConfigured)),
+  async () => {
+    if (coin.value?.id) await store.fetchCoin(coin.value.id)
+  },
+)
 const metadataRows = computed(() => {
   if (!coin.value) return []
-  return useCoinDetailMetadataRows(coin.value, { paperlessConfigured: authStore.user?.paperlessConfigured }).rows.value
+  return useCoinDetailMetadataRows(coin.value, {
+    paperlessConfigured: authStore.user?.paperlessConfigured,
+    paperlessError: paperlessError.value,
+  }).rows.value
 })
 const { refresh: refreshQuickAccess, forget: forgetQuickAccess } = useQuickAccess()
 

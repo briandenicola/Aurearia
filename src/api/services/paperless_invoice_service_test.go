@@ -34,9 +34,24 @@ type fakePaperlessClient struct {
 	tasks      []*PaperlessTask
 	taskCalls  int
 	postedBody string
+	postedTags []int
+	tagIDs     map[string]int
 }
 
-func (f *fakePaperlessClient) PostDocument(_ context.Context, _, token, title, _, _ string, body io.Reader) (string, error) {
+func (f *fakePaperlessClient) TagIDs(_ context.Context, _, _ string, names []string) ([]int, error) {
+	ids := make([]int, 0, len(names))
+	for _, name := range names {
+		id, ok := f.tagIDs[strings.ToLower(name)]
+		if !ok {
+			return nil, fmt.Errorf("%w %q", ErrPaperlessTagNotFound, name)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+func (f *fakePaperlessClient) PostDocument(_ context.Context, _, token, title, _, _ string, tagIDs []int, body io.Reader) (string, error) {
+	f.postedTags = tagIDs
 	if token != "secret-token" {
 		return "", fmt.Errorf("unexpected token %q", token)
 	}
@@ -108,7 +123,7 @@ func setupPaperlessInvoiceService(t *testing.T, client PaperlessClient, configur
 	if err := db.Create(&coin).Error; err != nil {
 		t.Fatalf("create coin: %v", err)
 	}
-	svc := NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client).
+	svc := NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client, nil).
 		WithPolling(time.Millisecond, 50*time.Millisecond).
 		WithBackgroundPolling(time.Hour, time.Millisecond)
 	return svc, db, user, coin
@@ -222,7 +237,7 @@ func TestHTTPPaperlessClient_PostDocumentAndGetTask(t *testing.T) {
 
 	client := &HTTPPaperlessClient{client: srv.Client()}
 	base := srv.URL + "/paperless/"
-	taskID, err := client.PostDocument(context.Background(), base, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", strings.NewReader("PDFDATA"))
+	taskID, err := client.PostDocument(context.Background(), base, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", nil, strings.NewReader("PDFDATA"))
 	if err != nil || taskID != "abc-123" {
 		t.Fatalf("post: %q %v", taskID, err)
 	}
@@ -242,7 +257,7 @@ func TestHTTPPaperlessClient_PostDocumentAndGetTask(t *testing.T) {
 	if _, err := client.GetDocumentFile(context.Background(), base, "tkn", 0, PaperlessFilePreview); err == nil {
 		t.Fatal("document id 0 must be rejected")
 	}
-	_, err = client.PostDocument(context.Background(), base, "wrong", "", "inv.pdf", "", strings.NewReader("x"))
+	_, err = client.PostDocument(context.Background(), base, "wrong", "", "inv.pdf", "", nil, strings.NewReader("x"))
 	var pErr *PaperlessError
 	if !errors.As(err, &pErr) || pErr.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected 401 PaperlessError, got %v", err)
@@ -392,5 +407,91 @@ func TestPaperlessInvoiceService_UnlinkKeepsPaperlessUntouched(t *testing.T) {
 	}
 	if client.fileDocID != 0 || client.postedBody != "" {
 		t.Fatal("unlink must not call paperless-ngx")
+	}
+}
+
+// droppingPaperlessClient cancels the upload request right after paperless
+// accepts the file, as when the browser drops the request, and fails any
+// status check made with that cancelled request context.
+type droppingPaperlessClient struct {
+	*fakePaperlessClient
+	cancel context.CancelFunc
+}
+
+func (d *droppingPaperlessClient) PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, tagIDs []int, body io.Reader) (string, error) {
+	taskID, err := d.fakePaperlessClient.PostDocument(ctx, baseURL, token, title, filename, contentType, tagIDs, body)
+	d.cancel()
+	return taskID, err
+}
+
+func (d *droppingPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("paperless-ngx task lookup request failed: %w", err)
+	}
+	return d.fakePaperlessClient.GetTask(ctx, baseURL, token, taskID)
+}
+
+func TestPaperlessInvoiceService_LinksEvenWhenTheUploadRequestIsDropped(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	fake := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskStarted}}}
+	client := &droppingPaperlessClient{fakePaperlessClient: fake, cancel: cancel}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+	svc.WithBackgroundPolling(5*time.Millisecond, 5*time.Second)
+
+	result, err := svc.UploadInvoice(ctx, user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("x"))
+	if err != nil || result.Status != "pending" {
+		t.Fatalf("a dropped request after a successful upload must report pending, got %+v %v", result, err)
+	}
+
+	docID := 4964
+	fake.setTasks(&PaperlessTask{Status: PaperlessTaskSuccess, DocumentID: &docID})
+	deadline := time.Now().Add(3 * time.Second)
+	for storedDocumentID(t, db, coin.ID) == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := storedDocumentID(t, db, coin.ID); got == nil || *got != docID {
+		t.Fatalf("the server did not link the coin on its own, got %v", got)
+	}
+}
+
+func TestPaperlessInvoiceService_UploadSendsConfiguredTags(t *testing.T) {
+	docID := 7
+	client := &fakePaperlessClient{
+		tasks:  []*PaperlessTask{{Status: PaperlessTaskSuccess, DocumentID: &docID}},
+		tagIDs: map[string]int{"coins": 3, "brian": 8, "shopping": 12},
+	}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+	if err := db.Model(&user).Update("paperless_tags", "coins, Brian, shopping").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UploadInvoice(context.Background(), user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("x")); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if fmt.Sprint(client.postedTags) != "[3 8 12]" {
+		t.Fatalf("expected tag ids [3 8 12], got %v", client.postedTags)
+	}
+}
+
+func TestPaperlessInvoiceService_UnknownTagStopsTheUpload(t *testing.T) {
+	client := &fakePaperlessClient{tagIDs: map[string]int{"coins": 3}}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+	if err := db.Model(&user).Update("paperless_tags", "coins, shoping").Error; err != nil {
+		t.Fatal(err)
+	}
+	_, err := svc.UploadInvoice(context.Background(), user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("x"))
+	if !errors.Is(err, ErrPaperlessTagNotFound) || !strings.Contains(err.Error(), `"shoping"`) {
+		t.Fatalf("expected a missing-tag error naming the tag, got %v", err)
+	}
+	if client.postedBody != "" {
+		t.Fatal("nothing should be uploaded when a tag is missing")
+	}
+}
+
+func TestSplitPaperlessTags(t *testing.T) {
+	if got := SplitPaperlessTags(" coins, brian ,, shopping, Coins "); fmt.Sprint(got) != "[coins brian shopping]" {
+		t.Fatalf("got %v", got)
+	}
+	if got := SplitPaperlessTags(""); len(got) != 0 {
+		t.Fatalf("got %v", got)
 	}
 }

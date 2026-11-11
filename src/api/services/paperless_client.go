@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -35,7 +34,9 @@ type PaperlessTask struct {
 
 // PaperlessClient talks to a user's paperless-ngx instance.
 type PaperlessClient interface {
-	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error)
+	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, tagIDs []int, body io.Reader) (string, error)
+	// TagIDs returns the paperless tag id for each name, in order.
+	TagIDs(ctx context.Context, baseURL, token string, names []string) ([]int, error)
 	GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error)
 	GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error)
 	// Ping makes one authenticated request so URL, network path and token are
@@ -209,7 +210,7 @@ func (c *HTTPPaperlessClient) do(req *http.Request, token, operation string) ([]
 	return payload, nil
 }
 
-func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error) {
+func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, tagIDs []int, body io.Reader) (string, error) {
 	endpoint, err := paperlessEndpoint(baseURL, "/api/documents/post_document/")
 	if err != nil {
 		return "", err
@@ -218,6 +219,12 @@ func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, 
 	writer := multipart.NewWriter(&buf)
 	if title != "" {
 		if err := writer.WriteField("title", title); err != nil {
+			return "", err
+		}
+	}
+	// The docs: "tags ... Specify this multiple times to have multiple tags".
+	for _, id := range tagIDs {
+		if err := writer.WriteField("tags", strconv.Itoa(id)); err != nil {
 			return "", err
 		}
 	}
@@ -257,6 +264,48 @@ func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, 
 	return taskID, nil
 }
 
+// ErrPaperlessTagNotFound means a configured tag name does not exist in paperless.
+var ErrPaperlessTagNotFound = errors.New("paperless-ngx has no tag named")
+
+func (c *HTTPPaperlessClient) TagIDs(ctx context.Context, baseURL, token string, names []string) ([]int, error) {
+	ids := make([]int, 0, len(names))
+	for _, name := range names {
+		endpoint, err := paperlessEndpoint(baseURL, "/api/tags/?page_size=100&name__iexact="+url.QueryEscape(name))
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		payload, err := c.do(req, token, "tag lookup")
+		if err != nil {
+			return nil, err
+		}
+		var page struct {
+			Results []struct {
+				ID   int    `json:"id"`
+				Name string `json:"name"`
+			} `json:"results"`
+		}
+		if err := json.Unmarshal(payload, &page); err != nil {
+			return nil, fmt.Errorf("paperless-ngx tag lookup returned an unexpected payload: %w", err)
+		}
+		found := 0
+		for _, tag := range page.Results {
+			if strings.EqualFold(tag.Name, name) {
+				found = tag.ID
+				break
+			}
+		}
+		if found == 0 {
+			return nil, fmt.Errorf("%w %q", ErrPaperlessTagNotFound, name)
+		}
+		ids = append(ids, found)
+	}
+	return ids, nil
+}
+
 func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) error {
 	endpoint, err := paperlessEndpoint(baseURL, "/api/documents/?page_size=1")
 	if err != nil {
@@ -270,81 +319,36 @@ func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) e
 	return err
 }
 
-// paperlessTaskPayload covers both task formats. API v9 reports the new
-// document as related_document; v10 (paperless-ngx 3.x) reports
-// related_document_ids and result_data.document_id instead. Result fields are
-// raw so a type change cannot fail the whole parse.
+// paperlessTaskPayload is one task from /api/tasks/. API v9 names the new
+// document related_document; v10 (paperless-ngx 3.x) uses
+// related_document_ids and result_data.document_id.
 type paperlessTaskPayload struct {
 	Status             string            `json:"status"`
 	Result             json.RawMessage   `json:"result"`
-	ResultMessage      json.RawMessage   `json:"result_message"`
 	RelatedDocument    json.RawMessage   `json:"related_document"`
 	RelatedDocumentIDs []json.RawMessage `json:"related_document_ids"`
-	ResultData         json.RawMessage   `json:"result_data"`
-}
-
-type paperlessTaskResultData struct {
-	DocumentID json.RawMessage `json:"document_id"`
-	Message    string          `json:"message"`
-	Error      string          `json:"error"`
+	ResultData         struct {
+		DocumentID json.RawMessage `json:"document_id"`
+	} `json:"result_data"`
 }
 
 func (p paperlessTaskPayload) documentID() *int {
 	if id := parsePaperlessDocumentID(p.RelatedDocument); id != nil {
 		return id
 	}
-	for _, raw := range p.RelatedDocumentIDs {
-		if id := parsePaperlessDocumentID(raw); id != nil {
+	if len(p.RelatedDocumentIDs) > 0 {
+		if id := parsePaperlessDocumentID(p.RelatedDocumentIDs[0]); id != nil {
 			return id
 		}
 	}
-	var data paperlessTaskResultData
-	if len(p.ResultData) > 0 && json.Unmarshal(p.ResultData, &data) == nil {
-		if id := parsePaperlessDocumentID(data.DocumentID); id != nil {
-			return id
-		}
-	}
-	// Last resort: paperless's own result text, "Success. New document id 4949 created".
-	if match := paperlessNewDocumentIDPattern.FindStringSubmatch(p.message()); match != nil {
-		if id, err := strconv.Atoi(match[1]); err == nil && id > 0 {
-			return &id
-		}
-	}
-	return nil
+	return parsePaperlessDocumentID(p.ResultData.DocumentID)
 }
 
-var paperlessNewDocumentIDPattern = regexp.MustCompile(`(?i)new document id (\d+)`)
-
-func (p paperlessTaskPayload) message() string {
-	for _, raw := range []json.RawMessage{p.Result, p.ResultMessage} {
-		var text string
-		if len(raw) > 0 && json.Unmarshal(raw, &text) == nil && strings.TrimSpace(text) != "" {
-			return strings.TrimSpace(text)
-		}
-	}
-	var data paperlessTaskResultData
-	if len(p.ResultData) > 0 && json.Unmarshal(p.ResultData, &data) == nil {
-		if msg := strings.TrimSpace(data.Error); msg != "" {
-			return msg
-		}
-		return strings.TrimSpace(data.Message)
-	}
-	return ""
-}
-
-// normalizePaperlessTaskStatus maps v9/v10 status spellings onto the states
-// Aurearia acts on; anything unrecognised stays pending.
-func normalizePaperlessTaskStatus(status string) string {
-	switch strings.ToUpper(strings.TrimSpace(status)) {
-	case "SUCCESS", "SUCCEEDED", "COMPLETED", "COMPLETE":
-		return PaperlessTaskSuccess
-	case "FAILURE", "FAILED", "ERROR", "REVOKED":
-		return PaperlessTaskFailure
-	case "STARTED", "RUNNING", "PROCESSING":
-		return PaperlessTaskStarted
-	default:
-		return PaperlessTaskPending
-	}
+// resultText returns the task's result when it is a string, else "".
+func (p paperlessTaskPayload) resultText() string {
+	var text string
+	_ = json.Unmarshal(p.Result, &text)
+	return strings.TrimSpace(text)
 }
 
 func (c *HTTPPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error) {
@@ -369,8 +373,8 @@ func (c *HTTPPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskI
 		return &PaperlessTask{Status: PaperlessTaskPending}, nil
 	}
 	return &PaperlessTask{
-		Status:     normalizePaperlessTaskStatus(tasks[0].Status),
-		Result:     tasks[0].message(),
+		Status:     strings.ToUpper(tasks[0].Status),
+		Result:     tasks[0].resultText(),
 		DocumentID: tasks[0].documentID(),
 	}, nil
 }
