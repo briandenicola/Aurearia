@@ -82,7 +82,7 @@ baseline checked-in files. Only the unprotected `copilot` environment exists.
 
 | Control | Observed before | Proposed after |
 |---|---|---|
-| Main required checks | Seven, strict/up-to-date | All twenty [policy checks](../scripts/delivery/publish-policy.json), strict/up-to-date, bound to observed GitHub App IDs |
+| Main required checks | Seven, strict/up-to-date | All twenty policy checks (policy file since removed), strict/up-to-date, bound to observed GitHub App IDs |
 | Main PR requirement | None | PR required, **zero additional human approving reviews** |
 | Main admin enforcement | Off | On; no routine admin bypass |
 | Main force push/delete | Both off | Unchanged |
@@ -126,7 +126,7 @@ candidate is not entitled to publish merely because it once passed checks.
 Beta workflow bytes are unchanged.
 
 After GitHub's environment approval, the
-[read-only verifier](../scripts/delivery/verify-main-publish.mjs) checks:
+read-only verifier (since removed) checked:
 
 1. The event and independently fetched upstream run identify a successful
    `.github/workflows/ci.yml` push on main, in this repository, for a full SHA.

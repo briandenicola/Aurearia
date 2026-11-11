@@ -82,6 +82,34 @@ func TestSetRepository_GetCoinsMatchingCriteria_FiltersByVendor(t *testing.T) {
 	}
 }
 
+func TestSetRepository_GetCoinsMatchingCriteria_EmptyTextFields(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+	coins := []models.Coin{
+		{Name: "Filled", UserID: 1, Ruler: "Trajan", Mint: "Rome", Era: models.EraAncient, Denomination: "Denarius", Grade: "VF"},
+		{Name: "Blank", UserID: 1},
+		{Name: "Other User Blank", UserID: 2},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("create coins: %v", err)
+	}
+
+	for _, field := range []string{"ruler", "mint", "era", "denomination", "grade"} {
+		for op, want := range map[string][]string{
+			"isNull":    {"Blank"},
+			"isNotNull": {"Filled"},
+		} {
+			got, err := repo.GetCoinsMatchingCriteria(1, map[string]interface{}{"field": field, "op": op})
+			if err != nil {
+				t.Fatalf("%s %s failed: %v", field, op, err)
+			}
+			if names := coinNames(got); !reflect.DeepEqual(names, want) {
+				t.Fatalf("%s %s = %v, want %v", field, op, names, want)
+			}
+		}
+	}
+}
+
 func TestSetRepository_GetCoinsInSet_UsesManualSortOrder(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)

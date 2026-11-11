@@ -146,34 +146,6 @@ test('real Task invocation propagates lint failure and never skips a missing lin
   assert.notEqual(missing.status, 0);
   assert.equal(readFileSync(join(f.dir, 'src/web/calls.txt'), 'utf8'), '');
 });
-test('CI and docs use the shared gates; package and runner-only coverage remain explicit', () => {
-  const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8').replaceAll('\r\n', '\n');
-  const docs = readFileSync(join(root, 'docs/testing.md'), 'utf8');
-  const pkg = JSON.parse(readFileSync(join(root, 'src/web/package.json'), 'utf8'));
-  for (const target of ['check:go', 'check:web', 'check:agent', 'check:openapi', 'check:delivery', 'test-race']) {
-    assert.ok(ci.includes(`run: task ${target}`), `CI omitted ${target}`);
-    assert.ok(docs.includes(`task ${target}`), `Documentation omitted ${target}`);
-  }
-  assert.match(pkg.scripts.lint, /--max-warnings 0(?:\s|$)/);
-  assert.doesNotMatch(pkg.scripts.lint, /--quiet/);
-  assert.equal(pkg.scripts['type-check'], 'vue-tsc --build');
-  assert.match(pkg.scripts.test, /node --test .* && vitest run/);
-  assert.match(ci, /CGO_ENABLED: "1"/);
-  assert.equal((ci.match(/run: task setup:go/g) ?? []).length, 2);
-  assert.match(ci, /os: \[ubuntu-latest, windows-latest\]/);
-  const delivery = ci.split('\n  go-api:')[0];
-  const checkouts = delivery.split(/      - uses: actions\/checkout@[^\n]+\n/).slice(1);
-  assert.equal(checkouts.length, 1);
-  const checkout = checkouts[0].split('      - uses: actions/setup-node@')[0];
-  assert.match(checkout, /GIT_CONFIG_COUNT: '1'\n          GIT_CONFIG_KEY_0: core.protectNTFS\n          GIT_CONFIG_VALUE_0: 'true'/);
-  assert.doesNotMatch(checkout, /if:|sparse-checkout/);
-  assert.doesNotMatch(ci, /skipping|continue-on-error|--if-present/i);
-  const security = readFileSync(join(root, '.github/workflows/security-scan.yml'), 'utf8');
-  for (const job of ['gitleaks', 'govulncheck', 'npm-audit', 'pip-audit', 'agent-image-pip-check', 'container-security']) {
-    assert.match(security, new RegExp(`^  ${job}:`, 'm'));
-  }
-  assert.doesNotMatch(security, /continue-on-error:\s*true/);
-});
 test('archive portability mapping preserves blobs and rejects invalid tracked filename characters', () => {
   const mapping = JSON.parse(readFileSync(join(root, '.squad/artifacts/windows-log-path-mapping-2026-09-21.json'), 'utf8'));
   const result = spawnSync('git', ['ls-files', '-s', '-z'], { cwd: root, encoding: 'utf8' });

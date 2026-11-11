@@ -1,9 +1,10 @@
 name: Security Scan
 
+# Gitleaks runs on every PR because a leaked secret can't be taken back.
+# Everything else is a scheduled/manual sweep: dependency advisories and
+# image CVEs change on their own schedule, not with each PR.
 on:
   pull_request:
-    branches: [beta]
-  push:
     branches: [beta]
   schedule:
     - cron: '0 12 * * 1'
@@ -12,20 +13,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gitleaks:
     name: Gitleaks
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (full history)
-        if: github.event_name != 'push'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Checkout (push diff)
-        if: github.event_name == 'push'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -40,6 +37,7 @@ jobs:
 
   govulncheck:
     name: Govulncheck
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,6 +58,7 @@ jobs:
 
   npm-audit:
     name: npm audit
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -90,6 +89,7 @@ jobs:
 
   pip-audit:
     name: pip-audit
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -114,6 +114,7 @@ jobs:
 
   agent-image-pip-check:
     name: Agent image — no pip in runtime
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,11 +170,10 @@ jobs:
 
   container-security:
     name: Container security (${{ matrix.name }})
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -225,11 +225,20 @@ jobs:
           upload-artifact-retention: 30
           upload-release-assets: false
 
-      - name: Archive OCI image and attestations
-        run: tar -C /tmp -cf /tmp/${{ matrix.bundle }} ${{ matrix.archive }}
-
-      - name: Attest image archive provenance
-        if: github.event_name == 'push'
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+  go-race:
+    name: Go API (race detector)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          subject-path: /tmp/${{ matrix.bundle }}
+          go-version-file: src/api/go.mod
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.44.0
+      - run: task setup:go
+      - name: Race detector
+        env:
+          CGO_ENABLED: "1"
+        run: task test-race

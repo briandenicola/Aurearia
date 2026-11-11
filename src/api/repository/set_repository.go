@@ -913,8 +913,16 @@ var criteriaFieldColumns = map[string]string{
 }
 
 // emptyStringCriteriaFields are text fields where isNull/isNotNull treat an
-// empty string the same as NULL.
+// empty string the same as NULL. These columns are non-pointer Go strings, so
+// a blank value is persisted as an empty string, never as NULL.
 var emptyStringCriteriaFields = map[string]bool{
+	"material":         true,
+	"category":         true,
+	"denomination":     true,
+	"ruler":            true,
+	"era":              true,
+	"mint":             true,
+	"grade":            true,
 	"purchaseLocation": true,
 }
 
