@@ -295,6 +295,21 @@ export const getCoinValueHistory = (coinId: number) =>
 export const getAttributionCards = (coinId: number) =>
   api.get<CoinImage[]>(`/coins/${coinId}/attribution-cards`)
 
+export interface PaperlessInvoiceResult {
+  status: 'linked' | 'pending'
+  taskId: string
+  documentId?: number
+}
+
+export const uploadInvoiceToPaperless = (coinId: number, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post<PaperlessInvoiceResult>(`/coins/${coinId}/invoice/paperless`, formData, { timeout: 90_000 })
+}
+
+export const resolvePaperlessInvoiceTask = (coinId: number, taskId: string) =>
+  api.post<PaperlessInvoiceResult>(`/coins/${coinId}/invoice/paperless/tasks/${encodeURIComponent(taskId)}`)
+
 export const uploadImage = (coinId: number, file: File, imageType: string, isPrimary: boolean, circleClip?: boolean) => {
   const formData = new FormData()
   formData.append('image', file)

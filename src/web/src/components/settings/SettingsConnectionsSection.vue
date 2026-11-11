@@ -84,11 +84,23 @@
 
     <h3 class="mb-3 mt-5 text-base text-text-secondary">Paperless-ngx</h3>
     <p class="mb-3 text-sm text-text-muted">
-      Link each coin's Vendor Invoice to your paperless-ngx archive. Invoice numbers open a paperless search; a pasted paperless document URL opens that document directly.
+      Link each coin's Vendor Invoice to your paperless-ngx archive, and upload invoices from the coin's edit page. Without an API token, invoice numbers still open a paperless search.
     </p>
     <div class="form-group">
       <label class="form-label">Paperless-ngx URL</label>
       <input v-model="paperlessUrl" type="url" class="form-input" placeholder="https://paperless.example.com" autocomplete="off" />
+      <span class="mt-1 block text-chip text-text-muted">Must be reachable from the Aurearia server. localhost and link-local addresses are blocked; use the host's LAN name or IP.</span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Paperless-ngx API Token</label>
+      <input v-model="paperlessApiToken" type="password" class="form-input" placeholder="Token from paperless-ngx → My Profile" autocomplete="new-password" />
+      <span class="mt-1 block text-chip text-text-muted">Needed for uploads. Encrypted at rest and only used for your invoices.</span>
+    </div>
+    <div
+      v-if="auth.user?.paperlessConfigured"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
+    >
+      Paperless-ngx connected
     </div>
 
     <h3 class="mb-3 mt-5 text-base text-text-secondary">Pushover Notifications</h3>
@@ -138,7 +150,7 @@ import { useSettingsProfile } from '@/composables/useSettingsProfile'
 
 const auth = useAuthStore()
 const {
-  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, paperlessUrl, pushoverKey,
+  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, paperlessUrl, paperlessApiToken, pushoverKey,
   pushoverTesting, pushoverTestMsg, pushoverTestError, handleTestPushover,
   profileMsg, profileError, profileSaving,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile,

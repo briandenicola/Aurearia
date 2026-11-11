@@ -452,6 +452,34 @@
   box-shadow: 0 0 0 2px var(--accent-gold-glow);
 }
 
+/* iOS Safari (and the installed PWA) gives date/time inputs an intrinsic
+ * min-width and centers their value, so they overflow narrow form columns
+ * and grid cells. Fix it once here for every date-like input instead of
+ * per-component classes — this regression keeps reappearing whenever a new
+ * date field is added without them. Guarded by main-css-ios-date.test.ts. */
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'],
+input[type='month'],
+input[type='week'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: calc(1.5em + 1.2rem + 2px);
+}
+
+input[type='date']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value,
+input[type='month']::-webkit-date-and-time-value,
+input[type='week']::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+}
+
 .form-textarea {
   resize: vertical;
   min-height: 80px;

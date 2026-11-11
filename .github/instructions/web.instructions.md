@@ -196,6 +196,7 @@ status foregrounds, not just its backgrounds.
 8. **Gold (`--accent-gold`)** is reserved for: active states, values/prices, links, section accents
 9. **Cards** use `var(--radius-sm)` for small cards, `var(--radius-md)` for containers
 10. **Translucent fills** use `bg-overlay-*` — never a raw `rgba(0, 0, 0, …)`
+11. **Date/time inputs** rely on the global iOS rule in `main.css` (`appearance: none`, `min-width: 0`, `max-width: 100%`) — never override `appearance`, `display` or `min-width` on them, and give their grid/flex parent `min-w-0`. iOS Safari/PWA otherwise overflows the field box.
 
 ## Completion
 
