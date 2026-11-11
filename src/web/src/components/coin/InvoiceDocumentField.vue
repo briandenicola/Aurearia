@@ -89,7 +89,7 @@
       </span>
       <span class="min-w-0 flex-1">
         <span class="block text-base leading-tight text-text-secondary">Attach Invoice</span>
-        <span class="mt-0.5 block truncate text-xs text-text-muted">PDF or photo · stored in Paperless</span>
+        <span class="mt-0.5 block truncate text-xs text-text-muted">PDF or photo</span>
       </span>
     </button>
 

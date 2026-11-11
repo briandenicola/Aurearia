@@ -53,7 +53,7 @@ describe('InvoiceDocumentField', () => {
   it('shows the dashed attach tile when nothing is attached', () => {
     const wrapper = mount(InvoiceDocumentField, { props: { coinId: 1 } })
     expect(wrapper.get('[data-testid="invoice-document-attach"]').text()).toContain('Attach Invoice')
-    expect(wrapper.text()).toContain('PDF or photo · stored in Paperless')
+    expect(wrapper.text()).toContain('PDF or photo')
   })
 
   it('uploads on an existing coin and reports the linked document', async () => {
