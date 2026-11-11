@@ -6,15 +6,13 @@ const repositoryRoot = resolve(process.cwd(), '../..')
 const workflowPath = resolve(repositoryRoot, '.github', 'workflows', 'ai-browser-exploration.yml')
 const workflow = readFileSync(workflowPath, 'utf8').replaceAll('\r', '')
 
-describe('AI browser advisory workflow', () => {
-  it('runs on scoped beta changes, manually, and nightly without changing the Quality Gate', () => {
-    expect(workflow).toMatch(/\n {2}push:\n {4}branches: \[beta\]/)
-    expect(workflow).toContain('- src/web/e2e/exploration/**')
-    expect(workflow).toMatch(/\n {2}workflow_dispatch:\s*\n/)
-    expect(workflow).toMatch(/\n {2}schedule:\s*\n/)
-    expect(workflow).toContain("AI_BROWSER_FAKE_MODEL: 'true'")
-    expect(workflow).toContain("github.event_name == 'schedule' && 'nightly' || 'manual'")
+describe('AI browser exploration workflow', () => {
+  it('runs only on manual dispatch', () => {
+    expect(workflow).toMatch(/\non:\n {2}workflow_dispatch:\s*\n/)
+    expect(workflow).not.toContain('push:')
+    expect(workflow).not.toContain('schedule:')
     expect(workflow).not.toContain('pull_request:')
+    expect(workflow).toContain("AI_BROWSER_FAKE_MODEL: 'true'")
   })
 
   it('uses least privilege and immutable action pins', () => {

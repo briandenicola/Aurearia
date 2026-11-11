@@ -1,20 +1,9 @@
 name: AI Browser Exploration
 
+# Manual only: an experimental harness (spec 360) that drives the full Docker
+# stack with a scripted fake model. Run it from the Actions tab when needed.
 on:
-  push:
-    branches: [beta]
-    paths:
-      - .github/workflows/ai-browser-exploration.yml
-      - docker-compose.exploration.yml
-      - Dockerfile
-      - src/agent/**
-      - src/api/**
-      - src/web/e2e/exploration/**
-      - src/web/e2e/fixtures/workflow.ts
-      - src/web/playwright.exploration.config.ts
   workflow_dispatch:
-  schedule:
-    - cron: '23 7 * * *'
 
 permissions:
   contents: read
@@ -33,7 +22,7 @@ jobs:
       AI_BROWSER_COMPOSE_PROJECT: ai-browser-ci-${{ github.run_id }}-${{ github.run_attempt }}
       AI_BROWSER_RUN_CONFIG: ${{ github.workspace }}/.tmp/ai-browser/ci-run-config.json
       AI_BROWSER_FAKE_MODEL: 'true'
-      AI_BROWSER_TRIGGER: ${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+      AI_BROWSER_TRIGGER: manual
       JWT_SECRET: cleanup-only
       AGENT_INTERNAL_SERVICE_TOKEN: cleanup-only
       AI_BROWSER_INTERNAL_BEARER_TOKEN: cleanup-only
