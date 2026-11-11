@@ -187,6 +187,8 @@ func TestHTTPPaperlessClient_GetTaskReadsV10TaskFormat(t *testing.T) {
 		"related_document_ids": `{"count":1,"results":[{"task_id":"task-1","status":"SUCCESS","related_document_ids":[42],"result_data":{"document_id":42}}]}`,
 		// v10 with only result_data populated.
 		"result_data only": `{"count":1,"results":[{"status":"success","related_document_ids":[],"result_data":{"document_id":42}}]}`,
+		// Only paperless's result text carries the id.
+		"result text only": `{"count":1,"results":[{"status":"SUCCESS","related_document_ids":[],"result_message":"Success. New document id 42 created"}]}`,
 		// v9 shape still works.
 		"v9 related_document": `[{"status":"SUCCESS","related_document":"42","result":"ok"}]`,
 	} {

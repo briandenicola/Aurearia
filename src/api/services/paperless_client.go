@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -276,6 +277,7 @@ func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) e
 type paperlessTaskPayload struct {
 	Status             string            `json:"status"`
 	Result             json.RawMessage   `json:"result"`
+	ResultMessage      json.RawMessage   `json:"result_message"`
 	RelatedDocument    json.RawMessage   `json:"related_document"`
 	RelatedDocumentIDs []json.RawMessage `json:"related_document_ids"`
 	ResultData         json.RawMessage   `json:"result_data"`
@@ -298,15 +300,27 @@ func (p paperlessTaskPayload) documentID() *int {
 	}
 	var data paperlessTaskResultData
 	if len(p.ResultData) > 0 && json.Unmarshal(p.ResultData, &data) == nil {
-		return parsePaperlessDocumentID(data.DocumentID)
+		if id := parsePaperlessDocumentID(data.DocumentID); id != nil {
+			return id
+		}
+	}
+	// Last resort: paperless's own result text, "Success. New document id 4949 created".
+	if match := paperlessNewDocumentIDPattern.FindStringSubmatch(p.message()); match != nil {
+		if id, err := strconv.Atoi(match[1]); err == nil && id > 0 {
+			return &id
+		}
 	}
 	return nil
 }
 
+var paperlessNewDocumentIDPattern = regexp.MustCompile(`(?i)new document id (\d+)`)
+
 func (p paperlessTaskPayload) message() string {
-	var text string
-	if len(p.Result) > 0 && json.Unmarshal(p.Result, &text) == nil && strings.TrimSpace(text) != "" {
-		return strings.TrimSpace(text)
+	for _, raw := range []json.RawMessage{p.Result, p.ResultMessage} {
+		var text string
+		if len(raw) > 0 && json.Unmarshal(raw, &text) == nil && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
 	}
 	var data paperlessTaskResultData
 	if len(p.ResultData) > 0 && json.Unmarshal(p.ResultData, &data) == nil {
