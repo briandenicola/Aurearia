@@ -47,12 +47,12 @@ export function useCoinDetailMetadataRows(coin: Coin | null, paperlessBaseUrl?: 
       })
     }
 
-    if (coin.vendorInvoice) {
-      const invoiceLink = resolveInvoiceLink(coin.vendorInvoice, paperlessBaseUrl)
+    if (coin.vendorInvoice || coin.paperlessDocumentId) {
+      const invoiceLink = resolveInvoiceLink(coin.vendorInvoice, paperlessBaseUrl, coin.paperlessDocumentId)
       result.push({
         key: 'vendorInvoice',
         label: 'Vendor Invoice',
-        value: invoiceLink?.label ?? coin.vendorInvoice,
+        value: invoiceLink?.label ?? (coin.vendorInvoice || `Paperless document #${coin.paperlessDocumentId}`),
         url: invoiceLink?.url ?? null,
         valueClass: invoiceLink ? 'gold' : undefined,
       })

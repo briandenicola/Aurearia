@@ -325,6 +325,9 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 
 		// User self-service routes
 		userHandler := handlers.NewUserHandler(d.cfg.UploadDir, userRepo, d.pushoverSvc, d.logger, d.credentialEncryptionSvc)
+		paperlessInvoiceHandler := handlers.NewPaperlessInvoiceHandler(services.NewPaperlessInvoiceService(d.coinRepo, userRepo, d.credentialEncryptionSvc, nil))
+		protected.POST("/coins/:id/invoice/paperless", d.writeRateLimit, paperlessInvoiceHandler.UploadInvoice)
+		protected.POST("/coins/:id/invoice/paperless/tasks/:taskId", d.writeRateLimit, paperlessInvoiceHandler.ResolveInvoiceTask)
 		oidcUserHandler := handlers.NewOIDCHandler(d.oidcSvc)
 		protected.GET("/auth/me", userHandler.GetMe)
 		protected.POST("/auth/change-password", userHandler.ChangePassword)

@@ -8393,6 +8393,101 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/{id}/invoice/paperless": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Upload coin invoice to paperless-ngx",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Invoice (PDF or image)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.PaperlessInvoiceResult"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/services.PaperlessInvoiceResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/invoice/paperless/tasks/{taskId}": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Resolve pending paperless-ngx invoice upload",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "paperless-ngx task id",
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.PaperlessInvoiceResult"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/services.PaperlessInvoiceResult"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/journal": {
             "get": {
                 "security": [
@@ -23862,6 +23957,9 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 1000
                 },
+                "paperlessDocumentId": {
+                    "type": "integer"
+                },
                 "purchaseDate": {
                     "type": "string"
                 },
@@ -27360,6 +27458,21 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "expiresAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.PaperlessInvoiceResult": {
+            "type": "object",
+            "properties": {
+                "documentId": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "\"linked\" or \"pending\"",
+                    "type": "string"
+                },
+                "taskId": {
                     "type": "string"
                 }
             }
