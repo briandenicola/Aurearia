@@ -1,16 +1,25 @@
+# Dependabot opens its PRs against beta: main only accepts the beta-to-main
+# candidate, so a Dependabot PR aimed at main can never pass Verified candidate.
+# Minor and patch updates are batched into one PR per ecosystem; major updates
+# arrive as individual PRs.
 version: 2
 updates:
   - package-ecosystem: gomod
     directory: /src/api
+    target-branch: beta
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     labels:
       - dependencies
       - go
+    groups:
+      gomod-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /src/web
+    target-branch: beta
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -22,21 +31,32 @@ updates:
         versions: [">=8.0.0"]
       - dependency-name: typescript
         versions: [">=6.0.0"]
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: beta
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     labels:
       - dependencies
       - ci
+    groups:
+      github-actions-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: uv
     directory: /src/agent
+    target-branch: beta
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     labels:
       - dependencies
       - python
+    groups:
+      uv-minor-patch:
+        update-types: [minor, patch]
