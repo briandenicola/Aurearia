@@ -37,6 +37,9 @@ type PaperlessClient interface {
 	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error)
 	GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error)
 	GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error)
+	// Ping makes one authenticated request so URL, network path and token are
+	// all exercised.
+	Ping(ctx context.Context, baseURL, token string) error
 }
 
 // PaperlessFileKind selects which rendition of a document to fetch.
@@ -182,7 +185,10 @@ func paperlessEndpoint(baseURL, path string) (string, error) {
 
 func (c *HTTPPaperlessClient) do(req *http.Request, token, operation string) ([]byte, error) {
 	req.Header.Set("Authorization", "Token "+token)
-	req.Header.Set("Accept", "application/json; version=5")
+	// No version pin: paperless-ngx answers with its own default API version.
+	// Pinning an old one breaks when paperless drops it (3.x accepts only 9
+	// and 10 and answers 406 to anything else).
+	req.Header.Set("Accept", "application/json")
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("paperless-ngx %s request failed: %w", operation, err)
@@ -250,6 +256,19 @@ func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, 
 	return taskID, nil
 }
 
+func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) error {
+	endpoint, err := paperlessEndpoint(baseURL, "/api/documents/?page_size=1")
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	_, err = c.do(req, token, "connection test")
+	return err
+}
+
 type paperlessTaskPayload struct {
 	Status          string          `json:"status"`
 	Result          string          `json:"result"`
@@ -269,9 +288,9 @@ func (c *HTTPPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskI
 	if err != nil {
 		return nil, err
 	}
-	var tasks []paperlessTaskPayload
-	if err := json.Unmarshal(payload, &tasks); err != nil {
-		return nil, fmt.Errorf("paperless-ngx task lookup returned unexpected payload: %w", err)
+	tasks, err := parsePaperlessTasks(payload)
+	if err != nil {
+		return nil, err
 	}
 	if len(tasks) == 0 {
 		// Paperless can take a moment before the task row exists.
@@ -280,6 +299,26 @@ func (c *HTTPPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskI
 	task := &PaperlessTask{Status: strings.ToUpper(tasks[0].Status), Result: tasks[0].Result}
 	task.DocumentID = parsePaperlessDocumentID(tasks[0].RelatedDocument)
 	return task, nil
+}
+
+// parsePaperlessTasks accepts the task list as a plain array or as a
+// paginated {"results": [...]} object.
+func parsePaperlessTasks(payload []byte) ([]paperlessTaskPayload, error) {
+	var tasks []paperlessTaskPayload
+	if err := json.Unmarshal(payload, &tasks); err == nil {
+		return tasks, nil
+	}
+	var page struct {
+		Results *[]paperlessTaskPayload `json:"results"`
+	}
+	if err := json.Unmarshal(payload, &page); err == nil && page.Results != nil {
+		return *page.Results, nil
+	}
+	excerpt := strings.TrimSpace(string(payload))
+	if len(excerpt) > 200 {
+		excerpt = excerpt[:200]
+	}
+	return nil, fmt.Errorf("paperless-ngx task lookup returned an unexpected payload: %s", excerpt)
 }
 
 // parsePaperlessDocumentID accepts related_document as a number or a numeric

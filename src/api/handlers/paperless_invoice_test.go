@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,11 +21,14 @@ import (
 type stubPaperlessClient struct {
 	contentType string
 	body        string
+	pingErr     error
 }
 
 func (s *stubPaperlessClient) PostDocument(context.Context, string, string, string, string, string, io.Reader) (string, error) {
 	return "", errors.New("not used")
 }
+
+func (s *stubPaperlessClient) Ping(context.Context, string, string) error { return s.pingErr }
 
 func (s *stubPaperlessClient) GetTask(context.Context, string, string, string) (*services.PaperlessTask, error) {
 	return nil, errors.New("not used")
@@ -55,7 +59,27 @@ func setupPaperlessInvoiceRouter(t *testing.T, client services.PaperlessClient) 
 	r.Use(func(c *gin.Context) { c.Set("userId", user.ID); c.Next() })
 	r.GET("/api/coins/:id/invoice/paperless/document", h.InvoiceDocument)
 	r.DELETE("/api/coins/:id/invoice/paperless", h.UnlinkInvoice)
+	r.POST("/api/paperless/test", h.TestConnection)
 	return r, db, coin
+}
+
+func TestPaperlessTestConnection_ReportsSuccess(t *testing.T) {
+	router, _, _ := setupPaperlessInvoiceRouter(t, &stubPaperlessClient{})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/paperless/test", nil))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"ok":true`) {
+		t.Fatalf("expected ok, got %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPaperlessTestConnection_ReportsTheActualCause(t *testing.T) {
+	dnsErr := &net.DNSError{Err: "no such host", Name: "paperless-ngx", IsNotFound: true}
+	router, _, _ := setupPaperlessInvoiceRouter(t, &stubPaperlessClient{pingErr: dnsErr})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/paperless/test", nil))
+	if w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), `could not resolve \"paperless-ngx\"`) {
+		t.Fatalf("expected 502 naming the DNS failure, got %d %s", w.Code, w.Body.String())
+	}
 }
 
 func TestPaperlessInvoiceDocument_StreamsWithoutCachingAndSandboxed(t *testing.T) {

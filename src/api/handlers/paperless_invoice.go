@@ -30,7 +30,6 @@ func NewPaperlessInvoiceHandler(svc *services.PaperlessInvoiceService) *Paperles
 }
 
 func (h *PaperlessInvoiceHandler) respondServiceError(c *gin.Context, err error) {
-	var paperlessErr *services.PaperlessError
 	switch {
 	case errors.Is(err, services.ErrPaperlessCoinNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
@@ -43,12 +42,28 @@ func (h *PaperlessInvoiceHandler) respondServiceError(c *gin.Context, err error)
 	case errors.Is(err, services.ErrPaperlessTaskFailed):
 		respondError(c, http.StatusBadGateway, err.Error(), err)
 	case errors.Is(err, services.ErrOutboundTargetBlocked):
-		respondError(c, http.StatusBadRequest, "paperless-ngx URL points at a blocked address (loopback or link-local)", err)
-	case errors.As(err, &paperlessErr) && (paperlessErr.StatusCode == http.StatusUnauthorized || paperlessErr.StatusCode == http.StatusForbidden):
-		respondError(c, http.StatusBadGateway, "paperless-ngx rejected the API token", err)
+		respondError(c, http.StatusBadRequest, services.DescribePaperlessError(err), err)
 	default:
-		respondError(c, http.StatusBadGateway, "Could not reach paperless-ngx", err)
+		respondError(c, http.StatusBadGateway, services.DescribePaperlessError(err), err)
 	}
+}
+
+// TestConnection checks the saved paperless-ngx URL and API token.
+//
+//	@Summary	Test paperless-ngx connection
+//	@Tags		Users
+//	@Produce	json
+//	@Success	200	{object}	map[string]bool
+//	@Failure	400	{object}	ErrorResponse
+//	@Failure	502	{object}	ErrorResponse
+//	@Security	BearerAuth
+//	@Router		/paperless/test [post]
+func (h *PaperlessInvoiceHandler) TestConnection(c *gin.Context) {
+	if err := h.svc.TestConnection(c.Request.Context(), c.GetUint("userId")); err != nil {
+		h.respondServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // UploadInvoice uploads an invoice file to the user's paperless-ngx and links it to the coin.
