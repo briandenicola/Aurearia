@@ -238,6 +238,12 @@
           <div class="form-group min-w-0">
             <label class="form-label">Vendor Invoice</label>
             <input v-model="form.vendorInvoice" class="form-input" placeholder="e.g. INV-2026-0421" />
+            <PaperlessInvoiceControl
+              :coin-id="coinId"
+              :invoice="form.vendorInvoice"
+              :document-id="form.paperlessDocumentId"
+              @linked="(id) => { form.paperlessDocumentId = id }"
+            />
           </div>
         </div>
       </fieldset>
@@ -308,6 +314,7 @@ import { X, Camera } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import PaperlessInvoiceControl from '@/components/coin/PaperlessInvoiceControl.vue'
 
 function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
   return Array.isArray(data) ? data : data.mintLocations ?? []

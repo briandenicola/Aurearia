@@ -39,3 +39,24 @@ describe('resolveInvoiceLink', () => {
     expect(resolveInvoiceLink('INV-1', 'javascript:alert(1)')).toBeNull()
   })
 })
+
+describe('resolveInvoiceLink with an uploaded paperless document', () => {
+  it('prefers the linked document over a search', () => {
+    expect(resolveInvoiceLink('INV-1', 'https://paperless.local/', 42)).toEqual({
+      url: 'https://paperless.local/documents/42/details',
+      label: 'INV-1',
+    })
+  })
+
+  it('links the document even when the invoice field is empty', () => {
+    expect(resolveInvoiceLink('', 'https://paperless.local', 42)).toEqual({
+      url: 'https://paperless.local/documents/42/details',
+      label: 'Document #42',
+    })
+  })
+
+  it('falls back when no paperless URL is configured', () => {
+    expect(resolveInvoiceLink('INV-1', '', 42)).toBeNull()
+    expect(resolveInvoiceLink('', '', 42)).toBeNull()
+  })
+})

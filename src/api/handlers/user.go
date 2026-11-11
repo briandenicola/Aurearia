@@ -126,6 +126,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"paperlessUrl":                   user.PaperlessURL,
+		"paperlessConfigured":            user.PaperlessURL != "" && user.PaperlessAPIToken != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
 		"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,
@@ -262,6 +263,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		CNGPassword                    *string                 `json:"cngPassword"`
 		ParcelAppAPIKey                *string                 `json:"parcelAppAPIKey"`
 		PaperlessURL                   *string                 `json:"paperlessUrl"`
+		PaperlessAPIToken              *string                 `json:"paperlessApiToken"`
 		PushoverUserKey                *string                 `json:"pushoverUserKey"`
 		CoinOfDayEnabled               *bool                   `json:"coinOfDayEnabled"`
 		CoinOfDayIncludeWishlist       *bool                   `json:"coinOfDayIncludeWishlist"`
@@ -346,6 +348,19 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		}
 		updates["paperless_url"] = paperlessURL
 	}
+	if req.PaperlessAPIToken != nil {
+		token := strings.TrimSpace(*req.PaperlessAPIToken)
+		encrypted := ""
+		if token != "" {
+			var err error
+			encrypted, err = h.credentials.EncryptStringWithAAD(token, services.UserCredentialAAD(user.ID, "paperless_api_token"))
+			if err != nil {
+				respondError(c, http.StatusInternalServerError, "Failed to protect paperless-ngx credentials", err)
+				return
+			}
+		}
+		updates["paperless_api_token"] = encrypted
+	}
 	if req.PushoverUserKey != nil {
 		key := strings.TrimSpace(*req.PushoverUserKey)
 		updates["pushover_user_key"] = key
@@ -419,6 +434,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"paperlessUrl":                   user.PaperlessURL,
+		"paperlessConfigured":            user.PaperlessURL != "" && user.PaperlessAPIToken != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
 		"coinOfDayIncludeWishlist":       user.CoinOfDayIncludeWishlist,

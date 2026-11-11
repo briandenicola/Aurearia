@@ -50,6 +50,7 @@ export function useSettingsProfile() {
   const cngPassword = ref('')
   const parcelAppAPIKey = ref('')
   const paperlessUrl = ref(auth.user?.paperlessUrl || '')
+  const paperlessApiToken = ref('')
   const pushoverKey = ref('')
   const pushoverTesting = ref(false)
   const pushoverTestMsg = ref('')
@@ -162,6 +163,9 @@ export function useSettingsProfile() {
       if (parcelAppAPIKey.value !== '') {
         data.parcelAppAPIKey = parcelAppAPIKey.value
       }
+      if (paperlessApiToken.value !== '') {
+        data.paperlessApiToken = paperlessApiToken.value
+      }
       if (pushoverKey.value !== '') {
         data.pushoverUserKey = pushoverKey.value
       }
@@ -177,6 +181,7 @@ export function useSettingsProfile() {
         auth.user.cngConfigured = res.data.cngConfigured
         auth.user.parcelAppConfigured = res.data.parcelAppConfigured
         auth.user.paperlessUrl = res.data.paperlessUrl
+        auth.user.paperlessConfigured = res.data.paperlessConfigured
         paperlessUrl.value = res.data.paperlessUrl ?? ''
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
@@ -190,6 +195,7 @@ export function useSettingsProfile() {
       nbPassword.value = ''
       cngPassword.value = ''
       parcelAppAPIKey.value = ''
+      paperlessApiToken.value = ''
       pushoverKey.value = ''
       profileMsg.value = 'Profile saved'
     } catch {
@@ -282,6 +288,7 @@ export function useSettingsProfile() {
     cngPassword,
     parcelAppAPIKey,
     paperlessUrl,
+    paperlessApiToken,
     pushoverKey,
     pushoverTesting,
     pushoverTestMsg,

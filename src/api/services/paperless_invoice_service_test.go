@@ -1,0 +1,218 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+)
+
+var paperlessServiceDBCounter atomic.Uint64
+
+type fakePaperlessClient struct {
+	postErr    error
+	postTitle  string
+	tasks      []*PaperlessTask
+	taskCalls  int
+	postedBody string
+}
+
+func (f *fakePaperlessClient) PostDocument(_ context.Context, _, token, title, _, _ string, body io.Reader) (string, error) {
+	if token != "secret-token" {
+		return "", fmt.Errorf("unexpected token %q", token)
+	}
+	f.postTitle = title
+	b, _ := io.ReadAll(body)
+	f.postedBody = string(b)
+	if f.postErr != nil {
+		return "", f.postErr
+	}
+	return "task-123", nil
+}
+
+func (f *fakePaperlessClient) GetTask(_ context.Context, _, _, taskID string) (*PaperlessTask, error) {
+	if taskID != "task-123" {
+		return nil, fmt.Errorf("unexpected task %q", taskID)
+	}
+	idx := f.taskCalls
+	if idx >= len(f.tasks) {
+		idx = len(f.tasks) - 1
+	}
+	f.taskCalls++
+	return f.tasks[idx], nil
+}
+
+func setupPaperlessInvoiceService(t *testing.T, client PaperlessClient, configured bool) (*PaperlessInvoiceService, *gorm.DB, models.User, models.Coin) {
+	t.Helper()
+	dsn := fmt.Sprintf("file:paperless_service_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), paperlessServiceDBCounter.Add(1))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	sqlDB, _ := db.DB()
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Tag{}, &models.CoinSet{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	user := models.User{Username: "collector", PasswordHash: "hash"}
+	if configured {
+		user.PaperlessURL = "https://paperless.example.com"
+		user.PaperlessAPIToken = "secret-token"
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	coin := models.Coin{Name: "Gordian III", UserID: user.ID, VendorInvoice: "INV-1"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("create coin: %v", err)
+	}
+	svc := NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client).
+		WithPolling(time.Millisecond, 50*time.Millisecond)
+	return svc, db, user, coin
+}
+
+func storedDocumentID(t *testing.T, db *gorm.DB, coinID uint) *int {
+	t.Helper()
+	var coin models.Coin
+	if err := db.First(&coin, coinID).Error; err != nil {
+		t.Fatalf("reload coin: %v", err)
+	}
+	return coin.PaperlessDocumentID
+}
+
+func TestPaperlessInvoiceService_UploadLinksDocumentOnSuccess(t *testing.T) {
+	docID := 42
+	client := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskStarted}, {Status: PaperlessTaskSuccess, DocumentID: &docID}}}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+
+	result, err := svc.UploadInvoice(context.Background(), user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("%PDF"))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if result.Status != "linked" || result.DocumentID == nil || *result.DocumentID != 42 {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if got := storedDocumentID(t, db, coin.ID); got == nil || *got != 42 {
+		t.Fatalf("coin not linked, got %v", got)
+	}
+	if client.postTitle != "Gordian III – Invoice INV-1" || client.postedBody != "%PDF" {
+		t.Fatalf("unexpected upload title=%q body=%q", client.postTitle, client.postedBody)
+	}
+}
+
+func TestPaperlessInvoiceService_UploadReturnsPendingThenResolves(t *testing.T) {
+	client := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskPending}}}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+
+	result, err := svc.UploadInvoice(context.Background(), user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("x"))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if result.Status != "pending" || result.TaskID != "task-123" {
+		t.Fatalf("expected pending, got %+v", result)
+	}
+	if storedDocumentID(t, db, coin.ID) != nil {
+		t.Fatal("pending upload must not link a document")
+	}
+
+	docID := 7
+	client.tasks = []*PaperlessTask{{Status: PaperlessTaskSuccess, DocumentID: &docID}}
+	client.taskCalls = 0
+	resolved, err := svc.ResolveTask(context.Background(), user.ID, coin.ID, "task-123")
+	if err != nil || resolved.Status != "linked" {
+		t.Fatalf("resolve: %+v %v", resolved, err)
+	}
+	if got := storedDocumentID(t, db, coin.ID); got == nil || *got != 7 {
+		t.Fatalf("coin not linked after resolve, got %v", got)
+	}
+}
+
+func TestPaperlessInvoiceService_FailureAndConfigErrors(t *testing.T) {
+	client := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskFailure, Result: "duplicate of #3"}}}
+	svc, _, user, coin := setupPaperlessInvoiceService(t, client, true)
+	if _, err := svc.UploadInvoice(context.Background(), user.ID, coin.ID, "inv.pdf", "", strings.NewReader("x")); !errors.Is(err, ErrPaperlessTaskFailed) || !strings.Contains(err.Error(), "duplicate of #3") {
+		t.Fatalf("expected task failure, got %v", err)
+	}
+
+	unconfigured, _, user2, coin2 := setupPaperlessInvoiceService(t, &fakePaperlessClient{}, false)
+	if _, err := unconfigured.UploadInvoice(context.Background(), user2.ID, coin2.ID, "inv.pdf", "", strings.NewReader("x")); !errors.Is(err, ErrPaperlessNotConfigured) {
+		t.Fatalf("expected not configured, got %v", err)
+	}
+	if _, err := unconfigured.UploadInvoice(context.Background(), user2.ID+99, coin2.ID, "inv.pdf", "", strings.NewReader("x")); !errors.Is(err, ErrPaperlessCoinNotFound) {
+		t.Fatalf("expected other user's coin to be not found, got %v", err)
+	}
+}
+
+func TestHTTPPaperlessClient_PostDocumentAndGetTask(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Token tkn" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/paperless/api/documents/post_document/":
+			_, params, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			reader := multipart.NewReader(r.Body, params["boundary"])
+			fields := map[string]string{}
+			for {
+				part, err := reader.NextPart()
+				if err != nil {
+					break
+				}
+				b, _ := io.ReadAll(part)
+				fields[part.FormName()] = string(b)
+			}
+			if fields["title"] != "Coin – Invoice" || fields["document"] != "PDFDATA" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			_, _ = w.Write([]byte(`"abc-123"`))
+		case r.Method == http.MethodGet && r.URL.Path == "/paperless/api/tasks/" && r.URL.Query().Get("task_id") == "abc-123":
+			_, _ = w.Write([]byte(`[{"status":"SUCCESS","related_document":"55","result":"ok"}]`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := &HTTPPaperlessClient{client: srv.Client()}
+	base := srv.URL + "/paperless/"
+	taskID, err := client.PostDocument(context.Background(), base, "tkn", "Coin – Invoice", "inv.pdf", "application/pdf", strings.NewReader("PDFDATA"))
+	if err != nil || taskID != "abc-123" {
+		t.Fatalf("post: %q %v", taskID, err)
+	}
+	task, err := client.GetTask(context.Background(), base, "tkn", taskID)
+	if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 55 {
+		t.Fatalf("task: %+v %v", task, err)
+	}
+	_, err = client.PostDocument(context.Background(), base, "wrong", "", "inv.pdf", "", strings.NewReader("x"))
+	var pErr *PaperlessError
+	if !errors.As(err, &pErr) || pErr.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 PaperlessError, got %v", err)
+	}
+}
+
+func TestParsePaperlessDocumentID(t *testing.T) {
+	cases := map[string]*int{`12`: intPtr(12), `"34"`: intPtr(34), `null`: nil, ``: nil, `"x"`: nil, `0`: nil}
+	for raw, want := range cases {
+		got := parsePaperlessDocumentID([]byte(raw))
+		if (got == nil) != (want == nil) || (got != nil && *got != *want) {
+			t.Fatalf("parse %q = %v, want %v", raw, got, want)
+		}
+	}
+}
+
+func intPtr(v int) *int { return &v }

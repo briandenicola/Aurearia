@@ -26,6 +26,8 @@ export interface User {
   parcelAppConfigured?: boolean
   /** Base URL of the user's paperless-ngx instance; empty when not configured. */
   paperlessUrl?: string
+  /** True when both the paperless-ngx URL and API token are saved. */
+  paperlessConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
   coinOfDayIncludeWishlist?: boolean

@@ -11,6 +11,10 @@ const apiMocks = vi.hoisted(() => ({
   getMintLocations: vi.fn(),
 }))
 
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ user: null }),
+}))
+
 vi.mock('@/api/client', () => ({
   getStorageLocations: apiMocks.getStorageLocations,
   getStorageLocationOccupancy: apiMocks.getStorageLocationOccupancy,

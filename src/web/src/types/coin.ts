@@ -31,6 +31,8 @@ export interface Coin {
   purchaseLocation: string
   vendorSku: string
   vendorInvoice: string
+  /** paperless-ngx document id linked by an invoice upload. */
+  paperlessDocumentId?: number | null
   storageLocationId: number | null
   storageSlot?: number | null
   storageLocation: Pick<StorageLocation, 'id' | 'name' | 'type' | 'rows' | 'columns'> | null

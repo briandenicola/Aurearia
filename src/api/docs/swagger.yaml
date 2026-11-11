@@ -2900,6 +2900,8 @@ definitions:
       obverseInscription:
         maxLength: 1000
         type: string
+      paperlessDocumentId:
+        type: integer
       purchaseDate:
         type: string
       purchaseLocation:
@@ -5322,6 +5324,16 @@ definitions:
       authorizationUrl:
         type: string
       expiresAt:
+        type: string
+    type: object
+  services.PaperlessInvoiceResult:
+    properties:
+      documentId:
+        type: integer
+      status:
+        description: '"linked" or "pending"'
+        type: string
+      taskId:
         type: string
     type: object
   services.PriceAlertCreateRequest:
@@ -10807,6 +10819,66 @@ paths:
       summary: Upload a coin image (base64)
       tags:
       - Images
+  /coins/{id}/invoice/paperless:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Invoice (PDF or image)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.PaperlessInvoiceResult'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/services.PaperlessInvoiceResult'
+      security:
+      - BearerAuth: []
+      summary: Upload coin invoice to paperless-ngx
+      tags:
+      - Coins
+  /coins/{id}/invoice/paperless/tasks/{taskId}:
+    post:
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: paperless-ngx task id
+        in: path
+        name: taskId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.PaperlessInvoiceResult'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/services.PaperlessInvoiceResult'
+      security:
+      - BearerAuth: []
+      summary: Resolve pending paperless-ngx invoice upload
+      tags:
+      - Coins
   /coins/{id}/journal:
     get:
       description: Returns all activity log entries for a coin, newest first.
