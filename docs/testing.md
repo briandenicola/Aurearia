@@ -134,7 +134,7 @@ existing doc checks. Executable prompts, policy, scripts, and workflow changes
 need relevant behavior/fixture evidence; Markdown is not an automatic exemption.
 
 The [Taskfile](../Taskfile.yml) is the shared completion entry point.
-[`ci.yml`](../.github/workflows/ci.yml) calls the same targets, without a
+The `api.yml`, `web.yml` and `agent.yml` workflows call the same targets, without a
 missing-linter fallback. Run from the repository root in an already prepared
 environment; select every affected layer rather than claiming unrelated skips.
 
@@ -149,16 +149,16 @@ environment; select every affected layer rather than claiming unrelated skips.
 | `task check` | All base completion targets above, sequentially; not a replacement for additional browser/race/security/compatibility/release jobs |
 | `task test-critical-workflows` | Affected browser workflows (`npm run test:browser`) |
 
-**Pull requests into `beta` run only affected jobs.** The shared
-[`changed-areas.yml`](../.github/workflows/changed-areas.yml) workflow classifies
-a PR's files with `scripts/delivery/changed-areas.mjs` into `api`, `web`,
-`agent` and `image` areas. `ci.yml`, `security-scan.yml` and
-`feature362-compatibility.yml` leave out jobs whose area is unchanged. Delivery
-governance, Gitleaks and CodeQL always run. CI, Taskfile, script, `VERSION` and
-unrecognised paths count as every area, and a detector failure runs every job.
-A new push to a PR cancels that PR's older runs. Pushes to `beta` are never
-narrowed or cancelled, because promotion to `main` requires the complete check
-set on the exact beta commit (ADR 0022).
+**CI is deliberately small.** A pull request into `beta` runs only the
+workflows for the areas it touches: `api.yml` (`task check:go`,
+`task check:openapi`), `web.yml` (`task check:web`) and `agent.yml`
+(`task check:agent`), selected by `paths:` filters. Gitleaks runs on every PR.
+A newer push cancels the PR's older runs. Merging into `beta` builds and pushes
+the beta images without re-running tests. Merging `beta` into `main` re-tags
+those same images as `latest`. Dependency audits, image CVE scans, the race
+detector and CodeQL run weekly and on demand (`security-scan.yml`,
+`codeql.yml`). Run `task test-critical-workflows` locally when a change touches
+browser workflows.
 
 **Preparation is separate and requires authorization.** Match toolchains to
 manifests/workflows. CI uses Task 3.44.0 via a SHA-pinned setup action, Node
@@ -203,11 +203,9 @@ not change the gate. Use `npm.cmd` for direct package commands as well.
 Use Windows paths such as `Set-Location .\src\web`; each fresh shell starts in the
 repository root. Do not replace the package test script with a Vitest-only call.
 
-**CI/release evidence:** the separate race job calls `task test-race`
-(`CGO_ENABLED=1`, `go test -race ./...`). Preserve generated OpenAPI consistency,
-security scans, compatibility and
-container jobs. Use appropriate runners/toolchains; unavailable local checks
-remain pending until matching CI evidence exists. Cite the exact tested SHA.
+**Race detector:** the weekly `security-scan.yml` race job calls `task test-race`
+(`CGO_ENABLED=1`, `go test -race ./...`). Run it locally when changing
+concurrent Go code.
 Live required-context configuration is separate from jobs merely existing.
 
 Under the [validate-once delivery contract](ci-candidate-reuse.md), full language,
@@ -475,7 +473,7 @@ be claimed unless the commands were actually executed.
 - Go API README: [`../src/api/README.md`](../src/api/README.md)
 - Vue frontend README: [`../src/web/README.md`](../src/web/README.md)
 - Python agent README: [`../src/agent/README.md`](../src/agent/README.md)
-- Quality Gate workflow: [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+- CI workflows: [`api.yml`](../.github/workflows/api.yml), [`web.yml`](../.github/workflows/web.yml), [`agent.yml`](../.github/workflows/agent.yml)
 - Task runner: [`../Taskfile.yml`](../Taskfile.yml)
 
 TODOs:

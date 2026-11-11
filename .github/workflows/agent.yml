@@ -1,0 +1,39 @@
+name: Python Agent
+
+on:
+  pull_request:
+    branches: [beta]
+    paths:
+      - src/agent/**
+      - Taskfile.yml
+      - .github/workflows/agent.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-agent:
+    name: Python Agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        working-directory: src/agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv==0.11.22
+          uv sync --locked --extra dev
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.44.0
+      - name: Lint and tests
+        run: task check:agent

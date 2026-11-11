@@ -1,73 +1,47 @@
 name: Build and Push to Docker Hub
 
+# A beta -> main merge commit's second parent is the beta commit whose images
+# were already built and pushed as sha-<beta commit>. Re-tag those exact images
+# instead of rebuilding.
 on:
-  workflow_run:
-    workflows: [Verified Candidate]
+  push:
     branches: [main]
-    types: [completed]
+  workflow_dispatch:
 
-env:
-  IMAGE_APP: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins
-  IMAGE_AGENT: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins-agent
+permissions:
+  contents: read
 
 concurrency:
   group: main-publish
   cancel-in-progress: false
 
+env:
+  IMAGE_APP: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins
+  IMAGE_AGENT: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins-agent
+
 jobs:
-  approve-release:
-    name: Authorize main publish ${{ github.event.workflow_run.head_sha }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
+  promote:
+    name: Promote beta images to latest
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      checks: read
-      pull-requests: read
     environment:
       name: release
-      url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha }}
+      url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
     steps:
-      - name: Checkout checked candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
-        with:
-          node-version: 24.15.0
-      - name: Verify candidate checks and owner approval
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/delivery/verify-main-publish.mjs
+          fetch-depth: 2
 
-  build-and-push-app:
-    name: Promote verified app image
-    needs: approve-release
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      checks: read
-      pull-requests: read
+      - name: Find the beta commit this merge brought in
+        id: source
+        run: |
+          if ! beta_sha="$(git rev-parse --verify --quiet HEAD^2)"; then
+            echo "::error::${GITHUB_SHA} is not a merge commit; merge beta into main with a merge commit." >&2
+            exit 1
+          fi
+          echo "beta_sha=$beta_sha" >> "$GITHUB_OUTPUT"
+          echo "Promoting images built from beta commit $beta_sha"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
-        with:
-          node-version: 24.15.0
-      - name: Recheck publication evidence including partial reruns
-        id: evidence
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/delivery/verify-main-publish.mjs
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to Docker Hub
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -75,67 +49,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Download verified app receipt
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.evidence.outputs.publisher_run_id }}
-          name: beta-app-${{ steps.evidence.outputs.source_sha }}
-          path: .tmp/app-receipt
-      - name: Promote the immutable verified app image
+      - name: Re-tag app and agent images
         env:
-          SOURCE_SHA: ${{ steps.evidence.outputs.source_sha }}
-          SOURCE_TREE: ${{ steps.evidence.outputs.source_tree }}
-          TARGET_IMAGE: ${{ env.IMAGE_APP }}
-          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: node scripts/delivery/image-receipt.mjs promote app .tmp/app-receipt/image-receipt.json
-
-  build-and-push-agent:
-    name: Promote verified agent image
-    needs: approve-release
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      checks: read
-      pull-requests: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
-        with:
-          node-version: 24.15.0
-      - name: Recheck publication evidence including partial reruns
-        id: evidence
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/delivery/verify-main-publish.mjs
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Download verified agent receipt
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.evidence.outputs.publisher_run_id }}
-          name: beta-agent-${{ steps.evidence.outputs.source_sha }}
-          path: .tmp/agent-receipt
-      - name: Promote the immutable verified agent image
-        env:
-          SOURCE_SHA: ${{ steps.evidence.outputs.source_sha }}
-          SOURCE_TREE: ${{ steps.evidence.outputs.source_tree }}
-          TARGET_IMAGE: ${{ env.IMAGE_AGENT }}
-          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: node scripts/delivery/image-receipt.mjs promote agent .tmp/agent-receipt/image-receipt.json
+          BETA_SHA: ${{ steps.source.outputs.beta_sha }}
+          MAIN_SHA: ${{ github.sha }}
+        run: |
+          for image in "$IMAGE_APP" "$IMAGE_AGENT"; do
+            docker buildx imagetools create \
+              --tag "$image:sha-$MAIN_SHA" \
+              --tag "$image:sha-${MAIN_SHA::7}" \
+              --tag "$image:latest" \
+              "$image:sha-$BETA_SHA"
+          done

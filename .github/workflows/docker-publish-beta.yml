@@ -6,8 +6,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
-  checks: read
 
 concurrency:
   group: beta-publish
@@ -18,22 +16,7 @@ env:
   IMAGE_AGENT: ${{ secrets.DOCKERHUB_USERNAME }}/ancient-coins-agent
 
 jobs:
-  validate:
-    name: Verify full beta validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
-        with:
-          node-version: 24.15.0
-      - name: Require trusted checks before publishing beta images
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/delivery/verify-candidate.mjs --beta
-
   build-and-push-app:
-    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -66,7 +49,6 @@ jobs:
         run: echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push app
-        id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
@@ -78,20 +60,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Record immutable app image identity
-        env:
-          SOURCE_SHA: ${{ github.sha }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
-        run: SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')" node scripts/delivery/image-receipt.mjs write app image-receipt.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: beta-app-${{ github.sha }}
-          path: image-receipt.json
-          if-no-files-found: error
-          retention-days: 30
 
   build-and-push-agent:
-    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -120,7 +90,6 @@ jobs:
           echo "tags=${IMAGE_AGENT}:sha-${HEAD_SHA},${IMAGE_AGENT}:sha-${short_sha},${IMAGE_AGENT}:beta" >> "$GITHUB_OUTPUT"
 
       - name: Build and push agent
-        id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: src/agent
@@ -129,15 +98,3 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Record immutable agent image identity
-        env:
-          SOURCE_SHA: ${{ github.sha }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
-        run: SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')" node scripts/delivery/image-receipt.mjs write agent image-receipt.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: beta-agent-${{ github.sha }}
-          path: image-receipt.json
-          if-no-files-found: error
-          retention-days: 30

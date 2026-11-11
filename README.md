@@ -4,7 +4,7 @@
 
 > **Note:** This application is 100% vibe coded. It exists for the author to learn and experiment with GitHub Copilot CLI.
 
-[![CI](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml/badge.svg)](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml)
+[![CI](https://github.com/briandenicola/coin-collection-app/actions/workflows/api.yml/badge.svg)](https://github.com/briandenicola/coin-collection-app/actions/workflows/api.yml)
 ![Go](https://img.shields.io/badge/Go-1.26.11-00ADD8?logo=go)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
