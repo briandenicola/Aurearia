@@ -34,7 +34,9 @@ type PaperlessTask struct {
 
 // PaperlessClient talks to a user's paperless-ngx instance.
 type PaperlessClient interface {
-	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error)
+	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, tagIDs []int, body io.Reader) (string, error)
+	// TagIDs returns the paperless tag id for each name, in order.
+	TagIDs(ctx context.Context, baseURL, token string, names []string) ([]int, error)
 	GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error)
 	GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error)
 	// Ping makes one authenticated request so URL, network path and token are
@@ -208,7 +210,7 @@ func (c *HTTPPaperlessClient) do(req *http.Request, token, operation string) ([]
 	return payload, nil
 }
 
-func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error) {
+func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, tagIDs []int, body io.Reader) (string, error) {
 	endpoint, err := paperlessEndpoint(baseURL, "/api/documents/post_document/")
 	if err != nil {
 		return "", err
@@ -217,6 +219,12 @@ func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, 
 	writer := multipart.NewWriter(&buf)
 	if title != "" {
 		if err := writer.WriteField("title", title); err != nil {
+			return "", err
+		}
+	}
+	// The docs: "tags ... Specify this multiple times to have multiple tags".
+	for _, id := range tagIDs {
+		if err := writer.WriteField("tags", strconv.Itoa(id)); err != nil {
 			return "", err
 		}
 	}
@@ -254,6 +262,48 @@ func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, 
 		return "", errors.New("paperless-ngx upload returned no task id")
 	}
 	return taskID, nil
+}
+
+// ErrPaperlessTagNotFound means a configured tag name does not exist in paperless.
+var ErrPaperlessTagNotFound = errors.New("paperless-ngx has no tag named")
+
+func (c *HTTPPaperlessClient) TagIDs(ctx context.Context, baseURL, token string, names []string) ([]int, error) {
+	ids := make([]int, 0, len(names))
+	for _, name := range names {
+		endpoint, err := paperlessEndpoint(baseURL, "/api/tags/?page_size=100&name__iexact="+url.QueryEscape(name))
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		payload, err := c.do(req, token, "tag lookup")
+		if err != nil {
+			return nil, err
+		}
+		var page struct {
+			Results []struct {
+				ID   int    `json:"id"`
+				Name string `json:"name"`
+			} `json:"results"`
+		}
+		if err := json.Unmarshal(payload, &page); err != nil {
+			return nil, fmt.Errorf("paperless-ngx tag lookup returned an unexpected payload: %w", err)
+		}
+		found := 0
+		for _, tag := range page.Results {
+			if strings.EqualFold(tag.Name, name) {
+				found = tag.ID
+				break
+			}
+		}
+		if found == 0 {
+			return nil, fmt.Errorf("%w %q", ErrPaperlessTagNotFound, name)
+		}
+		ids = append(ids, found)
+	}
+	return ids, nil
 }
 
 func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) error {

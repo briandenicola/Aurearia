@@ -51,6 +51,7 @@ export function useSettingsProfile() {
   const parcelAppAPIKey = ref('')
   const paperlessUrl = ref(auth.user?.paperlessUrl || '')
   const paperlessApiToken = ref('')
+  const paperlessTags = ref(auth.user?.paperlessTags || '')
   const pushoverKey = ref('')
   const pushoverTesting = ref(false)
   const pushoverTestMsg = ref('')
@@ -147,6 +148,7 @@ export function useSettingsProfile() {
         numisBidsUsername: nbUsername.value,
         cngUsername: cngUsername.value,
         paperlessUrl: paperlessUrl.value,
+        paperlessTags: paperlessTags.value,
         coinOfDayEnabled: coinOfDayEnabled.value,
         coinOfDayIncludeWishlist: coinOfDayIncludeWishlist.value,
         emperorTrackerEnabled: emperorTrackerEnabled.value,
@@ -183,6 +185,8 @@ export function useSettingsProfile() {
         auth.user.paperlessUrl = res.data.paperlessUrl
         auth.user.paperlessConfigured = res.data.paperlessConfigured
         paperlessUrl.value = res.data.paperlessUrl ?? ''
+        auth.user.paperlessTags = res.data.paperlessTags
+        paperlessTags.value = res.data.paperlessTags ?? ''
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
         auth.user.coinOfDayIncludeWishlist = res.data.coinOfDayIncludeWishlist
@@ -289,6 +293,7 @@ export function useSettingsProfile() {
     parcelAppAPIKey,
     paperlessUrl,
     paperlessApiToken,
+    paperlessTags,
     pushoverKey,
     pushoverTesting,
     pushoverTestMsg,

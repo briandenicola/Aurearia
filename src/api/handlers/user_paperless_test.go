@@ -1,6 +1,9 @@
 package handlers
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizePaperlessURL(t *testing.T) {
 	cases := []struct {
@@ -27,5 +30,18 @@ func TestNormalizePaperlessURL(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("normalizePaperlessURL(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestNormalizePaperlessTags(t *testing.T) {
+	got, err := normalizePaperlessTags(" coins,brian ,, shopping ")
+	if err != nil || got != "coins, brian, shopping" {
+		t.Fatalf("got %q %v", got, err)
+	}
+	if got, err := normalizePaperlessTags(""); err != nil || got != "" {
+		t.Fatalf("empty should clear: %q %v", got, err)
+	}
+	if _, err := normalizePaperlessTags(strings.Repeat("a", 501)); err == nil {
+		t.Fatal("expected a length error")
 	}
 }

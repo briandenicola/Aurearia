@@ -174,6 +174,7 @@ func writeAuthResponse(c *gin.Context, statusCode int, result services.AuthResul
 			"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
 			"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 			"paperlessUrl":                   user.PaperlessURL,
+			"paperlessTags":                  user.PaperlessTags,
 			"paperlessConfigured":            user.PaperlessURL != "" && user.PaperlessAPIToken != "",
 			"pushoverEnabled":                user.PushoverEnabled,
 			"coinOfDayEnabled":               user.CoinOfDayEnabled,
