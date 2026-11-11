@@ -913,21 +913,22 @@ The system implements a multi-layered authentication strategy:
 
 ### 8.3 CI/CD Pipeline
 
-**Workflow: `ci.yml`** (`name: Quality Gate`; pull requests + pushes to `main`/`beta`):
-1. Go: `go build ./...` → `go vet ./...` → `go test -v ./...` → regenerate Swagger and fail if `docs/openapi.json` or generated Swagger artifacts drift
-2. Vue: `npm ci` → `npm run lint` (when defined) → `npm run type-check` → `npm run build`
-3. Python: `pip install -e ".[dev]"` → `ruff check app/ tests/` → `pytest tests/ -v`
+**Workflows: `api.yml`, `web.yml`, `agent.yml`** (pull requests into `beta`, each only when its area changed):
+1. Go (`task check:go`, `task check:openapi`): build, vet, gofmt, `go test -v ./...`, and fail if the generated OpenAPI/Swagger artifacts drift
+2. Vue (`task check:web`): `npm ci` → lint → `npm run type-check` → tests → `npm run build`
+3. Python (`task check:agent`): locked `uv` environment → Ruff → pytest
 
-**Workflow: `security-scan.yml`** (PRs to `main`/`beta`, weekly schedule, manual trigger):
-- `gitleaks`, `govulncheck`, `npm audit --audit-level=high`, and `pip-audit`
+**Workflow: `security-scan.yml`** (Gitleaks on every PR; everything else weekly or on manual trigger):
+- `gitleaks`, `govulncheck`, `npm audit --audit-level=high`, `pip-audit`, container image scans and the Go race detector
 - Scan steps are blocking for secrets and actionable high-risk dependency findings: Gitleaks fails on any non-allowlisted secret, govulncheck fails on actionable Go vulnerabilities, npm audit fails at high/critical unless the advisory has a reviewed, expiring exception in `src/web/audit-exceptions.json`, and pip-audit fails on any Python vulnerability because it has no portable severity threshold
 
-**Workflow: `docker-publish.yml`** (Push to `main`):
-- Builds and pushes both container images to Docker Hub
+**Workflow: `docker-publish.yml`** (Push to `main`, behind the `release` environment approval):
+- Re-tags the images already built for the merged `beta` commit; no rebuild
 - Tags: long SHA, short SHA, `latest`
 
 **Workflow: `docker-publish-beta.yml`** (Push to `beta`):
-- Same as production but tags with `beta` instead of `latest`
+- Builds and pushes both container images to Docker Hub
+- Tags: long SHA, short SHA, `beta`
 
 **Dependabot**: Weekly update checks for Go modules, npm packages, Python packages, and GitHub Actions.
 
@@ -994,8 +995,8 @@ task test     # Runs Go tests
 AncientCoins/
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                    # Quality Gate workflow
-│   │   ├── security-scan.yml         # Blocking security scan gates
+│   │   ├── api.yml / web.yml / agent.yml  # PR tests per area
+│   │   ├── security-scan.yml         # Gitleaks per PR; weekly scans
 │   │   ├── docker-publish.yml        # Production image push
 │   │   └── docker-publish-beta.yml   # Beta image push
 │   └── dependabot.yml                # Dependency updates

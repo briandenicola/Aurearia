@@ -157,14 +157,6 @@ The delivery scripts themselves need only Node built-ins; their fixture suite
 also needs Task, Git, npm and PowerShell 7 (`pwsh`). No dependency installation
 occurs in completion recipes.
 
-Both delivery jobs use a full checkout with Git NTFS protection explicitly
-enabled. The owner authorized a filename-only portability fix for 33 historical
-logs whose timestamp colons prevented Windows checkout even with sparse
-exclusions. [The path map](../.squad/artifacts/windows-log-path-mapping-2026-09-21.json)
-records old/new names and unchanged Git blob identities. Historical contents
-and references are not rewritten; use the map or its baseline commit to resolve
-old paths. Regression tests verify preservation and reject new invalid filename
-characters. No local Git protection setting is changed.
 
 Authorized setup targets are `task setup:go` (`go mod download` using the installed
 toolchain), `task setup:web` (`npm ci`), `task setup:agent`
@@ -196,20 +188,8 @@ repository root. Do not replace the package test script with a Vitest-only call.
 **Race detector:** the weekly `security-scan.yml` race job calls `task test-race`
 (`CGO_ENABLED=1`, `go test -race ./...`). Run it locally when changing
 concurrent Go code.
-Live required-context configuration is separate from jobs merely existing.
 
-Under the [validate-once delivery contract](ci-candidate-reuse.md), full language,
-race, compatibility, security and CodeQL validation runs on beta. PRs targeting
-main and main pushes verify the actual merge tree against that tested beta tree
-and verify trusted source-run/image evidence; they do not rerun the application
-suites. Content mismatch requires reconciliation and full validation on beta.
-PRs targeting beta and scheduled security/CodeQL scans retain their full checks.
-The delivery gate includes candidate-identity, publisher and digest-promotion
-negative/mutation fixtures. Protected owner approval is still required to
-promote images, and publishing does not authorize local-server deployment.
-
-Fast feedback remains targeted tests. Completion is the applicable shared
-targets above. CI/release adds all applicable runner-only and release checks.
+Use targeted tests for fast feedback, then the full checks for the areas you changed.
 Report the commands you ran and their results; anything not run is not verified.
 
 ## 7. Coverage philosophy
@@ -332,7 +312,7 @@ The test configures the LLM provider as Ollama pointed at a local TCP port nothi
 
 Similarly, the provider catalog is left at its real production default, but `tools_base_url` is left empty — the exact same code path production uses when the tools client is unset — so `numista`/`nomisma` settle immediately as `unconfigured` with zero upstream calls, while `ngc`/`rpc` (never automated) and `ocre` (disabled by default) still run their real, always-network-free provider nodes. No `numista.org`/`nomisma.org` network traffic occurs.
 
-Full rationale: `.squad/decisions/inbox/maximus-seam-test.md`.
+Full rationale is in git history (`.squad/decisions/inbox/maximus-seam-test.md`, removed 2026-11-11).
 
 ## 10. Coin Copilot contract and operations testing
 

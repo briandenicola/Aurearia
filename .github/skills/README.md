@@ -15,11 +15,6 @@ permission. Follow the constitution and shared completion gates.
 | Agentic integration | `using-aurearia-mcp` |
 | Software QC | `aurearia-software-qc-audit` |
 
-[Migration inventory](../../.squad/artifacts/native-skill-migration-2026-09-21.json)
-maps all 20 old entry points to 19 packages and original Git blobs. The duplicate
-npm recipes share one destination. The repository QC skill has an Aurearia-
-specific name to avoid shadowing a personal `post-major-work-qc-audit` skill;
-no user-level skill is changed. Legacy `.squad/skills` files are links only.
+The repository QC skill has an Aurearia-specific name to avoid shadowing a
+personal `post-major-work-qc-audit` skill.
 
-Client discovery and SpecKit evaluation are documented in the
-[P4 integration guide](../../docs/agentic-native-integration.md).
