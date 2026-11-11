@@ -2,9 +2,8 @@
 
 Guidelines for contributing to the Aurearia application.
 
-Read the constitution and applicable accepted ADRs first. Constitution 5.0.0 /
-Accepted ADR 0024 governs through owner-approved PR #828. Existing audit
-obligations and historical reviewer restrictions remain intact.
+Read the [constitution](.specify/memory/constitution.md) first: Principles I–VI
+are the engineering rules, and its Working Rules cover how to deliver a change.
 
 ## Getting Started
 
@@ -31,15 +30,10 @@ task up          # starts both API and web dev servers
 | `beta` | Ordinary feature/bug development and integration |
 | Other branches/worktrees | Only when explicitly authorized |
 
-Select work by the owner-approved issue/spec/process plan, not the newest spec.
-Use constitution §18.1: routine work needs brief scope, appropriate regression
-and CI, with no mandatory independent review; features need short criteria,
-workflow/error tests and one independent review. Changed security/privacy/data-
-safety, destructive migration, service or delivery boundaries add applicable
-security/compatibility/recovery proof. Merely touching existing contracts does
-not create a new boundary. ADRs are for material architecture.
-One issue/PR owns scope, criteria, evidence, review and outstanding work; specs
-are optional planning aids. No mandatory inbox/log/history document set.
+Work on `beta`. Each change needs tests for what it changes (a failing test
+first for a bug fix) and a short PR description using the PR template. Specs
+under `specs/` are optional planning aids. ADRs are only for hard-to-reverse
+decisions.
 
 For SpecKit on `beta`, set `$env:SPECIFY_FEATURE` to the exact selected spec
 directory name in the same process as each script invocation. Do not run the
@@ -142,6 +136,4 @@ Include the co-author trailer when using Copilot:
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-Cite the governing Principle/section in commits and PRs. Commit/push only when
-authorized, stage only approved paths, and preserve unrelated work. A handoff
-does not automatically commit or stash the worktree.
+Stage only the files your change needs and leave unrelated work alone.

@@ -1,40 +1,15 @@
 ---
-applyTo: ".github/**,.specify/**,.squad/**,scripts/delivery/**,Taskfile.yml,Dockerfile,src/agent/Dockerfile,CONTRIBUTING.md,docs/testing.md,docs/agentic-*.md"
+applyTo: ".github/**,.specify/**,scripts/delivery/**,Taskfile.yml,Dockerfile,src/agent/Dockerfile,docs/testing.md"
 ---
 
-# Delivery-control changes
+# CI, build and tooling changes
 
-Constitution 5.0.0 / Accepted ADR 0024 governs. Existing audit obligations and
-historical reviewer restrictions remain intact.
-
-Apply constitution sections 0 and 17-22 and the explicitly approved process plan.
-Policy, prompts, skills, workflows and checkers are executable delivery controls,
-not automatically pure documentation. Require independent review and relevant
-behavior/negative evidence. Do not modify locked authority to silence a guard.
-
-- Keep universal instructions short; domain guidance belongs in matching
-  `applyTo` files and reusable procedures in native `SKILL.md` packages.
-- Preserve canonical guidance when moving it. Leave compatibility links instead
-  of duplicate authoritative bodies; record consolidation/corrections.
-- Run authorized `task check:delivery`. Its fixtures do not prove a client's
-  native discovery; use a fresh supported client session and record limitations.
-- Never grant shell/edit/agent tools to the read-only reviewer. The implementation
-  owner supplies a scoped diff and evidence; missing inputs mean incomplete.
-- Use [routing](../../.squad/routing.md) for bounded optional delegation and
-  [ceremonies](../../.squad/ceremonies.md) for review/audit triggers.
-- Shared completion recipes must not install, skip lint or weaken runner gates.
-  Pin tool/action changes and review all matching build/CI/setup surfaces.
-- SpecKit upgrades must preserve local policies, explicit `SPECIFY_FEATURE`,
-  no-branch preparation and the stdout/Boolean regression. Preview generated
-  diffs in isolation; never force-reinitialize customized repository files.
-- Respect owner-approved staging paths and persist evidence in canonical work. Empty
-  responses, changed files and framework status fields are not completion.
-- Do not infer live GitHub settings, deployments, release approval or reviewer
-  clearance from a green check or a written requirement.
-
-Apply the lane and audit triggers in §§18/20: delivery controls are high risk,
-with one scoped independent review and applicable negative/security/recovery proof;
-do not add a duplicate broad audit unless major architecture/owner-designated
-major release requires it. Use one approved overall budget; do not renew
-permission for ordinary in-scope repairs or reads. Work-order permissions must
-be explicit; setup/live settings/deployment remain separate.
+- CI is deliberately small (see [testing](../../docs/testing.md), §6). Each test
+  workflow runs once per PR for the area it covers. Do not add jobs, gates or
+  verifiers unless they catch a class of bug the existing tests cannot.
+- Keep workflows calling the Taskfile `check:*` targets so local and CI
+  behavior match. Recipes must not install tools or skip lint.
+- Pin Actions and tool versions. When changing one, update every build, CI and
+  setup file that uses it.
+- After changing a workflow, say which jobs you ran and which only run on
+  GitHub, so the owner knows what is unverified.
