@@ -63,7 +63,7 @@
 | Task | <https://taskfile.dev/> | task runner via `Taskfile.yml` | [Taskfile.yml](../Taskfile.yml), [README.md](../README.md), [docs/getting-started.md](getting-started.md) |
 | Docker | <https://docs.docker.com/> | base images pinned in Dockerfiles, not a single repo package | [Dockerfile](../Dockerfile), [src/agent/Dockerfile](../src/agent/Dockerfile), [docs/deployment.md](deployment.md) |
 | Docker Compose | <https://docs.docker.com/compose/> | compose spec via local CLI | [docker-compose.yaml](../docker-compose.yaml), [docs/deployment.md](deployment.md) |
-| uv | <https://docs.astral.sh/uv/> | `0.11.22` | [src/agent/uv.lock](../src/agent/uv.lock), [src/agent/Dockerfile](../src/agent/Dockerfile), [.github/workflows/ci.yml](../.github/workflows/ci.yml) |
+| uv | <https://docs.astral.sh/uv/> | `0.11.22` | [src/agent/uv.lock](../src/agent/uv.lock), [src/agent/Dockerfile](../src/agent/Dockerfile), [.github/workflows/agent.yml](../.github/workflows/agent.yml) |
 | Swaggo / swag | <https://github.com/swaggo/swag> | `v1.16.6` | [src/api/go.mod](../src/api/go.mod), [src/api/docs/](../src/api/docs/), [docs/api-reference.md](api-reference.md) |
 | Ruff | <https://docs.astral.sh/ruff/> | `>=0.9.0,<1.0` | [src/agent/pyproject.toml](../src/agent/pyproject.toml), [.pre-commit-config.yaml](../.pre-commit-config.yaml) |
 | Pytest | <https://docs.pytest.org/> | `>=8.0,<10.0` | [src/agent/pyproject.toml](../src/agent/pyproject.toml), [src/agent/tests/](../src/agent/tests/) |

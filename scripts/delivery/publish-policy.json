@@ -1,9 +1,0 @@
-{
-  "branch": "main",
-  "environment": "release",
-  "workflow_name": "Verified Candidate",
-  "workflow_path": ".github/workflows/candidate.yml",
-  "checks": [
-    { "context": "Verified candidate", "app_id": 15368 }
-  ]
-}

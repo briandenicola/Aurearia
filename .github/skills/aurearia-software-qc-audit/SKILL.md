@@ -27,7 +27,7 @@ Changed auth/privacy/data-safety, destructive migration, service or delivery
 boundaries require applicable high-risk proof. File count, existing-contract
 touches, scheduler/UI changes or an ordinary PR alone do not trigger a broad audit.
 
-**Portability note:** Sections marked `[REPO-HOOK]` contain hooks specific to repositories that use a constitution/Quality Gate/Squad governance model. Skip or adapt those hooks when running in other repos.
+**Portability note:** Sections marked `[REPO-HOOK]` contain hooks specific to repositories that use a constitution-based governance model. Skip or adapt those hooks when running in other repos.
 
 ---
 
@@ -251,7 +251,7 @@ reasons, unavailable evidence, unexecuted checks and remaining approval boundari
 Run a post-major-work QC audit on the OIDC Phase 1–5 implementation.
 Scope: git diff main..oidc-mvp
 Spec: specs/335-oidc-login/spec.md
-Prior decisions: .squad/decisions.md (OIDC sections)
+Prior decisions: docs/adr/ and git history of the removed `.squad/decisions.md` (OIDC sections)
 Constitution: .specify/memory/constitution.md
 ```
 

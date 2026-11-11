@@ -853,6 +853,16 @@ func (r *SetRepository) applyCriteria(query *gorm.DB, node map[string]interface{
 		return nil, fmt.Errorf("criteria field is not allowed")
 	}
 	value := node["value"]
+	if emptyStringCriteriaFields[field] {
+		// Text columns store a missing value as '' rather than NULL, so
+		// "is empty" must match both.
+		switch op {
+		case "isNull":
+			return query.Where("(" + column + " IS NULL OR " + column + " = '')"), nil
+		case "isNotNull":
+			return query.Where("(" + column + " IS NOT NULL AND " + column + " <> '')"), nil
+		}
+	}
 	switch op {
 	case "eq":
 		return query.Where(column+" = ?", value), nil
@@ -899,6 +909,21 @@ var criteriaFieldColumns = map[string]string{
 	"isSold":            "is_sold",
 	"isPrivate":         "is_private",
 	"storageLocationId": "storage_location_id",
+	"purchaseLocation":  "purchase_location",
+}
+
+// emptyStringCriteriaFields are text fields where isNull/isNotNull treat an
+// empty string the same as NULL. These columns are non-pointer Go strings, so
+// a blank value is persisted as an empty string, never as NULL.
+var emptyStringCriteriaFields = map[string]bool{
+	"material":         true,
+	"category":         true,
+	"denomination":     true,
+	"ruler":            true,
+	"era":              true,
+	"mint":             true,
+	"grade":            true,
+	"purchaseLocation": true,
 }
 
 func nextSetSortOrder(tx *gorm.DB, setID uint) (int, error) {

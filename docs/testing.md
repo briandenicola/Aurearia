@@ -2,20 +2,19 @@
 
 This document is the canonical testing strategy for Aurearia. It explains what we test, what we intentionally do not test, and how contributors should add new tests across the Go API, Vue PWA, and Python agent.
 
-ADR 0019's proportional-policy changes were accepted via PR #734 under section
-22. Section 6 documents the shared P3 Taskfile gates used locally and in CI.
-Workflow jobs are not proof that live branch protections require them.
+Section 6 documents the Taskfile targets used locally and in CI.
 
 ## 1. Testing Philosophy
 
 **Confidence over coverage.** We optimize for regressions affecting users, data
-integrity, and architecture, not percentages. Principle IX favors automated
-enforcement; §21.6 requires exact-path regression evidence and §21.9 requires at
-least one unit test for each new service method.
+integrity, and architecture, not percentages. Principle IX favors tests over
+written rules; a bug fix needs a test that fails without the fix, and each new
+service method needs at least one unit test.
 
 **Fast feedback first.** Use targeted checks early, then applicable completion
 gates. Strict type/build parity is Principle III; proportional changes are
-Principle IV. Targeted success alone does not satisfy §17.
+Principle IV. Run the full checks for the areas you touched before calling a
+change done.
 
 **Test the contract, not the implementation.** Handler tests exercise HTTP status codes and JSON payloads, store tests assert state transitions, and agent tests validate schemas, routing helpers, and endpoint contracts instead of private internals. This applies Principle III (Strict Types and Explicit Contracts).
 
@@ -120,21 +119,13 @@ result-consuming UI.
 
 ## 6. Running tests locally vs. CI
 
-> Under constitution 5.0.0 / Accepted ADR 0024, use focused local checks plus
-> applicable exact-candidate CI, reusing unchanged valid
-> evidence rather than running full suites repeatedly. Changed content
-> invalidates affected proof. Taskfile/CI remain executable sources; this is the
-> single command reference, not permission to execute tests/builds/setup.
-> Preserve actual security findings, failure/retry/ownership/privacy, strict
-> types, zero-warning lint, contracts and applicable runner/recovery proof.
-
 Use targeted checks for feedback and all applicable completion checks before
 claiming verification. Pure docs need document/link/consistency review and any
 existing doc checks. Executable prompts, policy, scripts, and workflow changes
 need relevant behavior/fixture evidence; Markdown is not an automatic exemption.
 
 The [Taskfile](../Taskfile.yml) is the shared completion entry point.
-[`ci.yml`](../.github/workflows/ci.yml) calls the same targets, without a
+The `api.yml`, `web.yml` and `agent.yml` workflows call the same targets, without a
 missing-linter fallback. Run from the repository root in an already prepared
 environment; select every affected layer rather than claiming unrelated skips.
 
@@ -144,10 +135,20 @@ environment; select every affected layer rather than claiming unrelated skips.
 | `task check:web` | `npm run lint`, `npm run type-check`, full `npm run test`, `npm run build` in `src/web` |
 | `task check:agent` | Require prepared `.venv`, verify lock AND environment with `uv sync --locked --check --offline --extra dev`, then `uv run --no-sync --offline` Ruff and full pytest; Python downloads disabled |
 | `task check:openapi` | Run the pinned installed generator, sync version and snapshots, fail on generated tracked-file drift; **writes files** |
-| `task check:delivery` | Node fixture/negative tests, PowerShell SpecKit selection regression, then offline governance check |
-| `task check:governance` | Read-only, offline active-governance checks; errors fail, warnings do not |
+| `task check:delivery` | Node tests for the delivery scripts and the PowerShell SpecKit selection regression |
 | `task check` | All base completion targets above, sequentially; not a replacement for additional browser/race/security/compatibility/release jobs |
 | `task test-critical-workflows` | Affected browser workflows (`npm run test:browser`) |
+
+**CI is deliberately small.** A pull request into `beta` runs only the
+workflows for the areas it touches: `api.yml` (`task check:go`,
+`task check:openapi`), `web.yml` (`task check:web`) and `agent.yml`
+(`task check:agent`), selected by `paths:` filters. Gitleaks runs on every PR.
+A newer push cancels the PR's older runs. Merging into `beta` builds and pushes
+the beta images without re-running tests. Merging `beta` into `main` re-tags
+those same images as `latest`. Dependency audits, image CVE scans, the race
+detector and CodeQL run weekly and on demand (`security-scan.yml`,
+`codeql.yml`). Run `task test-critical-workflows` locally when a change touches
+browser workflows.
 
 **Preparation is separate and requires authorization.** Match toolchains to
 manifests/workflows. CI uses Task 3.44.0 via a SHA-pinned setup action, Node
@@ -156,14 +157,6 @@ The delivery scripts themselves need only Node built-ins; their fixture suite
 also needs Task, Git, npm and PowerShell 7 (`pwsh`). No dependency installation
 occurs in completion recipes.
 
-Both delivery jobs use a full checkout with Git NTFS protection explicitly
-enabled. The owner authorized a filename-only portability fix for 33 historical
-logs whose timestamp colons prevented Windows checkout even with sparse
-exclusions. [The path map](../.squad/artifacts/windows-log-path-mapping-2026-09-21.json)
-records old/new names and unchanged Git blob identities. Historical contents
-and references are not rewritten; use the map or its baseline commit to resolve
-old paths. Regression tests verify preservation and reject new invalid filename
-characters. No local Git protection setting is changed.
 
 Authorized setup targets are `task setup:go` (`go mod download` using the installed
 toolchain), `task setup:web` (`npm ci`), `task setup:agent`
@@ -192,93 +185,19 @@ not change the gate. Use `npm.cmd` for direct package commands as well.
 Use Windows paths such as `Set-Location .\src\web`; each fresh shell starts in the
 repository root. Do not replace the package test script with a Vitest-only call.
 
-**CI/release evidence:** the separate race job calls `task test-race`
-(`CGO_ENABLED=1`, `go test -race ./...`). Preserve generated OpenAPI consistency,
-security scans, compatibility and
-container jobs. Use appropriate runners/toolchains; unavailable local checks
-remain pending until matching CI evidence exists. Cite the exact tested SHA.
-Live required-context configuration is separate from jobs merely existing.
+**Race detector:** the weekly `security-scan.yml` race job calls `task test-race`
+(`CGO_ENABLED=1`, `go test -race ./...`). Run it locally when changing
+concurrent Go code.
 
-Under the [validate-once delivery contract](ci-candidate-reuse.md), full language,
-race, compatibility, security and CodeQL validation runs on beta. PRs targeting
-main and main pushes verify the actual merge tree against that tested beta tree
-and verify trusted source-run/image evidence; they do not rerun the application
-suites. Content mismatch requires reconciliation and full validation on beta.
-PRs targeting beta and scheduled security/CodeQL scans retain their full checks.
-The delivery gate includes candidate-identity, publisher and digest-promotion
-negative/mutation fixtures. Protected owner approval is still required to
-promote images, and publishing does not authorize local-server deployment.
-
-Fast feedback remains targeted tests. Completion is the applicable shared
-targets above. CI/release adds all applicable runner-only and release checks.
-Delivery fixtures run on both Windows and Ubuntu; this does not substitute for
-actual application execution in the language jobs.
-Record commands, outcomes, manual exceptions, and commit/dirty-tree identity.
-Later changes invalidate applicable previous results.
-
-### Governance checker boundaries
-
-[The checker](../scripts/delivery/check-governance.mjs) defines its active surface
-explicitly: repository instructions, PR/contributor/testing guidance, active
-decisions/current pointer, `.github/agents`, `.github/prompts`,
-`.github/instructions`, `.specify/templates`, and current role charters/histories.
-It does not recursively lint archives, session logs, ADR requirement bodies,
-landed specifications or backlog prose as current policy.
-
-Blocking rules check concrete Markdown link targets (including reference-style
-definitions), principle identifiers against the constitution, ADR header/index
-status/target agreement, current-work structure/targets, and required native
-skill `name`/`description` metadata under `.github/skills` and `.agents/skills`.
-P4 also validates path-scoped `applyTo` metadata (the repository's literal,
-`*` and `**` subset), and the restricted reviewer's exact read/search tool list
-with no model override or extra capability metadata.
-Backticked examples/optional runtime paths and placeholder templates are not
-treated as file links. Remote URLs are not fetched. Sparse-excluded tracked
-reference targets are reported as warnings; an ordinary missing target is an
-error. Diagnostics include file, line, rule code and severity; errors exit 1.
-
-The active pointer requires scalar `updated_at` (real YYYY-MM-DD), `focus_area`,
-`owner` and `work_artifact`. `tasks_artifact` is optional, but validated if supplied.
-Artifacts must be canonical repository-relative existing Markdown under docs/specs,
-or this repository's `https://github.com/briandenicola/Aurearia/issues/NUMBER`
-or `https://github.com/briandenicola/Aurearia/pull/NUMBER` URLs. Selected specs
-do not require a paired tasks ledger.
-
-This mode requires **both version 5.0.0 and Amendment Status Accepted**.
-Legacy/prepared policies retain mandatory `tasks_artifact`, issue-only remote
-URLs and paired feature spec/tasks rules. A prepared version alone does not
-activate simplified permissions. URL syntax is checked offline, not remote
-existence, owner authorization or lifecycle approval.
-Names/descriptions accept plain, quoted or block scalar text; the checker
-validates required metadata, not the entire YAML language.
-
-Size limits and Proposed ADR lifecycle questions start as warnings. New malformed
-status/index links remain errors; there is no blanket waiver for new drift.
-The checker cannot establish prose correctness, owner authorization, historical
-review clearance, native tool discovery, independence or release acceptance.
-Those remain evidence-backed human/reviewer decisions. The
-[native integration guide](agentic-native-integration.md) documents migration,
-fresh-client discovery, capability probes and SpecKit's deferred upgrade.
-No personal skill or installed tool is changed by the repository migration.
-
-Fixtures deliberately remove targets, corrupt state/status/metadata, introduce
-obsolete principles and disable blocking diagnostics. Real Task invocations
-exercise lint failure propagation and missing-script failure without installing
-dependencies. The SpecKit regression runs explicit selections and a throwaway
-copy restoring the original stdout/Boolean bug; it never mutates a real feature.
-Native integration fixtures cover representative matching/nonmatching paths,
-all 20 legacy-to-19-native mappings, broken pointers, duplicate recipes and
-broadened reviewer tools. Disabling the new blocking diagnostics breaks their
-assertions. These deterministic checks are not an LLM behavior simulation;
-runtime discovery and refusal evidence must come from the actual client.
+Use targeted tests for fast feedback, then the full checks for the areas you changed.
+Report the commands you ran and their results; anything not run is not verified.
 
 ## 7. Coverage philosophy
 
 We do **not** gate PRs on a repo-wide coverage percentage. Coverage is a signal for blind spots, not a target to game.
 
-Constitution 5.0.0 §17 retains **"new service methods need unit coverage"** and
-exact-path regression evidence (formerly 4.0.0 §21.9/§21.6).
-Section 21 no longer contains numbered checklist items. Use coverage output
+New service methods need unit tests, and a bug fix needs a test that fails
+without the fix (constitution, Working Rules). Use coverage output
 diagnostically, never a single percentage as proof of safety.
 
 ## 8. F013 golden collection fixtures
@@ -393,7 +312,7 @@ The test configures the LLM provider as Ollama pointed at a local TCP port nothi
 
 Similarly, the provider catalog is left at its real production default, but `tools_base_url` is left empty — the exact same code path production uses when the tools client is unset — so `numista`/`nomisma` settle immediately as `unconfigured` with zero upstream calls, while `ngc`/`rpc` (never automated) and `ocre` (disabled by default) still run their real, always-network-free provider nodes. No `numista.org`/`nomisma.org` network traffic occurs.
 
-Full rationale: `.squad/decisions/inbox/maximus-seam-test.md`.
+Full rationale is in git history (`.squad/decisions/inbox/maximus-seam-test.md`, removed 2026-11-11).
 
 ## 10. Coin Copilot contract and operations testing
 
@@ -438,7 +357,7 @@ go test . -run TestRegisteredAPIRoutesAreDocumentedInOpenAPI -count=1
 Pop-Location
 ```
 
-Feature-specific automated suites may be run before the full §17 gate:
+Feature-specific automated suites may be run before the full area checks:
 
 ```powershell
 Push-Location src\api
@@ -459,12 +378,12 @@ be claimed unless the commands were actually executed.
 
 ## 11. Cross-references
 
-- Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle IX, §17, and §21)
+- Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle IX and the Working Rules)
 - System architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Go API README: [`../src/api/README.md`](../src/api/README.md)
 - Vue frontend README: [`../src/web/README.md`](../src/web/README.md)
 - Python agent README: [`../src/agent/README.md`](../src/agent/README.md)
-- Quality Gate workflow: [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+- CI workflows: [`api.yml`](../.github/workflows/api.yml), [`web.yml`](../.github/workflows/web.yml), [`agent.yml`](../.github/workflows/agent.yml)
 - Task runner: [`../Taskfile.yml`](../Taskfile.yml)
 
 TODOs:

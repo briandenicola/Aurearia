@@ -146,62 +146,6 @@ test('real Task invocation propagates lint failure and never skips a missing lin
   assert.notEqual(missing.status, 0);
   assert.equal(readFileSync(join(f.dir, 'src/web/calls.txt'), 'utf8'), '');
 });
-test('CI and docs use the shared gates; package and runner-only coverage remain explicit', () => {
-  const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8').replaceAll('\r\n', '\n');
-  const docs = readFileSync(join(root, 'docs/testing.md'), 'utf8');
-  const pkg = JSON.parse(readFileSync(join(root, 'src/web/package.json'), 'utf8'));
-  for (const target of ['check:go', 'check:web', 'check:agent', 'check:openapi', 'check:delivery', 'test-race']) {
-    assert.ok(ci.includes(`run: task ${target}`), `CI omitted ${target}`);
-    assert.ok(docs.includes(`task ${target}`), `Documentation omitted ${target}`);
-  }
-  assert.match(pkg.scripts.lint, /--max-warnings 0(?:\s|$)/);
-  assert.doesNotMatch(pkg.scripts.lint, /--quiet/);
-  assert.equal(pkg.scripts['type-check'], 'vue-tsc --build');
-  assert.match(pkg.scripts.test, /node --test .* && vitest run/);
-  assert.match(ci, /CGO_ENABLED: "1"/);
-  assert.equal((ci.match(/run: task setup:go/g) ?? []).length, 2);
-  assert.match(ci, /os: \[ubuntu-latest, windows-latest\]/);
-  const delivery = ci.split('\n  go-api:')[0];
-  const checkouts = delivery.split(/      - uses: actions\/checkout@[^\n]+\n/).slice(1);
-  assert.equal(checkouts.length, 1);
-  const checkout = checkouts[0].split('      - uses: actions/setup-node@')[0];
-  assert.match(checkout, /GIT_CONFIG_COUNT: '1'\n          GIT_CONFIG_KEY_0: core.protectNTFS\n          GIT_CONFIG_VALUE_0: 'true'/);
-  assert.doesNotMatch(checkout, /if:|sparse-checkout/);
-  assert.doesNotMatch(ci, /skipping|continue-on-error|--if-present/i);
-  const security = readFileSync(join(root, '.github/workflows/security-scan.yml'), 'utf8');
-  for (const job of ['gitleaks', 'govulncheck', 'npm-audit', 'pip-audit', 'agent-image-pip-check', 'container-security']) {
-    assert.match(security, new RegExp(`^  ${job}:`, 'm'));
-  }
-  assert.doesNotMatch(security, /continue-on-error:\s*true/);
-});
-test('archive portability mapping preserves blobs and rejects invalid tracked filename characters', () => {
-  const mapping = JSON.parse(readFileSync(join(root, '.squad/artifacts/windows-log-path-mapping-2026-09-21.json'), 'utf8'));
-  const result = spawnSync('git', ['ls-files', '-s', '-z'], { cwd: root, encoding: 'utf8' });
-  if (result.error) throw result.error;
-  assert.equal(result.status, 0, result.stderr);
-  const tracked = new Map(result.stdout.split('\0').filter(Boolean).map(line => {
-    const [metadata, path] = line.split('\t');
-    return [path, metadata.split(' ')[1]];
-  }));
-  const verify = files => {
-    assert.equal(mapping.entries.length, 33);
-    assert.equal(new Set(mapping.entries.map(entry => entry.new_path)).size, 33);
-    for (const entry of mapping.entries) {
-      assert.match(entry.old_path, /^\.squad\/(?:log|orchestration-log)\/[^/]*:[^/]*\.md$/);
-      assert.equal(entry.new_path, entry.old_path.replaceAll(':', '-'));
-      assert.ok(!files.has(entry.old_path), entry.old_path);
-      assert.equal(files.get(entry.new_path), entry.object_id, `Changed archive: ${entry.new_path}`);
-    }
-    for (const path of files.keys()) assert.doesNotMatch(path, /[:*?"<>|]/, path);
-  };
-  verify(tracked);
-  const changed = new Map(tracked);
-  changed.set(mapping.entries[0].new_path, '0'.repeat(40));
-  assert.throws(() => verify(changed), assert.AssertionError);
-  const invalid = new Map(tracked);
-  invalid.set('example:invalid.md', '0'.repeat(40));
-  assert.throws(() => verify(invalid), assert.AssertionError);
-});
 test('version annotation preserves source and line endings without shell replacement ambiguity', () => {
   const source = 'package main\r\n//\t@version\t4.0.0\r\nfunc main() {}\r\n';
   assert.equal(versionAnnotation(source, '4.3.0'), source.replace('4.0.0', '4.3.0'));

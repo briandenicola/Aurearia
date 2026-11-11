@@ -125,7 +125,7 @@ If step 4 shows stale state, you have a module-level leak.
 - `src/web/src/composables/useBulkSelect.ts` — module-level ref (unchanged)
 - `src/web/src/pages/CollectionPage.vue` — lifecycle hooks added
 
-**Decision Note:** `.squad/decisions/inbox/aurelia-pwa-stuck-tap-fix.md`
+**Decision Note:** `.squad/decisions/inbox/aurelia-pwa-stuck-tap-fix.md` (removed 2026-11-11; see git history)
 
 ## References
 

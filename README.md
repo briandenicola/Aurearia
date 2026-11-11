@@ -4,7 +4,7 @@
 
 > **Note:** This application is 100% vibe coded. It exists for the author to learn and experiment with GitHub Copilot CLI.
 
-[![CI](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml/badge.svg)](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml)
+[![CI](https://github.com/briandenicola/coin-collection-app/actions/workflows/api.yml/badge.svg)](https://github.com/briandenicola/coin-collection-app/actions/workflows/api.yml)
 ![Go](https://img.shields.io/badge/Go-1.26.11-00ADD8?logo=go)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
@@ -254,16 +254,12 @@ Run `task --list` to see all targets.
 
 **Design System** — Tokens, typography, status tones and shared UI primitives are documented in [`docs/design-system.md`](docs/design-system.md) and locked by [ADR 0004](docs/adr/0004-design-token-system.md).
 
-**Product Authority** — Per [Constitution §0](.specify/memory/constitution.md), the hierarchy is: Constitution → PRD → Active Spec → Plan → Tasks → Backlog → Decisions → Agent Judgment.
-
 ## Governance
 
-- **Constitution:** [`.specify/memory/constitution.md`](.specify/memory/constitution.md) (v3.1.0) — non-negotiable contract for how this project is built. §0 defines the Hierarchy of Authority.
+- **Constitution:** [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — the engineering principles and working rules for this project.
 - **Spec workflow:** features ship through `specs/NNN-*/{spec,plan,tasks}.md` per the templates in [`.specify/templates/`](.specify/templates/).
 - **Decision records:** [`docs/adr/`](docs/adr/) (Michael Nygard format, established by **[ADR 0001](docs/adr/0001-record-architecture-decisions.md)**).
-- **Project decisions ledger:** [`.squad/decisions.md`](.squad/decisions.md); proposals land in [`.squad/decisions/inbox/`](.squad/decisions/inbox/).
-- **AI team (Squad):** [`.squad/team.md`](.squad/team.md) and per-agent charters under [`.squad/agents/`](.squad/agents/).
-- **Quality Gate & Definition of Done:** Constitution §17 and §21 — enforced on every PR.
+- **Testing and CI:** [`docs/testing.md`](docs/testing.md).
 - **Contributing:** [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Security:** [`SECURITY.md`](SECURITY.md).
 

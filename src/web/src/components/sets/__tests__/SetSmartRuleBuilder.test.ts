@@ -8,6 +8,7 @@ const mockListCriteriaTemplates = vi.fn()
 const mockSaveCriteriaTemplate = vi.fn()
 const mockGetMintLocations = vi.fn()
 const mockGetStorageLocations = vi.fn()
+const mockGetSuggestions = vi.fn()
 
 vi.mock('@/api/client', () => ({
   previewSmartSet: (...args: unknown[]) => mockPreviewSmartSet(...args),
@@ -16,6 +17,7 @@ vi.mock('@/api/client', () => ({
   saveCriteriaTemplate: (...args: unknown[]) => mockSaveCriteriaTemplate(...args),
   getMintLocations: (...args: unknown[]) => mockGetMintLocations(...args),
   getStorageLocations: (...args: unknown[]) => mockGetStorageLocations(...args),
+  getSuggestions: (...args: unknown[]) => mockGetSuggestions(...args),
 }))
 
 function defaultMount() {
@@ -181,6 +183,29 @@ describe('SetSmartRuleBuilder', () => {
       field: 'storageLocationId',
       op: 'eq',
       value: 11,
+    })
+  })
+
+  it('offers vendor / store with autocomplete and emits the typed vendor', async () => {
+    mockGetSuggestions.mockResolvedValue({ data: ['Heritage Auctions'] })
+    const wrapper = defaultMount()
+    await flushPromises()
+
+    await wrapper.find('.rule-row select').setValue('purchaseLocation')
+    await wrapper.vm.$nextTick()
+
+    const vendorInput = wrapper.find('.rule-autocomplete input')
+    expect(vendorInput.exists()).toBe(true)
+    await vendorInput.setValue('Heritage Auctions')
+
+    const emitted = wrapper.emitted('update') as unknown[][]
+    const criteria = emitted.at(-1)?.[0] as {
+      rules: Array<{ field: string; op: string; value: unknown }>
+    }
+    expect(criteria.rules[0]).toEqual({
+      field: 'purchaseLocation',
+      op: 'eq',
+      value: 'Heritage Auctions',
     })
   })
 

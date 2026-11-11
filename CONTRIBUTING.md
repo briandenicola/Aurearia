@@ -2,9 +2,8 @@
 
 Guidelines for contributing to the Aurearia application.
 
-Read the constitution and applicable accepted ADRs first. Constitution 5.0.0 /
-Accepted ADR 0024 governs through owner-approved PR #828. Existing audit
-obligations and historical reviewer restrictions remain intact.
+Read the [constitution](.specify/memory/constitution.md) first: Principles I–VI
+are the engineering rules, and its Working Rules cover how to deliver a change.
 
 ## Getting Started
 
@@ -31,15 +30,10 @@ task up          # starts both API and web dev servers
 | `beta` | Ordinary feature/bug development and integration |
 | Other branches/worktrees | Only when explicitly authorized |
 
-Select work by the owner-approved issue/spec/process plan, not the newest spec.
-Use constitution §18.1: routine work needs brief scope, appropriate regression
-and CI, with no mandatory independent review; features need short criteria,
-workflow/error tests and one independent review. Changed security/privacy/data-
-safety, destructive migration, service or delivery boundaries add applicable
-security/compatibility/recovery proof. Merely touching existing contracts does
-not create a new boundary. ADRs are for material architecture.
-One issue/PR owns scope, criteria, evidence, review and outstanding work; specs
-are optional planning aids. No mandatory inbox/log/history document set.
+Work on `beta`. Each change needs tests for what it changes (a failing test
+first for a bug fix) and a short PR description using the PR template. Specs
+under `specs/` are optional planning aids. ADRs are only for hard-to-reverse
+decisions.
 
 For SpecKit on `beta`, set `$env:SPECIFY_FEATURE` to the exact selected spec
 directory name in the same process as each script invocation. Do not run the
@@ -97,35 +91,14 @@ These rules are enforced by `src/api/architecture_test.go`.
 
 ## Build and Test
 
-Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for the
-shared Taskfile completion gates, locked environment, Windows invocation, and
-CI-only evidence. From the root, run applicable `task check:go`,
-`task check:web`, `task check:agent`, `task check:openapi` and
-`task check:delivery`; `task check` runs all base gates. OpenAPI generation
-writes files. Dependency setup uses separate authorized `setup:*` targets.
-Obtain required authorization before setup, builds, or containers; missing
-execution is incomplete rather than passed. Race, security, browser,
-compatibility and release checks remain additional where applicable.
+Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for
+commands. From the root, run `task check:go`, `task check:web` or
+`task check:agent` for the areas you changed (`task check` runs them all), and
+`task check:openapi` after changing Go handlers. OpenAPI generation writes
+files. Dependency setup uses the separate `setup:*` targets.
 
-Native Copilot domain instructions and skills are documented in
-[the integration guide](docs/agentic-native-integration.md). Start a fresh client
-session after instruction changes; static fixtures do not prove runtime
-discovery. Squad is optional. Required independent review uses the read/search-only
-profile with supplied diffs/evidence and an owner-approved bounded lease.
-
-Keep pure-document review proportional, but exercise executable policy/prompts
-and workflows with relevant behavior/fixtures. Lane-required independent review
-and actual owner release approval cannot be replaced by task checkboxes.
-Focused local evidence plus applicable exact-candidate CI may reuse unchanged
-proof. Broad audits are only for major architecture/owner-designated major
-releases; existing audit obligations remain.
-
-Use the PR template's canonical completion record to bind each criterion and
-affected workflow to its result, evidence link and tested commit/tree. Handoffs
-link it and record only their delta. Stale reviews and unresolved blocks cannot
-support acceptance. See [acceptance and release controls](docs/agentic-acceptance-controls.md)
-for the proposed main protections, exact-candidate approval and activation status.
-Beta validation/publishing is not main release or local-server deployment approval.
+Scoped agent instructions live in `.github/instructions/` and skills in
+`.github/skills/`. Start a fresh agent session after changing them.
 
 ## Commit Messages
 
@@ -142,6 +115,4 @@ Include the co-author trailer when using Copilot:
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-Cite the governing Principle/section in commits and PRs. Commit/push only when
-authorized, stage only approved paths, and preserve unrelated work. A handoff
-does not automatically commit or stash the worktree.
+Stage only the files your change needs and leave unrelated work alone.
