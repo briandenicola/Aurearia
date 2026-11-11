@@ -108,7 +108,7 @@ func setupPaperlessInvoiceService(t *testing.T, client PaperlessClient, configur
 	if err := db.Create(&coin).Error; err != nil {
 		t.Fatalf("create coin: %v", err)
 	}
-	svc := NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client).
+	svc := NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client, nil).
 		WithPolling(time.Millisecond, 50*time.Millisecond).
 		WithBackgroundPolling(time.Hour, time.Millisecond)
 	return svc, db, user, coin
@@ -392,5 +392,49 @@ func TestPaperlessInvoiceService_UnlinkKeepsPaperlessUntouched(t *testing.T) {
 	}
 	if client.fileDocID != 0 || client.postedBody != "" {
 		t.Fatal("unlink must not call paperless-ngx")
+	}
+}
+
+// droppingPaperlessClient cancels the upload request right after paperless
+// accepts the file, as when the browser drops the request, and fails any
+// status check made with that cancelled request context.
+type droppingPaperlessClient struct {
+	*fakePaperlessClient
+	cancel context.CancelFunc
+}
+
+func (d *droppingPaperlessClient) PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error) {
+	taskID, err := d.fakePaperlessClient.PostDocument(ctx, baseURL, token, title, filename, contentType, body)
+	d.cancel()
+	return taskID, err
+}
+
+func (d *droppingPaperlessClient) GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("paperless-ngx task lookup request failed: %w", err)
+	}
+	return d.fakePaperlessClient.GetTask(ctx, baseURL, token, taskID)
+}
+
+func TestPaperlessInvoiceService_LinksEvenWhenTheUploadRequestIsDropped(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	fake := &fakePaperlessClient{tasks: []*PaperlessTask{{Status: PaperlessTaskStarted}}}
+	client := &droppingPaperlessClient{fakePaperlessClient: fake, cancel: cancel}
+	svc, db, user, coin := setupPaperlessInvoiceService(t, client, true)
+	svc.WithBackgroundPolling(5*time.Millisecond, 5*time.Second)
+
+	result, err := svc.UploadInvoice(ctx, user.ID, coin.ID, "inv.pdf", "application/pdf", strings.NewReader("x"))
+	if err != nil || result.Status != "pending" {
+		t.Fatalf("a dropped request after a successful upload must report pending, got %+v %v", result, err)
+	}
+
+	docID := 4964
+	fake.setTasks(&PaperlessTask{Status: PaperlessTaskSuccess, DocumentID: &docID})
+	deadline := time.Now().Add(3 * time.Second)
+	for storedDocumentID(t, db, coin.ID) == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := storedDocumentID(t, db, coin.ID); got == nil || *got != docID {
+		t.Fatalf("the server did not link the coin on its own, got %v", got)
 	}
 }

@@ -53,8 +53,8 @@ func setupPaperlessInvoiceRouter(t *testing.T, client services.PaperlessClient) 
 	coin := models.Coin{Name: "Denarius", UserID: user.ID}
 	db.Create(&coin)
 
-	svc := services.NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client)
-	h := NewPaperlessInvoiceHandler(svc)
+	svc := services.NewPaperlessInvoiceService(repository.NewCoinRepository(db), repository.NewUserRepository(db), nil, client, nil)
+	h := NewPaperlessInvoiceHandler(svc, services.NewLogger(100))
 	r := gin.New()
 	r.Use(func(c *gin.Context) { c.Set("userId", user.ID); c.Next() })
 	r.GET("/api/coins/:id/invoice/paperless/document", h.InvoiceDocument)

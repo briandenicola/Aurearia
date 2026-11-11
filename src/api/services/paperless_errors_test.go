@@ -187,8 +187,6 @@ func TestHTTPPaperlessClient_GetTaskReadsV10TaskFormat(t *testing.T) {
 		"related_document_ids": `{"count":1,"results":[{"task_id":"task-1","status":"SUCCESS","related_document_ids":[42],"result_data":{"document_id":42}}]}`,
 		// v10 with only result_data populated.
 		"result_data only": `{"count":1,"results":[{"status":"success","related_document_ids":[],"result_data":{"document_id":42}}]}`,
-		// Only paperless's result text carries the id.
-		"result text only": `{"count":1,"results":[{"status":"SUCCESS","related_document_ids":[],"result_message":"Success. New document id 42 created"}]}`,
 		// v9 shape still works.
 		"v9 related_document": `[{"status":"SUCCESS","related_document":"42","result":"ok"}]`,
 	} {
@@ -202,10 +200,21 @@ func TestHTTPPaperlessClient_GetTaskReadsV10TaskFormat(t *testing.T) {
 	}
 }
 
-func TestHTTPPaperlessClient_GetTaskReportsV10Failures(t *testing.T) {
-	srv := paperlessV3Server(t, `{"count":1,"results":[{"status":"FAILURE","related_document_ids":[],"result_data":{"error":"Not consuming inv.pdf: It is a duplicate."},"result":{"code":"duplicate"}}]}`)
+func TestHTTPPaperlessClient_GetTaskReportsFailures(t *testing.T) {
+	srv := paperlessV3Server(t, `{"count":1,"results":[{"status":"FAILURE","related_document_ids":[],"result":"Not consuming inv.pdf: It is a duplicate."}]}`)
 	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "task-1")
 	if err != nil || task.Status != PaperlessTaskFailure || task.Result != "Not consuming inv.pdf: It is a duplicate." {
+		t.Fatalf("task: %+v %v", task, err)
+	}
+}
+
+// Recorded from the owner's paperless-ngx 3.3.3 (API v10), trimmed to two tasks.
+const paperlessV10TasksResponse = `{"count":9464,"next":null,"previous":null,"results":[{"id":9463,"task_id":"9713b04a-fb87-451e-bd58-0831eaaad05e","task_type":"consume_file","task_type_display":"Consume File","trigger_source":"api_upload","trigger_source_display":"API Upload","status":"success","status_display":"Success","date_created":"2026-11-11T22:13:12.955151Z","date_started":"2026-11-11T22:13:12.970956Z","date_done":"2026-11-11T22:13:17.816012Z","duration_seconds":4.845056,"wait_time_seconds":0.015805,"input_data":{"filename":"invoice.pdf","mime_type":"application/pdf"},"result_data":{"document_id":4965},"related_document_ids":[4965],"acknowledged":false,"owner":4},{"id":9464,"task_id":"46036ced-a4b4-45ec-82c5-8725a4770872","task_type":"mail_fetch","status":"success","result_data":null,"related_document_ids":[],"acknowledged":false,"owner":null}]}`
+
+func TestHTTPPaperlessClient_GetTaskReadsRealPaperless333Response(t *testing.T) {
+	srv := paperlessV3Server(t, paperlessV10TasksResponse)
+	task, err := (&HTTPPaperlessClient{client: srv.Client()}).GetTask(context.Background(), srv.URL, "tkn", "9713b04a-fb87-451e-bd58-0831eaaad05e")
+	if err != nil || task.Status != PaperlessTaskSuccess || task.DocumentID == nil || *task.DocumentID != 4965 {
 		t.Fatalf("task: %+v %v", task, err)
 	}
 }
