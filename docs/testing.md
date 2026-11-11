@@ -149,6 +149,17 @@ environment; select every affected layer rather than claiming unrelated skips.
 | `task check` | All base completion targets above, sequentially; not a replacement for additional browser/race/security/compatibility/release jobs |
 | `task test-critical-workflows` | Affected browser workflows (`npm run test:browser`) |
 
+**Pull requests into `beta` run only affected jobs.** The shared
+[`changed-areas.yml`](../.github/workflows/changed-areas.yml) workflow classifies
+a PR's files with `scripts/delivery/changed-areas.mjs` into `api`, `web`,
+`agent` and `image` areas. `ci.yml`, `security-scan.yml` and
+`feature362-compatibility.yml` leave out jobs whose area is unchanged. Delivery
+governance, Gitleaks and CodeQL always run. CI, Taskfile, script, `VERSION` and
+unrecognised paths count as every area, and a detector failure runs every job.
+A new push to a PR cancels that PR's older runs. Pushes to `beta` are never
+narrowed or cancelled, because promotion to `main` requires the complete check
+set on the exact beta commit (ADR 0022).
+
 **Preparation is separate and requires authorization.** Match toolchains to
 manifests/workflows. CI uses Task 3.44.0 via a SHA-pinned setup action, Node
 24.15.0, Go from `src/api/go.mod`, and Python 3.12 with uv 0.11.22.

@@ -12,7 +12,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Pull requests: a new push cancels the PR's older run. Pushes to beta are
+  # grouped by commit so they are never cancelled (promotion evidence).
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  changes:
+    name: Changed areas
+    uses: ./.github/workflows/changed-areas.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
   gitleaks:
     name: Gitleaks
     runs-on: ubuntu-latest
@@ -40,6 +53,8 @@ jobs:
 
   govulncheck:
     name: Govulncheck
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.api != 'false') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,6 +75,8 @@ jobs:
 
   npm-audit:
     name: npm audit
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.web != 'false') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -90,6 +107,8 @@ jobs:
 
   pip-audit:
     name: pip-audit
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.agent != 'false') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -114,6 +133,8 @@ jobs:
 
   agent-image-pip-check:
     name: Agent image — no pip in runtime
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.agent != 'false' || needs.changes.outputs.image != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,6 +190,8 @@ jobs:
 
   container-security:
     name: Container security (${{ matrix.name }})
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -191,11 +214,39 @@ jobs:
             archive: ancient-coins-agent-oci
             bundle: ancient-coins-agent.tar
     steps:
+      # A matrix job left out at job level reports under its unexpanded name,
+      # so each image decides in a step instead and its check still reports.
+      - name: Decide whether this image changed
+        id: scope
+        env:
+          IMAGE: ${{ matrix.name }}
+          API: ${{ needs.changes.outputs.api }}
+          WEB: ${{ needs.changes.outputs.web }}
+          AGENT: ${{ needs.changes.outputs.agent }}
+          IMAGE_FILES: ${{ needs.changes.outputs.image }}
+        run: |
+          if [ "$IMAGE" = "app" ]; then
+            sources="$API $WEB $IMAGE_FILES"
+          else
+            sources="$AGENT $IMAGE_FILES"
+          fi
+          run=false
+          for value in $sources; do
+            [ "$value" != "false" ] && run=true
+          done
+          # A detector that reported nothing (empty values) also runs the scan.
+          [ -z "$(echo $sources | tr -d ' ')" ] && run=true
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Image $IMAGE scan needed: $run"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.scope.outputs.run == 'true'
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        if: steps.scope.outputs.run == 'true'
 
       - name: Build image with SBOM and provenance
+        if: steps.scope.outputs.run == 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: ${{ matrix.context }}
@@ -206,6 +257,7 @@ jobs:
           provenance: mode=max
 
       - name: Scan image for High and Critical vulnerabilities
+        if: steps.scope.outputs.run == 'true'
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           input: /tmp/${{ matrix.archive }}
@@ -216,6 +268,7 @@ jobs:
           severity: HIGH,CRITICAL
 
       - name: Generate image SBOM
+        if: steps.scope.outputs.run == 'true'
         uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
         with:
           image: oci-dir:/tmp/${{ matrix.archive }}
@@ -226,10 +279,11 @@ jobs:
           upload-release-assets: false
 
       - name: Archive OCI image and attestations
+        if: steps.scope.outputs.run == 'true'
         run: tar -C /tmp -cf /tmp/${{ matrix.bundle }} ${{ matrix.archive }}
 
       - name: Attest image archive provenance
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.scope.outputs.run == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: /tmp/${{ matrix.bundle }}

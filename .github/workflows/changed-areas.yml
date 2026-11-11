@@ -1,0 +1,60 @@
+name: Changed Areas
+
+# Shared by the beta workflows. On pull requests it reports which areas the
+# PR's files touch, so unaffected jobs can be left out. Every other event
+# reports all areas, so pushes to beta always produce full promotion evidence.
+
+on:
+  workflow_call:
+    outputs:
+      api:
+        description: Go API changed
+        value: ${{ jobs.detect.outputs.api }}
+      web:
+        description: Vue web app changed
+        value: ${{ jobs.detect.outputs.web }}
+      agent:
+        description: Python agent changed
+        value: ${{ jobs.detect.outputs.agent }}
+      image:
+        description: Container build files changed
+        value: ${{ jobs.detect.outputs.image }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.areas.outputs.api }}
+      web: ${{ steps.areas.outputs.web }}
+      agent: ${{ steps.areas.outputs.agent }}
+      image: ${{ steps.areas.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/delivery
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24.15.0
+      - name: Classify changed files
+        id: areas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' > "$RUNNER_TEMP/changed-files.txt"
+          else
+            : > "$RUNNER_TEMP/changed-files.txt"
+          fi
+          node scripts/delivery/changed-areas.mjs < "$RUNNER_TEMP/changed-files.txt" >> "$GITHUB_OUTPUT"
