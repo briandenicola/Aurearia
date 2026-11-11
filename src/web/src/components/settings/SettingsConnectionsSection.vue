@@ -96,12 +96,27 @@
       <input v-model="paperlessApiToken" type="password" class="form-input" placeholder="Token from paperless-ngx → My Profile" autocomplete="new-password" />
       <span class="mt-1 block text-chip text-text-muted">Needed for uploads. Encrypted at rest and only used for your invoices.</span>
     </div>
-    <div
-      v-if="auth.user?.paperlessConfigured"
-      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-gain"
-    >
-      Paperless-ngx connected
+    <div v-if="auth.user?.paperlessConfigured" class="mt-1 flex flex-wrap items-center gap-2">
+      <span class="text-chip text-text-muted">URL and token saved.</span>
+      <button
+        type="button"
+        class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+        data-testid="paperless-test-connection"
+        :disabled="paperlessTesting"
+        @click="handleTestPaperless"
+      >
+        {{ paperlessTesting ? 'Testing...' : 'Test Connection' }}
+      </button>
     </div>
+    <p
+      v-if="paperlessTestMsg"
+      class="mt-1 text-body"
+      :class="paperlessTestError ? 'text-loss' : 'text-gain'"
+      data-testid="paperless-test-result"
+      role="status"
+    >
+      {{ paperlessTestMsg }}
+    </p>
 
     <h3 class="mb-3 mt-5 text-base text-text-secondary">Pushover Notifications</h3>
     <p class="mb-3 text-sm text-text-muted">
@@ -145,8 +160,10 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsProfile } from '@/composables/useSettingsProfile'
+import { testPaperlessConnection } from '@/api/client'
 
 const auth = useAuthStore()
 const {
@@ -155,4 +172,24 @@ const {
   profileMsg, profileError, profileSaving,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile,
 } = useSettingsProfile()
+
+const paperlessTesting = ref(false)
+const paperlessTestMsg = ref('')
+const paperlessTestError = ref(false)
+
+async function handleTestPaperless() {
+  paperlessTesting.value = true
+  paperlessTestMsg.value = ''
+  try {
+    await testPaperlessConnection()
+    paperlessTestError.value = false
+    paperlessTestMsg.value = 'Connected: the Aurearia server reached paperless-ngx and the token was accepted.'
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    paperlessTestError.value = true
+    paperlessTestMsg.value = e.response?.data?.error ?? 'Could not test the paperless-ngx connection.'
+  } finally {
+    paperlessTesting.value = false
+  }
+}
 </script>

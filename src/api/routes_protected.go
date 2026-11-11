@@ -327,6 +327,7 @@ func registerProtectedRoutes(api *gin.RouterGroup, d *appDeps) {
 		userHandler := handlers.NewUserHandler(d.cfg.UploadDir, userRepo, d.pushoverSvc, d.logger, d.credentialEncryptionSvc)
 		paperlessInvoiceHandler := handlers.NewPaperlessInvoiceHandler(services.NewPaperlessInvoiceService(d.coinRepo, userRepo, d.credentialEncryptionSvc, nil))
 		protected.POST("/coins/:id/invoice/paperless", d.writeRateLimit, paperlessInvoiceHandler.UploadInvoice)
+		protected.POST("/paperless/test", d.writeRateLimit, paperlessInvoiceHandler.TestConnection)
 		protected.POST("/coins/:id/invoice/paperless/tasks/:taskId", d.writeRateLimit, paperlessInvoiceHandler.ResolveInvoiceTask)
 		protected.DELETE("/coins/:id/invoice/paperless", d.writeRateLimit, paperlessInvoiceHandler.UnlinkInvoice)
 		protected.GET("/coins/:id/invoice/paperless/document", paperlessInvoiceHandler.InvoiceDocument)

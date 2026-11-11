@@ -109,6 +109,16 @@ func (s *PaperlessInvoiceService) connection(userID uint) (baseURL, token string
 	return baseURL, token, nil
 }
 
+// TestConnection checks the saved paperless-ngx URL and token with one
+// authenticated request.
+func (s *PaperlessInvoiceService) TestConnection(ctx context.Context, userID uint) error {
+	baseURL, token, err := s.connection(userID)
+	if err != nil {
+		return err
+	}
+	return s.client.Ping(ctx, baseURL, token)
+}
+
 func invoiceDocumentTitle(coin *models.Coin) string {
 	title := strings.TrimSpace(coin.Name)
 	if invoice := strings.TrimSpace(coin.VendorInvoice); invoice != "" {

@@ -3,6 +3,8 @@ name: Build and Push Beta to Docker Hub
 on:
   push:
     branches: [beta]
+  # Manual rebuild of the current beta, e.g. when a push-triggered run is lost.
+  workflow_dispatch:
 
 permissions:
   contents: read

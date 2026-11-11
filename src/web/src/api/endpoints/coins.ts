@@ -319,6 +319,10 @@ export const getInvoiceThumbnail = (coinId: number) =>
 export const unlinkInvoiceDocument = (coinId: number) =>
   api.delete(`/coins/${coinId}/invoice/paperless`)
 
+// Checks the saved paperless-ngx URL and API token from the Aurearia server.
+export const testPaperlessConnection = () =>
+  api.post<{ ok: boolean }>('/paperless/test')
+
 export const uploadImage = (coinId: number, file: File, imageType: string, isPrimary: boolean, circleClip?: boolean) => {
   const formData = new FormData()
   formData.append('image', file)
