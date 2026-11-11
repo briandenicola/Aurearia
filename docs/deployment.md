@@ -25,14 +25,11 @@ Transitive security floors for `langgraph-sdk` and `multidict` are recorded in
 `pyproject.toml`; refresh their lock entries deliberately rather than upgrading
 the whole agent environment.
 
-CI [validates once on beta](ci-candidate-reuse.md). The beta publisher records
-the immutable app/agent image digests. After the identical main tree passes
-the lightweight candidate gate and the owner approves the protected release,
-main promotes those digests to `latest` and the main SHA tags without rebuilding.
-The image's embedded version/build date remain those of the tested beta build;
-the main merge SHA is a promotion identity, not a claim of a second build.
-Record both digests before considering publication complete. Deployment to the
-local server remains a separate owner action.
+Tests run on pull requests into `beta`. Merging into `beta` builds and pushes
+the app and agent images tagged `beta` and `sha-<commit>`. Merging `beta` into
+`main` (with a merge commit) re-tags those same images as `latest` and
+`sha-<main commit>` after the `release` environment approval, without
+rebuilding. Deployment to the local server remains a separate owner action.
 
 The app container contains:
 
@@ -535,33 +532,14 @@ Pushover, uptime monitors, a lightweight log scraper, or the host provider's ale
 
 ## CI/CD
 
-GitHub Actions publish Docker images from the exact SHA whose branch Quality
-Gate succeeded. Beta images are integration artifacts, not owner approval for a
-main release or local-server deployment.
-
 **Triggers:**
-- `.github/workflows/ci.yml` (`Quality Gate`) runs on pull requests and pushes to `main` and `beta`.
-- `.github/workflows/docker-publish.yml` runs after a successful `Quality Gate` push run on `main`.
-- `.github/workflows/docker-publish-beta.yml` runs after a successful `Quality Gate` push run on `beta`.
-- `.github/workflows/security-scan.yml` runs on pull requests, pushes to `main` and `beta`, weekly schedule, and manual dispatch.
-
-Manual Docker publishing is intentionally disabled so `latest` and `beta` tags cannot bypass the Quality Gate.
-
-**Live settings versus proposed controls:** The 2026-09-21 inspection found
-seven strict required checks on main, admin enforcement off and no required PR
-review configuration. Beta permits direct validation pushes with no required
-contexts. The `release` environment does not yet exist.
-
-The [P5 control proposal](agentic-acceptance-controls.md) adds twenty trusted
-main check contexts, a PR requirement without a second human approver, admin
-enforcement and an owner-protected main publication job. Its workflow draft
-verifies the exact candidate and GitHub-recorded owner approval before either
-image job, including partial retries. Missing configuration fails closed.
-Live changes require separate owner approval and recorded readback; merging
-the draft into beta does not activate a default-branch `workflow_run` definition.
-Follow the proposal's activation/restoration sequence rather than assuming
-written requirements are already enforced. Beta publishing and Ralph's
-intentionally disabled state remain unchanged.
+- `api.yml`, `web.yml` and `agent.yml` run the tests on pull requests into
+  `beta`, each only when its area changed.
+- `docker-publish-beta.yml` builds and pushes images on every push to `beta`.
+- `docker-publish.yml` re-tags the beta images as `latest` on every push to
+  `main`, behind the `release` environment approval.
+- `security-scan.yml` runs Gitleaks on pull requests, and the dependency, image
+  and race-detector scans weekly or on manual dispatch. `codeql.yml` runs weekly.
 
 **Image Tags:**
 | Tag | Example |
@@ -599,11 +577,8 @@ The `.github/workflows/security-scan.yml` workflow runs on pull requests to `mai
 
 Temporary exceptions must be narrow, reviewed, and documented with an owner and
 expiration date in the scanner configuration or linked threat-model finding.
-Do not infer these checks are required on beta: its automatic publisher waits
-for Quality Gate, not every separately scheduled scan. The proposed main guard
-checks all nineteen push contexts (including four CodeQL analyses) and owner
-approval; the extra CodeQL aggregate remains required on main PRs. Until its activation is evidenced,
-the existing live main publisher still follows the original automatic trigger.
+Only Gitleaks runs on pull requests; the other scans run weekly or on manual
+dispatch and do not block publishing.
 
 ---
 

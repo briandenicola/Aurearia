@@ -259,8 +259,6 @@ Run `task --list` to see all targets.
 - **Constitution:** [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — the engineering principles and working rules for this project.
 - **Spec workflow:** features ship through `specs/NNN-*/{spec,plan,tasks}.md` per the templates in [`.specify/templates/`](.specify/templates/).
 - **Decision records:** [`docs/adr/`](docs/adr/) (Michael Nygard format, established by **[ADR 0001](docs/adr/0001-record-architecture-decisions.md)**).
-- **Project decisions ledger:** [`.squad/decisions.md`](.squad/decisions.md); proposals land in [`.squad/decisions/inbox/`](.squad/decisions/inbox/).
-- **AI team (Squad):** [`.squad/team.md`](.squad/team.md) and per-agent charters under [`.squad/agents/`](.squad/agents/).
 - **Testing and CI:** [`docs/testing.md`](docs/testing.md).
 - **Contributing:** [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Security:** [`SECURITY.md`](SECURITY.md).

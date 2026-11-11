@@ -91,35 +91,14 @@ These rules are enforced by `src/api/architecture_test.go`.
 
 ## Build and Test
 
-Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for the
-shared Taskfile completion gates, locked environment, Windows invocation, and
-CI-only evidence. From the root, run applicable `task check:go`,
-`task check:web`, `task check:agent`, `task check:openapi` and
-`task check:delivery`; `task check` runs all base gates. OpenAPI generation
-writes files. Dependency setup uses separate authorized `setup:*` targets.
-Obtain required authorization before setup, builds, or containers; missing
-execution is incomplete rather than passed. Race, security, browser,
-compatibility and release checks remain additional where applicable.
+Use [docs/testing.md §6](docs/testing.md#6-running-tests-locally-vs-ci) for
+commands. From the root, run `task check:go`, `task check:web` or
+`task check:agent` for the areas you changed (`task check` runs them all), and
+`task check:openapi` after changing Go handlers. OpenAPI generation writes
+files. Dependency setup uses the separate `setup:*` targets.
 
-Native Copilot domain instructions and skills are documented in
-[the integration guide](docs/agentic-native-integration.md). Start a fresh client
-session after instruction changes; static fixtures do not prove runtime
-discovery. Squad is optional. Required independent review uses the read/search-only
-profile with supplied diffs/evidence and an owner-approved bounded lease.
-
-Keep pure-document review proportional, but exercise executable policy/prompts
-and workflows with relevant behavior/fixtures. Lane-required independent review
-and actual owner release approval cannot be replaced by task checkboxes.
-Focused local evidence plus applicable exact-candidate CI may reuse unchanged
-proof. Broad audits are only for major architecture/owner-designated major
-releases; existing audit obligations remain.
-
-Use the PR template's canonical completion record to bind each criterion and
-affected workflow to its result, evidence link and tested commit/tree. Handoffs
-link it and record only their delta. Stale reviews and unresolved blocks cannot
-support acceptance. See [acceptance and release controls](docs/agentic-acceptance-controls.md)
-for the proposed main protections, exact-candidate approval and activation status.
-Beta validation/publishing is not main release or local-server deployment approval.
+Scoped agent instructions live in `.github/instructions/` and skills in
+`.github/skills/`. Start a fresh agent session after changing them.
 
 ## Commit Messages
 
