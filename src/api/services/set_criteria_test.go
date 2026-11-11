@@ -135,6 +135,15 @@ func TestValidateSmartCriteria_StorageLocation(t *testing.T) {
 	}
 }
 
+func TestValidateSmartCriteria_PurchaseLocation(t *testing.T) {
+	valid := map[string]interface{}{
+		"field": "purchaseLocation", "op": "eq", "value": "Heritage Auctions",
+	}
+	if err := ValidateSmartCriteria(valid); err != nil {
+		t.Fatalf("expected valid purchaseLocation criteria, got %v", err)
+	}
+}
+
 // ---- GetSuggestedCriteria ----
 
 func TestGetSuggestedCriteria_ReturnsTenSuggestions(t *testing.T) {

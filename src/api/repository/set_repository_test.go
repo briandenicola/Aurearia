@@ -49,6 +49,39 @@ func TestSetRepository_GetCoinsMatchingCriteria_FiltersByStorageLocation(t *test
 	}
 }
 
+func TestSetRepository_GetCoinsMatchingCriteria_FiltersByVendor(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+	coins := []models.Coin{
+		{Name: "Heritage Coin", UserID: 1, PurchaseLocation: "Heritage Auctions"},
+		{Name: "CNG Coin", UserID: 1, PurchaseLocation: "CNG"},
+		{Name: "No Vendor", UserID: 1},
+		{Name: "Other User", UserID: 2, PurchaseLocation: "Heritage Auctions"},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("create coins: %v", err)
+	}
+
+	cases := []struct {
+		rule map[string]interface{}
+		want []string
+	}{
+		{map[string]interface{}{"field": "purchaseLocation", "op": "eq", "value": "Heritage Auctions"}, []string{"Heritage Coin"}},
+		{map[string]interface{}{"field": "purchaseLocation", "op": "contains", "value": "Heritage"}, []string{"Heritage Coin"}},
+		{map[string]interface{}{"field": "purchaseLocation", "op": "isNull"}, []string{"No Vendor"}},
+		{map[string]interface{}{"field": "purchaseLocation", "op": "isNotNull"}, []string{"CNG Coin", "Heritage Coin"}},
+	}
+	for _, tc := range cases {
+		got, err := repo.GetCoinsMatchingCriteria(1, tc.rule)
+		if err != nil {
+			t.Fatalf("GetCoinsMatchingCriteria(%v) failed: %v", tc.rule, err)
+		}
+		if names := coinNames(got); !reflect.DeepEqual(names, tc.want) {
+			t.Fatalf("GetCoinsMatchingCriteria(%v) = %v, want %v", tc.rule, names, tc.want)
+		}
+	}
+}
+
 func TestSetRepository_GetCoinsInSet_UsesManualSortOrder(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)
