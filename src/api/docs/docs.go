@@ -8440,6 +8440,75 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Unlink coin invoice document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/invoice/paperless/document": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/pdf",
+                    "image/png",
+                    "image/jpeg"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "View coin invoice document from paperless-ngx",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
             }
         },
         "/coins/{id}/invoice/paperless/tasks/{taskId}": {
@@ -8483,6 +8552,43 @@ const docTemplate = `{
                         "description": "Accepted",
                         "schema": {
                             "$ref": "#/definitions/services.PaperlessInvoiceResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/invoice/paperless/thumbnail": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "image/png",
+                    "image/webp"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Thumbnail of coin invoice document from paperless-ngx",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
                         }
                     }
                 }
@@ -23959,6 +24065,9 @@ const docTemplate = `{
                 },
                 "paperlessDocumentId": {
                     "type": "integer"
+                },
+                "paperlessTaskId": {
+                    "type": "string"
                 },
                 "purchaseDate": {
                     "type": "string"

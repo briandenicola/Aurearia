@@ -33,6 +33,8 @@ export interface Coin {
   vendorInvoice: string
   /** paperless-ngx document id linked by an invoice upload. */
   paperlessDocumentId?: number | null
+  /** paperless-ngx consumption task still in progress for this coin's invoice. */
+  paperlessTaskId?: string
   storageLocationId: number | null
   storageSlot?: number | null
   storageLocation: Pick<StorageLocation, 'id' | 'name' | 'type' | 'rows' | 'columns'> | null
@@ -416,6 +418,8 @@ export interface CoinDetailMetadataRow {
   url?: string | null
   /** When set, renders a compact action button in the label column and the table emits 'edit' with the row key. */
   editLabel?: string
+  /** When set, the value renders as a gold in-app action (with a document icon) and the table emits 'activate' with the row key. */
+  activatable?: boolean
 }
 
 // Feature 355 — Wishlist Purchase Reminders

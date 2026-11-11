@@ -163,6 +163,8 @@ export interface UserInfo {
   cngUsername?: string
   cngConfigured?: boolean
   parcelAppConfigured?: boolean
+  paperlessUrl?: string
+  paperlessConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
   /** Spec 354 D11: per-user opt-out; default-on. When false, Coin of the Day falls back to owned-only eligibility. */

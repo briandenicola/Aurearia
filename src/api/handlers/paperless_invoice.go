@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -33,6 +34,10 @@ func (h *PaperlessInvoiceHandler) respondServiceError(c *gin.Context, err error)
 	switch {
 	case errors.Is(err, services.ErrPaperlessCoinNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+	case errors.Is(err, services.ErrPaperlessNoDocument):
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	case errors.Is(err, services.ErrPaperlessUnsupportedFile):
+		respondError(c, http.StatusBadGateway, err.Error(), err)
 	case errors.Is(err, services.ErrPaperlessNotConfigured):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, services.ErrPaperlessTaskFailed):
@@ -128,4 +133,78 @@ func (h *PaperlessInvoiceHandler) ResolveInvoiceTask(c *gin.Context) {
 		status = http.StatusAccepted
 	}
 	c.JSON(status, result)
+}
+
+func (h *PaperlessInvoiceHandler) streamDocument(c *gin.Context, kind services.PaperlessFileKind) {
+	coinID, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	file, err := h.svc.OpenDocument(c.Request.Context(), c.GetUint("userId"), coinID, kind)
+	if err != nil {
+		h.respondServiceError(c, err)
+		return
+	}
+	defer file.Body.Close()
+	extra := map[string]string{
+		// The URL is per coin, not per document: replacing or unlinking the
+		// invoice must never show a cached copy of the previous file.
+		"Cache-Control":           "no-store",
+		"X-Content-Type-Options":  "nosniff",
+		"Content-Security-Policy": "default-src 'none'; sandbox",
+		"Content-Disposition":     fmt.Sprintf("inline; filename=%q", fmt.Sprintf("invoice-%d-%s", coinID, kind)),
+	}
+	c.DataFromReader(http.StatusOK, file.ContentLength, file.ContentType, file.Body, extra)
+}
+
+// InvoiceDocument streams the viewable rendition of the coin's linked paperless-ngx document.
+//
+//	@Summary	View coin invoice document from paperless-ngx
+//	@Tags		Coins
+//	@Produce	application/pdf
+//	@Produce	image/png
+//	@Produce	image/jpeg
+//	@Param		id	path	int	true	"Coin ID"
+//	@Success	200
+//	@Failure	404	{object}	ErrorResponse
+//	@Security	BearerAuth
+//	@Router		/coins/{id}/invoice/paperless/document [get]
+func (h *PaperlessInvoiceHandler) InvoiceDocument(c *gin.Context) {
+	h.streamDocument(c, services.PaperlessFilePreview)
+}
+
+// InvoiceThumbnail streams the page-1 thumbnail of the coin's linked paperless-ngx document.
+//
+//	@Summary	Thumbnail of coin invoice document from paperless-ngx
+//	@Tags		Coins
+//	@Produce	image/png
+//	@Produce	image/webp
+//	@Param		id	path	int	true	"Coin ID"
+//	@Success	200
+//	@Failure	404	{object}	ErrorResponse
+//	@Security	BearerAuth
+//	@Router		/coins/{id}/invoice/paperless/thumbnail [get]
+func (h *PaperlessInvoiceHandler) InvoiceThumbnail(c *gin.Context) {
+	h.streamDocument(c, services.PaperlessFileThumbnail)
+}
+
+// UnlinkInvoice removes the coin's link to its paperless-ngx document. The document is not deleted from paperless-ngx.
+//
+//	@Summary	Unlink coin invoice document
+//	@Tags		Coins
+//	@Param		id	path	int	true	"Coin ID"
+//	@Success	204
+//	@Failure	404	{object}	ErrorResponse
+//	@Security	BearerAuth
+//	@Router		/coins/{id}/invoice/paperless [delete]
+func (h *PaperlessInvoiceHandler) UnlinkInvoice(c *gin.Context) {
+	coinID, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.svc.UnlinkDocument(c.GetUint("userId"), coinID); err != nil {
+		h.respondServiceError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

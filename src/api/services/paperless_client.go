@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
 	"net/url"
@@ -35,6 +36,24 @@ type PaperlessTask struct {
 type PaperlessClient interface {
 	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error)
 	GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error)
+	GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error)
+}
+
+// PaperlessFileKind selects which rendition of a document to fetch.
+type PaperlessFileKind string
+
+const (
+	// PaperlessFilePreview is paperless-ngx's viewable rendition (archived PDF, or the original image).
+	PaperlessFilePreview PaperlessFileKind = "preview"
+	// PaperlessFileThumbnail is the small page-1 thumbnail paperless-ngx generates.
+	PaperlessFileThumbnail PaperlessFileKind = "thumb"
+)
+
+// PaperlessFile is a streamed document rendition. Callers must close Body.
+type PaperlessFile struct {
+	Body          io.ReadCloser
+	ContentType   string
+	ContentLength int64
 }
 
 // PaperlessError carries a non-2xx paperless response without echoing tokens.
@@ -52,12 +71,104 @@ type HTTPPaperlessClient struct {
 	client *http.Client
 }
 
-// NewHTTPPaperlessClient uses the restricted outbound client so a user-supplied
-// paperless URL cannot reach loopback, link-local or cloud-metadata addresses.
-// Private LAN addresses stay reachable because self-hosted paperless usually
-// lives there.
+// paperlessBlockedPrefixes are refused even though private ranges are allowed:
+// "this network", benchmarking, reserved and IPv6 discard/documentation space.
+var paperlessBlockedPrefixes = mustParseOutboundCIDRs(
+	"0.0.0.0/8",
+	"198.18.0.0/15",
+	"240.0.0.0/4",
+	"100::/64",
+)
+
+// IsDisallowedPaperlessIP reports whether a resolved paperless-ngx address is
+// refused. Unlike the general outbound guard, private LAN (RFC 1918, IPv6 ULA)
+// and CGNAT/Tailscale (100.64.0.0/10) addresses are allowed, because a
+// self-hosted paperless almost always lives there. Loopback, link-local
+// (including the 169.254.169.254 cloud metadata endpoint), multicast and
+// unspecified addresses stay blocked.
+func IsDisallowedPaperlessIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	for _, prefix := range paperlessBlockedPrefixes {
+		if prefix.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func paperlessDialContext(resolver OutboundResolver) func(context.Context, string, string) (net.Conn, error) {
+	if resolver == nil {
+		resolver = net.DefaultResolver
+	}
+	dialer := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		var candidates []net.IP
+		if ip := net.ParseIP(host); ip != nil {
+			candidates = []net.IP{ip}
+		} else {
+			resolved, err := resolver.LookupNetIP(ctx, "ip", host)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve paperless-ngx host: %w", err)
+			}
+			for _, addr := range resolved {
+				candidates = append(candidates, net.IP(addr.Unmap().AsSlice()))
+			}
+		}
+		var dialErr error
+		for _, ip := range candidates {
+			if IsDisallowedPaperlessIP(ip) {
+				continue
+			}
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			dialErr = err
+		}
+		if dialErr != nil {
+			return nil, dialErr
+		}
+		return nil, fmt.Errorf("%w: paperless-ngx host resolves only to loopback, link-local or reserved addresses", ErrOutboundTargetBlocked)
+	}
+}
+
+func newPaperlessHTTPClient(resolver OutboundResolver) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	transport.DialContext = paperlessDialContext(resolver)
+	return &http.Client{
+		Timeout:   60 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return errors.New("paperless-ngx redirected too many times")
+			}
+			if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
+				return fmt.Errorf("%w: unsupported redirect scheme", ErrOutboundTargetBlocked)
+			}
+			return nil
+		},
+	}
+}
+
+// NewHTTPPaperlessClient talks to the user's paperless-ngx through a dialer
+// that allows LAN/Tailscale addresses but blocks loopback, link-local and
+// cloud-metadata targets. Every dial (including after redirects) is checked.
 func NewHTTPPaperlessClient() *HTTPPaperlessClient {
-	return &HTTPPaperlessClient{client: NewRestrictedHTTPClient(nil, 60*time.Second, 3)}
+	return &HTTPPaperlessClient{client: newPaperlessHTTPClient(nil)}
 }
 
 func paperlessEndpoint(baseURL, path string) (string, error) {
@@ -188,4 +299,29 @@ func parsePaperlessDocumentID(raw json.RawMessage) *int {
 		}
 	}
 	return nil
+}
+
+func (c *HTTPPaperlessClient) GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error) {
+	if documentID <= 0 || (kind != PaperlessFilePreview && kind != PaperlessFileThumbnail) {
+		return nil, errors.New("invalid paperless-ngx document request")
+	}
+	endpoint, err := paperlessEndpoint(baseURL, fmt.Sprintf("/api/documents/%d/%s/", documentID, kind))
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Token "+token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("paperless-ngx %s request failed: %w", kind, err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		defer resp.Body.Close()
+		excerpt, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+		return nil, &PaperlessError{Operation: string(kind), StatusCode: resp.StatusCode, BodyExcerpt: strings.TrimSpace(string(excerpt))}
+	}
+	return &PaperlessFile{Body: resp.Body, ContentType: resp.Header.Get("Content-Type"), ContentLength: resp.ContentLength}, nil
 }

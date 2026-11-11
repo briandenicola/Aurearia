@@ -108,17 +108,8 @@
           <!-- T014-T016: Metadata table -->
           <div v-if="metadataRows.length" class="mb-6">
             <h3 class="mb-3 font-display text-base font-medium text-heading">Details</h3>
-            <CoinDetailMetadataTable :rows="displayRows" @edit="handleMetadataEdit" />
+            <CoinDetailMetadataTable :rows="displayRows" @edit="handleMetadataEdit" @activate="handleMetadataActivate" />
           </div>
-          <PaperlessInvoiceControl
-            v-if="!coin.isWishlist"
-            class="-mt-3 mb-6"
-            :coin-id="coin.id"
-            :invoice="coin.vendorInvoice"
-            :document-id="coin.paperlessDocumentId"
-            hide-link
-            @linked="refreshCoin"
-          />
 
           <CoinReferencesSection
             :coin-id="coin.id"
@@ -165,6 +156,13 @@
       @cancel="handleReminderCancel"
       @close="showReminderModal = false"
     />
+    <InvoiceDocumentViewer
+      v-if="invoiceViewerOpen && coin && coin.paperlessDocumentId"
+      :coin-id="coin.id"
+      :document-id="coin.paperlessDocumentId"
+      :invoice-number="coin.vendorInvoice"
+      @close="invoiceViewerOpen = false"
+    />
     <ImageLightbox
       v-if="lightboxImage && coin"
       :coin-id="coin.id"
@@ -190,7 +188,7 @@ import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
 import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
 import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'
-import PaperlessInvoiceControl from '@/components/coin/PaperlessInvoiceControl.vue'
+import InvoiceDocumentViewer from '@/components/coin/InvoiceDocumentViewer.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
@@ -242,7 +240,7 @@ const reverseImage = computed(() => coin.value?.images?.find(i => i.imageType ==
 const authStore = useAuthStore()
 const metadataRows = computed(() => {
   if (!coin.value) return []
-  return useCoinDetailMetadataRows(coin.value, authStore.user?.paperlessUrl).rows.value
+  return useCoinDetailMetadataRows(coin.value, { paperlessConfigured: authStore.user?.paperlessConfigured }).rows.value
 })
 const { refresh: refreshQuickAccess, forget: forgetQuickAccess } = useQuickAccess()
 
@@ -262,6 +260,12 @@ const displayRows = computed<CoinDetailMetadataRow[]>(() => {
   result.splice(insertAfter, 0, reminderRow)
   return result
 })
+
+const invoiceViewerOpen = ref(false)
+
+function handleMetadataActivate(key: string) {
+  if (key === 'vendorInvoice') invoiceViewerOpen.value = true
+}
 
 function handleMetadataEdit(key: string) {
   if (key === 'purchaseReminder') showReminderModal.value = true

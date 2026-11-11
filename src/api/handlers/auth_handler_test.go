@@ -691,6 +691,11 @@ func TestAuthResponseIncludesAuctionCredentialFields(t *testing.T) {
 	if _, exists := userMap["cngConfigured"]; !exists {
 		t.Error("login response missing cngConfigured field")
 	}
+	for _, field := range []string{"paperlessUrl", "paperlessConfigured", "parcelAppConfigured"} {
+		if _, exists := userMap[field]; !exists {
+			t.Errorf("login response missing %s field", field)
+		}
+	}
 
 	// Verify refresh response also includes the fields
 	refreshBody, _ := json.Marshal(map[string]string{"refreshToken": loginResp.RefreshToken})
@@ -714,6 +719,11 @@ func TestAuthResponseIncludesAuctionCredentialFields(t *testing.T) {
 	}
 	if _, exists := refreshUserMap["cngConfigured"]; !exists {
 		t.Error("refresh response missing cngConfigured field")
+	}
+	for _, field := range []string{"paperlessUrl", "paperlessConfigured"} {
+		if _, exists := refreshUserMap[field]; !exists {
+			t.Errorf("refresh response missing %s field", field)
+		}
 	}
 }
 

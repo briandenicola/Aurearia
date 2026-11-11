@@ -70,6 +70,7 @@ type Coin struct {
 	VendorSKU             string        `json:"vendorSku" binding:"max=200"`
 	VendorInvoice         string        `json:"vendorInvoice" binding:"max=200"`
 	PaperlessDocumentID   *int          `json:"paperlessDocumentId"`
+	PaperlessTaskID       string        `gorm:"column:paperless_task_id;type:varchar(64);not null;default:''" json:"paperlessTaskId"`
 	Notes                 string        `gorm:"type:text" json:"notes" binding:"max=5000"`
 	AIAnalysis            string        `gorm:"type:text;column:ai_analysis" json:"aiAnalysis"`
 	ObverseAnalysis       string        `gorm:"type:text;column:obverse_analysis" json:"obverseAnalysis"`

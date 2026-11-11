@@ -91,6 +91,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **November 2026 Go standard-library advisory** — Go 1.26.11 (go.mod and the
+  pinned `golang:1.26.11-alpine` builder) fixes GO-2026-6859, an HTTP/1 server
+  crash from a `MaxBytesReader` header race in `net/http`, which every API
+  request path reaches. No code changes.
+
 - **Clearer coin details in the MCP coin viewer** — The detail view listed
   missing fields by their internal names (`weightGrams`, `vendorSku`) and could
   show a field and list it as missing at the same time (material "Other").

@@ -2902,6 +2902,8 @@ definitions:
         type: string
       paperlessDocumentId:
         type: integer
+      paperlessTaskId:
+        type: string
       purchaseDate:
         type: string
       purchaseLocation:
@@ -10820,6 +10822,25 @@ paths:
       tags:
       - Images
   /coins/{id}/invoice/paperless:
+    delete:
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlink coin invoice document
+      tags:
+      - Coins
     post:
       consumes:
       - multipart/form-data
@@ -10850,6 +10871,30 @@ paths:
       summary: Upload coin invoice to paperless-ngx
       tags:
       - Coins
+  /coins/{id}/invoice/paperless/document:
+    get:
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      - image/png
+      - image/jpeg
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: View coin invoice document from paperless-ngx
+      tags:
+      - Coins
   /coins/{id}/invoice/paperless/tasks/{taskId}:
     post:
       parameters:
@@ -10877,6 +10922,29 @@ paths:
       security:
       - BearerAuth: []
       summary: Resolve pending paperless-ngx invoice upload
+      tags:
+      - Coins
+  /coins/{id}/invoice/paperless/thumbnail:
+    get:
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - image/png
+      - image/webp
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Thumbnail of coin invoice document from paperless-ngx
       tags:
       - Coins
   /coins/{id}/journal:
