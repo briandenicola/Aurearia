@@ -40,6 +40,7 @@
           <option value="currentValue">Current value ($)</option>
           <option value="purchasePrice">Purchase price ($)</option>
           <option value="purchaseDate">Purchase date</option>
+          <option value="purchaseLocation">Vendor / Store</option>
           <option value="createdAt">Date added</option>
         </optgroup>
         <optgroup label="Status">
@@ -119,6 +120,16 @@
             {{ location.name }}
           </option>
         </select>
+        <div
+          v-else-if="rule.field === 'purchaseLocation' && rule.op !== 'in'"
+          class="rule-input--value rule-autocomplete"
+        >
+          <AutocompleteInput
+            v-model="rule.value as string"
+            field="purchaseLocation"
+            placeholder="e.g. Heritage Auctions"
+          />
+        </div>
         <input
           v-else-if="isNumericField(rule.field)"
           v-model="rule.value"
@@ -235,6 +246,7 @@ import {
   type MintLocationsResponse,
 } from '@/api/client'
 import { useCoinOptions } from '@/composables/useCoinOptions'
+import AutocompleteInput from '@/components/AutocompleteInput.vue'
 import type {
   SmartCriteriaGroup,
   SmartCriteriaRule,
@@ -546,6 +558,11 @@ async function saveTemplate() {
 
 .rule-input--value {
   flex: 1 1 120px;
+}
+
+.rule-autocomplete :deep(.form-input) {
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
 }
 
 .rule-error {

@@ -10,7 +10,7 @@ import (
 var allowedCriteriaFields = []string{
 	"material", "category", "denomination", "ruler", "era", "mint", "grade",
 	"currentValue", "purchasePrice", "purchaseDate", "createdAt", "isWishlist",
-	"isSold", "isPrivate", "storageLocationId",
+	"isSold", "isPrivate", "storageLocationId", "purchaseLocation",
 }
 
 var allowedCriteriaOps = []string{

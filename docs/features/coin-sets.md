@@ -30,6 +30,7 @@ Coin Sets provides flexible organization beyond tags, allowing collectors to cre
   - Acquisition date range
   - Mint location
   - Storage location, using the saved location identity so renaming it does not change the rule
+  - Vendor / store (the coin's Store field), with autocomplete from vendors you have used
   - Wishlist / Sold status
   - AND/OR logic for complex rules
 - **Automatic Updates** — Membership recalculates when coins change
