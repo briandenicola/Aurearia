@@ -37,6 +37,9 @@ type PaperlessClient interface {
 	PostDocument(ctx context.Context, baseURL, token, title, filename, contentType string, body io.Reader) (string, error)
 	GetTask(ctx context.Context, baseURL, token, taskID string) (*PaperlessTask, error)
 	GetDocumentFile(ctx context.Context, baseURL, token string, documentID int, kind PaperlessFileKind) (*PaperlessFile, error)
+	// Ping makes one authenticated request so URL, network path and token are
+	// all exercised.
+	Ping(ctx context.Context, baseURL, token string) error
 }
 
 // PaperlessFileKind selects which rendition of a document to fetch.
@@ -248,6 +251,19 @@ func (c *HTTPPaperlessClient) PostDocument(ctx context.Context, baseURL, token, 
 		return "", errors.New("paperless-ngx upload returned no task id")
 	}
 	return taskID, nil
+}
+
+func (c *HTTPPaperlessClient) Ping(ctx context.Context, baseURL, token string) error {
+	endpoint, err := paperlessEndpoint(baseURL, "/api/documents/?page_size=1")
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	_, err = c.do(req, token, "connection test")
+	return err
 }
 
 type paperlessTaskPayload struct {

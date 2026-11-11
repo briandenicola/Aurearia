@@ -13843,6 +13843,30 @@ paths:
       summary: Check Ollama status
       tags:
       - Analysis
+  /paperless/test:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Test paperless-ngx connection
+      tags:
+      - Users
   /proxy-image:
     get:
       description: Fetches an image from an external URL and streams it to the client.

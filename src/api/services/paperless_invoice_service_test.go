@@ -68,6 +68,8 @@ func (f *fakePaperlessClient) setTasks(tasks ...*PaperlessTask) {
 	f.taskCalls = 0
 }
 
+func (f *fakePaperlessClient) Ping(context.Context, string, string) error { return nil }
+
 func (f *fakePaperlessClient) GetTask(_ context.Context, _, _, taskID string) (*PaperlessTask, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
