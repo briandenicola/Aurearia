@@ -1,6 +1,7 @@
 // agent types. Split out of the former single-file src/types/index.ts;
 // re-exported from '@/types' so existing imports keep working.
 import type { CoinReferenceInput } from '@/types/coin'
+import type { CopilotWishlistProposal } from '@/types/wishlist'
 
 export type AIJobStatus = string
 
@@ -466,6 +467,7 @@ export type CoinCopilotToolCompletedEvent = CoinCopilotEventBase<'tool_completed
   truncated: boolean
   specialistResult?: CoinCopilotSpecialistResult
   deepAnalysisHandoffResult?: DeepAnalysisHandoffResult
+  wishlistProposal?: CopilotWishlistProposal
 }>
 
 export type CoinCopilotClarificationRequiredEvent = CoinCopilotEventBase<'clarification_required', CoinCopilotClarification>

@@ -14,6 +14,7 @@ type CoinCopilotInternalToolsHandler struct {
 	collectionSvc *services.CollectionToolsService
 	copilotSvc    *services.CoinCopilotService
 	handoffSvc    *services.DeepAnalysisHandoffService
+	wishlistURL   *services.WishlistURLService
 	logger        *services.Logger
 }
 
@@ -25,12 +26,21 @@ func NewCoinCopilotInternalToolsHandler(collectionSvc *services.CollectionToolsS
 	return handler
 }
 
+// WithWishlistURLService enables the wishlist_url_proposal Copilot tool.
+func (h *CoinCopilotInternalToolsHandler) WithWishlistURLService(svc *services.WishlistURLService) *CoinCopilotInternalToolsHandler {
+	h.wishlistURL = svc
+	return h
+}
+
 type copilotToolCallRequest struct {
 	ToolCallID string `json:"tool_call_id"`
 	Query      string `json:"query,omitempty"`
 	Limit      *int   `json:"limit,omitempty"`
 	CoinID     uint   `json:"coin_id,omitempty"`
+	URL        string `json:"url,omitempty"`
 }
+
+const copilotWishlistURLMaxLength = 2000
 
 func (h *CoinCopilotInternalToolsHandler) execute(c *gin.Context, tool string, operation func(uint, copilotToolCallRequest) (any, error)) {
 	claimsValue, ok := c.Get("copilotClaims")
@@ -115,6 +125,20 @@ func (h *CoinCopilotInternalToolsHandler) TopCoinsByValue(c *gin.Context) {
 	h.execute(c, "top_coins_by_value", func(userID uint, request copilotToolCallRequest) (any, error) {
 		coins, err := h.collectionSvc.TopCoinsByValue(userID, request.Limit)
 		return gin.H{"coins": coins}, err
+	})
+}
+
+// WishlistURLProposal prepares a reviewable wishlist proposal for one listing
+// URL. It is read-only: the owner confirms the proposal in the app.
+func (h *CoinCopilotInternalToolsHandler) WishlistURLProposal(c *gin.Context) {
+	h.execute(c, "wishlist_url_proposal", func(userID uint, request copilotToolCallRequest) (any, error) {
+		if h.wishlistURL == nil {
+			return nil, errors.New("wishlist URL service is not configured")
+		}
+		if request.URL == "" || len(request.URL) > copilotWishlistURLMaxLength {
+			return nil, services.ErrCopilotInvalidRequest
+		}
+		return h.wishlistURL.ProposeForCopilot(c.Request.Context(), userID, request.URL)
 	})
 }
 

@@ -190,6 +190,8 @@ def _collection_transport(collection: dict, handoff: dict) -> httpx.MockTranspor
             payload = {"coins": ranked[: body.get("limit", 3)]}
         elif tool == "deep_analysis_handoff":
             payload = _handoff_result(body, coins_by_id, handoff)
+        elif tool == "wishlist_url_proposal":
+            payload = _load_json(FIXTURES / "wishlist_url_proposal_ready.json")
         else:
             return httpx.Response(404, json={"error": "unknown tool"})
         return httpx.Response(200, json=payload)

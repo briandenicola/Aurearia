@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Add to wishlist from Coin Copilot** — Paste a dealer or auction listing
+  link into Copilot and ask to add it to your wishlist. Copilot prepares the
+  same review form as **Add from URL** under its answer; the coin is added
+  only when you press **Confirm and add**. Links that cannot be read are
+  reported in the answer instead of failing the run. See
+  [Coin Copilot](features/coin-copilot.md#wishlist-proposals-from-a-link).
+
+- **Harlan J. Berk listings in Add from URL** — HJB item links
+  (`hjbltd.com/#!/inventory/item-detail/…`) now load the coin's title, grade,
+  metal, price, sale and full description. Previously every HJB link returned
+  the site's empty page. The same coin linked from a sale page or an
+  inventory page is now recognised as a duplicate.
+
 - **Upcoming auctions over MCP** — `list_auction_lots` accepts `upcoming: true`
   to return only lots whose auction has not yet ended (by `auctionEndTime`,
   falling back to `saleDate`), sorted soonest-ending first. Questions like

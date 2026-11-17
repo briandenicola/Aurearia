@@ -398,6 +398,17 @@ func (s *CoinCopilotService) applyFrame(run *models.CoinCopilotRun, frame Copilo
 			}
 			completedSpecialist = result
 		}
+		if payload.ToolName == "wishlist_url_proposal" && payload.Status == "succeeded" {
+			// The proposal is display-only, so one that fails re-validation is
+			// left out of the event rather than failing the whole run.
+			if proposal, proposalErr := PublicCopilotWishlistProposal(boundedResult); proposalErr == nil {
+				publicPayload["wishlistProposal"] = proposal
+			} else if truncated {
+				publicPayload["truncated"] = true
+			} else if s.logger != nil {
+				s.logger.Warn("coin-copilot", "Wishlist proposal omitted run=%s execution=%s tool_call=%s: failed validation", run.ID, run.ExecutionID, payload.ToolCallID)
+			}
+		}
 		public, _ := json.Marshal(publicPayload)
 		if err := s.appendFrameEvent(run, models.CopilotEventToolCompleted, public); err != nil {
 			return err

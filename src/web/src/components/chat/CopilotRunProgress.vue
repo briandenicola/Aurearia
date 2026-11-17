@@ -263,6 +263,26 @@
             </RouterLink>
           </template>
         </section>
+
+        <section
+          v-if="tool.wishlistProposal"
+          class="ml-6 flex flex-col gap-2 rounded-sm border border-border-subtle bg-input p-3"
+          aria-label="Wishlist proposal"
+          data-testid="copilot-wishlist-proposal"
+        >
+          <span class="section-label mb-0">Wishlist proposal</span>
+          <WishlistURLIntake
+            v-if="reviewableProposal(tool.wishlistProposal)"
+            embedded
+            :initial-analysis="reviewableProposal(tool.wishlistProposal)"
+          />
+          <template v-else>
+            <p class="mb-0 text-text-secondary">{{ unusableProposalMessage(tool.wishlistProposal) }}</p>
+            <RouterLink to="/wishlist" class="btn btn-xs btn-secondary min-h-[44px] self-start">
+              Open wishlist
+            </RouterLink>
+          </template>
+        </section>
       </div>
     </div>
 
@@ -290,6 +310,8 @@ import { CheckCircle2, Circle, CircleX, LoaderCircle, Square } from 'lucide-vue-
 import type {
   CoinCopilotPlanItem,
   CoinCopilotRun,
+  CopilotWishlistProposal,
+  WishlistURLAnalysis,
   CoinCopilotSpecialistCapability,
   CoinCopilotSpecialistEvidence,
   DeepAnalysisHandoffResult,
@@ -304,6 +326,7 @@ import {
 } from '@/utils/copilotWishlist'
 import { copilotToolLabel } from '@/utils/copilotToolLabels'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
+import WishlistURLIntake from '@/components/wishlist/WishlistURLIntake.vue'
 
 const props = defineProps<{
   run: CoinCopilotRun | null
@@ -370,6 +393,22 @@ function emitGridWishlist(tool: CoinCopilotToolProgress, key: string) {
     item,
     copilotDealerListingKey(tool.toolCallId, item.sourceUrl),
   )
+}
+
+// Ready, needs-review and duplicate proposals use the same review form as
+// "Add from URL"; nothing is added until the owner confirms it there.
+function reviewableProposal(proposal: CopilotWishlistProposal): WishlistURLAnalysis | null {
+  const { outcome } = proposal
+  if (outcome !== 'ready' && outcome !== 'needs_review' && outcome !== 'duplicate') return null
+  return { ...proposal, outcome }
+}
+
+function unusableProposalMessage(proposal: CopilotWishlistProposal): string {
+  switch (proposal.outcome) {
+    case 'invalid_url': return 'That link is not a public listing page, so no proposal was prepared.'
+    case 'unreadable': return 'The listing page could not be read. You can add the coin by hand from your wishlist.'
+    default: return 'Listing analysis is unavailable right now. Try again later or add the coin by hand.'
+  }
 }
 
 const statusLabel = computed(() => {

@@ -238,6 +238,8 @@ func TestCoinCopilotInternalRoutesAreReadOnly(t *testing.T) {
 		"POST /api/internal/copilot/tools/get_coin",
 		"POST /api/internal/copilot/tools/search_my_collection",
 		"POST /api/internal/copilot/tools/top_coins_by_value",
+		// Read-only: returns a wishlist proposal; the owner adds it via POST /api/coins.
+		"POST /api/internal/copilot/tools/wishlist_url_proposal",
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("Coin Copilot internal routes = %v, want only %v", got, want)

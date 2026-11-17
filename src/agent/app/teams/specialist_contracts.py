@@ -97,7 +97,7 @@ _INSTRUCTION_RE = re.compile(
     r"|(?:call|invoke|execute|run|trigger|use)\s+(?:the\s+)?"
     r"(?:tool\s+)?(?:search_my_collection|get_coin|collection_summary|"
     r"top_coins_by_value|portfolio_review|gap_analysis|market_search|"
-    r"auction_search|price_trends|similar_lots)"
+    r"auction_search|price_trends|similar_lots|wishlist_url_proposal)"
     r"(?:\s+(?:tool|function|capability))?"
     r"|(?:call|invoke|execute|run|trigger)\s+(?:the\s+)?(?:tool|function|capability)"
     r")\b"

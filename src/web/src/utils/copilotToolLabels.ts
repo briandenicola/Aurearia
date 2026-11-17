@@ -13,6 +13,7 @@ export const COPILOT_TOOL_LABELS: Readonly<Record<string, string>> = {
   price_trends: 'Analyze completed-sale price trends',
   similar_lots: 'Find similar auction lots',
   deep_analysis_handoff: 'Use existing Deep Analysis',
+  wishlist_url_proposal: 'Prepare wishlist proposal',
 }
 
 // Unknown helpers get a generic name rather than an internal tool name.

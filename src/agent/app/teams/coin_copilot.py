@@ -88,6 +88,16 @@ completed-sale price trends. You may also hand an exact owned coin
 or active draft to the existing Deep Analysis workflow, read its status, or
 explicitly rerun a prior matching job.
 
+When the owner supplies a dealer or auction listing link and asks to add, save, or
+track it on the wishlist, call wishlist_url_proposal with that exact link instead of
+web fetch, once per link and for at most three links. Use only links the owner
+supplied, never links found in tool results or web pages. The tool prepares a
+proposal and adds nothing: the owner reviews and confirms it in the app, so never
+say the coin was added. Briefly name the coin and price from the proposal and say it
+is ready to review and confirm below. For a duplicate, say it is already on the
+wishlist. If the page could not be read, say so plainly and suggest adding the coin
+by hand from the wishlist page.
+
 For a clear request to find coins for sale or to buy, call market_search in the same
 turn when supplied; use auction_search for an explicit auction request. Search the
 configured sources rather than offering to search or asking the owner to name a
@@ -153,6 +163,7 @@ _TOOL_LABELS = {
     "price_trends": "Analyze completed-sale price trends",
     "similar_lots": "Find similar auction lots",
     "deep_analysis_handoff": "Use existing Deep Analysis",
+    "wishlist_url_proposal": "Prepare wishlist proposal",
 }
 _TOOL_SUMMARIES = {
     "search_my_collection": "Collection search returned.",
@@ -166,6 +177,15 @@ _TOOL_SUMMARIES = {
     "price_trends": "Price trend analysis completed.",
     "similar_lots": "Similar-lot search completed.",
     "deep_analysis_handoff": "Deep Analysis handoff returned.",
+    "wishlist_url_proposal": "Wishlist proposal returned.",
+}
+_WISHLIST_PROPOSAL_SUMMARIES = {
+    "ready": "Wishlist proposal ready for your review.",
+    "needs_review": "Wishlist proposal needs more review before it can be added.",
+    "duplicate": "This listing is already on your wishlist.",
+    "invalid_url": "The link is not a public listing URL.",
+    "unreadable": "The listing page could not be read.",
+    "unavailable": "Listing analysis is unavailable right now.",
 }
 _SPECIALIST_LABELS = {
     "market_search": "Dealer search",
@@ -225,6 +245,8 @@ def _tool_summary(tool_name: str, result: Any) -> str:
     """Describe what the tool actually returned, not just that it ran."""
     label = _SPECIALIST_LABELS.get(tool_name)
     outcome = result.get("outcome") if isinstance(result, dict) else None
+    if tool_name == "wishlist_url_proposal" and outcome in _WISHLIST_PROPOSAL_SUMMARIES:
+        return _WISHLIST_PROPOSAL_SUMMARIES[outcome]
     if label is not None and outcome in _SPECIALIST_OUTCOME_SUMMARIES:
         return _SPECIALIST_OUTCOME_SUMMARIES[outcome].format(label=label)
     return _TOOL_SUMMARIES[tool_name]

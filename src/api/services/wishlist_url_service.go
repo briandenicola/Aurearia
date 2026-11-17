@@ -139,7 +139,7 @@ func (s *WishlistURLService) Analyze(ctx context.Context, userID uint, rawURL st
 	if s.settings != nil {
 		llm, err = s.settings.ResolveLLMConfig()
 		if err != nil {
-			return nil, fmt.Errorf("resolve AI provider: %w", err)
+			return nil, fmt.Errorf("%w: resolve AI provider: %w", ErrWishlistURLExtractionUnavailable, err)
 		}
 	}
 	extracted, err := s.extractor.ExtractWishlistURL(ctx, WishlistURLExtractionRequest{
@@ -150,7 +150,7 @@ func (s *WishlistURLService) Analyze(ctx context.Context, userID uint, rawURL st
 		PageMetadata: metadataJSON,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("extract wishlist listing: %w", err)
+		return nil, fmt.Errorf("%w: extract wishlist listing: %w", ErrWishlistURLExtractionUnavailable, err)
 	}
 
 	outcome := "needs_review"

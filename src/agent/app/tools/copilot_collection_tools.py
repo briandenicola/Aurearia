@@ -19,6 +19,7 @@ from app.models.requests import (
 )
 from app.models.responses import (
     DeepAnalysisHandoffResult,
+    WishlistURLHypothesis,
     validate_deep_analysis_handoff_persisted_result_envelope,
 )
 from app.outbound import validate_outbound_url
@@ -33,8 +34,11 @@ CALLBACK_TOOLS = frozenset(
         "collection_summary",
         "top_coins_by_value",
         "deep_analysis_handoff",
+        "wishlist_url_proposal",
     }
 )
+# Listing analysis fetches a page and runs extraction before it answers.
+_CALLBACK_READ_TIMEOUTS = {"wishlist_url_proposal": 120.0}
 VIRTUAL_TOOLS = frozenset({"portfolio_review", "gap_analysis"})
 SPECIALIST_TOOLS = frozenset(
     {
@@ -90,6 +94,33 @@ class PortfolioReviewArgs(StrictToolModel):
 
 class GapAnalysisArgs(StrictToolModel):
     pass
+
+
+class WishlistURLProposalArgs(StrictToolModel):
+    url: Annotated[str, StringConstraints(min_length=1, max_length=2000)]
+
+
+class WishlistURLProposalResult(StrictToolModel):
+    """A reviewable wishlist proposal; the owner confirms it in the app."""
+
+    schemaVersion: Literal[1]
+    outcome: Literal[
+        "ready",
+        "needs_review",
+        "duplicate",
+        "invalid_url",
+        "unreadable",
+        "unavailable",
+    ]
+    sourceUrl: Annotated[str, StringConstraints(max_length=2000)] = ""
+    existingCoinId: int | None = Field(default=None, ge=1)
+    pageTitle: Annotated[str, StringConstraints(max_length=500)] = ""
+    imageUrl: Annotated[str, StringConstraints(max_length=2000)] = ""
+    hypothesis: WishlistURLHypothesis | None = None
+    warnings: list[Annotated[str, StringConstraints(min_length=1, max_length=500)]] = Field(
+        default_factory=list,
+        max_length=20,
+    )
 
 
 class CopilotCoin(StrictToolModel):
@@ -154,6 +185,7 @@ ARG_MODELS: dict[str, type[BaseModel]] = {
     "price_trends": SpecialistQuery,
     "similar_lots": SpecialistQuery,
     "deep_analysis_handoff": DeepAnalysisHandoffArguments,
+    "wishlist_url_proposal": WishlistURLProposalArgs,
 }
 RESULT_MODELS: dict[str, type[BaseModel]] = {
     "search_my_collection": SearchResult,
@@ -167,6 +199,7 @@ RESULT_MODELS: dict[str, type[BaseModel]] = {
     "price_trends": SpecialistResult,
     "similar_lots": SpecialistResult,
     "deep_analysis_handoff": DeepAnalysisHandoffResult,
+    "wishlist_url_proposal": WishlistURLProposalResult,
 }
 
 LocalRunner = Callable[[dict[str, Any]], Awaitable[BaseModel | dict[str, Any] | str]]
@@ -364,10 +397,16 @@ class CopilotCollectionToolClient:
             ).encode("utf-8")
             validate_deep_analysis_handoff_request_envelope(encoded)
         try:
+            read_timeout = _CALLBACK_READ_TIMEOUTS.get(tool_name)
             response = await client.post(
                 f"{self.base_url}/api/internal/copilot/tools/{tool_name}",
                 json=body,
                 headers={"Authorization": f"Bearer {self.execution_token}"},
+                timeout=(
+                    httpx.Timeout(connect=5.0, read=read_timeout, write=5.0, pool=5.0)
+                    if read_timeout is not None
+                    else httpx.USE_CLIENT_DEFAULT
+                ),
             )
             response.raise_for_status()
             if tool_name == "deep_analysis_handoff":
@@ -462,6 +501,12 @@ def build_copilot_tool_definitions(
         "price_trends": "Analyze source-backed completed-sale observations.",
         "similar_lots": "Find and rank source-backed similar auction lots.",
         "deep_analysis_handoff": "Request, read, or explicitly rerun the existing owner-scoped Deep Analysis workflow.",
+        "wishlist_url_proposal": (
+            "Read one dealer or auction listing link the owner supplied and prepare a wishlist "
+            "proposal for the owner to review and confirm in the app. It never adds anything. "
+            "Pass url as the exact link. Use it when the owner asks to add, save, or track a "
+            "listing on the wishlist."
+        ),
     }
     selected = allowed_tools or list(COPILOT_ALLOWED_TOOLS)
     if not set(selected).issubset(COPILOT_ALLOWED_TOOLS):
