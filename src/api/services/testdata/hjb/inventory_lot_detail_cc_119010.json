@@ -1,0 +1,61 @@
+{
+ "status": "ok",
+ "data": {
+  "RowNum": "1",
+  "InventoryGroup": "cc",
+  "InventoryNumber": "119010",
+  "Category": "JOVIAN-ROMULUS AUGUSTUS (363-476 AD)",
+  "LotID": "221187",
+  "Estimate": "200.0000",
+  "Reserve": "0.0000",
+  "Quantity": "1",
+  "WebReadyDate": "2026-10-07 17:45:51",
+  "isSelect": "0",
+  "isCurrentBBS": "1",
+  "BBSCatNumber": "237",
+  "LotNumber": "405",
+  "StartTime": "2026-10-06 12:44:00",
+  "CloseTime": "2026-12-03 16:00:00",
+  "WebTitle": "Theodosius I. AE 3",
+  "Grade": "EF",
+  "isCertified": "0",
+  "MetalID": "4",
+  "Metal": "Bronze",
+  "Era": "Ancient Roman",
+  "invNum": "cc119010",
+  "strInvNum": "119010",
+  "CollectionName": null,
+  "DisplayTitle": null,
+  "CollectionSortOrder": null,
+  "videoURL": "https://player.vimeo.com/video/1232109081",
+  "isVideoOnly": "0",
+  "PriceOnRequest": "0",
+  "DebugFlag": "1",
+  "Description": "Theodosius I; 379-395 AD, Antioch, ca. 379-83 AD, AE 3, 3.35g. Cf. RIC-46c (only Φ or K in r. field). Obv: DN THEODO-SIVS PF AVG, Pearl-diademed, draped, cuirassed bust r. Rx: CONCOR-DIA AVGGG, seated facing, head l., holding globe and scepter with r. leg bared; Θ to l., ANTΔ in exergue. Ex Curtis L. Clay Collection; Ex HJB, Aug. 2012.. EF",
+  "EscapedWebTitle": "Theodosius I. AE 3",
+  "BBSTitle": "237th Buy or Bid Sale",
+  "PointOfSale": "Buy Or Bid Sale",
+  "Lot": [
+   {
+    "InventoryNum": "119010",
+    "Description": "Theodosius I. AE 3",
+    "EscapedDescription": "Theodosius I. AE 3",
+    "ImageForAddToCartConfirmModal": "https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2",
+    "ImageForAddToWatchlistConfirmModal": "https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2",
+    "ImageUrls": [
+     "https://images.hjbltd.com/ancient-coins/cc119010a.jpg?cfcache=2",
+     "https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2"
+    ],
+    "ImageUrlsForDetailThumbnailCarousel": [
+     "https://images.hjbltd.com/ancient-coins/cc119010a.jpg?cfcache=2",
+     "https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2"
+    ],
+    "VideoUrl": "https://player.vimeo.com/video/1232109081",
+    "VideoOnly": 0
+   }
+  ],
+  "VideoOnly": 0,
+  "StartTimeUnix": 1791308640,
+  "CloseTimeUnix": 1796335200
+ }
+}

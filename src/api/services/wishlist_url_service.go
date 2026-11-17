@@ -83,6 +83,9 @@ func CanonicalizeWishlistURL(rawURL string) (string, error) {
 		host += ":" + port
 	}
 	parsed.Host = host
+	if listing, ok := parseHJBListingURL(parsed); ok {
+		return listing.pageURL, nil
+	}
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
@@ -186,6 +189,11 @@ func duplicateWishlistURLAnalysis(sourceURL string, coin *models.Coin) *Wishlist
 }
 
 func (s *WishlistURLService) fetchAndClean(ctx context.Context, sourceURL string) (string, string, WishlistURLPageMetadata, string, error) {
+	if parsed, err := url.Parse(sourceURL); err == nil {
+		if listing, ok := parseHJBListingURL(parsed); ok {
+			return s.fetchHJBListing(ctx, listing)
+		}
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return "", "", WishlistURLPageMetadata{}, "", fmt.Errorf("%w: %v", ErrWishlistURLInvalid, err)
