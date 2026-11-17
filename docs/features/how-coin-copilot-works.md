@@ -126,6 +126,7 @@ checklist and on the line that reports what it found.
 | **Search auction lots** | Finds lots in current and upcoming auctions | Configured auction houses; NumisBids is searched directly | No |
 | **Analyze completed-sale price trends** | Looks at recent completed sales and says whether prices look rising, falling or flat, and how many verified sales that's based on | Configured auction houses | No |
 | **Find similar auction lots** | Finds and ranks auction lots similar to a coin you describe | Configured auction houses | No |
+| **Prepare wishlist proposal** | Reads a dealer or auction listing link you paste ("add this to my wishlist: …") and fills in the same review form as **Add from URL** on the wishlist page | The one listing page you linked | No: the coin is added only when you press **Confirm and add** under the answer |
 | **Use existing Deep Analysis** | Starts, checks or re-runs a Deep Analysis identification job for one of your coins or an open Quick Capture draft | Your coin's photos, then reference catalogues | No: the result is a *proposal* you review on the Deep Analysis page |
 
 **Web research** isn't one of these helpers. With an Anthropic model, the AI
@@ -376,7 +377,8 @@ Other things you may see:
 
 ## What Copilot will never do
 
-- Change a coin, draft, wishlist item, collector profile or setting.
+- Change a coin, draft, wishlist item, collector profile or setting. A
+  wishlist proposal is only a filled-in form; you add the coin yourself.
 - Buy, bid, or approve anything.
 - Browse arbitrary websites or reach sites outside the configured lists.
 - Follow instructions that appear *inside* a dealer page or search result.

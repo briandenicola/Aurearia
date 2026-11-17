@@ -43,8 +43,15 @@ export interface WishlistURLAnalysis {
   existingCoinId?: number
   pageTitle?: string
   imageUrl?: string
+  reverseImageUrl?: string
   hypothesis?: WishlistURLHypothesis
   warnings?: string[]
+}
+
+// Coin Copilot's wishlist_url_proposal result. Beyond the "Add from URL"
+// outcomes it reports links that could not become a proposal.
+export interface CopilotWishlistProposal extends Omit<WishlistURLAnalysis, 'outcome'> {
+  outcome: WishlistURLAnalysis['outcome'] | 'invalid_url' | 'unreadable' | 'unavailable'
 }
 
 export type WishlistSearchAlertCadence = 'manual' | 'daily' | 'weekly' | 'monthly'

@@ -36,7 +36,7 @@ func TestCoinCopilotCallbackRoutesRemainExactReadOnlySet(t *testing.T) {
 		routes = append(routes, string(match[1]))
 	}
 	sort.Strings(routes)
-	want := []string{"collection_summary", "deep_analysis_handoff", "get_coin", "search_my_collection", "top_coins_by_value"}
+	want := []string{"collection_summary", "deep_analysis_handoff", "get_coin", "search_my_collection", "top_coins_by_value", "wishlist_url_proposal"}
 	if len(routes) != len(want) {
 		t.Fatalf("callback routes=%v, want %v", routes, want)
 	}

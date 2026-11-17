@@ -5512,6 +5512,8 @@ definitions:
         type: string
       pageTitle:
         type: string
+      reverseImageUrl:
+        type: string
       schemaVersion:
         type: integer
       sourceUrl:

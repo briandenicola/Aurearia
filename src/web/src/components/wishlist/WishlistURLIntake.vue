@@ -1,7 +1,7 @@
 <template>
   <section class="url-intake">
     <button
-      v-if="!embedded"
+      v-if="!embedded && !initialAnalysis"
       type="button"
       class="btn btn-secondary btn-sm"
       :aria-expanded="expanded"
@@ -11,7 +11,13 @@
     </button>
 
     <div v-if="expanded" class="url-intake-panel" :class="{ embedded }">
-      <form class="url-row" @submit.prevent="analyze">
+      <p v-if="initialAnalysis" class="source-line">
+        Listing:
+        <a :href="initialAnalysis.sourceUrl" target="_blank" rel="noopener noreferrer">
+          {{ initialAnalysis.pageTitle || initialAnalysis.sourceUrl }}
+        </a>
+      </p>
+      <form v-else class="url-row" @submit.prevent="analyze">
         <label for="wishlist-url" class="sr-only">Public coin listing URL</label>
         <input
           id="wishlist-url"
@@ -129,6 +135,14 @@
           </label>
         </div>
 
+        <div v-if="reversePreviewURL" class="image-review" data-testid="reverse-image-review">
+          <img :src="reversePreviewURL" alt="Listing reverse image preview" />
+          <label class="image-choice">
+            <input v-model="attachReverse" type="checkbox" />
+            Attach this image as the reverse
+          </label>
+        </div>
+
         <ul v-if="analysis.warnings?.length" class="warnings">
           <li v-for="warning in analysis.warnings" :key="warning">{{ warning }}</li>
         </ul>
@@ -138,7 +152,7 @@
             {{ status === 'creating' ? 'Adding...' : 'Confirm and add' }}
           </button>
           <button type="button" class="btn btn-ghost btn-sm" :disabled="status === 'creating'" @click="resetProposal">
-            Cancel
+            {{ initialAnalysis ? 'Dismiss' : 'Cancel' }}
           </button>
         </div>
       </form>
@@ -155,8 +169,11 @@ import { useCoinOptions } from '@/composables/useCoinOptions'
 
 const props = withDefaults(defineProps<{
   embedded?: boolean
+  // A proposal prepared elsewhere (Coin Copilot); skips the URL form.
+  initialAnalysis?: WishlistURLAnalysis | null
 }>(), {
   embedded: false,
+  initialAnalysis: null,
 })
 
 const emit = defineEmits<{ created: [] }>()
@@ -188,7 +205,7 @@ type Draft = Record<DraftKey, string> & {
   notes: string
 }
 
-const expanded = ref(props.embedded)
+const expanded = ref(props.embedded || props.initialAnalysis !== null)
 const { categoryOptions, eraOptions, materialOptions, loadOptions } = useCoinOptions()
 const sourceURL = ref('')
 const status = ref<'idle' | 'pending' | 'cancelled' | 'creating' | 'created' | 'image-warning' | 'failed'>('idle')
@@ -197,6 +214,9 @@ const analysis = ref<WishlistURLAnalysis | null>(null)
 const attachImage = ref(true)
 const previewURL = ref('')
 const previewFile = ref<File | null>(null)
+const attachReverse = ref(true)
+const reversePreviewURL = ref('')
+const reversePreviewFile = ref<File | null>(null)
 let controller: AbortController | null = null
 
 const draft = reactive<Draft>(emptyDraft())
@@ -245,22 +265,41 @@ function fillDraft(hypothesis: WishlistURLHypothesis) {
 
 function clearPreview() {
   if (previewURL.value) URL.revokeObjectURL(previewURL.value)
+  if (reversePreviewURL.value) URL.revokeObjectURL(reversePreviewURL.value)
   previewURL.value = ''
   previewFile.value = null
+  reversePreviewURL.value = ''
+  reversePreviewFile.value = null
 }
 
-async function loadPreview(imageURL: string) {
+async function fetchPreview(imageURL: string, name: string): Promise<{ url: string, file: File } | null> {
+  if (!imageURL) return null
+  const response = await proxyImage(imageURL)
+  const blob = response.data as Blob
+  if (blob.size === 0) return null
+  const extension = blob.type.includes('png') ? '.png' : '.jpg'
+  return {
+    url: URL.createObjectURL(blob),
+    file: new File([blob], `${name}${extension}`, { type: blob.type || 'image/jpeg' }),
+  }
+}
+
+async function loadPreview(imageURL: string, reverseImageURL = '') {
   clearPreview()
-  if (!imageURL) return
-  try {
-    const response = await proxyImage(imageURL)
-    const blob = response.data as Blob
-    if (blob.size === 0) return
-    const extension = blob.type.includes('png') ? '.png' : '.jpg'
-    previewFile.value = new File([blob], `listing${extension}`, { type: blob.type || 'image/jpeg' })
-    previewURL.value = URL.createObjectURL(blob)
-  } catch {
-    message.value = 'Proposal is ready, but the listing image could not be previewed.'
+  const [obverse, reverse] = await Promise.allSettled([
+    fetchPreview(imageURL, 'listing'),
+    fetchPreview(reverseImageURL, 'listing-reverse'),
+  ])
+  if (obverse.status === 'fulfilled' && obverse.value) {
+    previewURL.value = obverse.value.url
+    previewFile.value = obverse.value.file
+  }
+  if (reverse.status === 'fulfilled' && reverse.value) {
+    reversePreviewURL.value = reverse.value.url
+    reversePreviewFile.value = reverse.value.file
+  }
+  if (obverse.status === 'rejected' || reverse.status === 'rejected') {
+    message.value = 'Proposal is ready, but a listing image could not be previewed.'
   }
 }
 
@@ -273,19 +312,7 @@ async function analyze() {
   clearPreview()
   try {
     const response = await analyzeWishlistURL(sourceURL.value, controller.signal)
-    analysis.value = response.data
-    if (response.data.outcome === 'duplicate') {
-      message.value = 'This listing is already on your wishlist.'
-      status.value = 'idle'
-      return
-    }
-    if (!response.data.hypothesis) throw new Error('The listing did not return a proposal.')
-    fillDraft(response.data.hypothesis)
-    status.value = 'idle'
-    message.value = response.data.outcome === 'ready'
-      ? 'Proposal ready for review.'
-      : 'The listing needs more review before it can be added.'
-    await loadPreview(response.data.imageUrl ?? '')
+    await applyAnalysis(response.data)
   } catch (error) {
     if (controller?.signal.aborted) {
       status.value = 'cancelled'
@@ -297,6 +324,22 @@ async function analyze() {
   } finally {
     controller = null
   }
+}
+
+async function applyAnalysis(result: WishlistURLAnalysis) {
+  analysis.value = result
+  if (result.outcome === 'duplicate') {
+    message.value = 'This listing is already on your wishlist.'
+    status.value = 'idle'
+    return
+  }
+  if (!result.hypothesis) throw new Error('The listing did not return a proposal.')
+  fillDraft(result.hypothesis)
+  status.value = 'idle'
+  message.value = result.outcome === 'ready'
+    ? 'Proposal ready for review.'
+    : 'The listing needs more review before it can be added.'
+  await loadPreview(result.imageUrl ?? '', result.reverseImageUrl ?? '')
 }
 
 function cancel() {
@@ -351,6 +394,13 @@ async function confirmCreate() {
         imageWarning = true
       }
     }
+    if (attachReverse.value && reversePreviewFile.value) {
+      try {
+        await uploadImage(created.data.id, reversePreviewFile.value, 'reverse', false)
+      } catch {
+        imageWarning = true
+      }
+    }
     status.value = imageWarning ? 'image-warning' : 'created'
     message.value = imageWarning
       ? 'Wishlist coin added, but the optional image could not be attached.'
@@ -369,7 +419,16 @@ onBeforeUnmount(() => {
   clearPreview()
 })
 
-onMounted(loadOptions)
+onMounted(async () => {
+  await loadOptions()
+  if (!props.initialAnalysis) return
+  try {
+    await applyAnalysis(props.initialAnalysis)
+  } catch {
+    status.value = 'failed'
+    message.value = 'The listing did not return a proposal.'
+  }
+})
 </script>
 
 <style scoped>
@@ -383,6 +442,12 @@ onMounted(loadOptions)
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-card);
+}
+
+.source-line {
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
 }
 
 .url-intake-panel.embedded {

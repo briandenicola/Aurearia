@@ -870,6 +870,19 @@ and `DeepIdentificationEnabled` are checked before new admission or rerun.
 After durable acceptance, status/events/cancel/review/edit/confirmed apply and
 worker settlement remain available under finish-existing semantics.
 
+##### Wishlist proposal events
+
+A succeeded `tool_completed` event for `wishlist_url_proposal` may include
+`wishlistProposal`, the same shape `POST /api/wishlist/url-intake/analyze` returns
+(`schemaVersion`, `outcome`, `sourceUrl`, optional `existingCoinId`,
+`pageTitle`, `imageUrl`, `hypothesis`, `warnings`). `outcome` is `ready`,
+`needs_review`, `duplicate`, `invalid_url`, `unreadable`, or `unavailable`;
+only `ready` and `needs_review` carry a `hypothesis`, and only `duplicate`
+carries `existingCoinId`. Each hypothesis field keeps one evidence quote. The
+proposal never creates a coin: the client adds it with `POST /api/coins` only
+after the owner confirms. A proposal that fails server re-validation is
+omitted from the event.
+
 ##### GET /api/agent/copilot/runs/:runId/events
 
 Replay and follow the authoritative Go-persisted SSE stream. Send

@@ -51,6 +51,7 @@ type appDeps struct {
 	noteRepo                       *repository.NoteRepository
 	collectorProfileHandler        *handlers.CollectorProfileHandler
 	wishlistURLHandler             *handlers.WishlistURLHandler
+	wishlistURLSvc                 *services.WishlistURLService
 	socialRepo                     *repository.SocialRepository
 	notifRepo                      *repository.NotificationRepository
 	notifSvc                       *services.NotificationService
@@ -287,7 +288,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	collectorProfileRepo := repository.NewCollectorProfileRepository(database.DB)
 	collectorProfileSvc := services.NewCollectorProfileService(collectorProfileRepo)
 	collectorProfileHandler := handlers.NewCollectorProfileHandler(collectorProfileSvc)
-	wishlistURLHandler := handlers.NewWishlistURLHandler(services.NewWishlistURLService(coinRepo, agentProxy, settingsSvc))
+	wishlistURLSvc := services.NewWishlistURLService(coinRepo, agentProxy, settingsSvc)
+	wishlistURLHandler := handlers.NewWishlistURLHandler(wishlistURLSvc)
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo).WithSettingsSupport(settingsSvc)
 	coinCopilotRepo := repository.NewCoinCopilotRepository(database.DB)
 	coinCopilotSvc := services.NewCoinCopilotService(
@@ -333,6 +335,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		noteRepo:                       noteRepo,
 		collectorProfileHandler:        collectorProfileHandler,
 		wishlistURLHandler:             wishlistURLHandler,
+		wishlistURLSvc:                 wishlistURLSvc,
 		socialRepo:                     socialRepo,
 		notifRepo:                      notifRepo,
 		notifSvc:                       notifSvc,

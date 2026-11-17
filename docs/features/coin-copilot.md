@@ -78,6 +78,25 @@ general numismatic research questions to `start_copilot_run` rather than
 treating Copilot as collection-only. See [MCP Agentic Harness](mcp-agentic-harness.md)
 for connection setup and the external tool boundary.
 
+## Wishlist proposals from a link
+
+When the owner pastes a dealer or auction listing link and asks to add it to
+the wishlist, Copilot calls `wishlist_url_proposal` with that exact link. Go
+runs the same pipeline as **Add from URL** (duplicate check against the
+owner's wishlist, restricted fetch, site adapters for Harlan J. Berk and CNG auction lots, and
+evidence-backed extraction) and returns the proposal through the fixed
+internal callback. The tool is read-only: nothing is created until the owner
+presses **Confirm and add** in the review form rendered under the run, which
+calls the ordinary coin-create API.
+
+A link that is not a public HTTP(S) URL, a page that cannot be read, or an
+unavailable AI provider is returned as the outcome `invalid_url`,
+`unreadable`, or `unavailable` instead of an error, so one bad link does not
+fail the run. Each field keeps one evidence quote of at most 200 characters to
+fit the persisted-result budget, and Go re-validates the proposal before
+publishing it to the browser; a proposal that fails that check is omitted from
+the event.
+
 ## Deep Analysis handoff
 
 When `CoinCopilotAttributionEnabled` and `DeepIdentificationEnabled` are also

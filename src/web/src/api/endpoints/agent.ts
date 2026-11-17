@@ -17,6 +17,7 @@ import type {
   CoinCopilotThreadEnvelope,
   CoinSuggestion,
   CollectionChatResponse,
+  CopilotWishlistProposal,
   CreateDeepIdentificationJobInput,
   DeepApplyResult,
   DeepAnalysisHandoffResult,
@@ -313,18 +314,53 @@ const SPECIALIST_KINDS: Record<CoinCopilotSpecialistCapability, CoinCopilotEvide
   similar_lots: 'similar_lot',
 }
 
-function isSafeSpecialistUrl(value: unknown): value is string {
+function isPublicWebUrl(value: unknown, protocols: readonly string[]): value is string {
   if (typeof value !== 'string' || value.length > 2048) return false
   try {
     const url = new URL(value)
     const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
     const unsafeIPv4 = /^(?:0|10|127|169\.254|192\.168)\./.test(host) ||
       /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
-    return url.protocol === 'https:' && !url.username && !url.password &&
+    return protocols.includes(url.protocol) && !url.username && !url.password &&
       host !== 'localhost' && host !== '::1' && !host.endsWith('.localhost') &&
       !host.endsWith('.local') && !unsafeIPv4
   } catch {
     return false
+  }
+}
+
+function isSafeSpecialistUrl(value: unknown): value is string {
+  return isPublicWebUrl(value, ['https:'])
+}
+
+const COPILOT_WISHLIST_OUTCOMES = ['ready', 'needs_review', 'duplicate', 'invalid_url', 'unreadable', 'unavailable']
+
+// The API re-validates the proposal; this guards the review form against a
+// malformed event before it is rendered.
+export function isCopilotWishlistProposal(value: unknown): value is CopilotWishlistProposal {
+  if (!isRecord(value) || value.schemaVersion !== 1 || typeof value.sourceUrl !== 'string' ||
+      !COPILOT_WISHLIST_OUTCOMES.includes(String(value.outcome))) {
+    return false
+  }
+  const listingProtocols = ['http:', 'https:']
+  if (value.sourceUrl !== '' && !isPublicWebUrl(value.sourceUrl, listingProtocols)) return false
+  if (value.imageUrl !== undefined && !isPublicWebUrl(value.imageUrl, listingProtocols)) return false
+  if (value.reverseImageUrl !== undefined && !isPublicWebUrl(value.reverseImageUrl, listingProtocols)) return false
+  if (value.pageTitle !== undefined && typeof value.pageTitle !== 'string') return false
+  if (value.warnings !== undefined &&
+      !(Array.isArray(value.warnings) && value.warnings.every(warning => typeof warning === 'string'))) {
+    return false
+  }
+  const hasHypothesis = isRecord(value.hypothesis)
+  const hasExisting = value.existingCoinId !== undefined && value.existingCoinId !== null
+  switch (value.outcome) {
+    case 'ready':
+    case 'needs_review':
+      return hasHypothesis && !hasExisting && value.sourceUrl !== ''
+    case 'duplicate':
+      return !hasHypothesis && Number.isSafeInteger(value.existingCoinId) && Number(value.existingCoinId) > 0
+    default:
+      return !hasHypothesis && !hasExisting
   }
 }
 
@@ -557,7 +593,9 @@ function isSafeCopilotEvent(value: unknown, eventType: string, eventId?: string)
           isSpecialistResult(payload.specialistResult, payload.toolName)) &&
         (!Object.hasOwn(payload, 'deepAnalysisHandoffResult') ||
           (payload.toolName === 'deep_analysis_handoff' &&
-            parseDeepAnalysisHandoffResult(payload.deepAnalysisHandoffResult) !== null))
+            parseDeepAnalysisHandoffResult(payload.deepAnalysisHandoffResult) !== null)) &&
+        (!Object.hasOwn(payload, 'wishlistProposal') ||
+          (payload.toolName === 'wishlist_url_proposal' && isCopilotWishlistProposal(payload.wishlistProposal)))
     case 'clarification_required':
       return typeof payload.question === 'string' && ['text', 'single_choice', 'boolean'].includes(String(payload.inputType)) &&
         Array.isArray(payload.choices) && payload.choices.every(choice => typeof choice === 'string') &&

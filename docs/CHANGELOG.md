@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **CNG auction lots in Add from URL** — `auctions.cngcoins.com` lot links
+  now include the estimate, current bid or hammer price, sale name, lot
+  number, closing time and lot status, read from the same page with no extra
+  request. Links that differ only by their slug are recognised as the same
+  lot, and the page's placeholder title (`{{template.title}}`) is no longer
+  used as the coin name.
+
+- **Add to wishlist from Coin Copilot** — Paste a dealer or auction listing
+  link into Copilot and ask to add it to your wishlist. Copilot prepares the
+  same review form as **Add from URL** under its answer; the coin is added
+  only when you press **Confirm and add**. Links that cannot be read are
+  reported in the answer instead of failing the run. See
+  [Coin Copilot](features/coin-copilot.md#wishlist-proposals-from-a-link).
+
+- **Harlan J. Berk listings in Add from URL** — HJB item links
+  (`hjbltd.com/#!/inventory/item-detail/…`) now load the coin's title, grade,
+  metal, price, sale and full description. Previously every HJB link returned
+  the site's empty page. The same coin linked from a sale page or an
+  inventory page is now recognised as a duplicate. Both the obverse and the
+  reverse photos are offered for attaching.
+
 - **Upcoming auctions over MCP** — `list_auction_lots` accepts `upcoming: true`
   to return only lots whose auction has not yet ended (by `auctionEndTime`,
   falling back to `saleDate`), sorted soonest-ending first. Questions like
@@ -90,6 +111,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   See `specs/_backlog/F034-auction-outbid-notification.md`.
 
 ### Fixed
+
+- **Add from URL reads the whole listing on vCoins and other ASP.NET sites** —
+  these sites wrap the entire page in one form, which the page cleaner
+  discarded, so proposals lost the full description, grade, references and
+  visible price. Only forms without the page heading (search, bid, newsletter)
+  are now dropped. A schema.org product price and availability are also passed
+  to extraction as plain lines, so the listed price and currency are captured.
 
 - **November 2026 Go standard-library advisory** — Go 1.26.11 (go.mod and the
   pinned `golang:1.26.11-alpine` builder) fixes GO-2026-6859, an HTTP/1 server

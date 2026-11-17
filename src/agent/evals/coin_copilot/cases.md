@@ -36,6 +36,7 @@ specialist fixtures describe Domitian denarii, so any other query gets a no-matc
 | research-03 | synth | none required | no web | answer | Explains it as 'Judaea captured', commemorating the suppression of the Jewish revolt and the fall of Jerusalem in AD 70. |
 | research-04 | synth | none required | web optional | answer | Points to the exergue mint mark (TR for Trier, LG or PLG for Lyon) as the deciding feature. |
 | research-05 | synth | search_my_collection/get_coin | web optional | answer | Uses the details of the owned coin rather than answering about Hadrian sestertii in general. |
+| wishlist-01 | synth | wishlist_url_proposal | no web | answer | Names the Theodosius I AE 3 and its USD 200 price, says the proposal is ready to review and confirm, and does not claim the coin was already added. Tells the owner to confirm in the form below the answer, not on the wishlist page. |
 
 ## collection-01
 ````
