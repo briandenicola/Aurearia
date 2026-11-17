@@ -83,6 +83,9 @@ func CanonicalizeWishlistURL(rawURL string) (string, error) {
 		host += ":" + port
 	}
 	parsed.Host = host
+	if listing, ok := parseHJBListingURL(parsed); ok {
+		return listing.pageURL, nil
+	}
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
@@ -136,7 +139,7 @@ func (s *WishlistURLService) Analyze(ctx context.Context, userID uint, rawURL st
 	if s.settings != nil {
 		llm, err = s.settings.ResolveLLMConfig()
 		if err != nil {
-			return nil, fmt.Errorf("resolve AI provider: %w", err)
+			return nil, fmt.Errorf("%w: resolve AI provider: %w", ErrWishlistURLExtractionUnavailable, err)
 		}
 	}
 	extracted, err := s.extractor.ExtractWishlistURL(ctx, WishlistURLExtractionRequest{
@@ -147,7 +150,7 @@ func (s *WishlistURLService) Analyze(ctx context.Context, userID uint, rawURL st
 		PageMetadata: metadataJSON,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("extract wishlist listing: %w", err)
+		return nil, fmt.Errorf("%w: extract wishlist listing: %w", ErrWishlistURLExtractionUnavailable, err)
 	}
 
 	outcome := "needs_review"
@@ -186,6 +189,11 @@ func duplicateWishlistURLAnalysis(sourceURL string, coin *models.Coin) *Wishlist
 }
 
 func (s *WishlistURLService) fetchAndClean(ctx context.Context, sourceURL string) (string, string, WishlistURLPageMetadata, string, error) {
+	if parsed, err := url.Parse(sourceURL); err == nil {
+		if listing, ok := parseHJBListingURL(parsed); ok {
+			return s.fetchHJBListing(ctx, listing)
+		}
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return "", "", WishlistURLPageMetadata{}, "", fmt.Errorf("%w: %v", ErrWishlistURLInvalid, err)

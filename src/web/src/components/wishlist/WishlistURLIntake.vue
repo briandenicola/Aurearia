@@ -1,7 +1,7 @@
 <template>
   <section class="url-intake">
     <button
-      v-if="!embedded"
+      v-if="!embedded && !initialAnalysis"
       type="button"
       class="btn btn-secondary btn-sm"
       :aria-expanded="expanded"
@@ -11,7 +11,13 @@
     </button>
 
     <div v-if="expanded" class="url-intake-panel" :class="{ embedded }">
-      <form class="url-row" @submit.prevent="analyze">
+      <p v-if="initialAnalysis" class="source-line">
+        Listing:
+        <a :href="initialAnalysis.sourceUrl" target="_blank" rel="noopener noreferrer">
+          {{ initialAnalysis.pageTitle || initialAnalysis.sourceUrl }}
+        </a>
+      </p>
+      <form v-else class="url-row" @submit.prevent="analyze">
         <label for="wishlist-url" class="sr-only">Public coin listing URL</label>
         <input
           id="wishlist-url"
@@ -138,7 +144,7 @@
             {{ status === 'creating' ? 'Adding...' : 'Confirm and add' }}
           </button>
           <button type="button" class="btn btn-ghost btn-sm" :disabled="status === 'creating'" @click="resetProposal">
-            Cancel
+            {{ initialAnalysis ? 'Dismiss' : 'Cancel' }}
           </button>
         </div>
       </form>
@@ -155,8 +161,11 @@ import { useCoinOptions } from '@/composables/useCoinOptions'
 
 const props = withDefaults(defineProps<{
   embedded?: boolean
+  // A proposal prepared elsewhere (Coin Copilot); skips the URL form.
+  initialAnalysis?: WishlistURLAnalysis | null
 }>(), {
   embedded: false,
+  initialAnalysis: null,
 })
 
 const emit = defineEmits<{ created: [] }>()
@@ -188,7 +197,7 @@ type Draft = Record<DraftKey, string> & {
   notes: string
 }
 
-const expanded = ref(props.embedded)
+const expanded = ref(props.embedded || props.initialAnalysis !== null)
 const { categoryOptions, eraOptions, materialOptions, loadOptions } = useCoinOptions()
 const sourceURL = ref('')
 const status = ref<'idle' | 'pending' | 'cancelled' | 'creating' | 'created' | 'image-warning' | 'failed'>('idle')
@@ -273,19 +282,7 @@ async function analyze() {
   clearPreview()
   try {
     const response = await analyzeWishlistURL(sourceURL.value, controller.signal)
-    analysis.value = response.data
-    if (response.data.outcome === 'duplicate') {
-      message.value = 'This listing is already on your wishlist.'
-      status.value = 'idle'
-      return
-    }
-    if (!response.data.hypothesis) throw new Error('The listing did not return a proposal.')
-    fillDraft(response.data.hypothesis)
-    status.value = 'idle'
-    message.value = response.data.outcome === 'ready'
-      ? 'Proposal ready for review.'
-      : 'The listing needs more review before it can be added.'
-    await loadPreview(response.data.imageUrl ?? '')
+    await applyAnalysis(response.data)
   } catch (error) {
     if (controller?.signal.aborted) {
       status.value = 'cancelled'
@@ -297,6 +294,22 @@ async function analyze() {
   } finally {
     controller = null
   }
+}
+
+async function applyAnalysis(result: WishlistURLAnalysis) {
+  analysis.value = result
+  if (result.outcome === 'duplicate') {
+    message.value = 'This listing is already on your wishlist.'
+    status.value = 'idle'
+    return
+  }
+  if (!result.hypothesis) throw new Error('The listing did not return a proposal.')
+  fillDraft(result.hypothesis)
+  status.value = 'idle'
+  message.value = result.outcome === 'ready'
+    ? 'Proposal ready for review.'
+    : 'The listing needs more review before it can be added.'
+  await loadPreview(result.imageUrl ?? '')
 }
 
 function cancel() {
@@ -369,7 +382,16 @@ onBeforeUnmount(() => {
   clearPreview()
 })
 
-onMounted(loadOptions)
+onMounted(async () => {
+  await loadOptions()
+  if (!props.initialAnalysis) return
+  try {
+    await applyAnalysis(props.initialAnalysis)
+  } catch {
+    status.value = 'failed'
+    message.value = 'The listing did not return a proposal.'
+  }
+})
 </script>
 
 <style scoped>
@@ -383,6 +405,12 @@ onMounted(loadOptions)
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-card);
+}
+
+.source-line {
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
 }
 
 .url-intake-panel.embedded {

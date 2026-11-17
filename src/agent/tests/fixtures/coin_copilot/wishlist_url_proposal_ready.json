@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 1,
+ "outcome": "ready",
+ "sourceUrl": "https://www.hjbltd.com/#!/inventory/item-detail/ancient-coins/119010",
+ "pageTitle": "Theodosius I. AE 3",
+ "imageUrl": "https://images.hjbltd.com/ancient-coins/cc119010a.jpg?cfcache=2",
+ "hypothesis": {
+  "name": {
+   "value": "Theodosius I. AE 3",
+   "confidence": 0.95,
+   "evidence": [
+    "Theodosius I. AE 3"
+   ]
+  },
+  "category": {
+   "value": "Roman",
+   "confidence": 0.9,
+   "evidence": [
+    "Era: Ancient Roman"
+   ]
+  },
+  "ruler": {
+   "value": "Theodosius I",
+   "confidence": 0.95,
+   "evidence": [
+    "Theodosius I; 379-395 AD"
+   ]
+  },
+  "denomination": {
+   "value": "AE 3",
+   "confidence": 0.9,
+   "evidence": [
+    "AE 3, 3.35g"
+   ]
+  },
+  "material": {
+   "value": "Bronze",
+   "confidence": 0.95,
+   "evidence": [
+    "Metal: Bronze"
+   ]
+  },
+  "mint": {
+   "value": "Antioch",
+   "confidence": 0.9,
+   "evidence": [
+    "379-395 AD, Antioch"
+   ]
+  },
+  "dateRange": null,
+  "era": {
+   "value": "ancient",
+   "confidence": 0.9,
+   "evidence": [
+    "Era: Ancient Roman"
+   ]
+  },
+  "obverseInscription": null,
+  "obverseDescription": null,
+  "reverseInscription": null,
+  "reverseDescription": null,
+  "weightGrams": {
+   "value": "3.35",
+   "confidence": 0.95,
+   "evidence": [
+    "AE 3, 3.35g"
+   ]
+  },
+  "diameterMm": null,
+  "grade": {
+   "value": "EF",
+   "confidence": 0.9,
+   "evidence": [
+    "Grade: EF"
+   ]
+  },
+  "rarityRating": null,
+  "references": {
+   "value": "RIC-46c",
+   "confidence": 0.8,
+   "evidence": [
+    "Cf. RIC-46c"
+   ]
+  },
+  "notes": null,
+  "coin_type": null,
+  "listingStatus": null,
+  "listedPrice": {
+   "value": "200.00",
+   "confidence": 0.95,
+   "evidence": [
+    "Price: 200.00 USD"
+   ]
+  },
+  "currency": {
+   "value": "USD",
+   "confidence": 0.95,
+   "evidence": [
+    "Price: 200.00 USD"
+   ]
+  },
+  "dealerName": null,
+  "observations": "Buy or Bid sale lot 405.",
+  "legible": true
+ }
+}

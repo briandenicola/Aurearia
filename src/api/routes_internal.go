@@ -24,7 +24,7 @@ func registerInternalToolRoutes(r *gin.Engine, d *appDeps) {
 
 	copilotHandler := handlers.NewCoinCopilotInternalToolsHandler(
 		d.collectionSvc, d.coinCopilotSvc, d.logger, d.deepAnalysisHandoffSvc,
-	)
+	).WithWishlistURLService(d.wishlistURLSvc)
 	copilot := r.Group("/api/internal/copilot/tools")
 	{
 		copilot.POST("/search_my_collection", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "search_my_collection"), copilotHandler.SearchMyCollection)
@@ -32,6 +32,7 @@ func registerInternalToolRoutes(r *gin.Engine, d *appDeps) {
 		copilot.POST("/collection_summary", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "collection_summary"), copilotHandler.CollectionSummary)
 		copilot.POST("/top_coins_by_value", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "top_coins_by_value"), copilotHandler.TopCoinsByValue)
 		copilot.POST("/deep_analysis_handoff", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "deep_analysis_handoff"), copilotHandler.DeepAnalysisHandoff)
+		copilot.POST("/wishlist_url_proposal", middleware.CoinCopilotExecutionTokenRequired(d.internalTokenSvc, "wishlist_url_proposal"), copilotHandler.WishlistURLProposal)
 	}
 
 	// Deep identification provider-tool boundary (Phase 6, T051): job-scoped

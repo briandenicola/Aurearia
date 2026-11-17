@@ -91,6 +91,8 @@ def test_coin_copilot_exposes_only_locked_read_only_capabilities():
         "price_trends",
         "similar_lots",
         "deep_analysis_handoff",
+        # Read-only: returns a proposal the owner confirms in the app.
+        "wishlist_url_proposal",
     }
     assert CALLBACK_TOOLS == {
         "search_my_collection",
@@ -98,6 +100,7 @@ def test_coin_copilot_exposes_only_locked_read_only_capabilities():
         "collection_summary",
         "top_coins_by_value",
         "deep_analysis_handoff",
+        "wishlist_url_proposal",
     }
     forbidden = {
         "apply",

@@ -53,6 +53,7 @@ var CoinCopilotAllowedTools = []string{
 	"auction_search",
 	"price_trends",
 	"similar_lots",
+	"wishlist_url_proposal",
 }
 
 var copilotCallbackTools = map[string]bool{
@@ -61,6 +62,7 @@ var copilotCallbackTools = map[string]bool{
 	"collection_summary":    true,
 	"top_coins_by_value":    true,
 	"deep_analysis_handoff": true,
+	"wishlist_url_proposal": true,
 }
 
 func IsCoinCopilotToolAllowed(tool string) bool {

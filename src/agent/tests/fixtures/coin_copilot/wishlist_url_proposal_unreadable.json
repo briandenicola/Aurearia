@@ -1,0 +1,8 @@
+{
+ "schemaVersion": 1,
+ "outcome": "unreadable",
+ "sourceUrl": "https://dealer.example/lot/42",
+ "warnings": [
+  "The listing page could not be read. The site may block automated access or need a browser to show the coin."
+ ]
+}

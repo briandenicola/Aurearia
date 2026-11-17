@@ -277,5 +277,14 @@
     "web": "optional",
     "outcome": "answer",
     "judge_points": ["Uses the details of the owned coin rather than answering about Hadrian sestertii in general."]
+  },
+  {
+    "id": "wishlist-01",
+    "tags": ["wishlist", "synth"],
+    "prompt": "Add this coin to my wishlist: https://www.hjbltd.com/#!/inventory/item-detail/ancient-coins/119010?fromBbs=237th%20Buy%20Or%20Bid%20Sale",
+    "expect_groups": [["wishlist_url_proposal"]],
+    "web": "forbidden",
+    "outcome": "answer",
+    "judge_points": ["Names the Theodosius I AE 3 and its USD 200 price, says the proposal is ready to review and confirm, and does not claim the coin was already added."]
   }
 ]

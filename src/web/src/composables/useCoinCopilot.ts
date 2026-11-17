@@ -13,6 +13,7 @@ import type {
   AgentChatAppContext,
   CoinCopilotCapability,
   CoinCopilotClarification,
+  CopilotWishlistProposal,
   DeepAnalysisHandoffResult,
   CoinCopilotEvent,
   CoinCopilotPlanItem,
@@ -43,6 +44,7 @@ export type CoinCopilotToolProgress = {
   truncated?: boolean
   specialistResult?: CoinCopilotSpecialistResult
   deepAnalysisHandoffResult?: DeepAnalysisHandoffResult
+  wishlistProposal?: CopilotWishlistProposal
 }
 
 export type CoinCopilotStartResult =
@@ -252,6 +254,7 @@ export function useCoinCopilot(options: UseCoinCopilotOptions = {}) {
       truncated: event.payload.truncated,
       specialistResult: event.payload.specialistResult,
       deepAnalysisHandoffResult: event.payload.deepAnalysisHandoffResult,
+      wishlistProposal: event.payload.wishlistProposal,
     })
     tools.value = next
   }
