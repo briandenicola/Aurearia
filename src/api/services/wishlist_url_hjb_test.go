@@ -94,7 +94,8 @@ func TestWishlistURLAnalyzeReadsRecordedHJBListing(t *testing.T) {
 	if result.Outcome != "ready" ||
 		result.SourceURL != "https://www.hjbltd.com/#!/inventory/item-detail/ancient-coins/119010" ||
 		result.PageTitle != "Theodosius I. AE 3" ||
-		result.ImageURL != "https://images.hjbltd.com/ancient-coins/cc119010a.jpg?cfcache=2" {
+		result.ImageURL != "https://images.hjbltd.com/ancient-coins/cc119010a.jpg?cfcache=2" ||
+		result.ReverseImageURL != "https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2" {
 		t.Fatalf("unexpected analysis: %+v", result)
 	}
 	if extractor.req.SourceURL != result.SourceURL || extractor.req.PageTitle != "Theodosius I. AE 3" {

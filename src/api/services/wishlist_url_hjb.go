@@ -142,6 +142,7 @@ func (s *WishlistURLService) fetchHJBListing(ctx context.Context, listing hjbLis
 
 	title, text, metadata := hjbListingContent(detail.Data)
 	metadata.ImageURL = resolvePublicWishlistImage(listing.pageURL, metadata.ImageURL)
+	metadata.ReverseImageURL = resolvePublicWishlistImage(listing.pageURL, metadata.ReverseImageURL)
 	return title, text, metadata, listing.pageURL, nil
 }
 
@@ -177,16 +178,20 @@ func hjbListingContent(data *hjbDetailFields) (string, string, WishlistURLPageMe
 	}
 	add("Description", data.Description)
 
+	// HJB lists the obverse photo first ("…a.jpg") and the reverse second ("…b.jpg").
 	metadata := WishlistURLPageMetadata{SiteName: hjbSiteName}
-	for _, lot := range data.Lot {
-		for _, image := range lot.ImageUrls {
-			if strings.TrimSpace(image) != "" {
-				metadata.ImageURL = strings.TrimSpace(image)
-				break
+	if len(data.Lot) > 0 {
+		var images []string
+		for _, image := range data.Lot[0].ImageUrls {
+			if image = strings.TrimSpace(image); image != "" {
+				images = append(images, image)
 			}
 		}
-		if metadata.ImageURL != "" {
-			break
+		if len(images) > 0 {
+			metadata.ImageURL = images[0]
+		}
+		if len(images) > 1 {
+			metadata.ReverseImageURL = images[1]
 		}
 	}
 	return title, truncateWishlistURLText(strings.Join(lines, "\n")), metadata

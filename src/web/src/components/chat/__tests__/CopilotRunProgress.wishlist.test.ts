@@ -124,6 +124,33 @@ describe('Copilot wishlist proposal', () => {
     expect(section.text()).toContain('Wishlist coin added.')
   })
 
+  it('previews both sides and attaches the reverse when the listing has one', async () => {
+    const createObjectURL = vi.fn((blob: Blob) => `blob:${blob.size}`)
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }))
+    mocks.proxy.mockImplementation(async (url: string) => ({
+      data: new Blob([url.includes('b.jpg') ? 'reverse-bytes' : 'obverse'], { type: 'image/jpeg' }),
+    }))
+    const wrapper = mountWith({
+      ...readyProposal(),
+      reverseImageUrl: 'https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2',
+    })
+    await flushPromises()
+
+    const section = wrapper.get('[data-testid="copilot-wishlist-proposal"]')
+    expect(section.find('[data-testid="reverse-image-review"]').exists()).toBe(true)
+    expect(mocks.proxy).toHaveBeenCalledWith('https://images.hjbltd.com/ancient-coins/cc119010b.jpg?cfcache=2')
+
+    await section.get('form.proposal').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.upload).toHaveBeenCalledTimes(2)
+    expect(mocks.upload).toHaveBeenCalledWith(77, expect.any(File), 'obverse', true)
+    expect(mocks.upload).toHaveBeenCalledWith(77, expect.any(File), 'reverse', false)
+    const reverseFile = mocks.upload.mock.calls.find(call => call[2] === 'reverse')?.[1] as File
+    expect(reverseFile.name).toBe('listing-reverse.jpg')
+    vi.unstubAllGlobals()
+  })
+
   it('links to the existing coin for a duplicate instead of offering to add it', async () => {
     const wrapper = mountWith({ schemaVersion: 1, outcome: 'duplicate', sourceUrl: SOURCE, existingCoinId: 12 })
     await flushPromises()
@@ -163,6 +190,7 @@ describe('isCopilotWishlistProposal', () => {
     ['script source', { ...readyProposal(), sourceUrl: 'javascript:alert(1)' }],
     ['private source', { ...readyProposal(), sourceUrl: 'http://192.168.1.10/lot' }],
     ['private image', { ...readyProposal(), imageUrl: 'http://localhost/x.jpg' }],
+    ['private reverse image', { ...readyProposal(), reverseImageUrl: 'http://10.1.2.3/x.jpg' }],
     ['ready without fields', { ...readyProposal(), hypothesis: undefined }],
     ['duplicate without coin', { schemaVersion: 1, outcome: 'duplicate', sourceUrl: SOURCE }],
     ['failure with fields', { ...readyProposal(), outcome: 'unreadable' }],

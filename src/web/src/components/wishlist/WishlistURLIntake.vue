@@ -135,6 +135,14 @@
           </label>
         </div>
 
+        <div v-if="reversePreviewURL" class="image-review" data-testid="reverse-image-review">
+          <img :src="reversePreviewURL" alt="Listing reverse image preview" />
+          <label class="image-choice">
+            <input v-model="attachReverse" type="checkbox" />
+            Attach this image as the reverse
+          </label>
+        </div>
+
         <ul v-if="analysis.warnings?.length" class="warnings">
           <li v-for="warning in analysis.warnings" :key="warning">{{ warning }}</li>
         </ul>
@@ -206,6 +214,9 @@ const analysis = ref<WishlistURLAnalysis | null>(null)
 const attachImage = ref(true)
 const previewURL = ref('')
 const previewFile = ref<File | null>(null)
+const attachReverse = ref(true)
+const reversePreviewURL = ref('')
+const reversePreviewFile = ref<File | null>(null)
 let controller: AbortController | null = null
 
 const draft = reactive<Draft>(emptyDraft())
@@ -254,22 +265,41 @@ function fillDraft(hypothesis: WishlistURLHypothesis) {
 
 function clearPreview() {
   if (previewURL.value) URL.revokeObjectURL(previewURL.value)
+  if (reversePreviewURL.value) URL.revokeObjectURL(reversePreviewURL.value)
   previewURL.value = ''
   previewFile.value = null
+  reversePreviewURL.value = ''
+  reversePreviewFile.value = null
 }
 
-async function loadPreview(imageURL: string) {
+async function fetchPreview(imageURL: string, name: string): Promise<{ url: string, file: File } | null> {
+  if (!imageURL) return null
+  const response = await proxyImage(imageURL)
+  const blob = response.data as Blob
+  if (blob.size === 0) return null
+  const extension = blob.type.includes('png') ? '.png' : '.jpg'
+  return {
+    url: URL.createObjectURL(blob),
+    file: new File([blob], `${name}${extension}`, { type: blob.type || 'image/jpeg' }),
+  }
+}
+
+async function loadPreview(imageURL: string, reverseImageURL = '') {
   clearPreview()
-  if (!imageURL) return
-  try {
-    const response = await proxyImage(imageURL)
-    const blob = response.data as Blob
-    if (blob.size === 0) return
-    const extension = blob.type.includes('png') ? '.png' : '.jpg'
-    previewFile.value = new File([blob], `listing${extension}`, { type: blob.type || 'image/jpeg' })
-    previewURL.value = URL.createObjectURL(blob)
-  } catch {
-    message.value = 'Proposal is ready, but the listing image could not be previewed.'
+  const [obverse, reverse] = await Promise.allSettled([
+    fetchPreview(imageURL, 'listing'),
+    fetchPreview(reverseImageURL, 'listing-reverse'),
+  ])
+  if (obverse.status === 'fulfilled' && obverse.value) {
+    previewURL.value = obverse.value.url
+    previewFile.value = obverse.value.file
+  }
+  if (reverse.status === 'fulfilled' && reverse.value) {
+    reversePreviewURL.value = reverse.value.url
+    reversePreviewFile.value = reverse.value.file
+  }
+  if (obverse.status === 'rejected' || reverse.status === 'rejected') {
+    message.value = 'Proposal is ready, but a listing image could not be previewed.'
   }
 }
 
@@ -309,7 +339,7 @@ async function applyAnalysis(result: WishlistURLAnalysis) {
   message.value = result.outcome === 'ready'
     ? 'Proposal ready for review.'
     : 'The listing needs more review before it can be added.'
-  await loadPreview(result.imageUrl ?? '')
+  await loadPreview(result.imageUrl ?? '', result.reverseImageUrl ?? '')
 }
 
 function cancel() {
@@ -360,6 +390,13 @@ async function confirmCreate() {
     if (attachImage.value && previewFile.value) {
       try {
         await uploadImage(created.data.id, previewFile.value, 'obverse', true)
+      } catch {
+        imageWarning = true
+      }
+    }
+    if (attachReverse.value && reversePreviewFile.value) {
+      try {
+        await uploadImage(created.data.id, reversePreviewFile.value, 'reverse', false)
       } catch {
         imageWarning = true
       }

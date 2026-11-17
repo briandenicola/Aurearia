@@ -32,6 +32,7 @@ var (
 	wishlistURLSkipTags       = map[string]bool{
 		"script": true, "style": true, "noscript": true, "svg": true, "nav": true,
 		"footer": true, "header": true, "aside": true, "form": true, "button": true,
+		"select": true, "textarea": true, "iframe": true,
 	}
 	wishlistURLNoisePattern = regexp.MustCompile(`(?i)(cookie|consent|shipping|delivery|related|recommend|similar|carousel|newsletter|countdown|bid-controls?|error-message)`)
 )
@@ -48,17 +49,21 @@ type WishlistURLPageMetadata struct {
 	Description string `json:"description,omitempty"`
 	ImageURL    string `json:"image_url,omitempty"`
 	SiteName    string `json:"site_name,omitempty"`
+	// ReverseImageURL comes only from site adapters that know which photo is
+	// the reverse; it is not sent to extraction.
+	ReverseImageURL string `json:"-"`
 }
 
 type WishlistURLAnalysis struct {
-	SchemaVersion  int                    `json:"schemaVersion"`
-	Outcome        string                 `json:"outcome"`
-	SourceURL      string                 `json:"sourceUrl"`
-	ExistingCoinID *uint                  `json:"existingCoinId,omitempty"`
-	PageTitle      string                 `json:"pageTitle,omitempty"`
-	ImageURL       string                 `json:"imageUrl,omitempty"`
-	Hypothesis     *WishlistURLHypothesis `json:"hypothesis,omitempty"`
-	Warnings       []string               `json:"warnings,omitempty"`
+	SchemaVersion   int                    `json:"schemaVersion"`
+	Outcome         string                 `json:"outcome"`
+	SourceURL       string                 `json:"sourceUrl"`
+	ExistingCoinID  *uint                  `json:"existingCoinId,omitempty"`
+	PageTitle       string                 `json:"pageTitle,omitempty"`
+	ImageURL        string                 `json:"imageUrl,omitempty"`
+	ReverseImageURL string                 `json:"reverseImageUrl,omitempty"`
+	Hypothesis      *WishlistURLHypothesis `json:"hypothesis,omitempty"`
+	Warnings        []string               `json:"warnings,omitempty"`
 }
 
 func NewWishlistURLService(repo *repository.CoinRepository, extractor WishlistURLExtractor, settings *SettingsService) *WishlistURLService {
@@ -158,13 +163,14 @@ func (s *WishlistURLService) Analyze(ctx context.Context, userID uint, rawURL st
 		outcome = "ready"
 	}
 	return &WishlistURLAnalysis{
-		SchemaVersion: WishlistURLProposalSchemaVersion,
-		Outcome:       outcome,
-		SourceURL:     finalURL,
-		PageTitle:     title,
-		ImageURL:      metadata.ImageURL,
-		Hypothesis:    &extracted.Hypothesis,
-		Warnings:      extracted.Warnings,
+		SchemaVersion:   WishlistURLProposalSchemaVersion,
+		Outcome:         outcome,
+		SourceURL:       finalURL,
+		PageTitle:       title,
+		ImageURL:        metadata.ImageURL,
+		ReverseImageURL: metadata.ReverseImageURL,
+		Hypothesis:      &extracted.Hypothesis,
+		Warnings:        extracted.Warnings,
 	}, nil
 }
 
@@ -252,12 +258,14 @@ func cleanWishlistListingHTML(reader io.Reader) (string, string, WishlistURLPage
 		if node.Type == html.ElementNode {
 			tag := strings.ToLower(node.Data)
 			if tag == "script" {
-				if structured := wishlistURLStructuredData(node); structured != "" && !seen[structured] {
-					seen[structured] = true
-					lines = append(lines, structured)
+				for _, structured := range wishlistURLStructuredData(node) {
+					if !seen[structured] {
+						seen[structured] = true
+						lines = append(lines, structured)
+					}
 				}
 			}
-			skip = skip || wishlistURLSkipTags[tag] || wishlistURLNoiseNode(node)
+			skip = skip || (wishlistURLSkipTags[tag] && !wishlistURLPageForm(node)) || wishlistURLNoiseNode(node)
 			if tag == "meta" {
 				readWishlistURLMeta(node, &metadata)
 			}
@@ -286,20 +294,111 @@ func cleanWishlistListingHTML(reader io.Reader) (string, string, WishlistURLPage
 	return title, text, metadata, nil
 }
 
-func wishlistURLStructuredData(node *html.Node) string {
+// wishlistURLPageForm reports whether a <form> wraps the listing itself, as
+// ASP.NET WebForms pages (vCoins and others) wrap the whole page in one form.
+// Search, bid and cart forms never contain the page heading.
+func wishlistURLPageForm(node *html.Node) bool {
+	if !strings.EqualFold(node.Data, "form") {
+		return false
+	}
+	var found bool
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		for child := n.FirstChild; child != nil && !found; child = child.NextSibling {
+			if child.Type == html.ElementNode && strings.EqualFold(child.Data, "h1") {
+				found = true
+				return
+			}
+			walk(child)
+		}
+	}
+	walk(node)
+	return found
+}
+
+// wishlistURLStructuredData keeps JSON-LD as evidence and, for a schema.org
+// Product offer, adds plain price and availability lines the extractor can
+// quote exactly.
+func wishlistURLStructuredData(node *html.Node) []string {
 	for _, attr := range node.Attr {
 		if strings.EqualFold(attr.Key, "type") && strings.EqualFold(strings.TrimSpace(attr.Val), "application/ld+json") {
 			if node.FirstChild == nil {
-				return ""
+				return nil
 			}
 			raw := strings.TrimSpace(node.FirstChild.Data)
 			if raw == "" || !json.Valid([]byte(raw)) {
-				return ""
+				return nil
 			}
-			return truncateWishlistURLText("Structured listing data: " + raw)
+			lines := []string{truncateWishlistURLText("Structured listing data: " + raw)}
+			var decoded any
+			if err := json.Unmarshal([]byte(raw), &decoded); err == nil {
+				lines = append(lines, wishlistURLOfferLines(decoded)...)
+			}
+			return lines
 		}
 	}
-	return ""
+	return nil
+}
+
+var (
+	wishlistURLPricePattern    = regexp.MustCompile(`^\d+(?:\.\d+)?$`)
+	wishlistURLCurrencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
+)
+
+func wishlistURLOfferLines(value any) []string {
+	switch typed := value.(type) {
+	case []any:
+		for _, item := range typed {
+			if lines := wishlistURLOfferLines(item); len(lines) > 0 {
+				return lines
+			}
+		}
+	case map[string]any:
+		if graph, ok := typed["@graph"]; ok {
+			return wishlistURLOfferLines(graph)
+		}
+		if !wishlistURLSchemaType(typed["@type"], "Product") {
+			return nil
+		}
+		offer := typed["offers"]
+		if offers, ok := offer.([]any); ok && len(offers) > 0 {
+			offer = offers[0]
+		}
+		fields, ok := offer.(map[string]any)
+		if !ok {
+			return nil
+		}
+		var lines []string
+		price := strings.TrimSpace(fmt.Sprint(fields["price"]))
+		currency := strings.ToUpper(strings.TrimSpace(fmt.Sprint(fields["priceCurrency"])))
+		if wishlistURLPricePattern.MatchString(price) && wishlistURLCurrencyPattern.MatchString(currency) {
+			lines = append(lines, "Listed price: "+price+" "+currency)
+		}
+		if availability, ok := fields["availability"].(string); ok {
+			switch strings.ToLower(availability[strings.LastIndex(availability, "/")+1:]) {
+			case "instock", "limitedavailability", "onlineonly", "instoreonly":
+				lines = append(lines, "Availability: in stock")
+			case "soldout", "outofstock", "discontinued":
+				lines = append(lines, "Availability: sold")
+			}
+		}
+		return lines
+	}
+	return nil
+}
+
+func wishlistURLSchemaType(value any, want string) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.EqualFold(typed, want)
+	case []any:
+		for _, item := range typed {
+			if wishlistURLSchemaType(item, want) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func truncateWishlistURLText(value string) string {
