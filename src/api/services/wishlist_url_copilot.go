@@ -117,8 +117,11 @@ func PublicCopilotWishlistProposal(raw json.RawMessage) (*WishlistURLAnalysis, e
 			return nil, ErrInvalidCopilotFrame
 		}
 	}
-	if proposal.ImageURL != "" {
-		if _, err := ValidateOutboundURL(proposal.ImageURL); err != nil {
+	for _, image := range []string{proposal.ImageURL, proposal.ReverseImageURL} {
+		if image == "" {
+			continue
+		}
+		if _, err := ValidateOutboundURL(image); err != nil {
 			return nil, ErrInvalidCopilotFrame
 		}
 	}

@@ -150,6 +150,7 @@ func TestPublicCopilotWishlistProposalRejectsUnsafeOrInconsistentResults(t *test
 		"private source":        mutate(func(m map[string]any) { m["sourceUrl"] = "http://127.0.0.1/lot" }),
 		"uncanonical source":    mutate(func(m map[string]any) { m["sourceUrl"] = "https://Dealer.example/lot?utm_source=x" }),
 		"private image":         mutate(func(m map[string]any) { m["imageUrl"] = "http://localhost/x.jpg" }),
+		"private reverse image": mutate(func(m map[string]any) { m["reverseImageUrl"] = "http://10.0.0.1/x.jpg" }),
 		"unknown outcome":       mutate(func(m map[string]any) { m["outcome"] = "added" }),
 		"ready without fields":  mutate(func(m map[string]any) { delete(m, "hypothesis") }),
 		"failure with fields":   mutate(func(m map[string]any) { m["outcome"] = "unreadable" }),

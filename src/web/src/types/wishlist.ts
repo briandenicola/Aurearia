@@ -43,6 +43,7 @@ export interface WishlistURLAnalysis {
   existingCoinId?: number
   pageTitle?: string
   imageUrl?: string
+  reverseImageUrl?: string
   hypothesis?: WishlistURLHypothesis
   warnings?: string[]
 }

@@ -27886,6 +27886,9 @@ const docTemplate = `{
                 "pageTitle": {
                     "type": "string"
                 },
+                "reverseImageUrl": {
+                    "type": "string"
+                },
                 "schemaVersion": {
                     "type": "integer"
                 },

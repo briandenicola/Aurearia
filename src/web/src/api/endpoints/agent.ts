@@ -345,6 +345,7 @@ export function isCopilotWishlistProposal(value: unknown): value is CopilotWishl
   const listingProtocols = ['http:', 'https:']
   if (value.sourceUrl !== '' && !isPublicWebUrl(value.sourceUrl, listingProtocols)) return false
   if (value.imageUrl !== undefined && !isPublicWebUrl(value.imageUrl, listingProtocols)) return false
+  if (value.reverseImageUrl !== undefined && !isPublicWebUrl(value.reverseImageUrl, listingProtocols)) return false
   if (value.pageTitle !== undefined && typeof value.pageTitle !== 'string') return false
   if (value.warnings !== undefined &&
       !(Array.isArray(value.warnings) && value.warnings.every(warning => typeof warning === 'string'))) {

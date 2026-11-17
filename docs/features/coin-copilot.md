@@ -83,7 +83,7 @@ for connection setup and the external tool boundary.
 When the owner pastes a dealer or auction listing link and asks to add it to
 the wishlist, Copilot calls `wishlist_url_proposal` with that exact link. Go
 runs the same pipeline as **Add from URL** (duplicate check against the
-owner's wishlist, restricted fetch, site adapters such as Harlan J. Berk, and
+owner's wishlist, restricted fetch, site adapters for Harlan J. Berk and CNG auction lots, and
 evidence-backed extraction) and returns the proposal through the fixed
 internal callback. The tool is read-only: nothing is created until the owner
 presses **Confirm and add** in the review form rendered under the run, which

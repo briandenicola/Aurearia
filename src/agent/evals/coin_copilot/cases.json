@@ -285,6 +285,6 @@
     "expect_groups": [["wishlist_url_proposal"]],
     "web": "forbidden",
     "outcome": "answer",
-    "judge_points": ["Names the Theodosius I AE 3 and its USD 200 price, says the proposal is ready to review and confirm, and does not claim the coin was already added."]
+    "judge_points": ["Names the Theodosius I AE 3 and its USD 200 price, says the proposal is ready to review and confirm, and does not claim the coin was already added.", "Tells the owner to confirm in the form below the answer, not on the wishlist page or another screen."]
   }
 ]

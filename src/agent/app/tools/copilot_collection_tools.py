@@ -116,6 +116,7 @@ class WishlistURLProposalResult(StrictToolModel):
     existingCoinId: int | None = Field(default=None, ge=1)
     pageTitle: Annotated[str, StringConstraints(max_length=500)] = ""
     imageUrl: Annotated[str, StringConstraints(max_length=2000)] = ""
+    reverseImageUrl: Annotated[str, StringConstraints(max_length=2000)] = ""
     hypothesis: WishlistURLHypothesis | None = None
     warnings: list[Annotated[str, StringConstraints(min_length=1, max_length=500)]] = Field(
         default_factory=list,
@@ -503,7 +504,8 @@ def build_copilot_tool_definitions(
         "deep_analysis_handoff": "Request, read, or explicitly rerun the existing owner-scoped Deep Analysis workflow.",
         "wishlist_url_proposal": (
             "Read one dealer or auction listing link the owner supplied and prepare a wishlist "
-            "proposal for the owner to review and confirm in the app. It never adds anything. "
+            "proposal that the owner reviews and confirms in a form shown under your answer. "
+            "It never adds anything. "
             "Pass url as the exact link. Use it when the owner asks to add, save, or track a "
             "listing on the wishlist."
         ),
