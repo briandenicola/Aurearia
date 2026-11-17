@@ -91,6 +91,9 @@ func CanonicalizeWishlistURL(rawURL string) (string, error) {
 	if listing, ok := parseHJBListingURL(parsed); ok {
 		return listing.pageURL, nil
 	}
+	if canonical, ok := canonicalCNGWishlistURL(parsed); ok {
+		return canonical, nil
+	}
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
@@ -239,6 +242,12 @@ func (s *WishlistURLService) fetchAndClean(ctx context.Context, sourceURL string
 	if err != nil {
 		return "", "", WishlistURLPageMetadata{}, "", err
 	}
+	if lotTitle, lotLines := cngWishlistLotLines(response.Request.URL.String(), string(body)); lotTitle != "" || len(lotLines) > 0 {
+		if lotTitle != "" {
+			title = lotTitle
+		}
+		text = truncateWishlistURLText(strings.Join(append([]string{lotTitle}, lotLines...), "\n") + "\n" + text)
+	}
 	metadata.ImageURL = resolvePublicWishlistImage(finalURL, metadata.ImageURL)
 	return title, text, metadata, finalURL, nil
 }
@@ -269,12 +278,20 @@ func cleanWishlistListingHTML(reader io.Reader) (string, string, WishlistURLPage
 			if tag == "meta" {
 				readWishlistURLMeta(node, &metadata)
 			}
-			if tag == "title" && node.FirstChild != nil {
-				title = strings.TrimSpace(node.FirstChild.Data)
+			// Keep the first real title; client-side apps can add an unrendered
+			// template title such as "{{template.title}}".
+			if tag == "title" && node.FirstChild != nil && title == "" {
+				if candidate := strings.TrimSpace(node.FirstChild.Data); !strings.Contains(candidate, "{{") {
+					title = candidate
+				}
 			}
 		}
 		if !skip && node.Type == html.TextNode {
 			line := strings.Join(strings.Fields(node.Data), " ")
+			// Unrendered client-side templates ("{{ ... }}") are page chrome.
+			if strings.Contains(line, "{{") && strings.Contains(line, "}}") {
+				line = ""
+			}
 			if line != "" && !seen[line] {
 				seen[line] = true
 				lines = append(lines, line)
