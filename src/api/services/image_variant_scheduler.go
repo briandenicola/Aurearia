@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +12,14 @@ import (
 // imageVariantPhotoLister lists coin photos in id order, a batch at a time.
 type imageVariantPhotoLister interface {
 	ListPhotosAfter(afterID uint, limit int) ([]models.CoinImage, error)
+}
+
+// imageVariantRunStore keeps the run history. The scheduler works without one.
+type imageVariantRunStore interface {
+	CreateRun(run *models.ImageVariantRun) error
+	CompleteRun(run *models.ImageVariantRun) error
+	MarkInterrupted() error
+	ListRuns(page, limit int) ([]models.ImageVariantRun, int64, error)
 }
 
 const (
@@ -27,11 +36,14 @@ const (
 // appear there. It runs two minutes after startup and then daily at
 // ImageVariantCheckStartTime (03:17 by default) in the schedule time zone,
 // one photo at a time; a photo that has both variants costs two file checks.
-// ImageVariantCheckEnabled turns it off, RunNow included. A pass stops between
+// ImageVariantCheckEnabled turns the schedule off, RunNow included; a pass an
+// admin starts with StartManualRun runs either way. A pass stops between
 // photos when the scheduler stops, and passes never overlap; the next pass
 // picks up where an interrupted one left off, since made variants are kept.
+// Each pass that runs is recorded in the run history.
 type ImageVariantScheduler struct {
 	photos      imageVariantPhotoLister
+	runs        imageVariantRunStore
 	uploadDir   string
 	settingsSvc *SettingsService
 	logger      *Logger
@@ -55,10 +67,14 @@ type ImageVariantCycle struct {
 	Failures []string
 }
 
-// NewImageVariantScheduler creates the scheduler.
-func NewImageVariantScheduler(photos imageVariantPhotoLister, uploadDir string, settingsSvc *SettingsService, logger *Logger) *ImageVariantScheduler {
+// NewImageVariantScheduler creates the scheduler. runs may be nil, which keeps no history.
+func NewImageVariantScheduler(photos imageVariantPhotoLister, runs imageVariantRunStore, uploadDir string, settingsSvc *SettingsService, logger *Logger) *ImageVariantScheduler {
+	if runs == nil {
+		runs = noImageVariantRuns{}
+	}
 	return &ImageVariantScheduler{
 		photos:      photos,
+		runs:        runs,
 		uploadDir:   uploadDir,
 		settingsSvc: settingsSvc,
 		logger:      logger,
@@ -69,6 +85,9 @@ func NewImageVariantScheduler(photos imageVariantPhotoLister, uploadDir string, 
 // Start runs a pass two minutes after startup, then nightly. Call from a goroutine.
 func (s *ImageVariantScheduler) Start() {
 	s.logger.Info("scheduler", "Image variant scheduler started")
+	if err := s.runs.MarkInterrupted(); err != nil {
+		s.logger.Warn("scheduler", "Image variants: could not mark interrupted runs as stopped: %v", err)
+	}
 	scheduleLoop{
 		category:     "scheduler",
 		name:         "image variant check",
@@ -90,10 +109,29 @@ func (s *ImageVariantScheduler) Stop() {
 	s.once.Do(func() { close(s.stopCh) })
 }
 
-// RunNow runs one pass now.
+// RunNow runs one pass now, unless the check is turned off.
 func (s *ImageVariantScheduler) RunNow() error {
 	s.RunCycle()
 	return nil
+}
+
+// StartManualRun starts a pass in the background for an admin, whether or not
+// the schedule is turned on. It returns false, starting nothing, when a pass
+// is already running.
+func (s *ImageVariantScheduler) StartManualRun() bool {
+	if !s.runMu.TryLock() {
+		return false
+	}
+	go func() {
+		defer s.runMu.Unlock()
+		s.walk("manual")
+	}()
+	return true
+}
+
+// ListRuns returns the run history, newest first.
+func (s *ImageVariantScheduler) ListRuns(page, limit int) ([]models.ImageVariantRun, int64, error) {
+	return s.runs.ListRuns(page, limit)
 }
 
 // GetStatus returns the scheduler runtime status.
@@ -119,26 +157,37 @@ func (s *ImageVariantScheduler) nextRun(now time.Time) time.Time {
 	return dailySchedule{Hour: h, Minute: m, Location: scheduleLocation(s.settingsSvc, s.logger)}.slotAfter(now)
 }
 
-// RunCycle checks every coin photo once and makes the variants it is missing.
-// Passes never overlap: a RunNow during a scheduled pass waits for it.
+// RunCycle is the scheduled pass: it checks every coin photo once and makes
+// the variants it is missing, unless the check is turned off. Passes never
+// overlap: a RunCycle during another pass waits for it.
 func (s *ImageVariantScheduler) RunCycle() ImageVariantCycle {
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
-	var out ImageVariantCycle
 	if !s.enabled() {
 		s.logger.Debug("scheduler", "Image variant check disabled, skipping cycle")
-		out.Skipped = true
-		return out
+		return ImageVariantCycle{Skipped: true}
 	}
+	return s.walk("scheduled")
+}
+
+// walk is one pass; the caller holds runMu.
+func (s *ImageVariantScheduler) walk(trigger string) ImageVariantCycle {
+	var out ImageVariantCycle
 	s.setRunning(true)
 	defer s.setRunning(false)
 	started := time.Now()
+	run := &models.ImageVariantRun{TriggerType: trigger, Status: "running", StartedAt: started}
+	if err := s.runs.CreateRun(run); err != nil {
+		s.logger.Warn("scheduler", "Image variants: could not record the run: %v", err)
+	}
 
 	var after uint
+	var listErr error
 walk:
 	for {
 		batch, err := s.photos.ListPhotosAfter(after, imageVariantBatchSize)
 		if err != nil {
+			listErr = err
 			s.logger.Error("scheduler", "Image variants: could not list photos: %v", err)
 			break
 		}
@@ -174,8 +223,30 @@ walk:
 	if out.Stopped {
 		stopped = " (stopped part way; the next pass continues)"
 	}
-	s.logger.Info("scheduler", "Image variants: checked %d photos in %s, made variants for %d, %d could not be resized%s",
-		out.Checked, time.Since(started).Round(time.Millisecond), out.Made, out.Failed, stopped)
+	took := time.Since(started)
+	s.logger.Info("scheduler", "Image variants: %s pass checked %d photos in %s, made variants for %d, %d could not be resized%s",
+		trigger, out.Checked, took.Round(time.Millisecond), out.Made, out.Failed, stopped)
+
+	completed := time.Now()
+	run.Checked, run.Made, run.Failed = out.Checked, out.Made, out.Failed
+	run.Failures = strings.Join(out.Failures, "\n")
+	run.DurationMs = took.Milliseconds()
+	run.CompletedAt = &completed
+	switch {
+	case listErr != nil:
+		run.Status = "error"
+		run.ErrorMessage = "Could not list coin photos: " + listErr.Error()
+	case out.Stopped:
+		run.Status = "stopped"
+		run.ErrorMessage = "The API stopped during this pass. The next pass carries on."
+	default:
+		run.Status = "success"
+	}
+	if run.ID != 0 {
+		if err := s.runs.CompleteRun(run); err != nil {
+			s.logger.Warn("scheduler", "Image variants: could not record the run's outcome: %v", err)
+		}
+	}
 	return out
 }
 
@@ -183,4 +254,14 @@ func (s *ImageVariantScheduler) setRunning(running bool) {
 	s.statusMu.Lock()
 	s.isRunning = running
 	s.statusMu.Unlock()
+}
+
+// noImageVariantRuns keeps no history.
+type noImageVariantRuns struct{}
+
+func (noImageVariantRuns) CreateRun(*models.ImageVariantRun) error   { return nil }
+func (noImageVariantRuns) CompleteRun(*models.ImageVariantRun) error { return nil }
+func (noImageVariantRuns) MarkInterrupted() error                    { return nil }
+func (noImageVariantRuns) ListRuns(int, int) ([]models.ImageVariantRun, int64, error) {
+	return []models.ImageVariantRun{}, 0, nil
 }

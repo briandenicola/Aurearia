@@ -124,6 +124,12 @@ func registerAdminRoutes(api *gin.RouterGroup, d *appDeps) {
 		admin.GET("/collection-health-snapshot-runs", adminHealthHandler.ListSnapshotRuns)
 		admin.GET("/collection-health/status", adminHealthHandler.GetSnapshotStatus)
 
+		// Thumb and medium variants for photos that have none
+		imageVariantHandler := handlers.NewImageVariantAdminHandler(d.imageVariantScheduler)
+		admin.POST("/image-variants/run", imageVariantHandler.TriggerRun)
+		admin.GET("/image-variants/status", imageVariantHandler.GetStatus)
+		admin.GET("/image-variant-runs", imageVariantHandler.ListRuns)
+
 		// Graded Coin Copilot conversations and the nightly grading job
 		copilotGradingHandler := handlers.NewAdminCopilotGradingHandler(d.copilotGradeRepo, d.copilotGradingScheduler)
 		admin.GET("/copilot-grades", copilotGradingHandler.ListGrades)

@@ -164,7 +164,7 @@ func TestImageVariantPassMakesLegacyPhotosShowInTheCoinViewer(t *testing.T) {
 		t.Fatalf("before the pass the viewer got %d images; the large original should be skipped", len(before))
 	}
 
-	scheduler := NewImageVariantScheduler(repo, uploadDir, NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(100))
+	scheduler := NewImageVariantScheduler(repo, nil, uploadDir, NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(100))
 	cycle := scheduler.RunCycle()
 	if cycle.Checked != 3 || cycle.Made != 2 || cycle.Failed != 1 || len(cycle.Failures) != 1 ||
 		!strings.Contains(cycle.Failures[0], "3-other.png") {
@@ -210,7 +210,7 @@ func TestImageVariantPassWalksEveryBatchAndCapsTheFailuresNamed(t *testing.T) {
 		lister.photos = append(lister.photos, models.CoinImage{ID: uint(i), CoinID: 1, FilePath: fmt.Sprintf("coin-1/%d.png", i)})
 	}
 	db := newImageVariantDB(t)
-	scheduler := NewImageVariantScheduler(lister, t.TempDir(), NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(100))
+	scheduler := NewImageVariantScheduler(lister, nil, t.TempDir(), NewSettingsService(repository.NewSettingsRepository(db)), NewLogger(100))
 	cycle := scheduler.RunCycle()
 	if cycle.Checked != len(lister.photos) || cycle.Failed != len(lister.photos) || len(cycle.Failures) != imageVariantFailuresLogged {
 		t.Fatalf("cycle=%+v, want every photo checked and %d failures named", cycle, imageVariantFailuresLogged)
@@ -258,7 +258,7 @@ func newSchedulerWithSettings(t *testing.T, lister imageVariantPhotoLister, uplo
 			t.Fatal(err)
 		}
 	}
-	return NewImageVariantScheduler(lister, uploadDir, settingsSvc, NewLogger(100)), settingsSvc
+	return NewImageVariantScheduler(lister, nil, uploadDir, settingsSvc, NewLogger(100)), settingsSvc
 }
 
 func TestImageVariantCheckTurnedOffDoesNothing(t *testing.T) {

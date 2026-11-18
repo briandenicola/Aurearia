@@ -420,6 +420,7 @@ var productionModelConstructors = map[string]func() any{
 	"AuctionWatchBidDigestRun":      func() any { return &models.AuctionWatchBidDigestRun{} },
 	"FeaturedCoin":                  func() any { return &models.FeaturedCoin{} },
 	"CoinOfDayRun":                  func() any { return &models.CoinOfDayRun{} },
+	"ImageVariantRun":               func() any { return &models.ImageVariantRun{} },
 	"CollectionHealthSnapshot":      func() any { return &models.CollectionHealthSnapshot{} },
 	"CollectionHealthSnapshotRun":   func() any { return &models.CollectionHealthSnapshotRun{} },
 	"RomanImperialFigure":           func() any { return &models.RomanImperialFigure{} },
