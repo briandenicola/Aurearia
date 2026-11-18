@@ -94,6 +94,7 @@ describe('AdminSchedulesSection', () => {
       'Collection Health Snapshots',
       'Coin of the Day',
       'Purchase Reminder Delivery',
+      'Image Variant Check',
     ]) {
       expect(wrapper.text()).toContain(heading)
     }

@@ -23,6 +23,8 @@ export interface AppSettings extends Partial<NumistaSettings> {
   WishlistSearchAlertsCheckStartTime?: string
   ReminderCheckEnabled?: string
   ReminderCheckStartTime?: string
+  ImageVariantCheckEnabled?: string
+  ImageVariantCheckStartTime?: string
   CoinCategories?: string
   CoinEras?: string
   DeepIdentificationOCREEnabled?: string
