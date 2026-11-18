@@ -192,3 +192,20 @@ export interface FeaturedCoin {
   featuredAt: string
   createdAt: string
 }
+
+export interface ImageVariantRun {
+  id: number
+  triggerType: 'manual' | 'scheduled'
+  /** stopped: the API shut down part way; error: the photos could not be listed. */
+  status: 'running' | 'success' | 'stopped' | 'error'
+  checked: number
+  made: number
+  failed: number
+  durationMs: number
+  startedAt: string
+  completedAt: string | null
+  /** Up to ten photos that could not be resized and why, one per line. */
+  failures?: string
+  errorMessage?: string
+  createdAt: string
+}

@@ -6755,6 +6755,101 @@ paths:
       summary: Get admin collection health summary
       tags:
       - Admin
+  /admin/image-variant-runs:
+    get:
+      description: Returns paginated history of image variant passes, newest first.
+        Admin only.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List image variant runs
+      tags:
+      - Admin
+  /admin/image-variants/run:
+    post:
+      description: Starts a pass that makes the thumb and medium variants coin photos
+        are missing, whether or not the daily check is turned on, and returns at once.
+        The run history shows its outcome. Admin only.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Run the image variant check now
+      tags:
+      - Admin
+  /admin/image-variants/status:
+    get:
+      description: Returns whether the daily image variant check is on, whether a
+        pass is running, and the time until the next one. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SchedulerStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get image variant scheduler status
+      tags:
+      - Admin
   /admin/logs:
     get:
       description: Returns recent in-memory application logs, optionally filtered

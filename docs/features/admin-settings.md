@@ -94,6 +94,7 @@ Centralized schedule configuration for background jobs:
 - **Auction Watch Bid Digest** — Digest notifications for watched auction bidding activity, comparing each lot's current high bid with the previous digest
 - **Coin of the Day** — Daily featured coin notifications and manual run
 - **Collection Health** — Daily health snapshots
+- **Image Variant Check** — Makes the thumbnail and medium copies coin photos are missing; daily time, on/off, Run Now (works even when the daily check is off) and run history with the photos that could not be resized
 - **Collection Valuation** — Scheduled valuation runs, manual trigger, and cancellation
 
 ## Valuation Runs Tab
@@ -140,6 +141,9 @@ POST   /admin/valuation-runs/trigger # Trigger valuation run
 POST   /admin/valuation-runs/:id/cancel # Cancel run
 GET    /admin/coin-of-day-runs       # View coin-of-day run history
 POST   /admin/coin-of-day/run        # Trigger coin-of-day asynchronously
+POST   /admin/image-variants/run     # Start an image variant pass (409 if one is running)
+GET    /admin/image-variants/status  # Image variant scheduler status
+GET    /admin/image-variant-runs     # View image variant run history
 ```
 
 ## Security Notes

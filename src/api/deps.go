@@ -76,6 +76,7 @@ type appDeps struct {
 	deepAnalysisHandoffSvc         *services.DeepAnalysisHandoffService
 	healthSvc                      *services.HealthService
 	healthScheduler                *services.CollectionHealthScheduler
+	imageVariantScheduler          *services.ImageVariantScheduler
 	shipmentSvc                    *services.ShipmentService
 	wishlistSearchAlertSvc         *services.WishlistSearchAlertService
 	auctionLotRepo                 *repository.AuctionLotRepository
@@ -280,6 +281,9 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	schedulerRegistry.Register(healthScheduler)
 	schedulerRegistry.Register(wishlistSearchAlertScheduler)
 	schedulerRegistry.Register(reminderScheduler)
+	// Thumb and medium variants for photos that have none (older uploads).
+	imageVariantScheduler := services.NewImageVariantScheduler(imageRepo, repository.NewImageVariantRunRepository(database.DB), cfg.UploadDir, settingsSvc, logger)
+	schedulerRegistry.Register(imageVariantScheduler)
 
 	// Create shared repositories for cross-group access
 	journalRepo := repository.NewJournalRepository(database.DB)
@@ -359,6 +363,7 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 		deepAnalysisHandoffSvc:         deepAnalysisHandoffSvc,
 		healthSvc:                      healthSvc,
 		healthScheduler:                healthScheduler,
+		imageVariantScheduler:          imageVariantScheduler,
 		shipmentSvc:                    shipmentSvc,
 		wishlistSearchAlertSvc:         wishlistSearchAlertSvc,
 		auctionLotRepo:                 auctionLotRepo,

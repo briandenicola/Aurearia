@@ -104,6 +104,20 @@ func (r *ImageRepository) ListOwnedCoinPhotos(userID uint, coinIDs []uint) ([]mo
 	return images, err
 }
 
+// ListPhotosAfter returns up to limit ordinary coin photos (never attribution
+// cards) with an id above afterID, in id order, for walking every photo in
+// batches.
+func (r *ImageRepository) ListPhotosAfter(afterID uint, limit int) ([]models.CoinImage, error) {
+	images := make([]models.CoinImage, 0, limit)
+	err := r.db.Model(&models.CoinImage{}).
+		Select("id", "coin_id", "file_path", "image_type").
+		Where("id > ? AND image_type <> ?", afterID, models.ImageTypeCard).
+		Order("id ASC").
+		Limit(limit).
+		Find(&images).Error
+	return images, err
+}
+
 // FindCoinImageMediaByPath returns image ownership and visibility metadata for a stored file path.
 func (r *ImageRepository) FindCoinImageMediaByPath(filePath string) (*CoinImageMediaAccess, error) {
 	var media CoinImageMediaAccess

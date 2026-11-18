@@ -554,6 +554,15 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 		return nil, err
 	}
 
+	// The draft's photos are now the coin's. Quick Capture saved only their
+	// originals, so make the thumb and medium variants an upload would have.
+	// Best-effort: the nightly image variant pass retries and logs failures.
+	for _, img := range draft.Images {
+		if img.ImageType != models.ImageTypeCard {
+			_, _ = ensureImageVariants(s.uploadDir, img.FilePath)
+		}
+	}
+
 	return &PromoteDraftResult{
 		DraftID:         draftID,
 		CoinID:          createdCoin.ID,
