@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   triggerCoinOfDayRun: vi.fn(),
   getCoinOfDayRuns: vi.fn(),
   getCoinOfDayRunDetail: vi.fn(),
+  triggerImageVariantRun: vi.fn(),
+  getImageVariantRuns: vi.fn(),
+  getImageVariantStatus: vi.fn(),
+  getApiErrorMessage: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => mocks)
@@ -47,6 +51,10 @@ describe('AdminSchedulesSection', () => {
     mocks.getCollectionHealthSnapshotRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getCollectionHealthSnapshotStatus.mockResolvedValue({
       data: { name: 'collection-health', enabled: true, isRunning: false, nextRunIn: 49320000000000 },
+    })
+    mocks.getImageVariantRuns.mockResolvedValue({ data: { runs: [], total: 0, page: 1, limit: 5 } })
+    mocks.getImageVariantStatus.mockResolvedValue({
+      data: { name: 'Image Variants', enabled: true, isRunning: false, nextRunIn: 3600000000000 },
     })
     mocks.getCoinOfDayRunDetail.mockResolvedValue({ data: { id: 1, status: 'queued', picked: 0, skipped: 0, errors: 0 } })
     mocks.getAuctionAlertReminderRuns.mockResolvedValue({
@@ -94,6 +102,7 @@ describe('AdminSchedulesSection', () => {
       'Collection Health Snapshots',
       'Coin of the Day',
       'Purchase Reminder Delivery',
+      'Image Variant Check',
     ]) {
       expect(wrapper.text()).toContain(heading)
     }

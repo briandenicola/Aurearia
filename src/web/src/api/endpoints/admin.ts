@@ -22,6 +22,7 @@ import type {
   CopilotGradingStatus,
   CreateSecurityIpRuleRequest,
   DeepIdentificationObservabilitySummary,
+  ImageVariantRun,
   LogEntry,
   MintLocation,
   NomismaSearchResponse,
@@ -241,6 +242,16 @@ export const getCollectionHealthSnapshotRuns = (page = 1, limit = 20) =>
 
 export const getCollectionHealthSnapshotStatus = () =>
   api.get<SchedulerStatus>('/admin/collection-health/status')
+
+// Image variant check
+export const triggerImageVariantRun = () =>
+  api.post<{ message: string }>('/admin/image-variants/run')
+
+export const getImageVariantRuns = (page = 1, limit = 5) =>
+  api.get<{ runs: ImageVariantRun[]; total: number; page: number; limit: number }>('/admin/image-variant-runs', { params: { page, limit } })
+
+export const getImageVariantStatus = () =>
+  api.get<SchedulerStatus>('/admin/image-variants/status')
 
 // Coin Copilot grading
 export const getCopilotGrades = (params: { page?: number; limit?: number; sort?: 'worst' | 'recent'; disputed?: boolean } = {}) =>

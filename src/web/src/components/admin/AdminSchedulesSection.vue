@@ -121,6 +121,12 @@
       @save="emit('save')"
     />
 
+    <AdminImageVariantSchedule
+      :settings="settings"
+      :settings-saving="settingsSaving"
+      @save="emit('save')"
+    />
+
     <AdminCopilotGradingSchedule
       :settings="settings"
       :settings-saving="settingsSaving"
@@ -139,6 +145,7 @@ import AdminWishlistSearchAlertSchedule from '@/components/admin/schedules/Admin
 import AdminCoinOfDaySchedule from '@/components/admin/schedules/AdminCoinOfDaySchedule.vue'
 import AdminCopilotGradingSchedule from '@/components/admin/schedules/AdminCopilotGradingSchedule.vue'
 import AdminPurchaseReminderSchedule from '@/components/admin/schedules/AdminPurchaseReminderSchedule.vue'
+import AdminImageVariantSchedule from '@/components/admin/schedules/AdminImageVariantSchedule.vue'
 import AdminScheduleTimezone from '@/components/admin/schedules/AdminScheduleTimezone.vue'
 import AdminCollectionHealthSchedule from '@/components/admin/schedules/AdminCollectionHealthSchedule.vue'
 import AdminValuationSchedule from '@/components/admin/schedules/AdminValuationSchedule.vue'
