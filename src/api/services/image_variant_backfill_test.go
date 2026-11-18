@@ -249,3 +249,87 @@ func TestQuickCapturePromotionMakesVariantsForTheCoinsPhotos(t *testing.T) {
 	decodedBounds(t, filepath.Join(uploadDir, thumb))
 	decodedBounds(t, filepath.Join(uploadDir, medium))
 }
+
+func newSchedulerWithSettings(t *testing.T, lister imageVariantPhotoLister, uploadDir string, settings map[string]string) (*ImageVariantScheduler, *SettingsService) {
+	t.Helper()
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(newImageVariantDB(t)))
+	for k, v := range settings {
+		if err := settingsSvc.SetSetting(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return NewImageVariantScheduler(lister, uploadDir, settingsSvc, NewLogger(100)), settingsSvc
+}
+
+func TestImageVariantCheckTurnedOffDoesNothing(t *testing.T) {
+	lister := &fakePhotoLister{photos: []models.CoinImage{{ID: 1, FilePath: "coin-1/1.png"}}}
+	scheduler, _ := newSchedulerWithSettings(t, lister, t.TempDir(), map[string]string{SettingImageVariantCheckEnabled: "false"})
+	if cycle := scheduler.RunCycle(); !cycle.Skipped || cycle.Checked != 0 || lister.calls != 0 {
+		t.Fatalf("cycle=%+v calls=%d, want the pass skipped", cycle, lister.calls)
+	}
+	if err := scheduler.RunNow(); err != nil || lister.calls != 0 {
+		t.Fatalf("RunNow ran a disabled check: err=%v calls=%d", err, lister.calls)
+	}
+	if scheduler.GetStatus().Enabled {
+		t.Fatal("status says enabled")
+	}
+}
+
+func TestImageVariantSchedulerStopsBetweenPhotosAndStopsTwiceSafely(t *testing.T) {
+	lister := &fakePhotoLister{photos: []models.CoinImage{{ID: 1, FilePath: "coin-1/1.png"}, {ID: 2, FilePath: "coin-1/2.png"}}}
+	scheduler, _ := newSchedulerWithSettings(t, lister, t.TempDir(), nil)
+	scheduler.Stop()
+	scheduler.Stop()
+	if cycle := scheduler.RunCycle(); !cycle.Stopped || cycle.Checked != 0 {
+		t.Fatalf("cycle=%+v, want it to stop before the first photo", cycle)
+	}
+	done := make(chan struct{})
+	go func() {
+		scheduler.Start()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start did not return after Stop")
+	}
+}
+
+func TestImageVariantPassesDoNotOverlap(t *testing.T) {
+	uploadDir := t.TempDir()
+	lister := &fakePhotoLister{}
+	for i := 1; i <= 3; i++ {
+		rel := fmt.Sprintf("coin-1/%d.png", i)
+		writeUpload(t, uploadDir, rel, makeLargeTestPNG(t))
+		lister.photos = append(lister.photos, models.CoinImage{ID: uint(i), CoinID: 1, FilePath: rel})
+	}
+	scheduler, _ := newSchedulerWithSettings(t, lister, uploadDir, nil)
+	results := make(chan ImageVariantCycle, 2)
+	for i := 0; i < 2; i++ {
+		go func() { results <- scheduler.RunCycle() }()
+	}
+	a, b := <-results, <-results
+	if a.Made+b.Made != 3 || a.Checked != 3 || b.Checked != 3 {
+		t.Fatalf("passes=%+v %+v, want each photo resized once across both", a, b)
+	}
+}
+
+func TestImageVariantCheckRunsAtTheConfiguredTime(t *testing.T) {
+	scheduler, settingsSvc := newSchedulerWithSettings(t, &fakePhotoLister{}, t.TempDir(), map[string]string{SettingScheduleTimezone: "UTC"})
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	if got := scheduler.nextRun(now); !got.Equal(time.Date(2026, 11, 19, 3, 17, 0, 0, time.UTC)) {
+		t.Fatalf("default next run %v, want 03:17 tomorrow", got)
+	}
+	if err := settingsSvc.SetSetting(SettingImageVariantCheckStartTime, "13:05"); err != nil {
+		t.Fatal(err)
+	}
+	if got := scheduler.nextRun(now); !got.Equal(time.Date(2026, 11, 18, 13, 5, 0, 0, time.UTC)) {
+		t.Fatalf("configured next run %v, want 13:05 today", got)
+	}
+	if err := settingsSvc.SetSetting(SettingImageVariantCheckStartTime, "25:99"); err != nil {
+		t.Fatal(err)
+	}
+	if got := scheduler.nextRun(now); !got.Equal(time.Date(2026, 11, 19, 3, 17, 0, 0, time.UTC)) {
+		t.Fatalf("invalid start time gave %v, want the 03:17 default", got)
+	}
+}

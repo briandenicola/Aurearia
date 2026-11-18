@@ -151,6 +151,10 @@ const (
 	SettingReminderCheckEnabled   = "ReminderCheckEnabled"
 	SettingReminderCheckStartTime = "ReminderCheckStartTime"
 
+	// Image variant check: thumb and medium variants for photos without them.
+	SettingImageVariantCheckEnabled   = "ImageVariantCheckEnabled"
+	SettingImageVariantCheckStartTime = "ImageVariantCheckStartTime"
+
 	// Nightly rubric grading of completed Coin Copilot runs.
 	SettingCopilotGradingEnabled    = "CopilotGradingEnabled"
 	SettingCopilotGradingStartTime  = "CopilotGradingStartTime"
@@ -295,6 +299,10 @@ var settingDefaults = map[string]string{
 	// 355-wishlist-purchase-reminders defaults (FR-015).
 	SettingReminderCheckEnabled:   "true",
 	SettingReminderCheckStartTime: "08:00",
+
+	// Image variant check defaults: on, at a quiet hour off the half hour.
+	SettingImageVariantCheckEnabled:   "true",
+	SettingImageVariantCheckStartTime: "03:17",
 
 	// Nightly Copilot grading defaults: off until an admin enables it.
 	SettingCopilotGradingEnabled:    "false",

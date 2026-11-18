@@ -24,8 +24,12 @@ const (
 // is missing: photos uploaded before variants existed, and any a failed resize
 // left without them. The MCP coin viewer and other inline transports only
 // show originals up to 512 KB, so without variants larger photos never
-// appear there. It runs shortly after startup and nightly, one photo at a
-// time; a photo that has both variants costs two file checks.
+// appear there. It runs two minutes after startup and then daily at
+// ImageVariantCheckStartTime (03:17 by default) in the schedule time zone,
+// one photo at a time; a photo that has both variants costs two file checks.
+// ImageVariantCheckEnabled turns it off, RunNow included. A pass stops between
+// photos when the scheduler stops, and passes never overlap; the next pass
+// picks up where an interrupted one left off, since made variants are kept.
 type ImageVariantScheduler struct {
 	photos      imageVariantPhotoLister
 	uploadDir   string
@@ -40,6 +44,10 @@ type ImageVariantScheduler struct {
 
 // ImageVariantCycle is what one pass over the photos did.
 type ImageVariantCycle struct {
+	// Skipped is true when the check is turned off; Stopped when the
+	// scheduler stopped part way.
+	Skipped bool
+	Stopped bool
 	Checked int
 	Made    int
 	Failed  int
@@ -93,7 +101,7 @@ func (s *ImageVariantScheduler) GetStatus() SchedulerStatus {
 	s.statusMu.RLock()
 	running := s.isRunning
 	s.statusMu.RUnlock()
-	return SchedulerStatus{Name: "Image Variants", Enabled: true, IsRunning: running, NextRunIn: s.timeUntilNextRun()}
+	return SchedulerStatus{Name: "Image Variants", Enabled: s.enabled(), IsRunning: running, NextRunIn: s.timeUntilNextRun()}
 }
 
 func (s *ImageVariantScheduler) timeUntilNextRun() time.Duration {
@@ -101,10 +109,14 @@ func (s *ImageVariantScheduler) timeUntilNextRun() time.Duration {
 	return s.nextRun(now).Sub(now)
 }
 
-// nextRun is 03:17 in the schedule time zone: a quiet hour, off the half hour
-// the other nightly jobs favour.
+func (s *ImageVariantScheduler) enabled() bool {
+	return s.settingsSvc.GetSetting(SettingImageVariantCheckEnabled) != "false"
+}
+
+// nextRun is the next daily start time in the schedule time zone.
 func (s *ImageVariantScheduler) nextRun(now time.Time) time.Time {
-	return dailySchedule{Hour: 3, Minute: 17, Location: scheduleLocation(s.settingsSvc, s.logger)}.slotAfter(now)
+	h, m := parseStartTime(s.settingsSvc.GetSetting(SettingImageVariantCheckStartTime), 3, 17)
+	return dailySchedule{Hour: h, Minute: m, Location: scheduleLocation(s.settingsSvc, s.logger)}.slotAfter(now)
 }
 
 // RunCycle checks every coin photo once and makes the variants it is missing.
@@ -112,11 +124,18 @@ func (s *ImageVariantScheduler) nextRun(now time.Time) time.Time {
 func (s *ImageVariantScheduler) RunCycle() ImageVariantCycle {
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
+	var out ImageVariantCycle
+	if !s.enabled() {
+		s.logger.Debug("scheduler", "Image variant check disabled, skipping cycle")
+		out.Skipped = true
+		return out
+	}
 	s.setRunning(true)
 	defer s.setRunning(false)
+	started := time.Now()
 
-	var out ImageVariantCycle
 	var after uint
+walk:
 	for {
 		batch, err := s.photos.ListPhotosAfter(after, imageVariantBatchSize)
 		if err != nil {
@@ -124,6 +143,12 @@ func (s *ImageVariantScheduler) RunCycle() ImageVariantCycle {
 			break
 		}
 		for _, photo := range batch {
+			select {
+			case <-s.stopCh:
+				out.Stopped = true
+				break walk
+			default:
+			}
 			after = photo.ID
 			out.Checked++
 			made, err := ensureImageVariants(s.uploadDir, photo.FilePath)
@@ -145,7 +170,12 @@ func (s *ImageVariantScheduler) RunCycle() ImageVariantCycle {
 	for _, f := range out.Failures {
 		s.logger.Warn("scheduler", "Image variants: could not resize %s", f)
 	}
-	s.logger.Info("scheduler", "Image variants: checked %d photos, made variants for %d, %d could not be resized", out.Checked, out.Made, out.Failed)
+	stopped := ""
+	if out.Stopped {
+		stopped = " (stopped part way; the next pass continues)"
+	}
+	s.logger.Info("scheduler", "Image variants: checked %d photos in %s, made variants for %d, %d could not be resized%s",
+		out.Checked, time.Since(started).Round(time.Millisecond), out.Made, out.Failed, stopped)
 	return out
 }
 
