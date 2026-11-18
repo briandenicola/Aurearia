@@ -280,6 +280,8 @@ func buildDeps(cfg *config.Config) (*appDeps, context.CancelFunc) {
 	schedulerRegistry.Register(healthScheduler)
 	schedulerRegistry.Register(wishlistSearchAlertScheduler)
 	schedulerRegistry.Register(reminderScheduler)
+	// Thumb and medium variants for photos that have none (older uploads).
+	schedulerRegistry.Register(services.NewImageVariantScheduler(imageRepo, cfg.UploadDir, settingsSvc, logger))
 
 	// Create shared repositories for cross-group access
 	journalRepo := repository.NewJournalRepository(database.DB)
